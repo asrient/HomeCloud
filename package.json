@@ -2,6 +2,7 @@
   "name": "pine",
   "version": "0.0.0",
   "private": true,
+  "author": "ASRIENT",
   "workspaces": [
     "apps/*",
     "packages/*"

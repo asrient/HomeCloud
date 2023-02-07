@@ -1,7 +1,7 @@
 {
   "name": "@pine/webapp",
   "version": "1.0.0",
-  "description": "",
+  "description": "The main web app client for the node server.",
   "main": "index.js",
   "scripts": {
     "start": "pnpm run build && vite preview",
@@ -10,7 +10,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "ASRIENT",
   "license": "ISC",
   "dependencies": {
     "react": "^18.2.0",

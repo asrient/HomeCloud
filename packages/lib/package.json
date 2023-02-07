@@ -3,6 +3,7 @@
     "type": "module",
     "version": "1.0.0",
     "private": true,
+    "author": "ASRIENT",
     "scripts": {
         "watch": "tsc --watch --preserveWatchOutput --project tsconfig.json",
         "build": "tsc --project tsconfig.json"
