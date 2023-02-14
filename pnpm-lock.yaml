@@ -6,16 +6,19 @@ importers:
     specifiers:
       prettier: latest
     devDependencies:
-      prettier: 2.8.3
+      prettier: 2.8.4
 
   apps/node:
     specifiers:
       '@pine/lib': 'workspace:'
+      '@types/node': ^18.13.0
       esbuild: ^0.15.11
       tsx: ^3.10.1
       typescript: ^4.7.4
     dependencies:
       '@pine/lib': link:../../packages/lib
+    devDependencies:
+      '@types/node': 18.13.0
       esbuild: 0.15.18
       tsx: 3.12.3
       typescript: 4.9.5
@@ -44,7 +47,7 @@ importers:
   packages/lib:
     specifiers:
       typescript: ^4.7.4
-    dependencies:
+    devDependencies:
       typescript: 4.9.5
 
 packages:
@@ -281,21 +284,21 @@ packages:
     dependencies:
       '@esbuild-kit/core-utils': 3.0.0
       get-tsconfig: 4.4.0
-    dev: false
+    dev: true
 
   /@esbuild-kit/core-utils/3.0.0:
     resolution: {integrity: sha512-TXmwH9EFS3DC2sI2YJWJBgHGhlteK0Xyu1VabwetMULfm3oYhbrsWV5yaSr2NTWZIgDGVLHbRf0inxbjXqAcmQ==}
     dependencies:
       esbuild: 0.15.18
       source-map-support: 0.5.21
-    dev: false
+    dev: true
 
   /@esbuild-kit/esm-loader/2.5.5:
     resolution: {integrity: sha512-Qwfvj/qoPbClxCRNuac1Du01r9gvNOT+pMYtJDapfB1eoGN1YlJ1BixLyL9WVENRx5RXgNLdfYdx/CuswlGhMw==}
     dependencies:
       '@esbuild-kit/core-utils': 3.0.0
       get-tsconfig: 4.4.0
-    dev: false
+    dev: true
 
   /@esbuild/android-arm/0.15.18:
     resolution: {integrity: sha512-5GT+kcs2WVGjVs7+boataCkO5Fg0y4kCjzkB5bAip7H4jfnOS3dA6KPiww9W1OEKTKeAcUVhdZGvgI65OXmUnw==}
@@ -303,7 +306,7 @@ packages:
     cpu: [arm]
     os: [android]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /@esbuild/android-arm/0.16.17:
@@ -402,7 +405,7 @@ packages:
     cpu: [loong64]
     os: [linux]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /@esbuild/linux-loong64/0.16.17:
@@ -551,6 +554,10 @@ packages:
       '@jridgewell/sourcemap-codec': 1.4.14
     dev: true
 
+  /@types/node/18.13.0:
+    resolution: {integrity: sha512-gC3TazRzGoOnoKAhUx+Q0t8S9Tzs74z7m0ipwGpSqQrleP14hKxP4/JUeEQcD3W1/aIpnWl8pHowI7WokuZpXg==}
+    dev: true
+
   /@types/prop-types/15.7.5:
     resolution: {integrity: sha512-JCB8C6SnDoQf0cNycqd/35A7MjcnK+ZTqE7judS6o7utxUCg6imJg3QK2qzHKszlTjcj2cn+NwMB2i96ubpj7w==}
     dev: true
@@ -609,7 +616,7 @@ packages:
 
   /buffer-from/1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
-    dev: false
+    dev: true
 
   /caniuse-lite/1.0.30001450:
     resolution: {integrity: sha512-qMBmvmQmFXaSxexkjjfMvD5rnDL0+m+dUMZKoDYsGG8iZN29RuYh9eRoMvKsT6uMAWlyUUGDEQGJJYjzCIO9ew==}
@@ -664,7 +671,7 @@ packages:
     cpu: [x64]
     os: [android]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-android-arm64/0.15.18:
@@ -673,7 +680,7 @@ packages:
     cpu: [arm64]
     os: [android]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-darwin-64/0.15.18:
@@ -682,7 +689,7 @@ packages:
     cpu: [x64]
     os: [darwin]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-darwin-arm64/0.15.18:
@@ -691,7 +698,7 @@ packages:
     cpu: [arm64]
     os: [darwin]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-freebsd-64/0.15.18:
@@ -700,7 +707,7 @@ packages:
     cpu: [x64]
     os: [freebsd]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-freebsd-arm64/0.15.18:
@@ -709,7 +716,7 @@ packages:
     cpu: [arm64]
     os: [freebsd]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-linux-32/0.15.18:
@@ -718,7 +725,7 @@ packages:
     cpu: [ia32]
     os: [linux]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-linux-64/0.15.18:
@@ -727,7 +734,7 @@ packages:
     cpu: [x64]
     os: [linux]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-linux-arm/0.15.18:
@@ -736,7 +743,7 @@ packages:
     cpu: [arm]
     os: [linux]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-linux-arm64/0.15.18:
@@ -745,7 +752,7 @@ packages:
     cpu: [arm64]
     os: [linux]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-linux-mips64le/0.15.18:
@@ -754,7 +761,7 @@ packages:
     cpu: [mips64el]
     os: [linux]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-linux-ppc64le/0.15.18:
@@ -763,7 +770,7 @@ packages:
     cpu: [ppc64]
     os: [linux]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-linux-riscv64/0.15.18:
@@ -772,7 +779,7 @@ packages:
     cpu: [riscv64]
     os: [linux]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-linux-s390x/0.15.18:
@@ -781,7 +788,7 @@ packages:
     cpu: [s390x]
     os: [linux]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-netbsd-64/0.15.18:
@@ -790,7 +797,7 @@ packages:
     cpu: [x64]
     os: [netbsd]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-openbsd-64/0.15.18:
@@ -799,7 +806,7 @@ packages:
     cpu: [x64]
     os: [openbsd]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-sunos-64/0.15.18:
@@ -808,7 +815,7 @@ packages:
     cpu: [x64]
     os: [sunos]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-windows-32/0.15.18:
@@ -817,7 +824,7 @@ packages:
     cpu: [ia32]
     os: [win32]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-windows-64/0.15.18:
@@ -826,7 +833,7 @@ packages:
     cpu: [x64]
     os: [win32]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild-windows-arm64/0.15.18:
@@ -835,7 +842,7 @@ packages:
     cpu: [arm64]
     os: [win32]
     requiresBuild: true
-    dev: false
+    dev: true
     optional: true
 
   /esbuild/0.15.18:
@@ -866,7 +873,7 @@ packages:
       esbuild-windows-32: 0.15.18
       esbuild-windows-64: 0.15.18
       esbuild-windows-arm64: 0.15.18
-    dev: false
+    dev: true
 
   /esbuild/0.16.17:
     resolution: {integrity: sha512-G8LEkV0XzDMNwXKgM0Jwu3nY3lSTwSGY6XbxM9cr9+s0T/qSV1q1JVPBGzm3dcjhCic9+emZDmMffkwgPeOeLg==}
@@ -913,6 +920,7 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
     requiresBuild: true
+    dev: true
     optional: true
 
   /function-bind/1.1.1:
@@ -926,7 +934,7 @@ packages:
 
   /get-tsconfig/4.4.0:
     resolution: {integrity: sha512-0Gdjo/9+FzsYhXCEFueo2aY1z1tpXrxWZzP7k8ul9qt1U5o8rYJwTJYmaeHdrVosYIVYkOy2iwCJ9FdpocJhPQ==}
-    dev: false
+    dev: true
 
   /globals/11.12.0:
     resolution: {integrity: sha512-WOBp/EEGUiIsJSp7wcv/y6MO+lV9UoncWqxuFfm8eBwzWNgyfBd6Gz+IeKQ9jCmyhoH99g15M3T+QaVHFjizVA==}
@@ -1017,8 +1025,8 @@ packages:
       source-map-js: 1.0.2
     dev: true
 
-  /prettier/2.8.3:
-    resolution: {integrity: sha512-tJ/oJ4amDihPoufT5sM0Z1SKEuKay8LfVAMlbbhnnkvt6BUserZylqo2PN+p9KeljLr0OHa2rXHU1T8reeoTrw==}
+  /prettier/2.8.4:
+    resolution: {integrity: sha512-vIS4Rlc2FNh0BySk3Wkd6xmwxB0FpOndW5fisM5H8hsZSxU2VWVB5CWIkIjWvrHjIhxk2g3bfMKM87zNTrZddw==}
     engines: {node: '>=10.13.0'}
     hasBin: true
     dev: true
@@ -1083,12 +1091,12 @@ packages:
     dependencies:
       buffer-from: 1.1.2
       source-map: 0.6.1
-    dev: false
+    dev: true
 
   /source-map/0.6.1:
     resolution: {integrity: sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==}
     engines: {node: '>=0.10.0'}
-    dev: false
+    dev: true
 
   /supports-color/5.5.0:
     resolution: {integrity: sha512-QjVjwdXIt408MIiAqCX4oUKsgU2EqAGzs2Ppkm4aQYbjm+ZEWEcW4SfFNTr4uMNZma0ey4f5lgLrkB0aX0QMow==}
@@ -1116,12 +1124,13 @@ packages:
       '@esbuild-kit/esm-loader': 2.5.5
     optionalDependencies:
       fsevents: 2.3.2
-    dev: false
+    dev: true
 
   /typescript/4.9.5:
     resolution: {integrity: sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==}
     engines: {node: '>=4.2.0'}
     hasBin: true
+    dev: true
 
   /update-browserslist-db/1.0.10_browserslist@4.21.5:
     resolution: {integrity: sha512-OztqDenkfFkbSG+tRxBeAnCVPckDBcvibKd35yDONx6OU8N7sqgwc7rCbkJ/WcYtVRZ4ba68d6byhC21GFh7sQ==}

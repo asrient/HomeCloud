@@ -10,9 +10,12 @@
         "start": "pnpm build && node dist/index.js"
     },
     "dependencies": {
-        "typescript": "^4.7.4",
-        "@pine/lib": "workspace:",
+        "@pine/lib": "workspace:"
+    },
+    "devDependencies": {
+        "@types/node": "^18.13.0",
+        "esbuild": "^0.15.11",
         "tsx": "^3.10.1",
-        "esbuild": "^0.15.11"
+        "typescript": "^4.7.4"
     }
 }
