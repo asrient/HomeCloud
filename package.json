@@ -9,14 +9,17 @@
   ],
   "scripts": {
     "build": "pnpm --filter @pine/* build",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "go-mobile-init": "go get -d golang.org/x/mobile/cmd/gomobile && gomobile init",
+    "bind": "pnpm run go-mobile-init && gomobile bind -o ./packages/ios/Libx.xcframework -target=ios ./packages/libx"
   },
   "devDependencies": {
+    "@capacitor/cli": "^5.0.5",
+    "mobile": "^0.0.1",
     "prettier": "latest"
   },
   "engines": {
     "node": ">=14.0.0"
   },
-  "dependencies": {},
   "packageManager": "pnpm@7.26.3"
 }
