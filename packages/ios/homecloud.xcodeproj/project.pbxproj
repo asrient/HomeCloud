@@ -297,6 +297,7 @@
 				DEVELOPMENT_ASSET_PATHS = "\"homecloud/Preview Content\"";
 				DEVELOPMENT_TEAM = CD6257RJFH;
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Home Cloud";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -328,6 +329,7 @@
 				DEVELOPMENT_ASSET_PATHS = "\"homecloud/Preview Content\"";
 				DEVELOPMENT_TEAM = CD6257RJFH;
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Home Cloud";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";

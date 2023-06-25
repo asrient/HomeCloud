@@ -7,6 +7,7 @@
 
 import Foundation
 import WebKit
+import Libx
 
 
 class NavManager: NSObject, WKNavigationDelegate {
@@ -21,20 +22,32 @@ class NavManager: NSObject, WKNavigationDelegate {
     }
 }
 
+struct SchemaHandlerItem {
+    var id: String
+    var handler: WKURLSchemeHandler
+}
+
 class WebViewManager {
     let webView: WKWebView
     let navManager: NavManager
     
-    init(){
+    init(schemaHandlers: [SchemaHandlerItem]){
         let configuration = WKWebViewConfiguration()
         configuration.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
-        configuration.setURLSchemeHandler(WebSchemeHandler(), forURLScheme: "web")
+        
+        schemaHandlers.forEach { schemaHandler in
+            configuration.setURLSchemeHandler(schemaHandler.handler, forURLScheme: schemaHandler.id)
+        }
         
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.translatesAutoresizingMaskIntoConstraints = false
+        webView.allowsLinkPreview = false
+        
         navManager =  NavManager()
         webView.navigationDelegate = navManager
-        
+    }
+    
+    func start() {
         guard let indexUrl = Bundle.main.url(forResource: "index",
                                                     withExtension: "html",
                                                     subdirectory: "dist") else { return }
