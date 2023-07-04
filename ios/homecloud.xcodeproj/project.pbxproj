@@ -26,7 +26,7 @@
 		9AC80C392A18124C00084BCE /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		9AE7491A2A4615CB00211B5E /* Libx.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libx.xcframework; sourceTree = "<group>"; };
 		9AE7491E2A46212F00211B5E /* SwiftUIWebView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUIWebView.swift; sourceTree = "<group>"; };
-		9AE749222A46C04600211B5E /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; name = dist; path = ../app/dist; sourceTree = "<group>"; };
+		9AE749222A46C04600211B5E /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; name = dist; path = ../ui/dist; sourceTree = "<group>"; };
 		9AE749242A46F77C00211B5E /* WebViewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewManager.swift; sourceTree = "<group>"; };
 		9AE749272A46FA2700211B5E /* SchemeHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemeHandlers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */

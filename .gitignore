@@ -16,3 +16,4 @@ dist/
 .idea/
 *.map
 .sourcemaps
+bin/*

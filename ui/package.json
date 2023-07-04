@@ -1,5 +1,5 @@
 {
-  "name": "@pine/app",
+  "name": "@pine/ui",
   "version": "1.0.0",
   "description": "The main web app client for the node server.",
   "main": "dist/index.js",

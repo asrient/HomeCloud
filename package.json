@@ -4,14 +4,14 @@
   "private": true,
   "author": "ASRIENT",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "ui"
   ],
   "scripts": {
     "build": "pnpm --filter @pine/* build",
+    "build-cli": "go build -o ./bin/homecloud ./cli",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "mobile-init": "go get -d golang.org/x/mobile/cmd/gomobile && gomobile init",
-    "bind": "gomobile bind -o ./packages/ios/Libx.xcframework -target=ios ./packages/libx"
+    "bind": "gomobile bind -o ./ios/Libx.xcframework -target=ios ./libx"
   },
   "devDependencies": {
     "@capacitor/cli": "^5.0.5",
