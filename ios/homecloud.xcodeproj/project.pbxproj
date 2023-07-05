@@ -19,6 +19,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9A6D8BD92A55D42A005747E7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9AC80C2F2A18124B00084BCE /* homecloud.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = homecloud.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9AC80C322A18124B00084BCE /* homecloudApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = homecloudApp.swift; sourceTree = "<group>"; };
 		9AC80C342A18124B00084BCE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -64,6 +65,7 @@
 		9AC80C312A18124B00084BCE /* homecloud */ = {
 			isa = PBXGroup;
 			children = (
+				9A6D8BD92A55D42A005747E7 /* Info.plist */,
 				9AE749262A46F90000211B5E /* webview */,
 				9AC80C322A18124B00084BCE /* homecloudApp.swift */,
 				9AC80C342A18124B00084BCE /* ContentView.swift */,
@@ -299,6 +301,7 @@
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = homecloud/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Home Cloud";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -331,6 +334,7 @@
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = homecloud/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Home Cloud";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

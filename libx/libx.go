@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"homecloud/app"
+	"homecloud/shared"
 )
 
 type NativeCallbacks interface {
@@ -42,16 +43,23 @@ type MobileAppConfig struct {
 	WebDir   string
 	Platform string
 	DataDir  string
+	Photos   shared.DevicePhotosManager
 }
 
 func NewMobileApp(mobileConfig *MobileAppConfig, Cb NativeCallbacks) *MobileApp {
-	config := app.NewAppConfig()
-	config.WebDir = mobileConfig.WebDir
-	config.Platform = mobileConfig.Platform
-	config.DataDir = mobileConfig.DataDir
+	ctx := app.NewAppContext()
+	ctx.WebDir = mobileConfig.WebDir
+	ctx.Platform = mobileConfig.Platform
+	ctx.DataDir = mobileConfig.DataDir
+	if mobileConfig.Photos == nil {
+		fmt.Println("Native Photos is not used")
+	} else {
+		ctx.Photos = app.NewPhotosWrapper(mobileConfig.Photos)
+		//photosManager.Trial()
+	}
 
-	fmt.Println("[NewMobileApp] WebDir", config.WebDir)
-	fmt.Println("[NewMobileApp] DataDir", config.DataDir)
-	co := app.NewHomeCloudApp(config)
+	fmt.Println("[NewMobileApp] WebDir", ctx.WebDir)
+	fmt.Println("[NewMobileApp] DataDir", ctx.DataDir)
+	co := app.NewHomeCloudApp(ctx)
 	return &MobileApp{hcApp: co, NativeCallbacks: Cb}
 }
