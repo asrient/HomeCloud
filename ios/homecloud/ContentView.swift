@@ -10,7 +10,7 @@ import Libx
 import Photos
 
 
-class AppCallbacks: NSObject, LibxNativeCallbacksProtocol {
+class AppCallbacks: NSObject, LibxNativeCallsProtocol {
     func onWebEvent(_ Event: String?, dataStr DataStr: String?) -> String {
         print("got a sendEvent on swift", Event!, DataStr!)
         return ""
@@ -18,22 +18,28 @@ class AppCallbacks: NSObject, LibxNativeCallbacksProtocol {
 }
 
 class PhotosManager: NSObject, SharedDevicePhotosManagerProtocol {
+    var cb: SharedDevicePhotosCallbacksProtocol? = nil
+    
+    func getPhotoBuffer(_ requestId: String?, photoId: String?) {
+        cb!.onPhotoData(requestId, data: Data()) // dummy, change it to use actual photokit api
+    }
+    
+    func setup(_ cb: SharedDevicePhotosCallbacksProtocol?) {
+        self.cb = cb!
+    }
+    
     func deletePhotos(_ photoIds: String?) -> String {
         return ""
     }
     
-    func requestPermission(_ cb: SharedPermissionCallbackProtocol?) -> Bool {
+    func requestPermission() -> Bool {
         if(isPermissionGranted()) {
             return true;
         }
         PHPhotoLibrary.requestAuthorization { status in
-            cb?.onPermissionChange(status == .authorized)
+            self.cb!.onPermissionChange(status == .authorized)
         }
         return false
-    }
-    
-    override init() {
-        super.init()
     }
     
     func getAlbums() -> String {
@@ -57,9 +63,9 @@ class PhotosManager: NSObject, SharedDevicePhotosManagerProtocol {
         let allPhotos = PHAsset.fetchAssets(with: allPhotosOptions)
         print("All photos count:",allPhotos.count)
         //let res: [String] = []
-        allPhotos.enumerateObjects { asset, ind, _ in
-            print("asset", asset.localIdentifier, asset.mediaType, asset.creationDate as Any)
-        }
+//        allPhotos.enumerateObjects { asset, ind, _ in
+//            print("asset", asset.localIdentifier, asset.mediaType, asset.creationDate as Any)
+//        }
         return ""
     }
     
