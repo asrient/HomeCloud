@@ -2,20 +2,24 @@ package app
 
 import (
 	"fmt"
-
-	"homecloud/app/kits/dbKit"
+	"homecloud/app/global"
 	"homecloud/app/shared"
 )
 
 type HomeCloudApp struct {
 	Started       bool
-	appCtx        *shared.AppContext
 	server        *EmbeddedServer
 	onServerStart *func()
 }
 
-func NewHomeCloudApp(appCtx *shared.AppContext) *HomeCloudApp {
-	return &HomeCloudApp{appCtx: appCtx, server: nil, Started: false}
+func NewHomeCloudApp(nativeDevicePhotos shared.DevicePhotosManager) *HomeCloudApp {
+	global.InitializeAppContext()
+	if nativeDevicePhotos == nil {
+		fmt.Println("Native Photos is not used")
+	} else {
+		global.InitializeDevicePhotos(nativeDevicePhotos)
+	}
+	return &HomeCloudApp{Started: false}
 }
 
 func (c *HomeCloudApp) Start() {
@@ -23,16 +27,17 @@ func (c *HomeCloudApp) Start() {
 		fmt.Println("[ERROR] HomeCloudApp instance already up")
 		return
 	}
-	c.server = NewEmbeddedServer()
-	c.server.OnReady(c.onServerStart)
-	c.appCtx.Db = dbKit.NewDBService(c.appCtx.DataDir + "/homecloud.db")
-	c.server.Start(c.appCtx.WebDir, c.appCtx.ServerPort)
-	// test
-	if c.appCtx.Photos != nil {
-		c.appCtx.Photos.PhotosTest()
-	}
-	c.appCtx.Db.Trial()
 	c.Started = true
+	c.server.OnReady(c.onServerStart)
+	global.InitializeDb()
+	global.MigrateDb()
+	c.server.Start()
+
+	// test
+	if global.DevicePhotos.IsInitilized {
+		global.DevicePhotos.PhotosTest()
+	}
+	global.DbTrial()
 }
 
 func (c *HomeCloudApp) OnServerStart(cb *func()) {

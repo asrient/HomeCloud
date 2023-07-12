@@ -41,10 +41,10 @@ class ResourceSchemeHandler : NSObject, WKURLSchemeHandler {
     
     private func fileUrlFromUrl(_ url: URL) -> URL? {
         //print("getting file url", url)
-        let assetName = String(url.absoluteString.split(separator: "://").last!)
+        var assetName = String(url.absoluteString.split(separator: "://").last!)
         //print("asset name", assetName)
-        if(assetName == "") {
-            return nil
+        if(assetName == "" || assetName == "/") {
+            assetName = "index.html"
         }
         return Bundle.main.url(forResource: assetName,
                                withExtension: "",

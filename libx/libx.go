@@ -7,13 +7,20 @@ package libx
 
 import (
 	"fmt"
-
 	"homecloud/app"
+	"homecloud/app/global"
 	"homecloud/app/shared"
 )
 
 type NativeCalls interface {
 	OnWebEvent(Event string, DataStr string) string
+}
+
+type MobileAppConfig struct {
+	WebDir   string
+	Platform string
+	DataDir  string
+	Photos   shared.DevicePhotosManager
 }
 
 type MobileApp struct {
@@ -39,27 +46,13 @@ func (c *MobileApp) Start() {
 	go c.hcApp.Start()
 }
 
-type MobileAppConfig struct {
-	WebDir   string
-	Platform string
-	DataDir  string
-	Photos   shared.DevicePhotosManager
-}
-
 func NewMobileApp(mobileConfig *MobileAppConfig, Nc NativeCalls) *MobileApp {
-	ctx := shared.NewAppContext()
-	ctx.WebDir = mobileConfig.WebDir
-	ctx.Platform = mobileConfig.Platform
-	ctx.DataDir = mobileConfig.DataDir
-	if mobileConfig.Photos == nil {
-		fmt.Println("Native Photos is not used")
-	} else {
-		ctx.Photos = shared.NewPhotosWrapper(mobileConfig.Photos)
-		//photosManager.Trial()
-	}
+	co := app.NewHomeCloudApp(mobileConfig.Photos)
+	global.AppCtx.WebDir = mobileConfig.WebDir
+	global.AppCtx.Platform = mobileConfig.Platform
+	global.AppCtx.DataDir = mobileConfig.DataDir
 
-	fmt.Println("[NewMobileApp] WebDir", ctx.WebDir)
-	fmt.Println("[NewMobileApp] DataDir", ctx.DataDir)
-	co := app.NewHomeCloudApp(ctx)
-	return &MobileApp{hcApp: co, NativeCalls: Nc}
+	fmt.Println("[NewMobileApp] WebDir", global.AppCtx.WebDir)
+	fmt.Println("[NewMobileApp] DataDir", global.AppCtx.DataDir)
+	return &MobileApp{NativeCalls: Nc, hcApp: co}
 }

@@ -12,7 +12,7 @@ import Libx
 
 class NavManager: NSObject, WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        if (navigationAction.request.url != nil && navigationAction.request.url!.isFileURL) {
+        if (navigationAction.request.url != nil && (navigationAction.request.url!.isFileURL || navigationAction.request.url!.scheme == "resource")) {
             decisionHandler(.allow)
             return
         }
@@ -48,10 +48,8 @@ class WebViewManager {
     }
     
     func start() {
-        guard let indexUrl = Bundle.main.url(forResource: "index",
-                                                    withExtension: "html",
-                                                    subdirectory: "dist") else { return }
-        webView.loadFileURL(indexUrl, allowingReadAccessTo: indexUrl.deletingLastPathComponent())
+        let req = URLRequest(url: URL(string: "resource:///")!)
+        webView.load(req)
     }
     
     func postEvent(type: String, data: String) {

@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"homecloud/app/global"
+	"homecloud/app/middlewares"
+	"homecloud/app/routes"
+
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 type EmbeddedServer struct {
@@ -22,36 +25,44 @@ func (c *EmbeddedServer) serverListening() error {
 	return nil
 }
 
-func (c *EmbeddedServer) Start(webDir string, port int) bool {
-	if c.server != nil {
-		fmt.Println("[ERROR] Server instance already up")
-		return false
-	}
+func (c *EmbeddedServer) serveApis() {
+	api := c.server.Group("/api")
+	//Add all routes here:
+	routes.Sd(api)
+}
 
-	fmt.Println("[Start] Starting server...")
+func (c *EmbeddedServer) serveWeb() {
+	if global.AppCtx.WebDir == "" {
+		fmt.Println("[Start] webDir not set, not exposing web interface")
+		return
+	}
+	c.server.Static("/", global.AppCtx.WebDir)
+	// https://github.com/gofiber/fiber/issues/249
+	c.server.Get("*", func(fiberCtx *fiber.Ctx) error {
+		return fiberCtx.SendFile(global.AppCtx.WebDir + "/index.html")
+	})
+}
+
+func (c *EmbeddedServer) Start() bool {
+	if c.server != nil {
+		panic("[ERROR] Server instance already up")
+	}
 	c.server = fiber.New()
 
-	c.server.Use(logger.New(logger.Config{
-		Format: "[${ip}]:${port} ${status} - ${method} ${path}\n",
-	}))
-	c.server.Get("/api", func(c *fiber.Ctx) error {
-		return c.SendString("Hello, World!")
+	middlewares.Logger(c.server)
+	middlewares.Relay(c.server)
+	middlewares.Cors(c.server)
+
+	c.server.Get("/ping", func(c *fiber.Ctx) error {
+		return c.SendString("pong")
 	})
 
-	if webDir == "" {
-		fmt.Println("[Start] webDir not set, not exposing web interface")
-	} else {
-		c.server.Static("/", webDir)
-		// https://github.com/gofiber/fiber/issues/249
-		c.server.Get("*", func(c *fiber.Ctx) error {
-			return c.SendFile(webDir + "/index.html")
-		})
-	}
+	c.serveApis()
+	c.serveWeb()
 
-	fmt.Println("[Start] Server started on port " + fmt.Sprint(port))
+	fmt.Println("Server starting on port " + fmt.Sprint(global.AppCtx.ServerPort))
 	c.server.Hooks().OnListen(c.serverListening)
-	go c.server.Listen(":" + fmt.Sprint(port))
-	fmt.Println("Total routes found: ", c.server.HandlersCount())
+	go c.server.Listen(":" + fmt.Sprint(global.AppCtx.ServerPort))
 	return true
 }
 
@@ -59,6 +70,7 @@ func (c *EmbeddedServer) Stop() bool {
 	if c.server != nil {
 		c.server.ShutdownWithTimeout(time.Duration(5 * time.Second))
 		c.server = nil
+		c.IsReady = false
 		return true
 	}
 	return false
