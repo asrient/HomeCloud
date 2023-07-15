@@ -1,14 +1,19 @@
 package routes
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"homecloud/app/global"
+
+	"github.com/twharmon/goweb"
 )
 
-func Sd(parentRouter fiber.Router) {
-	grp := CreateRouteGroup("sd", parentRouter)
+func Sd(parentRouter *global.GoWebServer) {
+	grp := global.NewRouteGroup(parentRouter, "/sd")
 
-	grp.Get("/", func(c *fiber.Ctx, respondJson JsonResponse) error {
-		return respondJson(200, fiber.Map{"greet": "hello from sd!"})
-	}, false)
+	grp.GET("/", func(c *goweb.Context) goweb.Responder {
+		return c.JSON(200, map[string]interface{}{
+			"meow": "ok",
+			"woof": 123,
+		})
+	})
 
 }

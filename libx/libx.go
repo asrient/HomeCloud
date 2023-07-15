@@ -39,10 +39,9 @@ func (c *MobileApp) onReady() {
 
 func (c *MobileApp) Start() {
 	fmt.Println("[Start] Starting app...")
-	f := func() {
+	c.hcApp.OnServerStart(func() {
 		c.onReady()
-	}
-	c.hcApp.OnServerStart(&f)
+	})
 	go c.hcApp.Start()
 }
 

@@ -9,7 +9,7 @@ import (
 type HomeCloudApp struct {
 	Started       bool
 	server        *EmbeddedServer
-	onServerStart *func()
+	onServerStart func()
 }
 
 func NewHomeCloudApp(nativeDevicePhotos shared.DevicePhotosManager) *HomeCloudApp {
@@ -19,7 +19,7 @@ func NewHomeCloudApp(nativeDevicePhotos shared.DevicePhotosManager) *HomeCloudAp
 	} else {
 		global.InitializeDevicePhotos(nativeDevicePhotos)
 	}
-	return &HomeCloudApp{Started: false}
+	return &HomeCloudApp{Started: false, server: NewEmbeddedServer()}
 }
 
 func (c *HomeCloudApp) Start() {
@@ -28,7 +28,9 @@ func (c *HomeCloudApp) Start() {
 		return
 	}
 	c.Started = true
-	c.server.OnReady(c.onServerStart)
+	if c.onServerStart != nil {
+		c.server.OnReady(c.onServerStart)
+	}
 	global.InitializeDb()
 	global.MigrateDb()
 	c.server.Start()
@@ -40,6 +42,6 @@ func (c *HomeCloudApp) Start() {
 	global.DbTrial()
 }
 
-func (c *HomeCloudApp) OnServerStart(cb *func()) {
+func (c *HomeCloudApp) OnServerStart(cb func()) {
 	c.onServerStart = cb
 }
