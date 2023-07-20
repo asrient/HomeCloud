@@ -10,6 +10,7 @@
     "build": "pnpm --filter @pine/* build",
     "build-cli": "go build -o ./bin/homecloud ./cli",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "gomobile-install": "go install golang.org/x/mobile/cmd/gomobile@latest",
     "mobile-init": "go get -d golang.org/x/mobile/cmd/gomobile && gomobile init",
     "bind": "gomobile bind -o ./ios/Libx.xcframework -target=ios ./libx ./app/shared"
   },

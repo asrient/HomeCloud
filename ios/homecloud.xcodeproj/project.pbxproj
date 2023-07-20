@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9A6E5E072A68F72E00042EB2 /* Libx.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A6E5E062A68F72E00042EB2 /* Libx.xcframework */; };
 		9AC80C332A18124B00084BCE /* homecloudApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC80C322A18124B00084BCE /* homecloudApp.swift */; };
 		9AC80C352A18124B00084BCE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC80C342A18124B00084BCE /* ContentView.swift */; };
 		9AC80C372A18124C00084BCE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9AC80C362A18124C00084BCE /* Assets.xcassets */; };
 		9AC80C3A2A18124C00084BCE /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9AC80C392A18124C00084BCE /* Preview Assets.xcassets */; };
-		9AE7491B2A4615CB00211B5E /* Libx.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9AE7491A2A4615CB00211B5E /* Libx.xcframework */; };
 		9AE7491F2A46212F00211B5E /* SwiftUIWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE7491E2A46212F00211B5E /* SwiftUIWebView.swift */; };
 		9AE749232A46C04600211B5E /* dist in Resources */ = {isa = PBXBuildFile; fileRef = 9AE749222A46C04600211B5E /* dist */; };
 		9AE749252A46F77C00211B5E /* WebViewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE749242A46F77C00211B5E /* WebViewManager.swift */; };
@@ -20,12 +20,12 @@
 
 /* Begin PBXFileReference section */
 		9A6D8BD92A55D42A005747E7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		9A6E5E062A68F72E00042EB2 /* Libx.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libx.xcframework; sourceTree = "<group>"; };
 		9AC80C2F2A18124B00084BCE /* homecloud.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = homecloud.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9AC80C322A18124B00084BCE /* homecloudApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = homecloudApp.swift; sourceTree = "<group>"; };
 		9AC80C342A18124B00084BCE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		9AC80C362A18124C00084BCE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		9AC80C392A18124C00084BCE /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		9AE7491A2A4615CB00211B5E /* Libx.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libx.xcframework; sourceTree = "<group>"; };
 		9AE7491E2A46212F00211B5E /* SwiftUIWebView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUIWebView.swift; sourceTree = "<group>"; };
 		9AE749222A46C04600211B5E /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; name = dist; path = ../ui/dist; sourceTree = "<group>"; };
 		9AE749242A46F77C00211B5E /* WebViewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewManager.swift; sourceTree = "<group>"; };
@@ -37,7 +37,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9AE7491B2A4615CB00211B5E /* Libx.xcframework in Frameworks */,
+				9A6E5E072A68F72E00042EB2 /* Libx.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -47,8 +47,8 @@
 		9AC80C262A18124B00084BCE = {
 			isa = PBXGroup;
 			children = (
+				9A6E5E062A68F72E00042EB2 /* Libx.xcframework */,
 				9AE749222A46C04600211B5E /* dist */,
-				9AE7491A2A4615CB00211B5E /* Libx.xcframework */,
 				9AC80C312A18124B00084BCE /* homecloud */,
 				9AC80C302A18124B00084BCE /* Products */,
 			);
