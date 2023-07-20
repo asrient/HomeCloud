@@ -15,7 +15,7 @@ import (
 
 type EmbeddedServer struct {
 	IsReady   bool
-	server    *global.GoWebServer
+	server    *global.RouteGroup
 	onReadyCb func()
 }
 
@@ -32,7 +32,7 @@ func (c *EmbeddedServer) serverListening() error {
 }
 
 func (c *EmbeddedServer) serveApis() {
-	api := global.NewRouteGroup(c.server, "/api")
+	api := global.NewSubRouteGroup(c.server, "/api")
 	//Add all routes here:
 	routes.Sd(api)
 }
@@ -51,7 +51,7 @@ func (c *EmbeddedServer) Start() bool {
 	if c.server != nil {
 		panic("[ERROR] Server instance already up")
 	}
-	c.server = global.NewGoWebServer()
+	c.server = global.NewRouteGroup()
 
 	c.server.GetEngine().RegisterLogger(newLogger(goweb.LogLevelInfo))
 	c.server.AddMiddleware(middlewares.Cors)
