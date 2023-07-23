@@ -7,11 +7,32 @@ import (
 	"net/http"
 
 	"homecloud/app/global"
+	"homecloud/app/helpers"
 	"homecloud/app/middlewares"
 	"homecloud/app/routes"
 
 	"github.com/twharmon/goweb"
 )
+
+type CustomHandler struct {
+	engine *goweb.Engine
+}
+
+func (c *CustomHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("CustomHandler", r.URL.Path)
+	if r.URL.Path == "/ws" {
+		routes.Ws(w, r)
+		return
+	}
+	if helpers.Proxy(w, r) {
+		return
+	}
+	c.engine.ServeHTTP(w, r)
+}
+
+func NewCustomHandler(engine *goweb.Engine) *CustomHandler {
+	return &CustomHandler{engine: engine}
+}
 
 type EmbeddedServer struct {
 	IsReady   bool
@@ -66,7 +87,7 @@ func (c *EmbeddedServer) Start() bool {
 	fmt.Println("Server starting on port " + fmt.Sprint(global.AppCtx.ServerPort))
 	httpServer := &http.Server{
 		Addr:    ":http",
-		Handler: c.server.GetEngine(),
+		Handler: NewCustomHandler(c.server.GetEngine()),
 	}
 	l, err := net.Listen("tcp", ":"+fmt.Sprint(global.AppCtx.ServerPort))
 	if err != nil {

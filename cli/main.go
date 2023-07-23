@@ -5,6 +5,7 @@ import (
 	"homecloud/app"
 	"homecloud/app/global"
 	"os"
+	"strconv"
 )
 
 // Path: cli/main.go
@@ -16,6 +17,13 @@ func main() {
 	co := app.NewHomeCloudApp(nil)
 	global.AppCtx.DataDir = "./data"
 	global.AppCtx.WebDir = "./ui/dist"
+	if len(os.Args) > 1 {
+		i, err := strconv.Atoi(os.Args[1])
+		if err != nil {
+			panic(err)
+		}
+		global.AppCtx.ServerPort = i
+	}
 	co.OnServerStart(func() {
 		fmt.Println("Server is ready", v)
 	})

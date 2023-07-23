@@ -17,3 +17,5 @@ dist/
 *.map
 .sourcemaps
 bin/*
+*.db
+data/*
