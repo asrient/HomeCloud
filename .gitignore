@@ -17,3 +17,4 @@ dist/
 *.map
 .sourcemaps
 bin/*
+out/

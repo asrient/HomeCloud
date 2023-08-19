@@ -1,22 +1,52 @@
 {
-  "name": "pine",
-  "version": "0.0.0",
+  "name": "homecloud",
+  "productName": "Homecloud Desktop",
+  "main": "bin/desktop/index.js",
+  "version": "1.0.0",
   "private": true,
-  "author": "ASRIENT",
-  "workspaces": [
-    "ui"
-  ],
-  "scripts": {
-    "build": "pnpm --filter @pine/* build",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+  "description": "My Electron application description",
+  "author": {
+    "name": "asrient",
+    "email": "44570278+asrient@users.noreply.github.com"
   },
+  "scripts": {
+    "dev": "vite",
+    "build:ui": "vite build --config vite.ui.config.ts",
+    "build:node": "vite build --config vite.node.config.ts",
+    "build:desktop": "LIB_NAME=desktopMain vite build --config vite.desktop.config.ts && LIB_NAME=desktopPreload vite build --config vite.desktop.config.ts",
+    "build": "tsc && npm run build:ui && npm run build:desktop && npm run build:node",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "start:desktop": "npm run build && electron-forge start",
+    "package:desktop": "npm run build && electron-forge package",
+    "make:desktop": "npm run build && electron-forge make",
+    "publish:desktop": "npm run build && electron-forge publish"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "electron-is-dev": "^2.0.0",
+    "electron-squirrel-startup": "^1.0.0"
+  },
+  "desktopDependencies": [
+    "electron-squirrel-startup",
+    "electron-is-dev"
+  ],
   "devDependencies": {
-    "@capacitor/cli": "^5.0.5",
-    "mobile": "^0.0.1",
-    "prettier": "latest"
+    "prettier": "latest",
+    "@types/react": "^18.0.27",
+    "@types/react-dom": "^18.0.10",
+    "@vitejs/plugin-react": "^3.1.0",
+    "typescript": "^4.7.4",
+    "vite": "^4.1.1",
+    "@electron-forge/cli": "^6.4.0",
+    "@electron-forge/maker-deb": "^6.4.0",
+    "@electron-forge/maker-rpm": "^6.4.0",
+    "@electron-forge/maker-squirrel": "^6.4.0",
+    "@electron-forge/maker-zip": "^6.4.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^6.4.0",
+    "electron": "26.0.0"
   },
   "engines": {
-    "node": ">=14.0.0"
-  },
-  "packageManager": "pnpm@7.26.3"
+    "node": ">=16.0.0"
+  }
 }
