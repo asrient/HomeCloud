@@ -1,6 +1,6 @@
-const { app, BrowserWindow, protocol, net } = require('electron');
-const path = require('path');
-const isDev = require("electron-is-dev");
+import { app, BrowserWindow, protocol, net } from 'electron';
+import path from 'path';
+import isDev from "electron-is-dev";
 
 console.log('isDev', isDev);
 

@@ -11,9 +11,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build:node": "vite build --config vite.node.config.ts",
-    "build:desktop": "LIB_NAME=desktopMain vite build --config vite.desktop.config.ts && LIB_NAME=desktopPreload vite build --config vite.desktop.config.ts",
-    "build": "tsc && npm run build:desktop && npm run build:node",
+    "build": "webpack --config ./webpack.config.js",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "start:desktop": "npm run build && electron-forge start",
     "package:desktop": "npm run build && electron-forge package",
@@ -29,16 +27,19 @@
     "electron-is-dev"
   ],
   "devDependencies": {
-    "prettier": "latest",
-    "typescript": "^4.7.4",
-    "vite": "^4.1.1",
     "@electron-forge/cli": "^6.4.0",
     "@electron-forge/maker-deb": "^6.4.0",
     "@electron-forge/maker-rpm": "^6.4.0",
     "@electron-forge/maker-squirrel": "^6.4.0",
     "@electron-forge/maker-zip": "^6.4.0",
     "@electron-forge/plugin-auto-unpack-natives": "^6.4.0",
-    "electron": "26.0.0"
+    "electron": "26.0.0",
+    "prettier": "latest",
+    "ts-loader": "^9.4.4",
+    "typescript": "^4.7.4",
+    "vite": "^4.1.1",
+    "webpack": "^5.88.2",
+    "webpack-cli": "^5.1.4"
   },
   "engines": {
     "node": ">=16.0.0"
