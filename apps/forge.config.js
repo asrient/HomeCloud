@@ -32,6 +32,8 @@ module.exports = {
       "^/bin/node$",
       "^/src$",
       "^/[.]editorconfig$",
+      "^/[.]gitignore$",
+      "^/web-public$",
       "^/tsconfig[.]json$",
       "[.](cmd|user|DotSettings|njsproj|sln)$"
     ]
@@ -56,20 +58,20 @@ module.exports = {
     },
   ],
   hooks: {
-    // generateAssets: async () => {
-    //   return new Promise((resolve, reject) => {
-    //   console.log('On hook packageAfterExtract');
-    //   fs.cp(path.resolve(__dirname, 'dist'), path.resolve(__dirname, 'web'), {recursive: true}, (err) => {
-    //     if (err) {
-    //       console.error(err);
-    //       reject(err);
-    //     } else {
-    //       resolve();
-    //       console.log('Files copied!');
-    //     }
-    //   });
-    // });
-    // },
+    generateAssets: async () => {
+      return new Promise((resolve, reject) => {
+      console.log('On hook packageAfterExtract');
+      fs.cp(path.resolve(__dirname, '../web/out'), path.resolve(__dirname, 'bin/web'), {recursive: true}, (err) => {
+        if (err) {
+          console.error(err);
+          reject(err);
+        } else {
+          resolve();
+          console.log('Files copied!');
+        }
+      });
+    });
+    },
     packageAfterPrune: async (forgeConfig, buildPath) => {
       console.log('packageAfterCopy hook ---> build path:', buildPath);
       return new Promise((resolve, reject) => {
