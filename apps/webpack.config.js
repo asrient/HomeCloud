@@ -1,3 +1,5 @@
+const CopyPlugin = require("copy-webpack-plugin");
+
 const baseconfig = {
     mode: 'development',
     module: {
@@ -26,6 +28,13 @@ module.exports = [
             path: __dirname + '/bin/desktop',
             filename: 'index.js'
         },
+        plugins: [
+            new CopyPlugin({
+              patterns: [
+                { from: "./src/desktop/public", to: __dirname + '/bin/desktop/public' },
+              ],
+            }),
+          ],
     },
     {
         ...baseconfig,

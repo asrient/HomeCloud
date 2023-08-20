@@ -1,8 +1,9 @@
-import { app, BrowserWindow, protocol, net } from 'electron';
+import { app, BrowserWindow, protocol, net, BrowserView } from 'electron';
 import path from 'path';
 import isDev from "electron-is-dev";
 
 console.log('isDev', isDev);
+const headerHeight = 90;
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -13,20 +14,46 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'bundle', privileges: { bypassCSP: true, standard: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
 ])
 
+const createTab = (parent: BrowserWindow) => {
+  const parentBounds = parent.getBounds();
+  console.log('parentBounds', parentBounds);
+  const view = new BrowserView({
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+  parent.setBrowserView(view);
+  
+  view.setBounds({ x: 0, y: headerHeight, width: parentBounds.width, height: (parentBounds.height - headerHeight) });
+  view.webContents.loadURL('bundle://index.html');
+  view.webContents.openDevTools();
+
+  // https://github.com/electron/electron/issues/22174
+  let lastHandle: NodeJS.Timeout | null = null;
+  const handleWindowResize = (e: any) => {
+    e.preventDefault();
+    // the setTimeout is necessary because it runs after the event listener is handled
+    lastHandle = setTimeout(() => {
+      if (lastHandle != null) clearTimeout(lastHandle);
+      const updatedParentBounds = parent.getBounds();
+      view.setBounds({ x: 0, y: headerHeight, width: updatedParentBounds.width, height: (updatedParentBounds.height - headerHeight) });
+    });
+  };
+
+  parent.on("resize", handleWindowResize);
+};
+
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'public/header-preload.js'),
     },
   });
-
-  // and load the index.html of the app.
-  mainWindow.loadURL('bundle://index.html');
-
-  // Open the DevTools.
+  mainWindow.webContents.loadFile(path.join(__dirname, 'public/app-header.html'));
+  createTab(mainWindow);
   mainWindow.webContents.openDevTools();
 };
 
