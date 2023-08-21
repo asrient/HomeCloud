@@ -1,10 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('versions', {
-    node: () => process.versions.node,
-    chrome: () => process.versions.chrome,
-    electron: () => process.versions.electron
-    // we can also expose variables, not just functions
+contextBridge.exposeInMainWorld('info', {
+    nodeVersion: process.versions.node,
+    chromeVersion: process.versions.chrome,
+    electronVersion: process.versions.electron,
+    platform: process.platform,
 });
 
 const tabEvent = (eventName, data) => ipcRenderer.invoke('tab-header-event', eventName, data);
@@ -19,5 +19,6 @@ contextBridge.exposeInMainWorld('shell', {
         onDeleteTab: (callback) => ipcRenderer.on('delete-tab', callback),
         onSwitchTab: (callback) => ipcRenderer.on('switch-tab', callback),
         onNewTab: (callback) => ipcRenderer.on('new-tab', callback),
-    }
+    },
+    onFullscreen: (callback) => ipcRenderer.on('fullscreen', callback),
 })

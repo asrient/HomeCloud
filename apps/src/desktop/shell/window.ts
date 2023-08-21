@@ -8,16 +8,15 @@ export class AppWindow {
     win: BrowserWindow;
     id: number;
 
-    constructor(preloadScript: string | null = null) {
+    constructor(preloadScript: string | null = null, opts: any = {}) {
         // Create the browser window.
-        const opts: any = {};
         if (!!preloadScript) {
             opts['webPreferences'] = {
                 preload: preloadScript,
             };
         }
         this.win = new BrowserWindow({
-            width: 800,
+            width: 900,
             height: 600,
             ...opts,
         });
@@ -139,11 +138,19 @@ export class TabbedAppWindow extends AppWindow {
     lastHandle: NodeJS.Timeout | null = null;
 
     constructor() {
-        super(path.join(__dirname, 'public/header-preload.js'));
+        super(path.join(__dirname, 'public/header-preload.js'),
+        {
+            titleBarStyle: 'hidden',
+            titleBarOverlay: {
+                height: headerHeight
+              }
+        });
         this.loadFile(path.join(__dirname, 'public/app-header.html'));
         this.createNewTab();
         // https://github.com/electron/electron/issues/22174
         this.win.on("resize", this.handleWindowResize);
+        this.win.on("enter-full-screen", this.handleFullscreen);
+        this.win.on("leave-full-screen", this.handleFullscreen);
         this.win.webContents.on('destroyed', () => {
             // release all tabs and resources
             console.log('window destroyed, releasing all tabs..');
@@ -152,6 +159,11 @@ export class TabbedAppWindow extends AppWindow {
                 this.deleteTab(tabId);
             });
         });
+    }
+
+    handleFullscreen = () => {
+        if(this.isDestroyed()) return;
+        this.win.webContents.send('fullscreen', this.win.isFullScreen());
     }
 
     handleWindowResize = (e: any) => {

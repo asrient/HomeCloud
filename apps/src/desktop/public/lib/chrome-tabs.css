@@ -8,6 +8,8 @@
   background: transparent;
   border-radius: 5px 5px 0 0;
   overflow: hidden;
+  width: 100%;
+  max-width: 130px;
 }
 .chrome-tabs * {
   box-sizing: inherit;
@@ -16,7 +18,8 @@
 .chrome-tabs .chrome-tabs-content {
   position: relative;
   height: 100%;
-  width: calc(100vw - 3rem);
+  width: calc(100% - 3rem);
+  -webkit-app-region: no-drag;
 }
 .newtab-area {
   position: absolute;
@@ -39,9 +42,10 @@
   border-radius: 0.4rem;
   background: transparent;
   transition: background 0.2s ease;
+  color: rgba(79, 79, 79, 0.785);
 }
 .newtab-area button:hover {
-  background: rgba(132, 132, 132, 0.142);
+  background: rgba(132, 132, 132, 0.2);
 }
 .chrome-tabs .chrome-tab {
   position: absolute;
@@ -52,6 +56,7 @@
   margin: 0;
   z-index: 1;
   pointer-events: none;
+  -webkit-app-region: no-drag;
 }
 .chrome-tabs .chrome-tab,
 .chrome-tabs .chrome-tab * {

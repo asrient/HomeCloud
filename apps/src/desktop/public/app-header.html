@@ -8,8 +8,8 @@
 </head>
 
 <body>
-    <div style="height: 100vh; width: 100vw; overflow: hidden; background-color: rgb(180, 180, 180);">
-        <div style="height: 46px; width: 100%;">
+    <div style="position: relative; height: 100vh; width: 100vw; overflow: hidden; background-color: rgb(180, 180, 180);">
+        <div id="header-bar">
             <div class="chrome-tabs" style="--tab-content-margin: 0px">
                 <div class="chrome-tabs-content">
                 </div>
@@ -20,9 +20,24 @@
         </div>
         <style>
             body {
+                
                 margin: 0;
                 padding: 0;
                 font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            }
+            button {
+            -webkit-app-region: no-drag;
+            }
+            #header-bar {
+                -webkit-app-region: drag;
+                height: 46px;
+                position: absolute;
+                left: env(titlebar-area-x, 0);
+                width: env(titlebar-area-width, 100%);
+            }
+            .fullscreen.darwin #header-bar {
+                left: 0;
+                width: 100%;
             }
         </style>
         <script src="./lib/draggabilly.min.js"></script>
@@ -32,6 +47,8 @@
             var el = document.querySelector('.chrome-tabs');
             const tabs = {};
             let activeTabId = -1;
+            let tabsMaxWidth = 45;
+            const tabWidth = 117;
             var chromeTabs = new ChromeTabs();
             chromeTabs.init(el);
 
@@ -40,6 +57,8 @@
                     console.warn('addTab: Tab already exists', config.id, config);
                     return;
                 }
+                tabsMaxWidth += tabWidth;
+                el.style.maxWidth = tabsMaxWidth + 'px';
                 const elem = chromeTabs.addTab({
                     title: config.title,
                     favicon: config.icon,
@@ -52,14 +71,32 @@
             }
 
             function init() {
+                const os = window.info.platform;
+                switch(os) {
+                    case 'win32':
+                        document.body.classList.add('win32');
+                        break;
+                    case 'darwin':
+                        document.body.classList.add('darwin');
+                        break;
+                    case 'linux':
+                        document.body.classList.add('linux');
+                        break;
+                    default:
+                        console.warn('Unknown platform', os);
+                }
+                window.shell.onFullscreen((e, fullscreen) => {
+                    if(fullscreen) {
+                        document.body.classList.add('fullscreen');
+                    } else {
+                        document.body.classList.remove('fullscreen');
+                    }
+                });
                 window.shell.tabs.getTabs().then((tabs) => {
-                    console.log('init tabs: got: ', tabs);
                     tabs.forEach((tab) => {
                         addTab(tab);
                     });
-                    console.log('current tabs state:', tabs);
-                    console.log('current active tab:', activeTabId);
-                });
+                });  
             }
             init();
 
@@ -80,6 +117,9 @@
                 window.shell.tabs.switchTab(tabId);
             })
             el.addEventListener('tabRemove', ({ detail }) => {
+                tabsMaxWidth -= tabWidth;
+                el.style.maxWidth = tabsMaxWidth + 'px';
+                chromeTabs.layoutTabs();
                 const tabId = getTabIdFromElement(detail.tabEl);
                 console.log('chrometabs: Tab removed', detail.tabEl, tabId);
                 if(!tabs[tabId]) return;
