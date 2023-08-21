@@ -2,7 +2,7 @@ import { app, BrowserWindow, protocol, net, BrowserView } from 'electron';
 import path from 'path';
 import isDev from "electron-is-dev";
 
-const headerHeight = 46;
+const headerHeight = 42;
 
 export class AppWindow {
     win: BrowserWindow;
