@@ -1,18 +1,128 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Home Cloud</title>
+    <link href="./lib/chrome-tabs.css" rel="stylesheet">
 </head>
+
 <body>
-    <div style="height: 100vh; width: 100vw; overflow: hidden; background-color: rgb(190, 141, 236);">
-        <h1>Tab Header</h1>
-    </div>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-        }
-    </style>
+    <div style="height: 100vh; width: 100vw; overflow: hidden; background-color: rgb(180, 180, 180);">
+        <div style="height: 90px; width: 100%;">
+            <div class="chrome-tabs" style="--tab-content-margin: 0px">
+                <div class="chrome-tabs-content">
+                </div>
+                <div class="newtab-area">
+                    <button onclick="onNewTabClick()">+</button>
+                </div>
+            </div>
+        </div>
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            }
+        </style>
+        <script src="./lib/draggabilly.min.js"></script>
+        <script src="./lib/chrome-tabs.js"></script>
+        <script>
+            'use strict'
+            var el = document.querySelector('.chrome-tabs');
+            const tabs = {};
+            let activeTabId = -1;
+            var chromeTabs = new ChromeTabs();
+            chromeTabs.init(el);
+
+            function addTab(config) {
+                if(tabs[config.id]) {
+                    console.warn('addTab: Tab already exists', config.id, config);
+                    return;
+                }
+                const elem = chromeTabs.addTab({
+                    title: config.title,
+                    favicon: config.icon,
+                    id: config.id
+                });
+                tabs[config.id] = {
+                    elem: elem,
+                    config: config
+                };
+            }
+
+            function init() {
+                window.shell.tabs.getTabs().then((tabs) => {
+                    console.log('init tabs: got: ', tabs);
+                    tabs.forEach((tab) => {
+                        addTab(tab);
+                    });
+                    console.log('current tabs state:', tabs);
+                    console.log('current active tab:', activeTabId);
+                });
+            }
+            init();
+
+            function onNewTabClick() {
+                console.log('New tab clicked');
+                window.shell.tabs.newTab();
+            }
+
+            function getTabIdFromElement(tabEl) {
+                return parseInt(tabEl.getAttribute('data-tab-id'));
+            }
+
+            el.addEventListener('activeTabChange', ({ detail }) => {
+                const tabId = getTabIdFromElement(detail.tabEl);
+                console.log('chrometabs: Active tab changed', detail.tabEl, tabId);
+                if(activeTabId === tabId) return;
+                activeTabId = tabId;
+                window.shell.tabs.switchTab(tabId);
+            })
+            el.addEventListener('tabRemove', ({ detail }) => {
+                const tabId = getTabIdFromElement(detail.tabEl);
+                console.log('chrometabs: Tab removed', detail.tabEl, tabId);
+                if(!tabs[tabId]) return;
+                delete tabs[tabId];
+                window.shell.tabs.deleteTab(tabId);
+            })
+
+            window.shell.tabs.onNewTab((e, config) => {
+                if(!!tabs[config.id]) {
+                    console.warn('onNewTab: Tab already exists', config.id, config);
+                    return;
+                }
+                console.log('onNewTab: Adding tab', config);
+                addTab(config);
+                activeTabId = config.id;
+            });
+
+            window.shell.tabs.onUpdateConfig((e, tabId, config) => {
+                if(!tabs[tabId]) return;
+                console.log('onUpdateConfig: Updating tab', config);
+                chromeTabs.updateTab(tabs[tabId].elem, {
+                    title: config.title,
+                    favicon: config.icon
+                });
+            });
+
+            window.shell.tabs.onSwitchTab((e, tabId) => {
+                if(tabId === activeTabId) return;
+                if(!tabs[tabId]) {
+                    console.warn('switch tab: Tab does not exist', tabId);
+                    return;
+                }
+                console.log('switch tab: Switching to tab, from:',activeTabId ,'to:', tabId);
+                activeTabId = tabId;
+                chromeTabs.setCurrentTab(tabs[tabId].elem);
+            });
+
+            window.shell.tabs.onDeleteTab((e, tabId) => {
+                if(!tabs[tabId]) return;
+                console.log('onDeleteTab: Deleting tab', tabId);
+                delete tabs[tabId];
+                chromeTabs.removeTab(tabs[tabId].elem);
+            });
+        </script>
+
 </html>
