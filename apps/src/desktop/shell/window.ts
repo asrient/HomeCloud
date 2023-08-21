@@ -1,7 +1,6 @@
 import { app, BrowserWindow, protocol, net, BrowserView } from 'electron';
 import path from 'path';
 import isDev from "electron-is-dev";
-import { randomBytes } from 'crypto';
 
 const headerHeight = 46;
 
@@ -37,6 +36,10 @@ export class AppWindow {
 
     loadURL(url: string) {
         this.win.webContents.loadURL(url);
+    }
+
+    isDestroyed() {
+        return this.win.webContents.isDestroyed();
     }
 }
 
@@ -82,7 +85,6 @@ export class WindowTab {
     }
 
     passEvent(eventName: string, data: any) {
-        console.log('passEvent', eventName, data);
         if (!!this.cb) {
             this.cb(this.id, eventName, data);
         }
@@ -142,6 +144,14 @@ export class TabbedAppWindow extends AppWindow {
         this.createNewTab();
         // https://github.com/electron/electron/issues/22174
         this.win.on("resize", this.handleWindowResize);
+        this.win.webContents.on('destroyed', () => {
+            // release all tabs and resources
+            console.log('window destroyed, releasing all tabs..');
+            this.win.webContents.removeAllListeners();
+            Object.keys(this.tabs).map(Number).forEach((tabId) => {
+                this.deleteTab(tabId);
+            });
+        });
     }
 
     handleWindowResize = (e: any) => {
@@ -156,7 +166,7 @@ export class TabbedAppWindow extends AppWindow {
     };
 
     createNewTab(url: string | null = null) {
-        if(this.win.isDestroyed()) return;
+        if(this.isDestroyed()) return;
         const tab = new WindowTab(this.win, url, this.handleTabHtmlEvent);
         this.tabs[tab.id] = tab;
         console.log('new tab created:', tab.id);
@@ -199,19 +209,20 @@ export class TabbedAppWindow extends AppWindow {
         }
         this.tabs[tabId].setAsActive();
         this.activeTabId = tabId;
-        if(!fromHeader && !this.win.isDestroyed()) this.win.webContents.send('switch-tab', tabId);
+        if(!fromHeader && !this.isDestroyed()) this.win.webContents.send('switch-tab', tabId);
     }
     deleteTab(tabId: number, fromHeader: boolean = false) {
         if(!this.tabs[tabId]) return;
-        if (!this.tabs[tabId].view.webContents.isDestroyed()) {
+        if (!this.tabs[tabId].isDestroyed()) {
             this.tabs[tabId].view.webContents.close();
         }
         delete this.tabs[tabId];
+        if(this.isDestroyed()) return;
         if (this.activeTabId === tabId) {
             if (Object.keys(this.tabs).length == 0) {
                 this.createNewTab();
             }
         }
-        if(!fromHeader && !this.win.isDestroyed()) this.win.webContents.send('delete-tab', tabId);
+        if(!fromHeader) this.win.webContents.send('delete-tab', tabId);
     }
 }
