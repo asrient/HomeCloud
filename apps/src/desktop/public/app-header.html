@@ -8,19 +8,20 @@
 </head>
 
 <body>
-    <div style="position: relative; height: 100vh; width: 100vw; overflow: hidden; background-color: rgb(180, 180, 180);">
-        <div id="header-bar">
-            <div class="chrome-tabs" style="--tab-content-margin: 0px">
-                <div class="chrome-tabs-content">
+    <div style="height: 100vh; width: 100vw; overflow: hidden; background-color: rgb(180, 180, 180);">
+        <div id="header-container">
+            <div id="header-bar">
+                <div class="chrome-tabs" style="--tab-content-margin: 0px">
+                    <div class="chrome-tabs-content">
+                    </div>
+                    <div class="newtab-area">
+                        <button onclick="onNewTabClick()">+</button>
+                    </div>
                 </div>
-                <div class="newtab-area">
-                    <button onclick="onNewTabClick()">+</button>
-                </div>
-            </div>
+            </div> 
         </div>
         <style>
-            body {
-                
+            body {  
                 margin: 0;
                 padding: 0;
                 font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -28,9 +29,14 @@
             button {
             -webkit-app-region: no-drag;
             }
-            #header-bar {
-                -webkit-app-region: drag;
+            #header-container {
+                position: relative;
                 height: 42px;
+                width: 100%;
+                -webkit-app-region: drag;
+            }
+            #header-bar {
+                height: 100%;
                 position: absolute;
                 left: env(titlebar-area-x, 0);
                 width: env(titlebar-area-width, 100%);
