@@ -41,10 +41,13 @@
                 left: env(titlebar-area-x, 0);
                 width: env(titlebar-area-width, 100%);
             }
+            /* 
+            Originally used to reclaim the empty traffic light area when in fullscreen for macos
+            even if we set this, it still keeps the original traffic light area draggable, making the buttons in the area unusable.
             .fullscreen.darwin #header-bar {
                 left: 0;
                 width: 100%;
-            }
+            } */
         </style>
         <script src="./lib/draggabilly.min.js"></script>
         <script src="./lib/chrome-tabs.js"></script>
