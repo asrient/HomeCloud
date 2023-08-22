@@ -1,6 +1,7 @@
 import { app, BrowserWindow, protocol, net, BrowserView } from 'electron';
 import path from 'path';
 import isDev from "electron-is-dev";
+import AppProtocol from './appProtocol';
 
 const headerHeight = 42;
 
@@ -73,7 +74,7 @@ export class WindowTab {
         this.fixBounds();
         this.cb = cb;
         this.attachEventHandlers();
-        this.loadURL(url || 'bundle://index.html');
+        this.loadURL(url || AppProtocol.START_URL);
         this.config.id = this.id;
         this.view.webContents.openDevTools();
         this.config.title = this.view.webContents.getTitle() || 'New Tab';
@@ -112,7 +113,7 @@ export class WindowTab {
         this.view.webContents.setWindowOpenHandler(({ url }) => {
             this.passEvent('open-tab', url);
             return { action: 'deny' };
-          });
+        });
     }
 
     loadFile(filePath: string) {
@@ -124,8 +125,8 @@ export class WindowTab {
     }
 
     setAsActive() {
-        if(this.isDestroyed()) return;
-        if(!this.parent || this.parent.isDestroyed()) return;
+        if (this.isDestroyed()) return;
+        if (!this.parent || this.parent.isDestroyed()) return;
         this.parent.setBrowserView(this.view);
         this.fixBounds();
     }
@@ -137,18 +138,18 @@ export class WindowTab {
 }
 
 export class TabbedAppWindow extends AppWindow {
-    tabs: {[index: number]: WindowTab} = {};
+    tabs: { [index: number]: WindowTab } = {};
     activeTabId: number = -1;
     lastHandle: NodeJS.Timeout | null = null;
 
     constructor() {
         super(path.join(__dirname, 'public/header-preload.js'),
-        {
-            titleBarStyle: 'hidden',
-            titleBarOverlay: {
-                height: headerHeight
-              }
-        });
+            {
+                titleBarStyle: 'hidden',
+                titleBarOverlay: {
+                    height: headerHeight
+                }
+            });
         this.loadFile(path.join(__dirname, 'public/app-header.html'));
         this.createNewTab();
         // https://github.com/electron/electron/issues/22174
@@ -166,7 +167,7 @@ export class TabbedAppWindow extends AppWindow {
     }
 
     handleFullscreen = () => {
-        if(this.isDestroyed()) return;
+        if (this.isDestroyed()) return;
         this.win.webContents.send('fullscreen', this.win.isFullScreen());
     }
 
@@ -182,7 +183,7 @@ export class TabbedAppWindow extends AppWindow {
     };
 
     createNewTab(url: string | null = null) {
-        if(this.isDestroyed()) return;
+        if (this.isDestroyed()) return;
         const tab = new WindowTab(this.win, url, this.handleTabHtmlEvent);
         this.tabs[tab.id] = tab;
         console.log('new tab created:', tab.id);
@@ -221,26 +222,26 @@ export class TabbedAppWindow extends AppWindow {
 
     switchTab(tabId: number, fromHeader: boolean = false) {
         console.log('switchTab', tabId);
-        if(!this.tabs[tabId]) {
+        if (!this.tabs[tabId]) {
             console.warn('switchTab: tab not found', tabId);
             return;
         }
         this.tabs[tabId].setAsActive();
         this.activeTabId = tabId;
-        if(!fromHeader && !this.isDestroyed()) this.win.webContents.send('switch-tab', tabId);
+        if (!fromHeader && !this.isDestroyed()) this.win.webContents.send('switch-tab', tabId);
     }
     deleteTab(tabId: number, fromHeader: boolean = false) {
-        if(!this.tabs[tabId]) return;
+        if (!this.tabs[tabId]) return;
         if (!this.tabs[tabId].isDestroyed()) {
             this.tabs[tabId].view.webContents.close();
         }
         delete this.tabs[tabId];
-        if(this.isDestroyed()) return;
+        if (this.isDestroyed()) return;
         if (this.activeTabId === tabId) {
             if (Object.keys(this.tabs).length == 0) {
                 this.createNewTab();
             }
         }
-        if(!fromHeader) this.win.webContents.send('delete-tab', tabId);
+        if (!fromHeader) this.win.webContents.send('delete-tab', tabId);
     }
 }

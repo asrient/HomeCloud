@@ -1,9 +1,10 @@
 import { app, BrowserWindow, protocol, net } from 'electron';
-import path from 'path';
+import AppProtocol from './appProtocol';
 import { TabbedAppWindow } from './window';
 
 export default class App {
   tabbedWindows: TabbedAppWindow[] = [];
+  appProtocol: AppProtocol;
 
   constructor() {
     // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -13,10 +14,7 @@ export default class App {
     app.on('activate', this.appActivated);
     app.on('window-all-closed', this.allWindowsClosed);
     app.on('ready', this.appReady);
-    
-    protocol.registerSchemesAsPrivileged([
-      { scheme: 'bundle', privileges: { bypassCSP: true, standard: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
-    ]);
+    this.appProtocol = new AppProtocol();
   }
 
   createTabbedWindow() {
@@ -24,29 +22,11 @@ export default class App {
     this.tabbedWindows.push(win);
   }
 
-  registerBundleProtocol() {
-    // Customize protocol to handle bundle resource.
-    protocol.handle('bundle', (request) => {
-      let fileUrl = request.url.replace('bundle://index.html', '');
-      if (fileUrl === '/') {
-        fileUrl = '/index.html';
-      }
-      if (fileUrl[fileUrl.length - 1] === '/') {
-        fileUrl = fileUrl.substring(0, fileUrl.length - 1);
-      }
-      //console.log('fileUrl', fileUrl);
-      //console.log('app.getAppPath()', app.getAppPath());
-      const filePath = path.join(app.getAppPath(), 'bin/web', fileUrl);
-      //console.log('filePath', filePath);
-      return net.fetch('file://' + filePath);
-    });
-  }
-
   appReady = () => {
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
     // Some APIs can only be used after this event occurs.
-    this.registerBundleProtocol();
+    this.appProtocol.register();
     this.createTabbedWindow();
   }
 
