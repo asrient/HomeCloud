@@ -109,6 +109,10 @@ export class WindowTab {
             this.config.themeColor = color || '#000000';
             this.passEvent('update-config', this.config);
         });
+        this.view.webContents.setWindowOpenHandler(({ url }) => {
+            this.passEvent('open-tab', url);
+            return { action: 'deny' };
+          });
     }
 
     loadFile(filePath: string) {
@@ -194,6 +198,8 @@ export class TabbedAppWindow extends AppWindow {
         } else if (eventName === 'update-config') {
             console.log('update-config', tabId, data);
             this.win.webContents.send('update-config', tabId, data);
+        } else if (eventName === 'open-tab') {
+            this.createNewTab(data);
         }
     }
 
