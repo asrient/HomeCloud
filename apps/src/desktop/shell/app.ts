@@ -3,6 +3,7 @@ import AppProtocol from './appProtocol';
 import { TabbedAppWindow } from './window';
 import { setDevMode, setEnvType, setDataDir, EnvType } from '../../backend/envConfig';
 import isDev from "electron-is-dev";
+import { handleServerEvent, ServerEvent } from '../../backend/serverEvent';
 
 export default class App {
   tabbedWindows: TabbedAppWindow[] = [];
@@ -17,7 +18,18 @@ export default class App {
     app.on('activate', this.appActivated);
     app.on('window-all-closed', this.allWindowsClosed);
     app.on('ready', this.appReady);
+    handleServerEvent(this.handleServerEvent);
     this.appProtocol = new AppProtocol();
+  }
+
+  handleServerEvent = async (event: ServerEvent) => {
+    console.log('handleServerEvent', event);
+    // todo: check profileId as well
+    const { type, data } = event;
+    this.tabbedWindows.forEach(w => {
+      w.pushServerEvent(type, data);
+    });
+    return true;
   }
 
   setupConfig() {

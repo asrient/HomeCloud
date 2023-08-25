@@ -246,4 +246,11 @@ export class TabbedAppWindow extends AppWindow {
         }
         if (!fromHeader) this.win.webContents.send('delete-tab', tabId);
     }
+
+    pushServerEvent(type: string, data: any) {
+        Object.keys(this.tabs).map(Number).forEach(tabId => {
+            const tab = this.tabs[tabId];
+            tab.view.webContents.send('server-event', type, data);
+      });
+    }
 }
