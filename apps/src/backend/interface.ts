@@ -3,6 +3,7 @@ import isType from 'type-is';
 import cookie from 'cookie';
 import mime from 'mime';
 import { match } from 'node-match-path';
+import { isDevMode } from './envConfig';
 
 
 export class ApiRequest {
@@ -111,6 +112,9 @@ export class ApiResponse {
     text(body: string) {
         this.setBody(new Blob([body]), 'text/plain');
     }
+    html(html: string) {
+        this.setBody(new Blob([html]), 'text/html');
+    }
     sendFile(filePath: string) {
         this.file = filePath;
         this.setHeader('Content-Type', mime.getType(filePath) || 'application/octet-stream');
@@ -153,7 +157,7 @@ export class RouteGroup {
         }
         this.queue.push({ pattern, handler });
     }
-    handle = (request: ApiRequest): Promise<ApiResponse> => {
+    handle = async (request: ApiRequest): Promise<ApiResponse> => {
         const route = this.queue.find(route => {
             let pattern = request.matchedPattern + route.pattern;
             if (!pattern.endsWith('/') && !pattern.endsWith('/*')) {
@@ -171,7 +175,20 @@ export class RouteGroup {
             return false;
         });
         if (!!route) {
-            return route.handler(request);
+            try {
+                return await route.handler(request);
+            } catch (e: any) {
+                console.error('Internal Server Error','URL:', request.url, e);
+                const response500 = new ApiResponse();
+                response500.status(500);
+                let txt = '<h2>500: Internal Server Error</h2>';
+                if(isDevMode()) {
+                    txt += e.message;
+                    txt += '<h4>Stack:</h4>' + e.stack;
+                }
+                response500.html(txt);
+                return Promise.resolve(response500);
+            }
         }
         console.log('No match found for ' + request.path, 'queue:', this.queue);
         const response404 = new ApiResponse();
