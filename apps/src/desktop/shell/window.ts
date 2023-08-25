@@ -1,6 +1,6 @@
 import { app, BrowserWindow, protocol, net, BrowserView } from 'electron';
 import path from 'path';
-import { isDevMode } from '../../backend/config';
+import { isDevMode } from '../../backend/envConfig';
 import AppProtocol from './appProtocol';
 
 const headerHeight = 42;

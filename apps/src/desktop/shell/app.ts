@@ -1,7 +1,7 @@
 import { app, BrowserWindow, protocol, net } from 'electron';
 import AppProtocol from './appProtocol';
 import { TabbedAppWindow } from './window';
-import { setDevMode, setEnvType, setDataDir, EnvType } from '../../backend/config';
+import { setDevMode, setEnvType, setDataDir, EnvType } from '../../backend/envConfig';
 import isDev from "electron-is-dev";
 
 export default class App {
