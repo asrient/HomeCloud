@@ -1,12 +1,14 @@
-import { app, BrowserWindow, protocol, net } from 'electron';
+import { app, protocol, net } from 'electron';
 import { stat } from 'fs';
 import path from 'path';
+import { ApiRequest } from '../../backend/interface';
+import apiRouter from '../../backend/apiRouter';
 
 export default class AppProtocol {
     static PROTOCOL_NAME = 'app';
-    static START_URL = AppProtocol.PROTOCOL_NAME + '://bundle/';
-    static API_BASE_URL = AppProtocol.PROTOCOL_NAME + '://api/';
-    static BUNDLE_BASE_URL = AppProtocol.PROTOCOL_NAME + '://bundle/';
+    static START_URL = AppProtocol.PROTOCOL_NAME + '://host/';
+    static API_BASE_URL = AppProtocol.PROTOCOL_NAME + '://host/api/';
+    static BUNDLE_BASE_URL = AppProtocol.PROTOCOL_NAME + '://host/';
 
     appPath: string;
     indexHtmlPath: string;
@@ -45,21 +47,32 @@ export default class AppProtocol {
         });
     }
 
-    handleApi = (request: Request): Promise<Response> => {
-        return new Promise<Response>((resolve, reject) => {
-            const url = request.url;
-            resolve(new Response('Hello APIs! url:' + url));
+    handleApi = async (request: Request): Promise<Response> => {
+        const url = request.url;
+        const headers: { [key: string]: string; } = {};
+        request.headers.forEach((value, key) => {
+            headers[key] = value;
         });
+        //
+        const body = await request.blob();
+        const apiRequest = new ApiRequest(request.method, url, headers, body);
+
+        const apiResponse = await apiRouter.handle(apiRequest);
+        const response = new Response(apiResponse.body, {
+            status: apiResponse.status,
+            headers: apiResponse.headers
+        });
+        return response;
     }
 
     register() {
         // Customize protocol to handle bundle resources and api.
         protocol.handle(AppProtocol.PROTOCOL_NAME, (request) => {
-            if (request.url.startsWith(AppProtocol.BUNDLE_BASE_URL)) {
-                return this.handleBundle(request);
-            }
             if (request.url.startsWith(AppProtocol.API_BASE_URL)) {
                 return this.handleApi(request);
+            }
+            if (request.url.startsWith(AppProtocol.BUNDLE_BASE_URL)) {
+                return this.handleBundle(request);
             }
             return new Promise<Response>((resolve, _) => {
                 resolve(new Response(null, {

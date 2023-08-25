@@ -1,6 +1,6 @@
 import { app, BrowserWindow, protocol, net, BrowserView } from 'electron';
 import path from 'path';
-import isDev from "electron-is-dev";
+import { isDevMode } from '../../backend/config';
 import AppProtocol from './appProtocol';
 
 const headerHeight = 42;
@@ -17,15 +17,17 @@ export class AppWindow {
             };
         }
         this.win = new BrowserWindow({
-            width: 900,
-            height: 600,
+            width: 870,
+            height: 520,
+            minHeight: 400,
+            minWidth: 600,
             ...opts,
         });
         this.id = this.win.webContents.id;
     };
 
     openDevTools(force = false) {
-        if (force || isDev) {
+        if (force || isDevMode()) {
             this.win.webContents.openDevTools();
         }
     }

@@ -1,6 +1,8 @@
 import { app, BrowserWindow, protocol, net } from 'electron';
 import AppProtocol from './appProtocol';
 import { TabbedAppWindow } from './window';
+import { setDevMode, setEnvType, setDataDir, EnvType } from '../../backend/config';
+import isDev from "electron-is-dev";
 
 export default class App {
   tabbedWindows: TabbedAppWindow[] = [];
@@ -11,10 +13,17 @@ export default class App {
     if (require('electron-squirrel-startup')) {
       app.quit();
     }
+    this.setupConfig();
     app.on('activate', this.appActivated);
     app.on('window-all-closed', this.allWindowsClosed);
     app.on('ready', this.appReady);
     this.appProtocol = new AppProtocol();
+  }
+
+  setupConfig() {
+    setDevMode(isDev);
+    setEnvType(EnvType.Desktop);
+    setDataDir(app.getPath('userData'));
   }
 
   createTabbedWindow() {
