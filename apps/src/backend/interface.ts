@@ -17,7 +17,7 @@ export class ApiRequest {
         method: string,
         url: string,
         headers: { [key: string]: string },
-        public body: Blob | null = null,
+        public body: (() => Promise<Buffer>) | null = null,
         public downloadAttachedFiles: (() => Promise<string[]>) | null = null,
     ) {
         this.method = method.toUpperCase();
@@ -63,6 +63,9 @@ export class ApiRequest {
     get isJson() {
         return isType.is(this.contentType, ['json']) === 'json';
     }
+    get isText() {
+        return isType.is(this.contentType, ['text']) === 'text';
+    }
     async json(): Promise<any> {
         if (!this.body) {
             throw new Error('Body is null');
@@ -70,12 +73,21 @@ export class ApiRequest {
         if (!this.isJson) {
             throw new Error('Content type is not json');
         }
-        return Buffer.from(await this.body.arrayBuffer()).toJSON();
+        return (await this.body()).toJSON();
+    }
+    async text(): Promise<string> {
+        if (!this.body) {
+            throw new Error('Body is null');
+        }
+        if (!this.isText) {
+            throw new Error('Content type is not text');
+        }
+        return (await this.body()).toString();
     }
 }
 
 export class ApiResponse {
-    status: number = 200;
+    statusCode: number = 200;
     headers: { [key: string]: string } = {};
     body: Blob | null = null;
     file: string | null = null;
@@ -83,8 +95,8 @@ export class ApiResponse {
         this.setHeader('Content-Type', 'text/plain');
         this.setHeader('Server', 'HomeCloud API Server');
     }
-    setStatus(status: number) {
-        this.status = status;
+    status(status: number) {
+        this.statusCode = status;
     }
     setHeader(key: string, value: string) {
         this.headers[key] = value;
@@ -108,7 +120,7 @@ export class ApiResponse {
         this.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     }
     redirect(url: string) {
-        this.setStatus(301);
+        this.status(301);
         this.setHeader('Location', url);
     }
     setCookie(key: string, value: string, ttl: number = 20 * 24 * 60 * 60) {
@@ -119,12 +131,26 @@ export class ApiResponse {
     }
 }
 
+export type RouteHandler = (request: ApiRequest) => Promise<ApiResponse>;
+
+export type ApiDecoratorHandler = (handler: RouteHandler) => RouteHandler;
+
+export type ApiDecorator = (args: any[]) => ApiDecoratorHandler;
 
 export class RouteGroup {
-    queue: { pattern: string, handler: (request: ApiRequest) => Promise<ApiResponse> }[] = [];
+    queue: { pattern: string, handler: RouteHandler }[] = [];
     constructor() {
     }
-    add(pattern: string, handler: (request: ApiRequest) => Promise<ApiResponse>) {
+    add(pattern: string, arg1: RouteHandler | ApiDecoratorHandler[], arg2?: RouteHandler) {
+        let handler: RouteHandler;
+        if (!!arg2) {
+            handler = arg2;
+            for (const decorator of arg1 as ApiDecoratorHandler[]) {
+                handler = decorator(handler);
+            }
+        } else {
+            handler = arg1 as RouteHandler;
+        }
         this.queue.push({ pattern, handler });
     }
     handle = (request: ApiRequest): Promise<ApiResponse> => {
@@ -149,8 +175,8 @@ export class RouteGroup {
         }
         console.log('No match found for ' + request.path, 'queue:', this.queue);
         const response404 = new ApiResponse();
-        response404.setStatus(404);
-        response404.text('Not found');
+        response404.status(404);
+        response404.text('Not found: ' + request.path);
         return Promise.resolve(response404);
     }
 }

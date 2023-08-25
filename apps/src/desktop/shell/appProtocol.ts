@@ -53,13 +53,15 @@ export default class AppProtocol {
         request.headers.forEach((value, key) => {
             headers[key] = value;
         });
-        //
-        const body = await request.blob();
-        const apiRequest = new ApiRequest(request.method, url, headers, body);
+        const getBody = async () => !!request.blob && Buffer.from(await (await request.blob()).arrayBuffer());
+        const apiRequest = new ApiRequest(request.method, url, headers, getBody);
 
         const apiResponse = await apiRouter.handle(apiRequest);
+        if(!!apiResponse.file) {
+            return net.fetch('file://' + apiResponse.file);
+        }
         const response = new Response(apiResponse.body, {
-            status: apiResponse.status,
+            status: apiResponse.statusCode,
             headers: apiResponse.headers
         });
         return response;
