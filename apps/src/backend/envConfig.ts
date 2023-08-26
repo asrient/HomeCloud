@@ -1,43 +1,43 @@
-
-let IS_DEV = false;
-
-export function setDevMode(isDev: boolean) {
-    IS_DEV = isDev;
-}
-
-export function isDevMode() {
-    return IS_DEV;
-}
-
 export enum EnvType {
     Server = 'server',
     Desktop = 'desktop'
 }
 
-let ENV_TYPE = EnvType.Server;
-
-export function setEnvType(envType: EnvType) {
-    ENV_TYPE = envType;
+export type SetupParams = {
+    isDev: boolean;
+    envType: EnvType;
+    dataDir?: string;
+    baseUrl: string;
+    apiBaseUrl?: string;
+    webBuildDir: string;
 }
 
-export function getEnvType() {
-    return ENV_TYPE;
+class EnvConfig {
+    readonly DATA_DIR;
+    readonly ENV_TYPE;
+    readonly IS_DEV;
+    readonly BASE_URL;
+    readonly API_BASE_URL;
+    readonly WEB_BUILD_DIR;
+    constructor(config: SetupParams) {
+        this.DATA_DIR = config.dataDir || '';
+        this.ENV_TYPE = config.envType;
+        this.IS_DEV = config.isDev;
+        this.BASE_URL = config.baseUrl;
+        this.API_BASE_URL = config.apiBaseUrl || config.baseUrl + '/api/';
+        this.WEB_BUILD_DIR = config.webBuildDir;
+    }
+    isDesktop() {
+        return this.ENV_TYPE === EnvType.Desktop;
+    }
+
+    isServer() {
+        return this.ENV_TYPE === EnvType.Server;
+    }
 }
 
-export function isDesktop() {
-    return ENV_TYPE === EnvType.Desktop;
-}
+export let envConfig: EnvConfig;
 
-export function isServer() {
-    return ENV_TYPE === EnvType.Server;
-}
-
-let DATA_DIR = '';
-
-export function setDataDir(dataDir: string) {
-    DATA_DIR = dataDir;
-}
-
-export function getDataDir() {
-    return DATA_DIR;
+export function setupEnvConfig(config: SetupParams) {
+    envConfig = new EnvConfig(config);
 }

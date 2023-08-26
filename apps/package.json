@@ -1,6 +1,6 @@
 {
   "name": "homecloud",
-  "productName": "Homecloud Desktop",
+  "productName": "HomeCloud",
   "main": "bin/desktop/index.js",
   "version": "1.0.0",
   "private": true,
@@ -10,7 +10,7 @@
     "email": "44570278+asrient@users.noreply.github.com"
   },
   "scripts": {
-    "dev": "vite",
+    "start:node": "npm run build && node bin/node/index.js",
     "build": "webpack --config ./webpack.config.js",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "start:desktop": "npm run build && electron-forge start",
@@ -20,8 +20,10 @@
   },
   "dependencies": {
     "cookie": "^0.5.0",
+    "dotenv": "^16.3.1",
     "electron-is-dev": "^2.0.0",
     "electron-squirrel-startup": "^1.0.0",
+    "formidable": "^3.5.1",
     "mime": "^3.0.0",
     "node-match-path": "^0.6.3",
     "qs": "^6.11.2",
@@ -44,6 +46,7 @@
     "@electron-forge/maker-zip": "^6.4.0",
     "@electron-forge/plugin-auto-unpack-natives": "^6.4.0",
     "@types/cookie": "^0.5.1",
+    "@types/formidable": "^3.4.1",
     "@types/mime": "^3.0.1",
     "@types/qs": "^6.9.7",
     "@types/type-is": "^1.6.3",

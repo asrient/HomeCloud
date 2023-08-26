@@ -3,6 +3,7 @@ import { stat } from 'fs';
 import path from 'path';
 import { ApiRequest } from '../../backend/interface';
 import apiRouter from '../../backend/apiRouter';
+import { envConfig } from '../../backend/envConfig';
 
 export default class AppProtocol {
     static PROTOCOL_NAME = 'app';
@@ -10,7 +11,6 @@ export default class AppProtocol {
     static API_BASE_URL = AppProtocol.PROTOCOL_NAME + '://host/api/';
     static BUNDLE_BASE_URL = AppProtocol.PROTOCOL_NAME + '://host/';
 
-    appPath: string;
     indexHtmlPath: string;
     constructor() {
         protocol.registerSchemesAsPrivileged([{
@@ -24,8 +24,7 @@ export default class AppProtocol {
             }
         }
         ]);
-        this.appPath = app.getAppPath();
-        this.indexHtmlPath = path.join(this.appPath, 'bin/web/index.html');
+        this.indexHtmlPath = path.join(envConfig.WEB_BUILD_DIR, 'index.html');
     }
 
     handleBundle = (request: Request): Promise<Response> => {
@@ -36,7 +35,7 @@ export default class AppProtocol {
         if (fileRelativeUrl.endsWith('/')) {
             fileRelativeUrl = fileRelativeUrl.substring(0, fileRelativeUrl.length - 1);
         }
-        let filePath = path.join(this.appPath, 'bin/web', fileRelativeUrl);
+        let filePath = path.join(envConfig.WEB_BUILD_DIR, fileRelativeUrl);
         return new Promise<Response>((resolve, reject) => {
             stat(filePath, (err, stats) => {
                 if (err || !stats.isFile()) {
@@ -57,7 +56,7 @@ export default class AppProtocol {
         const apiRequest = new ApiRequest(request.method, url, headers, getBody);
 
         const apiResponse = await apiRouter.handle(apiRequest);
-        if(!!apiResponse.file) {
+        if (!!apiResponse.file) {
             return net.fetch('file://' + apiResponse.file);
         }
         const response = new Response(apiResponse.body, {

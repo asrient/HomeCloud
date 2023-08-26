@@ -3,8 +3,14 @@ import isType from 'type-is';
 import cookie from 'cookie';
 import mime from 'mime';
 import { match } from 'node-match-path';
-import { isDevMode } from './envConfig';
+import { envConfig } from './envConfig';
 
+export type ApiRequestFile = {
+    name: string;
+    mime: string;
+    size: number;
+    path: string;
+}
 
 export class ApiRequest {
     params: ParsedQs;
@@ -16,17 +22,22 @@ export class ApiRequest {
     method: string;
     constructor(
         method: string,
-        url: string,
+        url: string | URL,
         headers: { [key: string]: string },
         public body: (() => Promise<Buffer>) | null = null,
-        public downloadAttachedFiles: (() => Promise<string[]>) | null = null,
+        public downloadAttachedFiles: (() => Promise<ApiRequestFile[]>) | null = null,
     ) {
         this.method = method.toUpperCase();
 
-        if(url.endsWith('/') && url.length > 1) {
-            url = url.substring(0, url.length - 1);
+        if (typeof url === 'string') {
+            if (url.endsWith('/') && url.length > 1) {
+                url = url.substring(0, url.length - 1);
+            }
+            this.url = new URL(url);
+        } else {
+            this.url = url;
         }
-        this.url = new URL(url);
+
         this.params = qs.parse(this.url.search, { ignoreQueryPrefix: true });
 
         this.headers = {};
@@ -36,6 +47,9 @@ export class ApiRequest {
         if (this.cookieString) {
             this.cookies = cookie.parse(this.cookieString);
         }
+    }
+    get mayContainFiles() {
+        return this.method === 'POST' && this.headers['content-type']?.includes('multipart/form-data');
     }
     get path() {
         return this.url.pathname;
@@ -178,11 +192,11 @@ export class RouteGroup {
             try {
                 return await route.handler(request);
             } catch (e: any) {
-                console.error('Internal Server Error','URL:', request.url, e);
+                console.error('Internal Server Error', 'URL:', request.url, e);
                 const response500 = new ApiResponse();
                 response500.status(500);
                 let txt = '<h2>500: Internal Server Error</h2>';
-                if(isDevMode()) {
+                if (envConfig.IS_DEV) {
                     txt += e.message;
                     txt += '<h4>Stack:</h4>' + e.stack;
                 }

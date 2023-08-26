@@ -1,7 +1,8 @@
-import { app, BrowserWindow, protocol, net } from 'electron';
+import { app, BrowserWindow } from 'electron';
+import path from 'path';
 import AppProtocol from './appProtocol';
 import { TabbedAppWindow } from './window';
-import { setDevMode, setEnvType, setDataDir, EnvType } from '../../backend/envConfig';
+import { setupEnvConfig, EnvType } from '../../backend/envConfig';
 import isDev from "electron-is-dev";
 import { handleServerEvent, ServerEvent } from '../../backend/serverEvent';
 
@@ -33,9 +34,14 @@ export default class App {
   }
 
   setupConfig() {
-    setDevMode(isDev);
-    setEnvType(EnvType.Desktop);
-    setDataDir(app.getPath('userData'));
+    setupEnvConfig({
+      isDev,
+      envType: EnvType.Desktop,
+      dataDir: app.getPath('userData'),
+      baseUrl: AppProtocol.BUNDLE_BASE_URL,
+      apiBaseUrl: AppProtocol.API_BASE_URL,
+      webBuildDir: path.join(app.getAppPath(), 'bin/web'),
+    });
   }
 
   createTabbedWindow() {

@@ -18,3 +18,4 @@ dist/
 .sourcemaps
 bin/*
 out/
+.env

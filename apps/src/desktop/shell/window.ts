@@ -1,6 +1,6 @@
 import { app, BrowserWindow, protocol, net, BrowserView } from 'electron';
 import path from 'path';
-import { isDevMode } from '../../backend/envConfig';
+import { envConfig } from '../../backend/envConfig';
 import AppProtocol from './appProtocol';
 
 const headerHeight = 42;
@@ -27,7 +27,7 @@ export class AppWindow {
     };
 
     openDevTools(force = false) {
-        if (force || isDevMode()) {
+        if (force || envConfig.IS_DEV) {
             this.win.webContents.openDevTools();
         }
     }
@@ -251,6 +251,6 @@ export class TabbedAppWindow extends AppWindow {
         Object.keys(this.tabs).map(Number).forEach(tabId => {
             const tab = this.tabs[tabId];
             tab.view.webContents.send('server-event', type, data);
-      });
+        });
     }
 }
