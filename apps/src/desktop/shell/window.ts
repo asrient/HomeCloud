@@ -1,7 +1,6 @@
-import { app, BrowserWindow, protocol, net, BrowserView } from 'electron';
+import { BrowserWindow, BrowserView } from 'electron';
 import path from 'path';
 import { envConfig } from '../../backend/envConfig';
-import AppProtocol from './appProtocol';
 
 const headerHeight = 42;
 
@@ -76,7 +75,7 @@ export class WindowTab {
         this.fixBounds();
         this.cb = cb;
         this.attachEventHandlers();
-        this.loadURL(url || AppProtocol.START_URL);
+        this.loadURL(url || envConfig.BASE_URL);
         this.config.id = this.id;
         this.view.webContents.openDevTools();
         this.config.title = this.view.webContents.getTitle() || 'New Tab';

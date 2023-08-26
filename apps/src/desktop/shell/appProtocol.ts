@@ -7,7 +7,6 @@ import { envConfig } from '../../backend/envConfig';
 
 export default class AppProtocol {
     static PROTOCOL_NAME = 'app';
-    static START_URL = AppProtocol.PROTOCOL_NAME + '://host/';
     static API_BASE_URL = AppProtocol.PROTOCOL_NAME + '://host/api/';
     static BUNDLE_BASE_URL = AppProtocol.PROTOCOL_NAME + '://host/';
 
@@ -79,7 +78,7 @@ export default class AppProtocol {
                 resolve(new Response(null, {
                     status: 301,
                     headers: {
-                        Location: AppProtocol.START_URL
+                        Location: envConfig.BASE_URL
                     }
                 }));
             });

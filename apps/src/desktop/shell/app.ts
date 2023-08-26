@@ -38,7 +38,7 @@ export default class App {
       isDev,
       envType: EnvType.Desktop,
       dataDir: app.getPath('userData'),
-      baseUrl: AppProtocol.BUNDLE_BASE_URL,
+      baseUrl: isDev ? 'http://localhost:3000/' : AppProtocol.BUNDLE_BASE_URL,
       apiBaseUrl: AppProtocol.API_BASE_URL,
       webBuildDir: path.join(app.getAppPath(), 'bin/web'),
     });

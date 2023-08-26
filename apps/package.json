@@ -10,6 +10,8 @@
     "email": "44570278+asrient@users.noreply.github.com"
   },
   "scripts": {
+    "dev:build": "webpack --config ./webpack.config.js --watch",
+    "dev:node": "nodemon --watch bin/node bin/node/index.js",
     "start:node": "npm run build && node bin/node/index.js",
     "build": "webpack --config ./webpack.config.js",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
@@ -52,6 +54,7 @@
     "@types/type-is": "^1.6.3",
     "copy-webpack-plugin": "^11.0.0",
     "electron": "26.0.0",
+    "nodemon": "^3.0.1",
     "prettier": "latest",
     "ts-loader": "^9.4.4",
     "typescript": "^5.2.2",
