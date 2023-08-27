@@ -19,3 +19,5 @@ dist/
 bin/*
 out/
 .env
+*.sqlite
+*.db

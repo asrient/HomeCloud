@@ -20,6 +20,7 @@ export class ApiRequest {
     headers: { [key: string]: string };
     cookies: { [key: string]: string } = {};
     method: string;
+    validatedJson: any = null;
     constructor(
         method: string,
         url: string | URL,
@@ -88,7 +89,7 @@ export class ApiRequest {
         if (!this.isJson) {
             throw new Error('Content type is not json');
         }
-        return (await this.body()).toJSON();
+        return JSON.parse((await this.body()).toString("utf8"));
     }
     async text(): Promise<string> {
         if (!this.body) {
@@ -147,6 +148,28 @@ export class ApiResponse {
             path: '/',
         }));
     }
+
+    static error(statusCode: number | string, message: string | any = null, detail: any = null) {
+        if(typeof statusCode === 'string') {
+            detail = message;
+            message = statusCode;
+            statusCode = 400;
+        }
+        const response = new ApiResponse();
+        response.status(statusCode);
+        response.json({
+            message,
+            detail,
+        });
+        return response;
+    }
+
+    static json(statusCode: number, body: any) {
+        const response = new ApiResponse();
+        response.status(statusCode);
+        response.json(body);
+        return response;
+    }
 }
 
 export type RouteHandler = (request: ApiRequest) => Promise<ApiResponse>;
@@ -192,7 +215,7 @@ export class RouteGroup {
             try {
                 return await route.handler(request);
             } catch (e: any) {
-                console.error('Internal Server Error', 'URL:', request.url, e);
+                console.error('❗️ [API] Internal Server Error', 'URL:', request.url, e);
                 const response500 = new ApiResponse();
                 response500.status(500);
                 let txt = '<h2>500: Internal Server Error</h2>';

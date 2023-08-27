@@ -136,7 +136,7 @@ export default class ServerAdaptor {
             }
         }
         catch (err: any) {
-            console.error('Internal Server Error:', err);
+            console.error('❗️ Internal Server Error:', err);
             res.writeHead(500);
             res.write('<h2>Internal Server Error</h2>');
             if (envConfig.IS_DEV) {

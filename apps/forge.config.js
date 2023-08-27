@@ -30,9 +30,11 @@ module.exports = {
       "^/out$",
       "^/docs$",
       "^/bin/node$",
+      "^/bin/nodeData$",
       "^/src$",
       "^/[.]editorconfig$",
       "^/[.]gitignore$",
+      "^/[.]env$",
       "^/web-public$",
       "^/tsconfig[.]json$",
       "[.](cmd|user|DotSettings|njsproj|sln)$"

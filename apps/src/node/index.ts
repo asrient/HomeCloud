@@ -1,10 +1,12 @@
+import 'dotenv/config';
 import http from 'http';
 import https from 'https';
 import ServerAdaptor from './serverAdaptor';
 import fs from 'fs';
 import { setupEnvConfig, EnvType, envConfig } from '../backend/envConfig';
 import path from 'path';
-import 'dotenv/config';
+import os from 'os';
+import { initDb } from '../backend/db';
 
 const startText = `\n
 ██╗░░██╗░█████╗░███╗░░░███╗███████╗░█████╗░██╗░░░░░░█████╗░██╗░░░██╗██████╗░
@@ -30,10 +32,10 @@ class AppServer {
 
     setupConfig() {
         const isDev = process.env.NODE_ENV === 'development';
-        const dataDir = process.env.DATA_DIR || path.resolve('~/.homecloud');
+        const dataDir = process.env.DATA_DIR || isDev ? path.resolve(__dirname, '../nodeData') : path.join(os.homedir(), '/.homecloud');
         this.port = parseInt(process.env.PORT || '5000');
         this.sslPort = parseInt(process.env.PORT || '5001');
-        const baseUrl = process.env.BASE_URL || `http://localhost:${this.port}`;
+        const baseUrl = process.env.BASE_URL || `http://localhost:${this.port}/`;
 
         setupEnvConfig({
             isDev,
@@ -62,7 +64,14 @@ class AppServer {
         console.log(`⚡️ HTTPS Server started on port: ${this.sslPort}`);
     }
 
-    start() {
+    async start() {
+        if (!process.env.DB_URL || !await initDb('mysql' , process.env.DB_URL)) {
+            if (!process.env.DB_URL) {
+                console.error('❗️ DB_URL env variable not set!');
+            }
+            console.error('❌ Failed to initialize database. Exiting...');
+            process.exit(1);
+        }
         this.startServer();
         console.log(`🌎 Go ahead, visit ${envConfig.BASE_URL}`);
     }

@@ -1,8 +1,8 @@
 import { RouteGroup } from "./interface";
-import info from "./routes/info";
+import manage from "./routes/manage";
 
 const api = new RouteGroup();
 
-api.add('/info', info.handle);
+api.add('/manage', manage.handle);
 
 export default api;

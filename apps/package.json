@@ -27,8 +27,11 @@
     "electron-squirrel-startup": "^1.0.0",
     "formidable": "^3.5.1",
     "mime": "^3.0.0",
+    "mysql2": "^3.6.0",
     "node-match-path": "^0.6.3",
     "qs": "^6.11.2",
+    "sequelize": "^6.32.1",
+    "sqlite3": "^5.1.6",
     "type-is": "^1.6.18"
   },
   "desktopDependencies": [
@@ -38,6 +41,8 @@
     "mime",
     "node-match-path",
     "qs",
+    "sequelize",
+    "sqlite3",
     "type-is"
   ],
   "devDependencies": {
@@ -59,7 +64,8 @@
     "ts-loader": "^9.4.4",
     "typescript": "^5.2.2",
     "webpack": "^5.88.2",
-    "webpack-cli": "^5.1.4"
+    "webpack-cli": "^5.1.4",
+    "webpack-node-externals": "^3.0.0"
   },
   "engines": {
     "node": ">=16.0.0"

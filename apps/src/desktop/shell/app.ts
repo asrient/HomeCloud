@@ -2,9 +2,10 @@ import { app, BrowserWindow } from 'electron';
 import path from 'path';
 import AppProtocol from './appProtocol';
 import { TabbedAppWindow } from './window';
-import { setupEnvConfig, EnvType } from '../../backend/envConfig';
+import { setupEnvConfig, EnvType, envConfig } from '../../backend/envConfig';
 import isDev from "electron-is-dev";
 import { handleServerEvent, ServerEvent } from '../../backend/serverEvent';
+import { initDb } from '../../backend/db';
 
 export default class App {
   tabbedWindows: TabbedAppWindow[] = [];
@@ -49,10 +50,24 @@ export default class App {
     this.tabbedWindows.push(win);
   }
 
-  appReady = () => {
+  connectDb = async () => {
+    const dataDir = envConfig.DATA_DIR;
+    const dbPath = path.join(dataDir, 'homecloud.db');
+    if (!await initDb('sqlite', dbPath)) {
+      console.error('❌ Failed to initialize database.');
+      return false;
+    }
+    return true;
+  }
+
+  appReady = async () => {
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
     // Some APIs can only be used after this event occurs.
+    if(!await this.connectDb()) {
+      app.quit();
+      return;
+    }
     this.appProtocol.register();
     this.createTabbedWindow();
   }
