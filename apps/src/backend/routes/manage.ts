@@ -23,7 +23,7 @@ api.add('/createProfile', [
     try {
         profile = await Profile.createProfile(data.userName, data.name);
     }
-    catch(e: any) {
+    catch (e: any) {
         return ApiResponse.error(400, 'Could not create profile', {
             error: e.message,
             requestData: data,
@@ -31,7 +31,6 @@ api.add('/createProfile', [
     }
     return ApiResponse.json(201, profile.getDetails());
 });
-
 
 // Samples
 
