@@ -1,0 +1,75 @@
+{
+  "name": "homecloud",
+  "productName": "HomeCloud",
+  "main": "bin/desktop/index.js",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App for all your online and local storages",
+  "author": {
+    "name": "asrient",
+    "email": "44570278+asrient@users.noreply.github.com"
+  },
+  "scripts": {
+    "dev:build": "webpack --config ./webpack.config.js --watch",
+    "dev:node": "nodemon --watch bin/node bin/node/index.js",
+    "start:node": "npm run build && node bin/node/index.js",
+    "build": "webpack --config ./webpack.config.js",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "start:desktop": "npm run build && electron-forge start",
+    "package:desktop": "npm run build && electron-forge package",
+    "make:desktop": "npm run build && electron-forge make",
+    "publish:desktop": "npm run build && electron-forge publish"
+  },
+  "dependencies": {
+    "ajv": "^8.12.0",
+    "cookie": "^0.5.0",
+    "dotenv": "^16.3.1",
+    "electron-is-dev": "^2.0.0",
+    "electron-squirrel-startup": "^1.0.0",
+    "formidable": "^3.5.1",
+    "mime": "^3.0.0",
+    "mysql2": "^3.6.0",
+    "node-match-path": "^0.6.3",
+    "qs": "^6.11.2",
+    "sequelize": "^6.32.1",
+    "sqlite3": "^5.1.6",
+    "type-is": "^1.6.18"
+  },
+  "desktopDependencies": [
+    "ajv",
+    "cookie",
+    "electron-is-dev",
+    "electron-squirrel-startup",
+    "mime",
+    "node-match-path",
+    "qs",
+    "sequelize",
+    "sqlite3",
+    "type-is"
+  ],
+  "devDependencies": {
+    "@electron-forge/cli": "^6.4.0",
+    "@electron-forge/maker-deb": "^6.4.0",
+    "@electron-forge/maker-rpm": "^6.4.0",
+    "@electron-forge/maker-squirrel": "^6.4.0",
+    "@electron-forge/maker-zip": "^6.4.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^6.4.0",
+    "@types/cookie": "^0.5.1",
+    "@types/formidable": "^3.4.1",
+    "@types/mime": "^3.0.1",
+    "@types/qs": "^6.9.7",
+    "@types/type-is": "^1.6.3",
+    "copy-webpack-plugin": "^11.0.0",
+    "electron": "26.0.0",
+    "nodemon": "^3.0.1",
+    "prettier": "latest",
+    "ts-loader": "^9.4.4",
+    "typescript": "^5.2.2",
+    "webpack": "^5.88.2",
+    "webpack-cli": "^5.1.4",
+    "webpack-node-externals": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
