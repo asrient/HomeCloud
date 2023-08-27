@@ -21,6 +21,7 @@
     "publish:desktop": "npm run build && electron-forge publish"
   },
   "dependencies": {
+    "ajv": "^8.12.0",
     "cookie": "^0.5.0",
     "dotenv": "^16.3.1",
     "electron-is-dev": "^2.0.0",
@@ -35,6 +36,7 @@
     "type-is": "^1.6.18"
   },
   "desktopDependencies": [
+    "ajv",
     "cookie",
     "electron-is-dev",
     "electron-squirrel-startup",

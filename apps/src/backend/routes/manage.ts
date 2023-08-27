@@ -1,17 +1,24 @@
 import { ApiRequest, ApiResponse, RouteGroup } from "../interface";
-import { method, accept } from "../decorators";
+import { method, accept, validateJson } from "../decorators";
 import { Profile } from "../models";
 
 const api = new RouteGroup();
 
+const createProfileSchema = {
+    type: 'object',
+    properties: {
+        userName: { type: 'string' },
+        name: { type: 'string' },
+    },
+    required: ['userName', 'name'],
+    additionalProperties: false,
+};
+
 api.add('/createProfile', [
     method(['POST']),
-    accept(['json']),
+    validateJson(createProfileSchema),
 ], async (request: ApiRequest) => {
-    const data = await request.json();
-    if(!data || !data.name || !data.userName) {
-        return ApiResponse.error(400, 'Invalid request body', data);
-    }
+    const data = request.validatedJson;
     let profile: Profile;
     try {
         profile = await Profile.createProfile(data.userName, data.name);
@@ -25,10 +32,17 @@ api.add('/createProfile', [
     return ApiResponse.json(201, profile.getDetails());
 });
 
-api.add('/hello/', async (request: ApiRequest) => {
+
+// Samples
+
+api.add('/hello/', [
+    method(['POST']),
+    accept(['text'])
+], async (request: ApiRequest) => {
+    const payload = await request.text();
     const response = new ApiResponse();
     response.status(200);
-    response.json({ message: 'Hello World!', url: request.url });
+    response.json({ message: 'Hello World!', payload });
     return response;
 });
 

@@ -176,7 +176,7 @@ export type RouteHandler = (request: ApiRequest) => Promise<ApiResponse>;
 
 export type ApiDecoratorHandler = (handler: RouteHandler) => RouteHandler;
 
-export type ApiDecorator = (args: any[]) => ApiDecoratorHandler;
+export type ApiDecorator = (args: any[] | any) => ApiDecoratorHandler;
 
 export class RouteGroup {
     queue: { pattern: string, handler: RouteHandler }[] = [];
