@@ -3,7 +3,7 @@ import http from 'http';
 import https from 'https';
 import ServerAdaptor from './serverAdaptor';
 import fs from 'fs';
-import { setupEnvConfig, EnvType, envConfig } from '../backend/envConfig';
+import { setupEnvConfig, EnvType, envConfig, OptionalType } from '../backend/envConfig';
 import path from 'path';
 import os from 'os';
 import { initDb } from '../backend/db';
@@ -37,12 +37,27 @@ class AppServer {
         this.sslPort = parseInt(process.env.PORT || '5001');
         const baseUrl = process.env.BASE_URL || `http://localhost:${this.port}/`;
 
+        if(!isDev && !process.env.SECRET_KEY) {
+            console.error('❌ SECRET_KEY env variable not set on production!');
+            process.exit(1);
+        }
+
+        const profilesPolicy = {
+            passwordPolicy: process.env.PASSWORD_POLICY as OptionalType || OptionalType.Required,
+            allowSignups: process.env.ALLOW_SIGNUPS ? process.env.ALLOW_SIGNUPS === 'true': true,
+            listProfiles: process.env.LIST_PROFILES ? process.env.LIST_PROFILES === 'true': false,
+            syncPolicy: process.env.SYNC_POLICY as OptionalType || OptionalType.Required,
+            adminIsDefault: process.env.ADMIN_IS_DEFAULT ? process.env.ADMIN_IS_DEFAULT === 'true': false,
+        }
+
         setupEnvConfig({
             isDev,
             envType: EnvType.Server,
             dataDir,
             baseUrl,
             webBuildDir: path.join(__dirname, '../web'),
+            profilesPolicy,
+            secretKey: process.env.SECRET_KEY || 'secret',
         });
     }
 

@@ -4,6 +4,7 @@ import cookie from 'cookie';
 import mime from 'mime';
 import { match } from 'node-match-path';
 import { envConfig } from './envConfig';
+import { Profile } from './models';
 
 export type ApiRequestFile = {
     name: string;
@@ -13,7 +14,7 @@ export type ApiRequestFile = {
 }
 
 export class ApiRequest {
-    params: ParsedQs;
+    getParams: { [key: string]: string } = {};
     url: URL;
     urlParams: { [key: string]: string | string[] | ParsedQs | ParsedQs[] | undefined } = {};
     matchedPattern: string = '/api';
@@ -21,6 +22,7 @@ export class ApiRequest {
     cookies: { [key: string]: string } = {};
     method: string;
     validatedJson: any = null;
+    profile: Profile | null = null;
     constructor(
         method: string,
         url: string | URL,
@@ -39,7 +41,10 @@ export class ApiRequest {
             this.url = url;
         }
 
-        this.params = qs.parse(this.url.search, { ignoreQueryPrefix: true });
+        const params = qs.parse(this.url.search, { ignoreQueryPrefix: true });
+        for (const key in params) {
+            this.getParams[key] = params[key] as string;
+        }
 
         this.headers = {};
         for (const key in headers) {
@@ -142,7 +147,7 @@ export class ApiResponse {
         this.status(301);
         this.setHeader('Location', url);
     }
-    setCookie(key: string, value: string, ttl: number = 20 * 24 * 60 * 60) {
+    setCookie(key: string, value: string, ttl: number = 30 * 24 * 60 * 60) {
         this.setHeader('Set-Cookie', cookie.serialize(key, value, {
             maxAge: ttl,
             path: '/',
@@ -204,7 +209,7 @@ export class RouteGroup {
             // console.log('matchResult', matchResult.matches, 'request.path', request.path, 'route.pattern', pattern);
             if (matchResult.matches) {
                 if (matchResult.params) {
-                    request.urlParams = { ...request.params, ...matchResult.params };
+                    request.urlParams = { ...request.urlParams, ...matchResult.params };
                 }
                 request.matchedPattern = request.matchedPattern + route.pattern;
                 return true;
