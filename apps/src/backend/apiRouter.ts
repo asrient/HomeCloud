@@ -1,8 +1,6 @@
-import { RouteGroup } from "./interface";
 import profile from "./routes/profile";
+import root from "./routes/root";
 
-const api = new RouteGroup();
+root.add('/profile', profile.handle);
 
-api.add('/profile', profile.handle);
-
-export default api;
+export default root;
