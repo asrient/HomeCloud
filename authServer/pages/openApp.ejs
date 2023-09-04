@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+
+<%- include('blocks/head', {title: 'Opening app' }); %>
+
+  <body>
+    <%- include('blocks/header'); %>
+      <div class="center-col">
+        <br />
+        <br />
+        <br />
+        <div class="center base-semibold ink-black size-s">Open "<%- app.name %>" app?</div>
+        <br />
+        <a class="base-semibold ink-dark size-s" href="<%- redirectUrl %>">Open</a>
+      </div>
+      <br />
+      <div>
+        Code:
+        <code><%- partialCode2 %></code>
+      </div>
+      <div id="footer" class="center base-semilight ink-dark">Made by Asrient.</div>
+  </body>
+
+</html>
+
+
+<style>
+  #footer {
+    font-size: 0.9rem;
+    margin-top: 2rem;
+  }
+
+  .d {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid rgb(255, 255, 255);
+  }
+
+  .d:last-of-type {
+    border-bottom: none;
+  }
+
+  #details {
+    width: 90vw;
+    max-width: 18rem;
+    background: rgb(240, 240, 240);
+    border-radius: 0.5rem;
+  }
+</style>

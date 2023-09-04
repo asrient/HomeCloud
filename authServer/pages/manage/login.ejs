@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<%- include('../blocks/head', {title: 'Login to settings' }); %>
+    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet" type="text/css">
+
+    <body>
+        <%- include('../blocks/header'); %>
+            <div class="center-col" style="padding-top: 4rem;">
+                <div style="width: 1.5rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                        <path fill-rule="evenodd"
+                            d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3c0-2.9-2.35-5.25-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z"
+                            clip-rule="evenodd" />
+                    </svg>
+
+                </div>
+                <div style="color: rgb(47, 47, 47);">
+                    <h1 class="base-light" style="margin-top: 0.8rem;">Choose an account</h1>
+                    <button id="googleBtn" class="customGPlusSignIn" onclick="login('google')">
+                        <span class="gicon"></span>
+                        <span class="buttonText">Google</span>
+                    </button>
+                </div>
+            </div>
+    </body>
+
+</html>
+
+<script>
+    async function login(provider) {
+        const res = await fetch('/api/session/initiate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                appId: '<%= settingsAppId %>',
+                storageType: provider,
+                redirectUrl: window.location.origin + '/manage'
+            }),
+        });
+        if (res.status !== 201) throw new Error('Something went wrong');
+        const data = await res.json();
+        console.log('initiate api data: ', data);
+        window.setTimeout(() => {
+            window.location.href = data.authUrl;
+        }, 2);
+    }
+</script>
+
+<style type="text/css">
+    #googleBtn {
+        display: inline-block;
+        background: white;
+        color: #444;
+        width: 18rem;
+        border-radius: 5px;
+        border: thin solid #d3d3d3;
+        white-space: nowrap;
+    }
+
+    #googleBtn:hover {
+        cursor: pointer;
+    }
+
+    #googleBtn span.gicon {
+        background: url('/icons/g-normal.png') transparent 5px 50% no-repeat;
+        display: inline-block;
+        vertical-align: middle;
+        width: 42px;
+        height: 42px;
+    }
+
+    #googleBtn span.buttonText {
+        display: inline-block;
+        vertical-align: middle;
+        font-size: 14px;
+        font-weight: bold;
+        /* Use the Roboto font that is loaded in the <head> */
+        font-family: 'Roboto', sans-serif;
+    }
+</style>
