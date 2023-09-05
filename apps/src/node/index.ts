@@ -3,7 +3,7 @@ import http from 'http';
 import https from 'https';
 import ServerAdaptor from './serverAdaptor';
 import fs from 'fs';
-import { setupEnvConfig, EnvType, envConfig, OptionalType } from '../backend/envConfig';
+import { setupEnvConfig, EnvType, envConfig, OptionalType, StorageType } from '../backend/envConfig';
 import path from 'path';
 import os from 'os';
 import { initDb } from '../backend/db';
@@ -50,6 +50,10 @@ class AppServer {
             adminIsDefault: process.env.ADMIN_IS_DEFAULT ? process.env.ADMIN_IS_DEFAULT === 'true': false,
         }
 
+        const disabledStorageTypes: StorageType[] = process.env.DISABLED_STORAGE_TYPES ? 
+        process.env.DISABLED_STORAGE_TYPES.split(',').map(t => t.trim() as StorageType)
+        : [];
+
         setupEnvConfig({
             isDev,
             envType: EnvType.Server,
@@ -58,6 +62,9 @@ class AppServer {
             webBuildDir: path.join(__dirname, '../web'),
             profilesPolicy,
             secretKey: process.env.SECRET_KEY || 'secret',
+            disabledStorageTypes,
+            oneAuthServerUrl: process.env.ONEAUTH_SERVER_URL || null,
+            oneAuthAppId: process.env.ONEAUTH_APP_ID || null,
         });
     }
 

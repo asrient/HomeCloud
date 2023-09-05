@@ -65,6 +65,8 @@ export default class App {
       webBuildDir: path.join(app.getAppPath(), 'bin/web'),
       profilesPolicy,
       secretKey: this.createOrGetSecretKey(),
+      oneAuthServerUrl: 'http://localhost:5050', // todo: get from env
+      oneAuthAppId: 'dummy', // todo: get from env
     });
   }
 

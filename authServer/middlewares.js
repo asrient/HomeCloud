@@ -24,9 +24,9 @@ export function apiResponse(_req, res, next) {
 
 export const getSession = asyncHandler(async (req, _res, next) => {
     req._session = null;
-    const { apiKey } = req.body;
-    if (apiKey) {
-        req._session = await Sessions.getByApiKey(apiKey);
+    const { apiKey, appId } = req.body;
+    if (apiKey && appId) {
+        req._session = await Sessions.getByApiKey(apiKey, appId);
     }
     next();
 });

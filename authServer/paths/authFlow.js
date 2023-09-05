@@ -52,8 +52,15 @@ app.get('/callback', async (req, res) => {
     res.render("error", { error: e.message, code: "STORAGE_TYPE_INVALID" });
     return;
   }
-
-  const { id, email, name, picture, refreshToken } = await provider.getAccountDetails(code);
+  let accountDetails;
+  try {
+    accountDetails = await provider.getAccountDetails(code);
+  }
+  catch (e) {
+    res.render("error", { error: e.message, code: "ACCOUNT_DETAILS_FAILED" });
+    return;
+  }
+  const { id, email, name, picture, refreshToken } = accountDetails;
 
   let account;
   try {
@@ -88,9 +95,9 @@ app.get('/callback', async (req, res) => {
   res.render("openApp", {
     account,
     app,
-    partialCode2: sessionCreationResult.partial_code_2,
+    partialCode2: sessionCreationResult.partialCode2,
     referenceId,
-    redirectUrl: `${redirectUrl}?partialCode2=${sessionCreationResult.partial_code_2}&referenceId=${referenceId}`,
+    redirectUrl: `${redirectUrl}?partialCode2=${sessionCreationResult.partialCode2}&referenceId=${referenceId}`,
   });
 });
 

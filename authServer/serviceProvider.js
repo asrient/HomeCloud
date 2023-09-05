@@ -58,29 +58,39 @@ export class GoogleServiceProvider extends ServiceProvider {
     }
 
     async getAccountDetails(code) {
-        const { tokens } = await this._client.getToken(code);
+        let tokens;
+        try {
+            tokens = (await this._client.getToken(code)).tokens;
+        }
+        catch (e) {
+            throw new Error('Failed to get tokens: ' + e.message);
+        }
         this._client.setCredentials(tokens);
         const oauth2 = google.oauth2({
             auth: this._client,
             version: 'v2'
         });
-        const { data: { id, email, name, picture } } = await oauth2.userinfo.get();
-        return {
-            id,
-            email,
-            name,
-            picture,
-            refreshToken: tokens.refresh_token,
-            accessToken: tokens.access_token,
-            expiryDate: tokens.expiry_date
-        };
+        try {
+            const { data: { id, email, name, picture } } = await oauth2.userinfo.get();
+            return {
+                id,
+                email,
+                name,
+                picture,
+                refreshToken: tokens.refresh_token,
+                accessToken: tokens.access_token,
+                expiryDate: tokens.expiry_date
+            };
+        } catch (e) {
+            throw new Error('Failed to get user info: ' + e.message);
+        }
     }
 
     async getAccessToken(refreshToken) {
         const { tokens } = await this._client.refreshToken(refreshToken);
         return {
-            access_token: tokens.access_token,
-            expiry_date: tokens.expiry_date,
+            accessToken: tokens.access_token,
+            expiryDate: tokens.expiry_date,
         }
     }
 }

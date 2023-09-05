@@ -35,7 +35,8 @@
     "qs": "^6.11.2",
     "sequelize": "^6.32.1",
     "sqlite3": "^5.1.6",
-    "type-is": "^1.6.18"
+    "type-is": "^1.6.18",
+    "webdav": "^5.2.3"
   },
   "desktopDependencies": [
     "ajv",
@@ -49,7 +50,8 @@
     "qs",
     "sequelize",
     "sqlite3",
-    "type-is"
+    "type-is",
+    "webdav"
   ],
   "devDependencies": {
     "@electron-forge/cli": "^6.4.0",

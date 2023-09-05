@@ -1,5 +1,5 @@
 import { ApiRequest, ApiResponse, RouteGroup } from "../interface";
-import { method } from "../decorators";
+import { method, authenticate } from "../decorators";
 import { envConfig } from "../envConfig";
 
 const api = new RouteGroup();
@@ -12,9 +12,22 @@ api.add('/config', [
         allowSignups: envConfig.PROFILES_CONFIG.allowSignups,
         listProfiles: envConfig.PROFILES_CONFIG.listProfiles,
         syncPolicy: envConfig.PROFILES_CONFIG.syncPolicy,
+        storageTypes: envConfig.ENABLED_STORAGE_TYPES,
     }
     return ApiResponse.json(200, {
         config,
+    });
+});
+
+api.add('/myState', [
+    method(['GET']),
+    authenticate(),
+], async (request: ApiRequest) => {
+    const profile = request.profile!;
+    const storages = await profile.getStorages();
+    return ApiResponse.json(200, {
+        profile: profile.getDetails(),
+        storages: storages.map(storage => storage.getDetails()),
     });
 });
 

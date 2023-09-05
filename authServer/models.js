@@ -172,18 +172,16 @@ sessionSchema.methods.updateLastActive = async function () {
     return await this.save();
 }
 
-sessionSchema.statics.getByApiKey = async function (apiKey) {
+sessionSchema.statics.getByApiKey = async function (apiKey, appId) {
     const apiKeyHash = createHash(apiKey + SECRET_KEY);
-    return await this.findOne({ api_key_hash: apiKeyHash })
-        .populate('account')
-        .populate('app')
+    return await this.findOne({ api_key_hash: apiKeyHash, app: appId })
+        .populate(['account', 'app'])
         .exec();
 }
 
 sessionSchema.statics.getById = async function (id) {
     return await this.findById(id)
-        .populate('account')
-        .populate('app')
+        .populate(['account', 'app'])
         .exec();
 }
 
@@ -197,7 +195,7 @@ sessionSchema.statics.createNew = async function (accountId, appId, apiKey) {
         created_on: time(),
     });
     const session = await r.save();
-    return session.populate('account').populate('app');
+    return session.populate(['account', 'app']);
 }
 
 sessionSchema.statics.createFromPendingAuth = async function (pendingAuth, account) {

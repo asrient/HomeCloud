@@ -1,92 +1,98 @@
 <!doctype html>
 <html>
 
-<%- include('../blocks/head', {title: 'Account'}); %>
+<%- include('../blocks/head', {title: 'Account' }); %>
 
-<body>
-    <%- include('../blocks/header', {}); %>
-    <div class="container">
-        <br/>
-        <a href="/manage/login" class="link">&larr; Login</a>
-        <h1>Manage your Account</h1>
-        <hr/>
-        <div>
-            <div class="base-regular ink-orange size-m">Account details</div>
-            <br />
-            <div id="details" class="ink-black base-regular size-xs">
-                <diV class="d">
-                    <div class="d1">Account ID</div>
-                    <div class="base-semilight ink-dark"><%- account._id %></div>
-                </diV>
-                <diV class="d">
-                    <div class="d1">Service ID</div>
-                    <div class="base-semilight ink-dark"><%- account.target_id %></div>
-                </diV>
-                <diV class="d">
-                    <div class="d1">Service name</div>
-                    <div class="base-semilight ink-dark"><%- account.storage_type %></div>
-                </diV>
-                <diV class="d">
-                    <div class="d1">Email</div>
-                    <div class="base-semilight ink-dark"><%- account.email %></div>
-                </diV>
-            </div>
-        </div>
-        <hr />
-        <div>
-            <div class="base-regular ink-orange size-m">Active sessions</div>
-            <br />
-            <div>
-                <% if (!sessions.length) { %>
-                    <div class="size-xs">No active sessions.</div>
-                    <% } %>
-                        <% sessions.forEach(function(session){ %>
-                            <div class="base-semilight ink-dark size-xs">
-                                <div class="size-s ink-black"><%- session.app.name %></div>
-                                <div>Last seen <%- session.last_seen %></div>
-                                <div>Added on <%- session.created_on %></div>
-                                <div>ID: <%- session._id %></div>
+    <body>
+        <%- include('../blocks/header', {}); %>
+            <div class="container">
+                <br />
+                <a href="/manage/login" class="link">&larr; Login</a>
+                <h1>Manage your Account</h1>
+                <hr />
+                <div>
+                    <div class="base-regular ink-orange size-m">Account details</div>
+                    <br />
+                    <div id="details" class="ink-black base-regular size-xs">
+                        <diV class="d">
+                            <div class="d1">Account ID</div>
+                            <div class="base-semilight ink-dark"><%- account._id %></div>
+                        </diV>
+                        <diV class="d">
+                            <div class="d1">Service ID</div>
+                            <div class="base-semilight ink-dark"><%- account.target_id %></div>
+                        </diV>
+                        <diV class="d">
+                            <div class="d1">Service name</div>
+                            <div class="base-semilight ink-dark"><%- account.storage_type %></div>
+                        </diV>
+                        <diV class="d">
+                            <div class="d1">Email</div>
+                            <div class="base-semilight ink-dark"><%- account.email %></div>
+                        </diV>
+                    </div>
+                </div>
+                <hr />
+                <div>
+                    <div class="base-regular ink-orange size-m">Active sessions</div>
+                    <br />
+                    <div>
+                        <% if (!sessions.length) { %>
+                            <div class="size-xs">No active sessions.</div>
+                            <% } %>
+                                <% sessions.forEach(function(session){ %>
+                                    <div class="session base-light ink-dark">
+                                        <div class="center" style="padding-right: 1rem;">
+                                            <svg style="width: 3rem;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5h3m-6.75 2.25h10.5a2.25 2.25 0 002.25-2.25v-15a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 4.5v15a2.25 2.25 0 002.25 2.25z" />
+                                              </svg>                                              
+                                        </div>
+                                        <div>
+                                            <div class="size-s ink-black"><%- session.app.name %></div>
+                                        <div>Last seen: <%- new Date(session.last_seen || session.created_on).toString().split('(')[0] %></div>
+                                        <div>Added on: <%- new Date(session.created_on).toString().split('(')[0] %></div>
+                                        <div>Session ID: <%- session._id %></div>
+                                        </div>
+                                    </div>
+                                    <% }); %>
+                    </div>
+                </div>
+                <hr />
+                <div class="base-regular ink-orange size-m"
+                    style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>My apps</div>
+                    <div>
+                        <a class="ink-white size-xs base-regular" id="button1" href="/manage/newApp">Create</a>
+                    </div>
+                </div>
+                <br />
+                <div>
+                    <% if (!apps.length) { %>
+                        <div class="size-xs">No apps.</div>
+                        <% } %>
+                            <% apps.forEach(function(app){ %>
+                                <div class="base-light ink-dark size-xs"
+                                    style="display: grid; grid-template-columns: 3rem auto;">
+                                    <div class="center" style="padding-right: 1rem;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M3 8.25V18a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 18V8.25m-18 0V6a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 6v2.25m-18 0h18M5.25 6h.008v.008H5.25V6zM7.5 6h.008v.008H7.5V6zm2.25 0h.008v.008H9.75V6z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div class="base-semilight size-s ink-black"><%- app.name %></div>
+                                        <div class="ink-black"><%- app.description %></div>
+                                        <div>Created on: <%- new Date(app.created_on).toString().split('(')[0] %></div>
+                                        <div>ID: <%- app._id %></div>
+                                    </div>
+                                </div>
                                 <hr />
-                            </div>
-                            <% }); %>
+                                <% }); %>
+                </div>
             </div>
-        </div>
-        <hr />
-        <div class="base-regular ink-orange size-m"
-            style="display: flex; justify-content: space-between; align-items: center;">
-            <div>My apps</div>
-            <div>
-                <a class="ink-white size-xs base-regular" id="button1" href="/manage/newApp">Create</a>
-            </div>
-        </div>
-        <br />
-        <div>
-            <% if (!apps.length) { %>
-                <div class="size-xs">No apps.</div>
-                <% } %>
-                    <% apps.forEach(function(app){ %>
-                        <div class="base-light ink-dark size-xs"
-                            style="display: grid; grid-template-columns: 3rem auto;">
-                            <div class="center" style="padding-right: 1rem;">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                    stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M3 8.25V18a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 18V8.25m-18 0V6a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 6v2.25m-18 0h18M5.25 6h.008v.008H5.25V6zM7.5 6h.008v.008H7.5V6zm2.25 0h.008v.008H9.75V6z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <div class="base-semilight size-s ink-black"><%- app.name %></div>
-                                <div class="ink-black"><%- app.description %></div>
-                                <div>Created on: <%- new Date(app.created_on).toString().split('(')[0] %></div>
-                                <div>ID: <%- app._id %></div>
-                            </div>
-                        </div>
-                        <hr />
-                        <% }); %>
-        </div>
-    </div>
 
-</body>
+    </body>
 
 </html>
 <script>
@@ -127,5 +133,21 @@
 
     #button1:hover {
         background-color: rgb(94, 191, 255);
+    }
+
+    .session {
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        padding-left: 1rem;
+        margin-bottom: 0.5rem;
+        background-color: rgb(240, 240, 240);
+        border: solid 1px transparent;
+        font-size: 0.8rem;
+        display: grid; 
+        grid-template-columns: 3rem auto;
+    }
+
+    .session:hover {
+        border: solid 1px rgb(200, 200, 200);
     }
 </style>

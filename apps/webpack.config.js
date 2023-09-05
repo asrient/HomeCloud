@@ -20,12 +20,17 @@ const baseconfig = {
     },
 }
 
+// Need to pack webdav since it's only available as a esm module
+const externals = [nodeExternals({
+    allowlist: ['webdav', '@buttercup/fetch', 'hot-patcher'],
+})];
+
 module.exports = [
     {
         ...baseconfig,
         entry: './src/desktop/index.ts',
         target: 'electron-main',
-        externals: [nodeExternals()], // in order to ignore all modules in node_modules folder
+        externals, // in order to ignore all modules in node_modules folder
         output: {
             path: __dirname + '/bin/desktop',
             filename: 'index.js'
@@ -52,7 +57,7 @@ module.exports = [
         entry: './src/node/index.ts',
         target: 'node',
         externalsPresets: { node: true }, // in order to ignore built-in modules like path, fs, etc.
-        externals: [nodeExternals()], // in order to ignore all modules in node_modules folder
+        externals, // in order to ignore all modules in node_modules folder
         output: {
             path: __dirname + '/bin/node',
             filename: 'index.js'
