@@ -5,6 +5,7 @@ import mime from 'mime';
 import { match } from 'node-match-path';
 import { envConfig } from './envConfig';
 import { Profile } from './models';
+import { ReadStream } from 'fs';
 
 export type ApiRequestFile = {
     name: string;
@@ -21,7 +22,7 @@ export class ApiRequest {
     headers: { [key: string]: string };
     cookies: { [key: string]: string } = {};
     method: string;
-    validatedJson: any = null;
+    local: any = {};
     profile: Profile | null = null;
     constructor(
         method: string,
@@ -111,6 +112,7 @@ export class ApiResponse {
     statusCode: number = 200;
     headers: { [key: string]: string } = {};
     body: Blob | null = null;
+    bodyStream: ReadStream | null = null;
     file: string | null = null;
     constructor() {
         this.setHeader('Content-Type', 'text/plain');
@@ -142,6 +144,10 @@ export class ApiResponse {
     sendFileAsDownload(filePath: string, filename: string) {
         this.sendFile(filePath);
         this.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    }
+    stream(bodyStream: ReadStream, contentType: string) {
+        this.bodyStream = bodyStream;
+        this.setHeader('Content-Type', contentType);
     }
     redirect(url: string) {
         this.status(301);
@@ -175,6 +181,13 @@ export class ApiResponse {
         response.json(body);
         return response;
     }
+
+    static stream(statusCode: number, bodyStream: ReadStream, contentType: string) {
+        const response = new ApiResponse();
+        response.status(statusCode);
+        response.stream(bodyStream, contentType);
+        return response;
+    }
 }
 
 export type RouteHandler = (request: ApiRequest) => Promise<ApiResponse>;
@@ -191,7 +204,9 @@ export class RouteGroup {
         let handler: RouteHandler;
         if (!!arg2) {
             handler = arg2;
-            for (const decorator of arg1 as ApiDecoratorHandler[]) {
+            const decorators = arg1 as ApiDecoratorHandler[];
+            decorators.reverse();
+            for (const decorator of decorators) {
                 handler = decorator(handler);
             }
         } else {

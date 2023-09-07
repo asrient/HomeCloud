@@ -4,6 +4,7 @@ import isType from 'type-is';
 import Ajv from "ajv";
 import { verifyJwt } from "./utils/profileUtils";
 import { Profile } from "./models";
+import { getFsDriver } from "./storageKit/storageHelper";
 
 const ajv = new Ajv();
 
@@ -39,16 +40,16 @@ export function validateJson(schema: any) {
             return ApiResponse.error('Content type is not json.');
         }
         let data;
-        try{
+        try {
             data = await request.json();
         }
-        catch(e: any) {
+        catch (e: any) {
             return ApiResponse.error(400, 'Could not parse json body');
         }
         if (!validator(data)) {
             return ApiResponse.error(400, 'Invalid request body json', parseJsonValidatorErrors(validator.errors));
         }
-        request.validatedJson = data;
+        request.local.json = data;
         return next();
     });
 }
@@ -67,6 +68,7 @@ export function validateQuery(schema: any) {
 
 export function authenticate(authType: AuthType = AuthType.Required) {
     return makeDecorator(async (request, next) => {
+        console.log('Auth')
         const profileId = verifyJwt(request.cookies.jwt);
         const profile = await Profile.getProfileById(profileId);
         if (!profile && authType === AuthType.Required) {
@@ -80,4 +82,42 @@ export function authenticate(authType: AuthType = AuthType.Required) {
 export enum AuthType {
     Required,
     Optional,
+}
+
+export function fetchStorage() {
+    return makeDecorator(async (request, next) => {
+        console.log('Fetch storage')
+        let storageId = request.headers['x-storage-id'];
+        if (!storageId && request.local.json && request.local.json.storageId) {
+            storageId = request.local.json.storageId;
+        }
+        if (!storageId && request.getParams.storageId) {
+            storageId = request.getParams.storageId;
+        }
+        if (!storageId) {
+            return ApiResponse.error(400, 'Storage id not provided');
+        }
+        const storage = await request.profile!.getStorageById(parseInt(storageId));
+        if (!storage) {
+            return ApiResponse.error(404, 'Storage not found');
+        }
+        request.local.storage = storage;
+        return next();
+    });
+}
+
+export function fetchFsDriver() {
+    return makeDecorator(async (request, next) => {
+        const storage = request.local.storage;
+        try {
+            const fsDriver = await getFsDriver(storage);
+            request.local.fsDriver = fsDriver;
+        } catch (e: any) {
+            console.error(e);
+            return ApiResponse.error(400, 'Could not get fs driver', {
+                error: e.message
+            });
+        }
+        return next();
+    });
 }

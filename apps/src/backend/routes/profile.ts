@@ -29,7 +29,7 @@ api.add('/create', [
     method(['POST']),
     validateJson(createProfileSchema),
 ], async (request: ApiRequest) => {
-    const data = request.validatedJson;
+    const data = request.local.json;
     let profile: Profile;
     try {
         profile = await Profile.createProfile(data.username, data.name, data.password);
@@ -60,7 +60,7 @@ api.add('/login', [
     method(['POST']),
     validateJson(loginProfileSchema),
 ], async (request: ApiRequest) => {
-    const data = request.validatedJson;
+    const data = request.local.json;
     const profile = await Profile.getProfileByUsername(data.username);
     if (!profile) {
         return ApiResponse.error(404, 'Profile not found');

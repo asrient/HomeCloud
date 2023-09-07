@@ -110,7 +110,18 @@ export default class ServerAdaptor {
                 console.error('fileStream error:', err);
                 res.end();
             });
-        } else {
+        }
+        else if (!!apiResponse.bodyStream) {
+            apiResponse.bodyStream.pipe(res);
+            apiResponse.bodyStream.on('end', () => {
+                res.end();
+            });
+            apiResponse.bodyStream.on('error', (err) => {
+                console.error('bodyStream error:', err);
+                res.end();
+            });
+        }
+        else {
             res.write(Buffer.from(await apiResponse.body?.arrayBuffer() || new ArrayBuffer(0)));
             res.end();
         }

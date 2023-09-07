@@ -1,9 +1,9 @@
 import { ApiRequest, ApiResponse, RouteGroup } from "../interface";
-import { method, validateJson, authenticate, validateQuery } from "../decorators";
+import { method, validateJson, authenticate, validateQuery, fetchStorage, fetchFsDriver } from "../decorators";
 import { Storage } from "../models";
 import { StorageTypes, StorageAuthTypes, StorageAuthType } from "../envConfig";
-import { getFsDriver } from "../storageKit/storageHelper";
 import { initiate, complete } from "../storageKit/oneAuth";
+import { FsDriver } from "../storageKit/interface";
 
 const api = new RouteGroup();
 
@@ -36,7 +36,7 @@ api.add('/add', [
     authenticate(),
     validateJson(addStorageSchema),
 ], async (request: ApiRequest) => {
-    const data = request.validatedJson;
+    const data = request.local.json;
     const profile = request.profile!;
     if (data.authType === StorageAuthType.OneAuth) {
         try {
@@ -101,7 +101,7 @@ api.add('/edit', [
     authenticate(),
     validateJson(editStorageSchema),
 ], async (request: ApiRequest) => {
-    const data = request.validatedJson;
+    const data = request.local.json;
     const profile = request.profile!;
     let storage = await profile.getStorageById(data.storageId);
     if (!storage) {
@@ -135,7 +135,7 @@ api.add('/delete', [
     authenticate(),
     validateJson(deleteStorageSchema),
 ], async (request: ApiRequest) => {
-    const data = request.validatedJson;
+    const data = request.local.json;
     const profile = request.profile!;
     const storage = await profile.getStorageById(data.storageId);
     if (!storage) {
@@ -169,16 +169,13 @@ api.add('/test', [
     method(['GET']),
     authenticate(),
     validateQuery(testStorageSchema),
+    fetchStorage(),
+    fetchFsDriver(),
 ], async (request: ApiRequest) => {
-    const storageId = request.getParams.storageId;
-    const profile = request.profile!;
-    const storage = await profile.getStorageById(parseInt(storageId));
-    if (!storage) {
-        return ApiResponse.error(404, 'Storage not found');
-    }
-    const fsDriver = getFsDriver(storage);
+    const storage = request.local.storage as Storage;
+    const fsDriver = request.local.fsDriver as FsDriver;
     try {
-        const contents = await fsDriver.readDir('/');
+        const contents = await fsDriver.readRootDir();
 
         const resp = ApiResponse.json(201, {
             storage: storage.getDetails(),

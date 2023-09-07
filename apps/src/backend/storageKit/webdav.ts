@@ -1,5 +1,5 @@
-import { StorageType, StorageAuthType } from "../envConfig";
-import { Profile, Storage } from "../models";
+import { StorageAuthType } from "../envConfig";
+import { Storage } from "../models";
 import { FsDriver, RemoteItem } from "./interface";
 import { createClient, FileStat, AuthType as WebdavAuthType, WebDAVClient, WebDAVClientOptions } from "webdav";
 
@@ -36,18 +36,21 @@ export class WebdavFsDriver extends FsDriver {
     toRemoteItem(item: any): RemoteItem {
         return {
             type: item.type,
-            filename: item.basename,
+            name: item.basename,
+            id: item.filename,
             absolutePath: item.filename,
+            parentIds: null,
             size: item.size,
             lastModified: new Date(item.lastmod),
             createdAt: new Date(item.created),
             mimeType: item.mime,
             etag: item.etag,
+            thubmnail: null,
         }
     }
 
     public override async readDir(path: string) {
         const contents = await this.client.getDirectoryContents(path) as FileStat[];
-        return contents.map((item: any) => this.toRemoteItem(item));
+        return contents.map((item: FileStat) => this.toRemoteItem(item));
     }
 }
