@@ -3,7 +3,7 @@ import { envConfig } from '../backend/envConfig';
 import { ApiRequest, ApiRequestFile } from '../backend/interface';
 import path from 'path';
 import fs from 'fs';
-import formidable from 'formidable';
+import busboy from 'busboy';
 import apiRouter from '../backend/apiRouter';
 import mime from 'mime';
 
@@ -58,26 +58,36 @@ export default class ServerAdaptor {
             });
         }
 
-        const downloadAttachedFiles = async () => {
-            const form = formidable({
-                multiples: true,
-                keepExtensions: true,
-            });
-            const [_fields, files] = await form.parse(req);
-            const result: ApiRequestFile[] = [];
-            Object.keys(files).forEach((key) => {
-                const fileSet = files[key];
-                if (!Array.isArray(fileSet)) return;
-                fileSet.forEach((file) => {
-                    result.push({
-                        name: file.originalFilename!,
-                        path: file.filepath!,
-                        mime: file.mimetype || '',
-                        size: file.size,
+        const fetchMultipartForm = async (cb: (type: 'file' | 'field', file: ApiRequestFile | any) => Promise<void>) => {
+            const bb = busboy({ headers: req.headers });
+            return new Promise<void>((resolve, reject) => {
+                const promises: Promise<void>[] = [];
+                bb.on('file', (name, file, info) => {
+                    const stream = file as fs.ReadStream;
+                    promises.push(cb('file', {
+                        name: info.filename,
+                        mime: info.mimeType,
+                        stream: stream,
+                    } as ApiRequestFile));
+                });
+                bb.on('field', (name, val) => {
+                    promises.push(cb('field', {
+                        name: name,
+                        value: val,
+                    }));
+                });
+                bb.on('finish', () => {
+                    Promise.all(promises).then(() => {
+                        resolve();
+                    }).catch((err) => {
+                        reject(err);
                     });
                 });
+                bb.on('error', (err) => {
+                    reject(err);
+                });
+                req.pipe(bb);
             });
-            return result;
         };
 
         const getBody = async () => {
@@ -95,7 +105,7 @@ export default class ServerAdaptor {
             });
         }
 
-        const apiRequest = new ApiRequest(req.method!, url, headers, getBody, downloadAttachedFiles);
+        const apiRequest = new ApiRequest(req.method!, url, headers, getBody, fetchMultipartForm);
         const apiResponse = await apiRouter.handle(apiRequest);
 
         res.writeHead(apiResponse.statusCode, apiResponse.headers);

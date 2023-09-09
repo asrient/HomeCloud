@@ -10,8 +10,7 @@ import { ReadStream } from 'fs';
 export type ApiRequestFile = {
     name: string;
     mime: string;
-    size: number;
-    path: string;
+    stream: ReadStream;
 }
 
 export class ApiRequest {
@@ -29,7 +28,7 @@ export class ApiRequest {
         url: string | URL,
         headers: { [key: string]: string },
         public body: (() => Promise<Buffer>) | null = null,
-        public downloadAttachedFiles: (() => Promise<ApiRequestFile[]>) | null = null,
+        public fetchMultipartForm: ((cb: (type: 'file' | 'field', file: ApiRequestFile | any) => Promise<void>) => Promise<void>) | null = null,
     ) {
         this.method = method.toUpperCase();
 
@@ -161,7 +160,7 @@ export class ApiResponse {
     }
 
     static error(statusCode: number | string, message: string | any = null, detail: any = null) {
-        if(typeof statusCode === 'string') {
+        if (typeof statusCode === 'string') {
             detail = message;
             message = statusCode;
             statusCode = 400;

@@ -177,7 +177,7 @@ api.add('/test', [
     try {
         const contents = await fsDriver.readRootDir();
 
-        const resp = ApiResponse.json(201, {
+        const resp = ApiResponse.json(200, {
             storage: storage.getDetails(),
             contents,
         });
