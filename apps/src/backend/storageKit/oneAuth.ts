@@ -47,7 +47,8 @@ async function fetchAccessToken(apiKey: string): Promise<{
         }),
     });
     if (!resp.ok) {
-        console.error('Error fetching access token', resp);
+        const body = await resp.json();
+        console.error('Error fetching access token', body);
         throw new Error('Could not fetch access token');
     }
     const { token: { accessToken, expiryDate }, account: { id, storageType, targetId } } = await resp.json();

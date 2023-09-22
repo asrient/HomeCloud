@@ -37,6 +37,10 @@ export function generateJwt(accountId) {
 
 export function verifyJwt(token) {
     if(!token) return null;
-    const payload = jwt.verify(token, SECRET_KEY);
-    return payload.accountId;
+    try {
+        const payload = jwt.verify(token, SECRET_KEY);
+        return payload.accountId;
+    } catch (e) {
+        return null;
+    }
 }

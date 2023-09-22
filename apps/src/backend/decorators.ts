@@ -3,8 +3,10 @@ import { makeDecorator } from "./utils";
 import isType from 'type-is';
 import Ajv from "ajv";
 import { verifyJwt } from "./utils/profileUtils";
-import { Profile } from "./models";
+import { Profile, Storage } from "./models";
 import { getFsDriver } from "./storageKit/storageHelper";
+import PhotosService from "./services/photos/photosService";
+import { FsDriver } from "./storageKit/interface";
 
 const ajv = new Ajv();
 
@@ -118,6 +120,19 @@ export function fetchFsDriver() {
                 error: e.message
             });
         }
+        return next();
+    });
+}
+
+export function fetchPhotoService() {
+    return makeDecorator(async (request, next) => {
+        const storage: Storage = request.local.storage;
+        const fsDriver: FsDriver = request.local.fsDriver;
+        const storageMeta = await storage.getStorageMeta();
+        if (!storageMeta) {
+            return ApiResponse.error(400, 'Storage meta not found');
+        }
+        request.local.photoService = new PhotosService(fsDriver, storageMeta);
         return next();
     });
 }

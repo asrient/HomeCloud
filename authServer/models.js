@@ -113,6 +113,9 @@ accountSchema.statics.getOrCreate = async function (targetId, storageType, refre
     let r = await this.getByTarget(storageType, targetId);
     if (r == null) {
         r = await this.createNew(targetId, storageType, refreshToken);
+    } else if(refreshToken && r.refresh_token !== refreshToken) {
+        r.refresh_token = refreshToken;
+        await r.save();
     }
     return r;
 }

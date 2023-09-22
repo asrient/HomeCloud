@@ -8,7 +8,7 @@ import fs from 'fs';
 const api = new RouteGroup();
 
 const commonOptions = {
-    storageId: { type: 'string' },
+    storageId: { type: 'number' },
 }
 
 const readDirSchema = {
@@ -295,6 +295,45 @@ api.add('/writeFiles/desktop', [
     }
 });
 
+api.add('/updateFile', [
+    method(['POST']),
+    authenticate(),
+    fetchStorage(),
+    fetchFsDriver(),
+], async (request: ApiRequest) => {
+    const fsDriver = request.local.fsDriver as FsDriver;
+
+    let id: string | null = null;
+    let item: RemoteItem | null = null;
+    let fileReceived = false;
+
+    const processFile = async (file: ApiRequestFile) => {
+        const stream = file.stream;
+        if (!id || fileReceived) {
+            console.error('got file before id or multiple files');
+            stream.resume();
+            return;
+        }
+        fileReceived = true;
+        item = await fsDriver.updateFile(id, file);
+    }
+
+    if (request.mayContainFiles && request.fetchMultipartForm) {
+        await request.fetchMultipartForm(async (type, data) => {
+            if (type === 'field') {
+                if (data.name === 'id') {
+                    id = data.value;
+                }
+            } else if (type === 'file') {
+                await processFile(data as ApiRequestFile);
+            }
+        });
+        return ApiResponse.json(201, item);
+    } else {
+        return ApiResponse.error(400, 'No files found');
+    }
+});
+
 const moveSchema = {
     type: 'object',
     properties: {
@@ -304,7 +343,7 @@ const moveSchema = {
         deleteSource: { type: 'boolean', default: false },
         ...commonOptions,
     },
-    required: ['fileId', 'destParentId', 'newFilename'],
+    required: ['fileId', 'destParentId', 'newFileName'],
 };
 
 api.add('/moveFile', [
@@ -420,28 +459,31 @@ api.add('/getStats', [
     }
 });
 
-const fileNameToIdSchema = {
+const getStatByFilenameSchema = {
     type: 'object',
     properties: {
         parentId: { type: 'string' },
         name: { type: 'string' },
         ...commonOptions,
     },
-    required: ['parentId', 'name'],
+    required: ['name'],
 };
 
-api.add('/fileNameToId', [
+api.add('/getStatByFilename', [
     method(['POST']),
     authenticate(),
-    validateJson(fileNameToIdSchema),
+    validateJson(getStatByFilenameSchema),
     fetchStorage(),
     fetchFsDriver(),
 ], async (request: ApiRequest) => {
     const fsDriver = request.local.fsDriver as FsDriver;
-    const { parentId, name } = request.local.json;
+    let { parentId, name } = request.local.json;
+    if (!parentId || parentId === '/' || parentId === '') {
+        parentId = null;
+    }
     try {
-        const id = await fsDriver.filenameToId(name, parentId);
-        return ApiResponse.json(200, { id });
+        const stats = await fsDriver.getStatByFilename(name, parentId);
+        return ApiResponse.json(200, stats);
     } catch (e: any) {
         console.error(e);
         return ApiResponse.error(400, 'Could not get item id', {

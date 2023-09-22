@@ -100,7 +100,27 @@ export class FsDriver {
         return result;
     }
 
-    public async filenameToId(filename: string, baseId: string): Promise<string> {
+    public async getStatByFilename(filename: string, baseId: string): Promise<RemoteItem> {
+        if (baseId === '/') {
+            baseId = '';
+        }
+        const filePath = `${baseId}/${filename}`;
+        return await this.getStat(filePath);
+    }
+
+    public async getIdByFilename(filename: string, baseId: string): Promise<string> {
+        if (baseId === '/') {
+            baseId = '';
+        }
         return `${baseId}/${filename}`;
+    }
+
+    public async makeOrGetDir(name: string, baseId: string): Promise<RemoteItem> {
+        try {
+            return await this.getStatByFilename(name, baseId);
+        }
+        catch(e) {
+            return this.mkDir(name, baseId);
+        }
     }
 }

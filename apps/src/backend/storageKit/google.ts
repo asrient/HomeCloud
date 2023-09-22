@@ -10,6 +10,7 @@ import { ReadStream } from 'original-fs';
 const OAuth2 = google.auth.OAuth2;
 
 export class GoogleFsDriver extends FsDriver {
+    override storageType = StorageType.Google;
     driver?: drive_v3.Drive;
 
     override async init() {
@@ -38,6 +39,13 @@ export class GoogleFsDriver extends FsDriver {
         }
     }
 
+    normalizeRootId(id: string): string {
+        if (id === '/') {
+            return 'root';
+        }
+        return id;
+    }
+
     mimeToItemType(mimeType: string): 'file' | 'directory' {
         if (mimeType === this.folderMineType) {
             return 'directory';
@@ -49,11 +57,13 @@ export class GoogleFsDriver extends FsDriver {
     folderMineType = 'application/vnd.google-apps.folder';
 
     public override async readDir(id: string) {
+        id = this.normalizeRootId(id);
         try {
             const res = await this.driver!.files.list({
                 q: `'${id}' in parents`,
                 fields: `nextPageToken, files(${this.fileAttrs})`,
                 spaces: 'drive',
+                pageSize: 1000,
             });
             if (!res.data.files) {
                 console.error('Error getting files', res);
@@ -70,6 +80,16 @@ export class GoogleFsDriver extends FsDriver {
     }
 
     public override async mkDir(name: string, parentId: string): Promise<RemoteItem> {
+        parentId = this.normalizeRootId(parentId);
+        let exists = false;
+        try {
+            exists = !!await this.getStatByFilename(name, parentId);
+        } catch (err) {
+            exists = false;
+        }
+        if (exists) {
+            throw new Error('Folder already exists');
+        }
         try {
             const res = await this.driver!.files.create({
                 requestBody: {
@@ -125,6 +145,7 @@ export class GoogleFsDriver extends FsDriver {
     }
 
     public override async writeFile(folderId: string, file: ApiRequestFile): Promise<RemoteItem> {
+        folderId = this.normalizeRootId(folderId);
         try {
             const res = await this.driver!.files.create({
                 requestBody: {
@@ -194,6 +215,7 @@ export class GoogleFsDriver extends FsDriver {
     }
 
     public override async moveFile(id: string, destParentId: string, newFileName: string, deleteSource: boolean): Promise<RemoteItem> {
+        destParentId = this.normalizeRootId(destParentId);
         try {
             const res = await this.driver!.files.copy({
                 fileId: id,
@@ -219,6 +241,7 @@ export class GoogleFsDriver extends FsDriver {
     }
 
     public override async moveDir(id: string, destParentId: string, newDirName: string, deleteSource: boolean): Promise<RemoteItem> {
+        destParentId = this.normalizeRootId(destParentId);
         const newDir = await this.mkDir(newDirName, destParentId);
         const files = await this.readDir(id);
         const promises = [];
@@ -238,6 +261,7 @@ export class GoogleFsDriver extends FsDriver {
     }
 
     public override async getStat(id: string): Promise<RemoteItem> {
+        id = this.normalizeRootId(id);
         try {
             const res = await this.driver!.files.get({
                 fileId: id,
@@ -259,10 +283,11 @@ export class GoogleFsDriver extends FsDriver {
         return this.readDir('root');
     }
 
-    public override async filenameToId(filename: string, parentId: string): Promise<string> {
+    public override async getStatByFilename(filename: string, parentId: string): Promise<RemoteItem> {
+        parentId = this.normalizeRootId(parentId);
         const res = await this.driver!.files.list({
             q: `name='${filename}' and '${parentId}' in parents`,
-            fields: `nextPageToken, files(id)`,
+            fields: `nextPageToken, files(${this.fileAttrs})`,
             spaces: 'drive',
         });
         if (!res.data.files) {
@@ -273,6 +298,10 @@ export class GoogleFsDriver extends FsDriver {
         if (files.length === 0) {
             throw new Error('File not found');
         }
-        return files[0].id!;
+        return this.toRemoteItem(files[0]);
+    }
+
+    public override async getIdByFilename(filename: string, baseId: string): Promise<string> {
+        return (await this.getStatByFilename(filename, baseId)).id;
     }
 }

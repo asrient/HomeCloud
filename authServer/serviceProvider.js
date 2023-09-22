@@ -63,6 +63,7 @@ export class GoogleServiceProvider extends ServiceProvider {
             tokens = (await this._client.getToken(code)).tokens;
         }
         catch (e) {
+            console.log('Failed to get tokens: ' + e.message);
             throw new Error('Failed to get tokens: ' + e.message);
         }
         this._client.setCredentials(tokens);
@@ -82,6 +83,7 @@ export class GoogleServiceProvider extends ServiceProvider {
                 expiryDate: tokens.expiry_date
             };
         } catch (e) {
+            console.log('Failed to get user info: ' + e.message);
             throw new Error('Failed to get user info: ' + e.message);
         }
     }

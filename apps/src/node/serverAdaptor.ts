@@ -80,10 +80,12 @@ export default class ServerAdaptor {
                     Promise.all(promises).then(() => {
                         resolve();
                     }).catch((err) => {
+                        console.error('fetchMultipartForm error:', err);
                         reject(err);
                     });
                 });
                 bb.on('error', (err) => {
+                    console.error('busboy error:', err);
                     reject(err);
                 });
                 req.pipe(bb);

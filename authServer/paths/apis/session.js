@@ -69,6 +69,7 @@ app.post('/token', async function (req, res) {
         });
     }
     catch (e) {
+        console.log(e);
         res.apiError(400, e.message);
     }
 })

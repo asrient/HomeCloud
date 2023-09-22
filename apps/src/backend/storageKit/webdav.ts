@@ -4,6 +4,7 @@ import { FsDriver, RemoteItem } from "./interface";
 import { createClient, FileStat, AuthType as WebdavAuthType, WebDAVClient, WebDAVClientOptions } from "webdav";
 import { ApiRequestFile } from "../interface";
 import { ReadStream } from "original-fs";
+import { streamToBuffer } from "../utils";
 
 function mapAuthType(authType: StorageAuthType) {
     switch (authType) {
@@ -49,6 +50,13 @@ export class WebdavFsDriver extends FsDriver {
         }
     }
 
+    normalizeRootId(id: string): string {
+        if (id === '/') {
+            return '';
+        }
+        return id;
+    }
+
     public override async readDir(path: string) {
         const contents = await this.client.getDirectoryContents(path) as FileStat[];
         return contents.map((item: FileStat) => this.toRemoteItem(item));
@@ -59,6 +67,7 @@ export class WebdavFsDriver extends FsDriver {
     }
 
     public override async mkDir(name: string, baseId: string) {
+        baseId = this.normalizeRootId(baseId);
         const path = `${baseId}/${name}`;
         await this.client.createDirectory(path);
         return this.toRemoteItem(await this.client.stat(path));
@@ -69,14 +78,20 @@ export class WebdavFsDriver extends FsDriver {
     }
 
     public override async rename(id: string, newName: string) {
-        const item = await this.client.moveFile(id, newName);
-        return this.toRemoteItem(item);
+        const newPath = `${this.pathToParentFolder(id)}/${newName}`;
+        await this.client.moveFile(id, newPath);
+        return this.getStat(newPath);
     }
 
     public override async writeFile(folderId: string, file: ApiRequestFile, overwrite = false) {
+        folderId = this.normalizeRootId(folderId);
         const path = `${folderId}/${file.name}`;
         const stream = file.stream as ReadStream;
-        await this.client.putFileContents(path, stream, { overwrite });
+        const buffer = await streamToBuffer(stream);
+        const r = await this.client.putFileContents(path, buffer, { overwrite });
+        if (!r) {
+            throw new Error('Could not write file');
+        }
         return this.getStat(path);
     }
 
@@ -102,21 +117,23 @@ export class WebdavFsDriver extends FsDriver {
     }
 
     public override async moveFile(id: string, destParentId: string, newFileName: string, deleteSource: boolean): Promise<RemoteItem> {
+        destParentId = this.normalizeRootId(destParentId);
         const destPath = `${destParentId}/${newFileName}`;
-        let item: any;
         if (deleteSource) {
-            item = await this.client.moveFile(id, destPath);
+            await this.client.moveFile(id, destPath);
         } else {
-            item = await this.client.copyFile(id, destPath);
+            await this.client.copyFile(id, destPath);
         }
-        return this.toRemoteItem(item);
+        return this.getStat(destPath);
     }
 
     public override async moveDir(id: string, destParentId: string, newDirName: string, deleteSource: boolean): Promise<RemoteItem> {
+        destParentId = this.normalizeRootId(destParentId);
         return this.moveFile(id, destParentId, newDirName, deleteSource);
     }
 
     public override async getStat(id: string): Promise<RemoteItem> {
+        id = this.normalizeRootId(id);
         const item = await this.client.stat(id);
         return this.toRemoteItem(item);
     }

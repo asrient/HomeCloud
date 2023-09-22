@@ -36,7 +36,7 @@ export async function initDb(dbType: string, path: string) {
 
     initModels(db);
     if(envConfig.IS_DEV) {
-        await db.sync({ alter: true });
+        //await db.sync({ alter: true });
     }
     return true;
 }

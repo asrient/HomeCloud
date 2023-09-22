@@ -8,6 +8,7 @@ import { setupEnvConfig, EnvType, envConfig, OptionalType } from '../../backend/
 import isDev from "electron-is-dev";
 import { handleServerEvent, ServerEvent } from '../../backend/serverEvent';
 import { initDb } from '../../backend/db';
+import ffmpegSetup from '../../backend/ffmpeg';
 
 export default class App {
   tabbedWindows: TabbedAppWindow[] = [];
@@ -19,6 +20,7 @@ export default class App {
       app.quit();
     }
     this.setupConfig();
+    ffmpegSetup();
     app.on('activate', this.appActivated);
     app.on('window-all-closed', this.allWindowsClosed);
     app.on('ready', this.appReady);

@@ -5,6 +5,7 @@ import { validateUsernameString, validatePasswordString } from './utils/profileU
 import { createHash } from './utils';
 
 const saltRounds = 10;
+const DAYS_5 = 5 * 24 * 60 * 60 * 1000;
 
 class DbModel extends Model {
     static _columns: any;
@@ -251,6 +252,10 @@ export class Storage extends DbModel {
         return this.destroy();
     }
 
+    async getStorageMeta() {
+        return StorageMeta.getByStorage(this);
+    }
+
     static async validateData(data: CreateStorageType) {
         if (!data.name) throw new Error('Name is required');
         if (!data.type || !StorageTypes.includes(data.type)) throw new Error('Invalid storage type');
@@ -489,16 +494,272 @@ export class PendingAuth extends DbModel {
     }
 }
 
+export class StorageMeta extends DbModel {
+    declare id: number;
+    declare hcRoot: string;
+    declare thumbsDir: string;
+    declare photosDir: string;
+    declare photosAssetsDir: string;
+    declare lastScanOn: Date;
+    declare photosLastSyncOn: Date;
+    declare setStorage: (storage: Storage) => Promise<void>;
+    declare getStorage: () => Promise<Storage>;
+
+    static _columns = {
+        hcRoot: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: {
+                notEmpty: true,
+            }
+        },
+
+        thumbsDir: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: {
+                notEmpty: true,
+            }
+        },
+
+        photosDir: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: {
+                notEmpty: true,
+            }
+        },
+        photosAssetsDir: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: {
+                notEmpty: true,
+            }
+        },
+
+        lastScanOn: {
+            type: DataTypes.DATE,
+            allowNull: false,
+            defaultValue: DataTypes.NOW,
+        },
+        photosLastSyncOn: {
+            type: DataTypes.DATE,
+            allowNull: false,
+            defaultValue: new Date(0),
+        },
+    }
+
+    async getDetails() {
+        return this.toJSON();
+    }
+
+    async del() {
+        return this.destroy();
+    }
+
+    async updateLastScan() {
+        this.update({ lastScanOn: new Date() });
+    }
+
+    scanRequired() {
+        const now = new Date();
+        const expired = new Date(now.getTime() - DAYS_5);
+        return this.lastScanOn < expired;
+    }
+
+    static async getByStorage(storage: Storage) {
+        const storageMeta = await StorageMeta.findOne({ where: { StorageId: storage.id } });
+        return storageMeta;
+    }
+
+    static async createOrUpdate(storage: Storage, data: {
+        hcRoot: string,
+        thumbsDir: string,
+        photosDir: string,
+        photosAssetsDir: string,
+    }) {
+        let storageMeta = await StorageMeta.getByStorage(storage);
+        if (!storageMeta) {
+            storageMeta = await StorageMeta.create(data);
+            await storageMeta.setStorage(storage);
+        } else {
+            await storageMeta.update(data);
+        }
+        return storageMeta;
+    }
+}
+
+export class Photo extends DbModel {
+    declare setStorage: (storage: Storage) => Promise<void>;
+    declare getStorage: () => Promise<Storage>;
+    declare itemId: number;
+    declare folderNo: number;
+    declare fileId: string;
+    declare mimeType: string;
+    declare capturedOn: Date;
+    declare lastEditedOn: Date;
+    declare addedOn: Date;
+    declare size: number;
+    declare duration: number | null;
+    declare height: number;
+    declare width: number;
+    declare originDevice: string | null;
+    declare metadata: string | null;
+    declare storageId: number;
+
+    static _columns = {
+        itemId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+        },
+        folderNo: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+        },
+        fileId: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: {
+                notEmpty: true,
+            }
+        },
+        mimeType: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: {
+                notEmpty: true,
+            }
+        },
+        capturedOn: {
+            type: DataTypes.DATE,
+            allowNull: false,
+        },
+        lastEditedOn: {
+            type: DataTypes.DATE,
+            allowNull: false,
+        },
+        addedOn: {
+            type: DataTypes.DATE,
+            allowNull: false,
+        },
+        size: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+        },
+        duration: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
+        height: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
+        width: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
+        originDevice: {
+            type: DataTypes.STRING,
+            allowNull: true,
+        },
+        metadata: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        }
+    }
+
+    getDetails() {
+        return this.toJSON();
+    }
+
+    getMinDetails() {
+        return {
+            itemId: this.itemId,
+            folderNo: this.folderNo,
+            fileId: this.fileId,
+            mimeType: this.mimeType,
+            capturedOn: this.capturedOn,
+            addedOn: this.addedOn,
+            duration: this.duration,
+            height: this.height,
+            width: this.width,
+        }
+    }
+
+    static async getPhoto(itemId: number, storage: Storage) {
+        return Photo.findOne({ where: { itemId, storageId: storage.id } });
+    }
+
+    static async getPhotosByIds(itemIds: number[], storage: Storage) {
+        return Photo.findAll({ where: { itemId: itemIds, storageId: storage.id } });
+    }
+
+    static async updateBulk(updates: { [itemId: number]: any; }, storage: Storage) {
+        const promises = [];
+        for (const itemId of Object.keys(updates).map(id => parseInt(id))) {
+            const update = updates[itemId];
+            if (update.storageId) delete update.storageId;
+            if (update.itemId) delete update.itemId;
+            if (update.folderNo) delete update.folderNo;
+            if (update.addedOn) delete update.addedOn;
+            promises.push(
+                Photo.update(update, { where: { itemId, storageId: storage.id } }));
+        }
+        return Promise.all(promises);
+    }
+
+    static async deletePhotos(itemIds: number[], storage: Storage) {
+        return Photo.destroy({ where: { itemId: itemIds, storageId: storage.id } });
+    }
+
+    static async deleteAllPhotos(storage: Storage) {
+        return Photo.destroy({ where: { storageId: storage.id } });
+    }
+
+    static async getPhotos(offset: number, limit: number, storage: Storage, orderBy: string, ascending = true) {
+        return Photo.findAll({ where: { storageId: storage.id }, offset, limit, order: [[orderBy, ascending ? 'ASC' : 'DESC']] });
+    }
+
+    static async createPhotosBulk(items: createPhotoType[], storage: Storage) {
+        items = items.map(item => {
+            return { ...item, StorageId: storage.id };
+        });
+        return Photo.bulkCreate(items);
+    }
+}
+
+export type createPhotoType = {
+    itemId: number,
+    folderNo: number,
+    fileId: string,
+    mimeType: string,
+    capturedOn: Date,
+    lastEditedOn: Date,
+    addedOn: Date,
+    size: number,
+    duration: number | null,
+    height: number | null,
+    width: number | null,
+    originDevice: string | null,
+    metadata: string | null,
+};
+
 export function initModels(db: Sequelize) {
     const classes = [
         Profile,
         Storage,
         PendingAuth,
+        StorageMeta,
+        Photo,
     ];
     for (const cls of classes) {
         cls.register(db);
     }
     Profile.hasMany(Storage, { onDelete: 'CASCADE' });
     Storage.belongsTo(Profile);
+    Storage.hasOne(StorageMeta, { onDelete: 'CASCADE' });
+    StorageMeta.belongsTo(Storage);
     PendingAuth.belongsTo(Profile);
+    Photo.belongsTo(Storage);
+    Storage.hasMany(Photo, { onDelete: 'CASCADE' });
 }

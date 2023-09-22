@@ -1,5 +1,8 @@
 const CopyPlugin = require("copy-webpack-plugin");
 const nodeExternals = require('webpack-node-externals');
+const WebpackHookPlugin = require('webpack-hook-plugin');
+const path = require('path');
+const os = require('os');
 
 const baseconfig = {
     mode: 'development',
@@ -22,8 +25,9 @@ const baseconfig = {
 
 // Need to pack webdav since it's only available as a esm module
 const externals = [nodeExternals({
-    allowlist: ['webdav', '@buttercup/fetch', 'hot-patcher'],
-})];
+    allowlist: ['webdav', '@buttercup/fetch', 'hot-patcher'], // 'ffmpeg-static', 'ffprobe-static'
+})
+];
 
 module.exports = [
     {

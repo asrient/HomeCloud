@@ -6,11 +6,12 @@ import { match } from 'node-match-path';
 import { envConfig } from './envConfig';
 import { Profile } from './models';
 import { ReadStream } from 'fs';
+import { Readable } from 'stream';
 
 export type ApiRequestFile = {
     name: string;
     mime: string;
-    stream: ReadStream;
+    stream: Readable;
 }
 
 export class ApiRequest {

@@ -7,6 +7,7 @@ import { setupEnvConfig, EnvType, envConfig, OptionalType, StorageType } from '.
 import path from 'path';
 import os from 'os';
 import { initDb } from '../backend/db';
+import ffmpegSetup from '../backend/ffmpeg';
 
 const startText = `\n
 ██╗░░██╗░█████╗░███╗░░░███╗███████╗░█████╗░██╗░░░░░░█████╗░██╗░░░██╗██████╗░
@@ -27,6 +28,7 @@ class AppServer {
     constructor() {
         console.log(startText);
         this.setupConfig();
+        ffmpegSetup();
         this.server = new ServerAdaptor();
     }
 
