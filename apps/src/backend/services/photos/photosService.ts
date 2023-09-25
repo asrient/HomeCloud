@@ -4,7 +4,7 @@ import { ApiRequestFile } from "../../interface";
 import AssetManager from "./assetManager";
 import PhotoSync from "./photoSync";
 import { cloneStream } from "../../utils";
-import { ReadStream } from "original-fs";
+import { ReadStream } from "fs";
 import { AssetDetailType } from "./metadata";
 
 /**

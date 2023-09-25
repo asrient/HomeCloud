@@ -24,7 +24,6 @@ function fixPackageJson(packageJson) {
 
 module.exports = {
   packagerConfig: {
-    asar: true,
     extraResource: [
       path.resolve(__dirname, 'node_modules/ffmpeg-static', os.platform() !== 'win32' ? 'ffmpeg' : 'ffmpeg.exe'),
       path.resolve(__dirname, 'node_modules/ffprobe-static/bin', os.platform(), os.arch(), os.platform() !== 'win32' ? 'ffprobe' : 'ffprobe.exe'),
@@ -103,9 +102,10 @@ module.exports = {
     }
   },
   plugins: [
-    {
-      name: '@electron-forge/plugin-auto-unpack-natives',
-      config: {},
-    },
+    // Auto Unpack Native Modules Plugin removed for now since it's breaking sharp module.
+    // {
+    //   name: '@electron-forge/plugin-auto-unpack-natives',
+    //   config: {},
+    // },
   ],
 };
