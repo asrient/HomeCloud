@@ -605,7 +605,7 @@ export class Photo extends DbModel {
     declare width: number;
     declare originDevice: string | null;
     declare metadata: string | null;
-    declare storageId: number;
+    declare StorageId: number;
 
     static _columns = {
         itemId: {
@@ -687,37 +687,37 @@ export class Photo extends DbModel {
     }
 
     static async getPhoto(itemId: number, storage: Storage) {
-        return Photo.findOne({ where: { itemId, storageId: storage.id } });
+        return Photo.findOne({ where: { itemId, StorageId: storage.id } });
     }
 
     static async getPhotosByIds(itemIds: number[], storage: Storage) {
-        return Photo.findAll({ where: { itemId: itemIds, storageId: storage.id } });
+        return Photo.findAll({ where: { itemId: itemIds, StorageId: storage.id } });
     }
 
     static async updateBulk(updates: { [itemId: number]: any; }, storage: Storage) {
         const promises = [];
         for (const itemId of Object.keys(updates).map(id => parseInt(id))) {
             const update = updates[itemId];
-            if (update.storageId) delete update.storageId;
+            if (update.StorageId) delete update.StorageId;
             if (update.itemId) delete update.itemId;
             if (update.folderNo) delete update.folderNo;
             if (update.addedOn) delete update.addedOn;
             promises.push(
-                Photo.update(update, { where: { itemId, storageId: storage.id } }));
+                Photo.update(update, { where: { itemId, StorageId: storage.id } }));
         }
         return Promise.all(promises);
     }
 
     static async deletePhotos(itemIds: number[], storage: Storage) {
-        return Photo.destroy({ where: { itemId: itemIds, storageId: storage.id } });
+        return Photo.destroy({ where: { itemId: itemIds, StorageId: storage.id } });
     }
 
     static async deleteAllPhotos(storage: Storage) {
-        return Photo.destroy({ where: { storageId: storage.id } });
+        return Photo.destroy({ where: { StorageId: storage.id } });
     }
 
     static async getPhotos(offset: number, limit: number, storage: Storage, orderBy: string, ascending = true) {
-        return Photo.findAll({ where: { storageId: storage.id }, offset, limit, order: [[orderBy, ascending ? 'ASC' : 'DESC']] });
+        return Photo.findAll({ where: { StorageId: storage.id }, offset, limit, order: [[orderBy, ascending ? 'ASC' : 'DESC']] });
     }
 
     static async createPhotosBulk(items: createPhotoType[], storage: Storage) {
@@ -744,6 +744,116 @@ export type createPhotoType = {
     metadata: string | null,
 };
 
+export class Thumb extends DbModel {
+    declare setStorage: (storage: Storage) => Promise<void>;
+    declare getStorage: () => Promise<Storage>;
+    declare fileId: string;
+    declare mimeType: string;
+    declare updatedAt: Date;
+    declare height: number | null;
+    declare width: number | null;
+    declare image: string;
+    declare lastReadOn: Date;
+    declare StorageId: number;
+
+    static _columns = {
+        fileId: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: {
+                notEmpty: true,
+            }
+        },
+        mimeType: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: {
+                notEmpty: true,
+            }
+        },
+        height: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
+        width: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
+        image: {
+            type: DataTypes.TEXT,
+            allowNull: false,
+        },
+        lastReadOn: {
+            type: DataTypes.DATE,
+            allowNull: false,
+            defaultValue: DataTypes.NOW,
+        },
+    }
+
+    getDetails() {
+        return {
+            fileId: this.fileId,
+            mimeType: this.mimeType,
+            updatedAt: this.updatedAt,
+            image: this.image,
+            height: this.height,
+            width: this.width,
+        }
+    }
+
+    isUpToDate(fileLastModified: Date) {
+        return this.updatedAt >= fileLastModified;
+    }
+
+    async updateThumb({ mimeType, height, width, image }: {
+        mimeType?: string,
+        height?: number | null,
+        width?: number | null,
+        image: string,
+    }) {
+        this.mimeType = mimeType || this.mimeType;
+        this.height = height || this.height;
+        this.width = width || this.width;
+        this.image = image;
+        this.lastReadOn = new Date();
+        return this.save();
+    }
+
+    static async getThumb(fileId: string, storage: Storage) {
+        const thumb = await Thumb.findOne({ where: { fileId, StorageId: storage.id } });
+        if (!thumb) return null;
+        thumb.lastReadOn = new Date();
+        thumb.save(); // not waiting for save to complete
+        return thumb;
+    }
+
+    static async createThumb({
+        fileId,
+        mimeType,
+        height,
+        width,
+        image,
+    }: {
+        fileId: string,
+        mimeType: string,
+        height: number | null,
+        width: number | null,
+        image: string,
+    }, storage: Storage) {
+        return Thumb.create({ fileId, mimeType, height, width, image, StorageId: storage.id });
+    }
+
+    static async deleteThumbs(fileIds: string[], storage: Storage) {
+        return Thumb.destroy({ where: { fileId: fileIds, StorageId: storage.id } });
+    }
+
+    static async removeOldThumbs() {
+        const now = new Date();
+        const expired = new Date(now.getTime() - (DAYS_5 * 4)); // 20 days
+        return Thumb.destroy({ where: { lastReadOn: { [Op.lt]: expired } } });
+    }
+}
+
 export function initModels(db: Sequelize) {
     const classes = [
         Profile,
@@ -751,6 +861,7 @@ export function initModels(db: Sequelize) {
         PendingAuth,
         StorageMeta,
         Photo,
+        Thumb,
     ];
     for (const cls of classes) {
         cls.register(db);
@@ -762,4 +873,6 @@ export function initModels(db: Sequelize) {
     PendingAuth.belongsTo(Profile);
     Photo.belongsTo(Storage);
     Storage.hasMany(Photo, { onDelete: 'CASCADE' });
+    Thumb.belongsTo(Storage);
+    Storage.hasMany(Thumb, { onDelete: 'CASCADE' });
 }

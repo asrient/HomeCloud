@@ -3,6 +3,7 @@ import { method, validateQuery, fetchStorage, fetchFsDriver } from "../decorator
 import { FsDriver } from "../storageKit/interface";
 import { scan } from "../services/structure";
 import photos from "./services/photos";
+import thumb from "./services/thumb"
 
 const api = new RouteGroup();
 
@@ -35,5 +36,6 @@ api.add('/scan', [
 });
 
 api.add('/photos', photos.handle);
+api.add('/thumb', thumb.handle);
 
 export default api;

@@ -41,6 +41,7 @@
     "pump": "^3.0.0",
     "qs": "^6.11.2",
     "sequelize": "^6.32.1",
+    "sharp": "^0.32.6",
     "sqlite3": "^5.1.6",
     "type-is": "^1.6.18",
     "webdav": "^5.2.3"
@@ -61,6 +62,7 @@
     "pump",
     "qs",
     "sequelize",
+    "sharp",
     "sqlite3",
     "type-is",
     "webdav"
@@ -82,7 +84,7 @@
     "@types/qs": "^6.9.7",
     "@types/type-is": "^1.6.3",
     "copy-webpack-plugin": "^11.0.0",
-    "electron": "26.0.0",
+    "electron": "^26.2.2",
     "nodemon": "^3.0.1",
     "prettier": "latest",
     "ts-loader": "^9.4.4",
