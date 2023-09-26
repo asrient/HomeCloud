@@ -8,6 +8,7 @@ import path from 'path';
 import os from 'os';
 import { initDb } from '../backend/db';
 import ffmpegSetup from '../backend/ffmpeg';
+import { initSEPublisher } from './serverEventPublisher';
 
 const startText = `\n
 ██╗░░██╗░█████╗░███╗░░░███╗███████╗░█████╗░██╗░░░░░░█████╗░██╗░░░██╗██████╗░
@@ -71,19 +72,21 @@ class AppServer {
     }
 
     startServer() {
-        http.createServer(this.server.nativeHandler)
-            .listen(this.port);
+        const httpServer = http.createServer(this.server.nativeHandler);
+        initSEPublisher(httpServer);
+        httpServer.listen(this.port);
 
         console.log(`⚡️ HTTP Server started on port: ${this.port}`);
 
         if (process.env.SSL !== 'true' || !process.env.SSL_KEY_PATH || !process.env.SSL_CERT_PATH) {
             return;
         }
-        https.createServer({
+        const httpsServer = https.createServer({
             key: fs.readFileSync(process.env.SSL_KEY_PATH || ''),
             cert: fs.readFileSync(process.env.SSL_CERT_PATH || '')
         }, this.server.nativeHandler)
-            .listen(this.sslPort);
+        initSEPublisher(httpsServer);
+        httpsServer.listen(this.sslPort);
 
         console.log(`⚡️ HTTPS Server started on port: ${this.sslPort}`);
     }

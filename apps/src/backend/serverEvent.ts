@@ -5,15 +5,15 @@ export type ServerEvent = {
     data: any;
 }
 
-let dispatchCallback: (event: ServerEvent) => Promise<boolean>;
+const dispatchCallbacks: ((event: ServerEvent) => Promise<void>)[] = [];
 
-export function handleServerEvent(cb: (event: ServerEvent) => Promise<boolean>) {
-    dispatchCallback = cb;
+export function handleServerEvent(cb: (event: ServerEvent) => Promise<void>) {
+    dispatchCallbacks.push(cb);
 }
 
 export async function pushServerEvent(event: ServerEvent) {
-    if (!!dispatchCallback) {
-        return dispatchCallback(event);
+    console.log('Publishing server event:', event);
+    if (!!dispatchCallbacks) {
+        await Promise.all(dispatchCallbacks.map(handler => handler(event)));
     }
-    return false;
 }

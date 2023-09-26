@@ -70,7 +70,6 @@ export function validateQuery(schema: any) {
 
 export function authenticate(authType: AuthType = AuthType.Required) {
     return makeDecorator(async (request, next) => {
-        console.log('Auth')
         const profileId = verifyJwt(request.cookies.jwt);
         const profile = await Profile.getProfileById(profileId);
         if (!profile && authType === AuthType.Required) {

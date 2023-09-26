@@ -6,6 +6,8 @@ import PhotoSync from "./photoSync";
 import { cloneStream } from "../../utils";
 import { ReadStream } from "fs";
 import { AssetDetailType } from "./metadata";
+import { pushServerEvent, ServerEvent } from "../../serverEvent";
+import { SimpleActionSetType } from "../syncEngine";
 
 /**
  * photoNum format: [folderNo]/[itemId]
@@ -40,7 +42,7 @@ export class UploadManager {
     }
 
     public async start() {
-        await this.photoSync.softSync();
+        await this.photoService.softSyncAndPublish();
         await this.photoSync.aquireLock();
     }
 
@@ -95,6 +97,41 @@ export default class PhotosService {
         this.photoSync = new PhotoSync(fsDriver, storageMeta);
     }
 
+    private async pushServerEvent(type: 'delta' | 'purge', data: any){
+        const e: ServerEvent = {
+            type: `photos.${type}`,
+            data,
+            profileId: this.storage.ProfileId.toString(),
+        }
+        await pushServerEvent(e);
+    }
+
+    async pushDeltaEvent(simpleActions: SimpleActionSetType){
+        const lastSyncTime = await this.photoSync.getLastSyncTime();
+        await this.pushServerEvent('delta', {
+            updates: simpleActions,
+            lastSyncTime,
+        });
+    }
+
+    private async pushPurgeEvent(){
+        const lastSyncTime = await this.photoSync.getLastSyncTime();
+        await this.pushServerEvent('purge', {
+            lastSyncTime,
+        });
+    }
+
+    async softSyncAndPublish() {
+        const simpleActions = await this.photoSync.softSync();
+        if(!simpleActions) return;
+        await this.pushDeltaEvent(simpleActions);
+    }
+
+    async hardSyncAndPublish() {
+        await this.photoSync.hardSync();
+        await this.pushPurgeEvent();
+    }
+
     private async withLock<T>(fn: () => Promise<T>): Promise<T> {
         await this.photoSync.aquireLock();
         try {
@@ -110,9 +147,9 @@ export default class PhotosService {
 
     public async sync(hard = false) {
         if (hard) {
-            await this.photoSync.hardSync();
+            await this.hardSyncAndPublish();
         } else {
-            await this.photoSync.softSync();
+            await this.softSyncAndPublish();
         }
     }
 
@@ -122,11 +159,9 @@ export default class PhotosService {
 
     async createPhotos(req: createPhoto_[]) {
         console.log('Creating photos..', req);
-        const nextItemId = await this.photoSync.getNextItemId();
-        const photos: createPhotoType[] = [];
+        const photos: {[itemId: number]: createPhotoType} = [];
         req.map(({ itemId, assetFileId, detail, mime, size }) => {
-            const ind = itemId - nextItemId;
-            photos[ind] = {
+            photos[itemId] = {
                 metadata: JSON.stringify(detail.metadata),
                 folderNo: this.assetManager.getFolderNoFromItemId(itemId),
                 fileId: assetFileId,
@@ -143,11 +178,12 @@ export default class PhotosService {
             } as createPhotoType;
         });
         await this.photoSync.addItems(photos);
-        await this.photoSync.applyNewActions();
+        const simpleActions = await this.photoSync.applyNewActions();
+        await this.pushDeltaEvent(simpleActions);
     }
 
     public async importPhotos(fileIds: string[], deleteSource = false) {
-        await this.photoSync.softSync();
+        await this.softSyncAndPublish();
         return this.withLock(async () => {
             const nextItemId = await this.photoSync.getNextItemId();
             const req: createPhoto_[] = [];
@@ -171,7 +207,7 @@ export default class PhotosService {
 
     public async updateAsset(itemId: number, file: ApiRequestFile) {
         console.log('updateAsset', itemId, file)
-        await this.photoSync.softSync();
+        await this.softSyncAndPublish();
         const photo = await Photo.getPhoto(itemId, this.storage);
         if (!photo) {
             throw new Error('Photo not found');
@@ -209,12 +245,13 @@ export default class PhotosService {
             await this.photoSync.updateItems({
                 [itemId]: update,
             })
-            await this.photoSync.applyNewActions();
+            const simpleActions = await this.photoSync.applyNewActions();
+            await this.pushDeltaEvent(simpleActions);
         });
     }
 
     public async deletePhotos(itemIds: number[]) {
-        await this.photoSync.softSync();
+        await this.softSyncAndPublish();
         return this.withLock(async () => {
             const ids: number[] = [];
             const photos = await Photo.getPhotosByIds(itemIds, this.storage);
@@ -224,7 +261,8 @@ export default class PhotosService {
             });
             await Promise.all(promises);
             await this.photoSync.deleteItems(ids);
-            await this.photoSync.applyNewActions();
+            const simpleActions = await this.photoSync.applyNewActions();
+            await this.pushDeltaEvent(simpleActions);
         });
     }
 

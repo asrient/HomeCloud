@@ -35,7 +35,6 @@ export default class App {
     this.tabbedWindows.forEach(w => {
       w.pushServerEvent(type, data);
     });
-    return true;
   }
 
   createOrGetSecretKey() {

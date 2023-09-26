@@ -22,6 +22,10 @@ export function generateJwt(profileId: number) {
 
 export function verifyJwt(token: string) {
     if(!token) return null;
-    const payload = jwt.verify(token, envConfig.SECRET_KEY) as jwt.JwtPayload;
-    return payload.profileId;
+    try {
+        const payload = jwt.verify(token, envConfig.SECRET_KEY) as jwt.JwtPayload;
+        return payload.profileId;
+    } catch (e) {
+        return null;
+    }
 }

@@ -275,20 +275,28 @@ export default abstract class SyncEngine {
         return head.nextItemId;
     }
 
-    public async addItems(items: any[]) {
+    public async addItems(items: { [itemId: number]: any }) {
         const head = await this.getFile('head') as HeadFileType;
         let nextItemId = head.nextItemId;
         const actions: ActionType[] = [];
-        for (const item of items) {
+        const sortedItemIds = Object.keys(items).map(Number).sort();
+        if(sortedItemIds.length === 0) {
+            return actions;
+        }
+        if (sortedItemIds[0] < nextItemId) {
+            throw new Error('Could not add item, Item id already exists: '+ sortedItemIds[0] + ' < ' + nextItemId);
+        }
+        for (const itemId of sortedItemIds) {
+            const item = items[itemId];
             actions.push({
                 time: getToday(),
                 type: 'add',
-                itemId: nextItemId,
+                itemId,
                 data: item,
             });
-            nextItemId++;
         }
         this.newActions.push(...actions);
+        nextItemId = sortedItemIds[sortedItemIds.length - 1] + 1;
         head.nextItemId = nextItemId;
         return actions;
     }
@@ -331,6 +339,8 @@ export default abstract class SyncEngine {
         }
         const archive = await this.getFile('archive') as ArchiveType;
         const changeLog = await this.getFile('changeLog') as ChangeLogType;
+        const head = await this.getFile('head') as HeadFileType;
+
         const simpleActions = this.simplifyActions(changeLog.actions);
         for (const itemId of simpleActions.delete) {
             delete archive.items[itemId];
@@ -339,17 +349,14 @@ export default abstract class SyncEngine {
             archive.items[itemId] = { ...archive.items[itemId], ...simpleActions.update[itemId] };
         }
         archive.items = { ...archive.items, ...simpleActions.add };
-        archive.lastUpdateTime = getToday();
-
+        archive.lastUpdateTime = head.lastChangeTime;
         await this.saveFile('archive', archive);
 
         const newChangeLog = this.getInitialFile('changeLog') as ChangeLogType;
         newChangeLog.lastUpdateTime = archive.lastUpdateTime;
         await this.saveFile('changeLog', newChangeLog);
 
-        const head = await this.getFile('head') as HeadFileType;
         head.lastPurgeTime = archive.lastUpdateTime;
-        head.lastChangeTime = archive.lastUpdateTime;
         await this.saveFile('head', head);
         return simpleActions;
     }

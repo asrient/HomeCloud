@@ -163,6 +163,7 @@ export class Storage extends DbModel {
     declare accessToken: string | null;
     declare accessTokenExpiresOn: Date | null;
     declare authType: StorageAuthType;
+    declare ProfileId: number;
     declare setProfile: (profile: Profile) => Promise<void>;
     declare getProfile: () => Promise<Profile>;
 
