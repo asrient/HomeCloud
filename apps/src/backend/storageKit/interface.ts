@@ -1,7 +1,7 @@
 import { StorageType } from "../envConfig";
 import { Storage } from "../models";
 import { ApiRequestFile } from "../interface";
-import { ReadStream } from "original-fs";
+import { ReadStream } from "fs";
 
 export interface RemoteItem {
     name: string;
@@ -13,12 +13,14 @@ export interface RemoteItem {
     createdAt: Date | null;
     mimeType: string | null;
     etag: string | null;
-    thubmnail: string | null;
+    thumbnail: string | null;
 }
 
 export class FsDriver {
     storage: Storage;
     storageType: StorageType = StorageType.WebDav;
+    providesThumbnail: boolean = false;
+
     constructor(storage: Storage) {
         this.storage = storage;
     }

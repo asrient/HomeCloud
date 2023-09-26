@@ -3,7 +3,7 @@ import { Storage } from "../models";
 import { FsDriver, RemoteItem } from "./interface";
 import { createClient, FileStat, AuthType as WebdavAuthType, WebDAVClient, WebDAVClientOptions } from "webdav";
 import { ApiRequestFile } from "../interface";
-import { ReadStream } from "original-fs";
+import { ReadStream } from "fs";
 import { streamToBuffer } from "../utils";
 
 function mapAuthType(authType: StorageAuthType) {
@@ -46,7 +46,7 @@ export class WebdavFsDriver extends FsDriver {
             createdAt: new Date(item.created),
             mimeType: item.mime,
             etag: item.etag,
-            thubmnail: null,
+            thumbnail: null,
         }
     }
 

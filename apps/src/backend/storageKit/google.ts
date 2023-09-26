@@ -5,12 +5,13 @@ import { Profile, Storage } from "../models";
 import { FsDriver, RemoteItem } from "./interface";
 import { getAccessToken } from './oneAuth';
 import { ApiRequestFile } from '../interface';
-import { ReadStream } from 'original-fs';
+import { ReadStream } from 'fs';
 
 const OAuth2 = google.auth.OAuth2;
 
 export class GoogleFsDriver extends FsDriver {
     override storageType = StorageType.Google;
+    override providesThumbnail = true;
     driver?: drive_v3.Drive;
 
     override async init() {
@@ -35,7 +36,7 @@ export class GoogleFsDriver extends FsDriver {
             createdAt: new Date(item.createdTime!),
             mimeType: item.mimeType!,
             etag: '',
-            thubmnail: item.thumbnailLink!,
+            thumbnail: item.thumbnailLink!,
         }
     }
 

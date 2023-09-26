@@ -23,6 +23,17 @@ api.add('/getThumbnail', [
 ], async (request: ApiRequest) => {
     const { fileId, lastUpdated } = request.local.json;
     const fsDriver = request.local.fsDriver as FsDriver;
+    if(fsDriver.providesThumbnail) {
+        const stat = await fsDriver.getStat(fileId);
+        return ApiResponse.json(200, {
+            fileId: stat.id,
+            mimeType: stat.mimeType,
+            updatedAt: stat.lastModified,
+            image: stat.thumbnail,
+            height: null,
+            width: null,
+        });
+    }
     const thumbService = new ThumbService(fsDriver);
     try {
         let date = new Date(0);
