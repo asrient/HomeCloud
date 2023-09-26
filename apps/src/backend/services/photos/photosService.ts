@@ -27,6 +27,8 @@ export class UploadManager {
     photoSync: PhotoSync;
     nextItemId: number | null = null;
     reqs: createPhoto_[] = [];
+    errors: { [itemId: number]: string } = {};
+
     constructor(photoService: PhotosService) {
         this.photoService = photoService;
         this.photoSync = photoService.photoSync;
@@ -61,24 +63,47 @@ export class UploadManager {
             assetFile = await this.photoService.assetManager.createAsset(itemId, stream, file.mime);
             console.log('Created asset', itemId, assetFile.id);
         };
-        await Promise.all([getDetail(), getAssetFileId()]);
-        this.reqs.push({
-            itemId,
-            mime: file.mime,
-            assetFileId: assetFile!.id,
-            detail: detail!,
-            size: assetFile!.size || 0,
-        });
+        try {
+            await Promise.all([getDetail(), getAssetFileId()]);
+            this.reqs.push({
+                itemId,
+                mime: file.mime,
+                assetFileId: assetFile!.id,
+                detail: detail!,
+                size: assetFile!.size || 0,
+            });
+        } catch (e: any) {
+            console.error('Error adding photo', e);
+            if (!file.stream.destroyed) {
+                file.stream.resume();
+                file.stream.on('end', () => {
+                    // dummy listener to make sure whole stream is consumed or else next stream may not begin in certain cases.
+                    console.log('Stream ended');
+                });
+            }
+            this.errors[itemId] = e.message;
+        }
     }
 
     public async end() {
+        if (this.reqs.length === 0) {
+            return {
+                addCount: 0,
+                errors: this.errors,
+            };
+        }
         try {
-            await this.photoService.createPhotos(this.reqs);
+            const created = await this.photoService.createPhotos(this.reqs);
+            await this.photoSync.releaseLock();
+            return {
+                addCount: Object.keys(created).length,
+                errors: this.errors,
+            }
         }
         catch (e) {
-            console.error(e);
+            await this.photoSync.releaseLock();
+            throw e;
         }
-        await this.photoSync.releaseLock();
     }
 }
 
@@ -97,7 +122,7 @@ export default class PhotosService {
         this.photoSync = new PhotoSync(fsDriver, storageMeta);
     }
 
-    private async pushServerEvent(type: 'delta' | 'purge', data: any){
+    private async pushServerEvent(type: 'delta' | 'purge', data: any) {
         const e: ServerEvent = {
             type: `photos.${type}`,
             data,
@@ -106,7 +131,7 @@ export default class PhotosService {
         await pushServerEvent(e);
     }
 
-    async pushDeltaEvent(simpleActions: SimpleActionSetType){
+    async pushDeltaEvent(simpleActions: SimpleActionSetType) {
         const lastSyncTime = await this.photoSync.getLastSyncTime();
         await this.pushServerEvent('delta', {
             updates: simpleActions,
@@ -114,7 +139,7 @@ export default class PhotosService {
         });
     }
 
-    private async pushPurgeEvent(){
+    private async pushPurgeEvent() {
         const lastSyncTime = await this.photoSync.getLastSyncTime();
         await this.pushServerEvent('purge', {
             lastSyncTime,
@@ -123,7 +148,7 @@ export default class PhotosService {
 
     async softSyncAndPublish() {
         const simpleActions = await this.photoSync.softSync();
-        if(!simpleActions) return;
+        if (!simpleActions) return;
         await this.pushDeltaEvent(simpleActions);
     }
 
@@ -154,12 +179,15 @@ export default class PhotosService {
     }
 
     public async archive() {
-        await this.photoSync.archiveChanges();
+        await this.softSyncAndPublish();
+        return this.withLock(async () => {
+            await this.photoSync.archiveChanges();
+        });
     }
 
     async createPhotos(req: createPhoto_[]) {
         console.log('Creating photos..', req);
-        const photos: {[itemId: number]: createPhotoType} = [];
+        const photos: { [itemId: number]: createPhotoType } = [];
         req.map(({ itemId, assetFileId, detail, mime, size }) => {
             photos[itemId] = {
                 metadata: JSON.stringify(detail.metadata),
@@ -180,6 +208,7 @@ export default class PhotosService {
         await this.photoSync.addItems(photos);
         const simpleActions = await this.photoSync.applyNewActions();
         await this.pushDeltaEvent(simpleActions);
+        return simpleActions.add;
     }
 
     public async importPhotos(fileIds: string[], deleteSource = false) {
@@ -187,6 +216,7 @@ export default class PhotosService {
         return this.withLock(async () => {
             const nextItemId = await this.photoSync.getNextItemId();
             const req: createPhoto_[] = [];
+            const errors: { [fileId: string]: string } = {};
             const promises = fileIds.map(async (fileId, index) => {
                 const itemId = nextItemId + index;
                 const assetFileId = await this.assetManager.importAsset(itemId, fileId, deleteSource);
@@ -200,8 +230,20 @@ export default class PhotosService {
                     size: (await this.fsDriver.getStat(fileId)).size || 0,
                 });
             });
-            await Promise.all(promises);
-            await this.createPhotos(req);
+            await Promise.all(promises.map((p, ind) => p.catch(e => {
+                errors[fileIds[ind]] = e.message;
+            })));
+            if (req.length === 0) {
+                return {
+                    addCount: 0,
+                    errors,
+                };
+            }
+            const created = await this.createPhotos(req);
+            return {
+                addCount: Object.keys(created).length,
+                errors,
+            };
         });
     }
 
@@ -247,6 +289,7 @@ export default class PhotosService {
             })
             const simpleActions = await this.photoSync.applyNewActions();
             await this.pushDeltaEvent(simpleActions);
+            return simpleActions.update[itemId];
         });
     }
 
@@ -254,27 +297,47 @@ export default class PhotosService {
         await this.softSyncAndPublish();
         return this.withLock(async () => {
             const ids: number[] = [];
+            const errors: { [itemId: number]: string } = {};
             const photos = await Photo.getPhotosByIds(itemIds, this.storage);
             const promises = photos.map(async (photo) => {
-                await this.assetManager.delete(photo.folderNo, photo.itemId);
-                ids.push(photo.itemId);
+                try {
+                    await this.assetManager.delete(photo.folderNo, photo.itemId);
+                    ids.push(photo.itemId);
+                }
+                catch (e: any) {
+                    errors[photo.itemId] = e.message;
+                }
             });
             await Promise.all(promises);
             await this.photoSync.deleteItems(ids);
             const simpleActions = await this.photoSync.applyNewActions();
             await this.pushDeltaEvent(simpleActions);
+            return {
+                deleteCount: simpleActions.delete.length,
+                errors,
+            };
         });
     }
 
     public async getPhotoDetails(itemId: number) {
-        return Photo.getPhoto(itemId, this.storage);
+        const photo = await Photo.getPhoto(itemId, this.storage);
+        if (!photo) {
+            throw new Error('Photo not found');
+        }
+        return photo.getDetails();
     }
 
     public async getPhotoAsset(itemId: number, folderNo: number) {
         return this.assetManager.getAsset(folderNo, itemId);
     }
 
-    public async listPhotos(limit: number, offset: number, orderBy: string, ascending = true) {
-        return Photo.getPhotos(limit, offset, this.storage, orderBy, ascending);
+    public async listPhotos({
+        limit,
+        offset,
+        orderBy,
+        ascending,
+    }: { limit: number, offset: number, orderBy: string, ascending?: boolean }) {
+        ascending = !!ascending;
+        return Photo.getPhotos(offset, limit, this.storage, orderBy, ascending);
     }
 }
