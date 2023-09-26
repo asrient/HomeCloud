@@ -1,5 +1,5 @@
-import { ApiRequest, ApiRequestFile, ApiResponse, RouteGroup } from "../../interface";
-import { method, validateQuery, fetchStorage, fetchFsDriver, validateJson } from "../../decorators";
+import { ApiRequest, ApiResponse, RouteGroup } from "../../interface";
+import { method, fetchStorage, fetchFsDriver, validateJson } from "../../decorators";
 import ThumbService from "../../services/thumb/thumbService";
 import { FsDriver } from "../../storageKit/interface";
 
