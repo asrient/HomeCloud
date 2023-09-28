@@ -29,6 +29,7 @@ export type ProfilesPolicy = {
     passwordPolicy: OptionalType; // Only applies to new profiles
     allowSignups: boolean;
     listProfiles: boolean; // Admins can still list profiles from settings
+    requireUsername: boolean;
     syncPolicy: OptionalType;
     adminIsDefault: boolean; // Make new profiles admin by default
 }

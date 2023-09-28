@@ -11,6 +11,7 @@ api.add('/config', [
         passwordPolicy: envConfig.PROFILES_CONFIG.passwordPolicy,
         allowSignups: envConfig.PROFILES_CONFIG.allowSignups,
         listProfiles: envConfig.PROFILES_CONFIG.listProfiles,
+        requireUsername: envConfig.PROFILES_CONFIG.requireUsername,
         syncPolicy: envConfig.PROFILES_CONFIG.syncPolicy,
         storageTypes: envConfig.ENABLED_STORAGE_TYPES,
     }

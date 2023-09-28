@@ -9,13 +9,16 @@ const DAYS_5 = 5 * 24 * 60 * 60 * 1000;
 
 class DbModel extends Model {
     static _columns: any;
+    static _indexes: any;
 
     get json() {
         return this.toJSON();
     }
 
     static register(db: Sequelize) {
-        super.init(this._columns, { sequelize: db });
+        const opts: any = { sequelize: db };
+        if (this._indexes) opts.indexes = this._indexes;
+        super.init(this._columns, opts);
     }
 }
 
@@ -36,7 +39,6 @@ export class Profile extends DbModel {
         },
         username: {
             type: DataTypes.STRING,
-            allowNull: false,
             unique: true,
             validate: {
                 isLowercase: true,
@@ -77,6 +79,7 @@ export class Profile extends DbModel {
 
     async validatePassword(password: string) {
         if (!this.isPasswordProtected()) return true;
+        if(!password) return false;
         return bcrypt.compare(password, this.hash);
     }
 
@@ -86,6 +89,10 @@ export class Profile extends DbModel {
 
     getStorageById(id: number) {
         return Storage.findOne({ where: { id, ProfileId: this.id } });
+    }
+
+    del() {
+        return this.destroy();
     }
 
     static async getProfileByUsername(username: string) {
@@ -104,7 +111,7 @@ export class Profile extends DbModel {
         return Profile.count();
     }
 
-    static async createProfile(username: string, name: string, password: string | null = null) {
+    static async createProfile(username: string | null, name: string, password: string | null = null) {
         let hash: string | null = null;
         if (!envConfig.PROFILES_CONFIG.allowSignups) {
             throw new Error('Signups are disabled');
@@ -112,11 +119,18 @@ export class Profile extends DbModel {
         if (!password && envConfig.PROFILES_CONFIG.passwordPolicy === OptionalType.Required) {
             throw new Error('Password is required');
         }
-        const [valid, str] = validateUsernameString(username);
-        if (!valid) {
-            throw new Error(str);
+        if (envConfig.PROFILES_CONFIG.requireUsername && !username) {
+            throw new Error('Username is required');
         }
-        username = str;
+        if (!!username) {
+            const [valid, str] = validateUsernameString(username);
+            if (!valid) {
+                throw new Error(str);
+            }
+            username = str;
+        } else {
+            username = null;
+        }
         if (!!password) {
             if (envConfig.PROFILES_CONFIG.passwordPolicy === OptionalType.Disabled) {
                 throw new Error('Passwords are disabled');
@@ -131,6 +145,37 @@ export class Profile extends DbModel {
 
         let isAdmin = envConfig.PROFILES_CONFIG.adminIsDefault || await Profile.countProfiles() === 0;
         return await Profile.create({ username, name, hash, isAdmin });
+    }
+
+    async edit({ username, name, password, isDisabled }: {
+        username?: string,
+        name?: string,
+        password?: string,
+        isDisabled?: boolean,
+    }) {
+        if (username) {
+            const [valid, str] = validateUsernameString(username);
+            if (!valid) {
+                throw new Error(str);
+            }
+            username = str;
+        }
+        if (password) {
+            const [valid, str] = validatePasswordString(password);
+            if (!valid) {
+                throw new Error(str);
+            }
+            password = str;
+            this.hash = await bcrypt.hash(password, saltRounds);
+        }
+        if (name) this.name = name;
+        if (username) this.username = username;
+        if (isDisabled !== undefined) this.isDisabled = isDisabled;
+        return this.save();
+    }
+
+    static async deleteProfiles(ids: number[]) {
+        return Profile.destroy({ where: { id: ids } });
     }
 }
 
@@ -868,12 +913,29 @@ export function initModels(db: Sequelize) {
         cls.register(db);
     }
     Profile.hasMany(Storage, { onDelete: 'CASCADE' });
-    Storage.belongsTo(Profile);
+    Storage.belongsTo(Profile, {
+        foreignKey: {
+            allowNull: false,
+        },
+    });
     Storage.hasOne(StorageMeta, { onDelete: 'CASCADE' });
-    StorageMeta.belongsTo(Storage);
+    StorageMeta.belongsTo(Storage, {
+        foreignKey: {
+            allowNull: false,
+        },
+    });
     PendingAuth.belongsTo(Profile);
-    Photo.belongsTo(Storage);
+    Photo.belongsTo(Storage, {
+        foreignKey: {
+            allowNull: false,
+        },
+        constraints: true,
+    });
     Storage.hasMany(Photo, { onDelete: 'CASCADE' });
-    Thumb.belongsTo(Storage);
+    Thumb.belongsTo(Storage, {
+        foreignKey: {
+            allowNull: false,
+        },
+    });
     Storage.hasMany(Thumb, { onDelete: 'CASCADE' });
 }

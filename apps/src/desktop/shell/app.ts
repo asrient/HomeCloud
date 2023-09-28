@@ -4,7 +4,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import AppProtocol from './appProtocol';
 import { TabbedAppWindow } from './window';
-import { setupEnvConfig, EnvType, envConfig, OptionalType } from '../../backend/envConfig';
+import { setupEnvConfig, EnvType, envConfig, OptionalType, ProfilesPolicy } from '../../backend/envConfig';
 import isDev from "electron-is-dev";
 import { handleServerEvent, ServerEvent } from '../../backend/serverEvent';
 import { initDb } from '../../backend/db';
@@ -50,13 +50,14 @@ export default class App {
   }
 
   setupConfig() {
-    const profilesPolicy = {
+    const profilesPolicy: ProfilesPolicy = {
       passwordPolicy: OptionalType.Optional,
       allowSignups: true,
       listProfiles: true,
       syncPolicy: OptionalType.Optional,
       adminIsDefault: true,
-  }
+      requireUsername: false,
+  };
     setupEnvConfig({
       isDev,
       envType: EnvType.Desktop,

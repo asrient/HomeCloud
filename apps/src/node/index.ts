@@ -45,12 +45,15 @@ class AppServer {
             process.exit(1);
         }
 
+        const listProfiles = process.env.LIST_PROFILES ? process.env.LIST_PROFILES === 'true': false;
         const profilesPolicy = {
             passwordPolicy: process.env.PASSWORD_POLICY as OptionalType || OptionalType.Required,
             allowSignups: process.env.ALLOW_SIGNUPS ? process.env.ALLOW_SIGNUPS === 'true': true,
-            listProfiles: process.env.LIST_PROFILES ? process.env.LIST_PROFILES === 'true': false,
+            listProfiles,
             syncPolicy: process.env.SYNC_POLICY as OptionalType || OptionalType.Required,
             adminIsDefault: process.env.ADMIN_IS_DEFAULT ? process.env.ADMIN_IS_DEFAULT === 'true': false,
+            // Always require username if listProfiles is false.
+            requireUsername: (process.env.REQUIRE_USERNAME ? process.env.REQUIRE_USERNAME === 'true': false) || !listProfiles,
         }
 
         const disabledStorageTypes: StorageType[] = process.env.DISABLED_STORAGE_TYPES ? 

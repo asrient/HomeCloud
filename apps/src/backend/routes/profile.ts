@@ -13,7 +13,7 @@ const createProfileSchema = {
         name: { type: 'string' },
         password: { type: 'string' },
     },
-    required: ['username', 'name'],
+    required: ['name'],
     additionalProperties: false,
 };
 
@@ -46,13 +46,92 @@ api.add('/create', [
     return resp;
 });
 
+const deleteProfileSchema = {
+    type: 'object',
+    properties: {
+        password: { type: 'string' },
+        profileIds: { type: 'array', items: { type: 'number' } },
+    },
+    required: ['profileIds'],
+    additionalProperties: false,
+};
+
+api.add('/delete', [
+    method(['POST']),
+    authenticate(),
+    validateJson(deleteProfileSchema),
+], async (request: ApiRequest) => {
+    const profile = request.profile! as Profile;
+    const { password, profileIds } = request.local.json;
+    if (!await profile.validatePassword(password)) {
+        return ApiResponse.error(403, 'Invalid password');
+    }
+    if (!profile.isAdmin) {
+        if (profileIds.length > 1) {
+            return ApiResponse.error(403, 'Only admins can delete multiple profiles');
+        }
+        if (profileIds[0] !== profile.id) {
+            return ApiResponse.error(403, 'You need to be an admin to delete other profiles');
+        }
+    }
+    const deletingSelf = profileIds.includes(profile.id);
+    const deleteCount = await Profile.deleteProfiles(profileIds);
+    const resp = ApiResponse.json(201, {
+        count: deleteCount,
+        logout: deletingSelf,
+    });
+    if (deletingSelf) {
+        logout(resp);
+    }
+    return resp;
+});
+
+const updateProfileSchema = {
+    type: 'object',
+    properties: {
+        password: { type: 'string' },
+        newPassword: { type: 'string' },
+        name: { type: 'string' },
+        username: { type: 'string' },
+        isDisabled: { type: 'boolean' },
+    },
+    additionalProperties: false,
+};
+
+api.add('/update', [
+    method(['POST']),
+    authenticate(),
+    validateJson(updateProfileSchema),
+], async (request: ApiRequest) => {
+    const profile = request.profile! as Profile;
+    const { password, ...data } = request.local.json;
+    if (!await profile.validatePassword(password)) {
+        return ApiResponse.error(403, 'Invalid password');
+    }
+    delete data.password;
+    if (data.newPassword) {
+        data.password = data.newPassword;
+    }
+    delete data.newPassword;
+    try {
+        await profile.edit(data);
+    } catch (e: any) {
+        return ApiResponse.error(400, 'Could not update profile', {
+            error: e.message
+        });
+    }
+    return ApiResponse.json(200, {
+        profile: profile.getDetails(),
+    });
+});
+
 const loginProfileSchema = {
     type: 'object',
     properties: {
+        profileId: { type: 'number' },
         username: { type: 'string' },
         password: { type: 'string' },
     },
-    required: ['username', 'password'],
     additionalProperties: false,
 };
 
@@ -60,12 +139,24 @@ api.add('/login', [
     method(['POST']),
     validateJson(loginProfileSchema),
 ], async (request: ApiRequest) => {
-    const data = request.local.json;
-    const profile = await Profile.getProfileByUsername(data.username);
+    let { profileId, username, password } = request.local.json;
+    // Disabling profileId based login if requireUsername is true.
+    if (envConfig.PROFILES_CONFIG.requireUsername) {
+        profileId = null;
+    }
+    let profile: Profile | null = null;
+    if (profileId !== null && profileId !== undefined) {
+        profile = await Profile.getProfileById(profileId);
+    } else {
+        if (!username) {
+            return ApiResponse.error(400, 'Username is required');
+        }
+        profile = await Profile.getProfileByUsername(username);
+    }
     if (!profile) {
         return ApiResponse.error(404, 'Profile not found');
     }
-    if (!await profile.validatePassword(data.password)) {
+    if (!await profile.validatePassword(password)) {
         return ApiResponse.error(403, 'Invalid password');
     }
     const resp = ApiResponse.json(200, {
@@ -99,15 +190,6 @@ api.add('/list', [
         profiles: profiles.map(profile => profile.getDetails()),
         count: profiles.length,
     });
-});
-
-// Samples
-
-api.add('/hello/*', async (request: ApiRequest) => {
-    const response = new ApiResponse();
-    response.status(200);
-    response.json({ message: 'Hello World *', url: request.url, urlParams: request.urlParams });
-    return response;
 });
 
 export default api;
