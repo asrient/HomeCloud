@@ -1,8 +1,15 @@
-import { RouteGroup } from "./interface";
-import manage from "./routes/manage";
+import profile from "./routes/profile";
+import root from "./routes/root";
+import storage from "./routes/storage";
+import fsRoutes from "./routes/fs";
+import services from "./routes/services";
+import { authenticate } from "./decorators";
 
-const api = new RouteGroup();
+root.add('/profile', profile.handle);
+root.add('/storage', storage.handle);
+root.add('/fs', fsRoutes.handle);
+root.add('/services', [
+    authenticate(),
+], services.handle);
 
-api.add('/manage', manage.handle);
-
-export default api;
+export default root;

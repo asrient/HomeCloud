@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
+const os = require('os');
 
 function fixPackageJson(packageJson) {
   const oldDeps = packageJson.dependencies;
@@ -23,7 +24,10 @@ function fixPackageJson(packageJson) {
 
 module.exports = {
   packagerConfig: {
-    asar: true,
+    extraResource: [
+      path.resolve(__dirname, 'node_modules/ffmpeg-static', os.platform() !== 'win32' ? 'ffmpeg' : 'ffmpeg.exe'),
+      path.resolve(__dirname, 'node_modules/ffprobe-static/bin', os.platform(), os.arch(), os.platform() !== 'win32' ? 'ffprobe' : 'ffprobe.exe'),
+    ],
     ignore: [
       "^/[.]vs$",
       "^/public$",
@@ -98,9 +102,10 @@ module.exports = {
     }
   },
   plugins: [
-    {
-      name: '@electron-forge/plugin-auto-unpack-natives',
-      config: {},
-    },
+    // Auto Unpack Native Modules Plugin removed for now since it's breaking sharp module.
+    // {
+    //   name: '@electron-forge/plugin-auto-unpack-natives',
+    //   config: {},
+    // },
   ],
 };

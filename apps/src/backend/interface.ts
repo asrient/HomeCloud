@@ -4,29 +4,32 @@ import cookie from 'cookie';
 import mime from 'mime';
 import { match } from 'node-match-path';
 import { envConfig } from './envConfig';
+import { Profile } from './models';
+import { ReadStream } from 'fs';
+import { Readable } from 'stream';
 
 export type ApiRequestFile = {
     name: string;
     mime: string;
-    size: number;
-    path: string;
+    stream: Readable;
 }
 
 export class ApiRequest {
-    params: ParsedQs;
+    getParams: { [key: string]: string } = {};
     url: URL;
     urlParams: { [key: string]: string | string[] | ParsedQs | ParsedQs[] | undefined } = {};
     matchedPattern: string = '/api';
     headers: { [key: string]: string };
     cookies: { [key: string]: string } = {};
     method: string;
-    validatedJson: any = null;
+    local: any = {};
+    profile: Profile | null = null;
     constructor(
         method: string,
         url: string | URL,
         headers: { [key: string]: string },
         public body: (() => Promise<Buffer>) | null = null,
-        public downloadAttachedFiles: (() => Promise<ApiRequestFile[]>) | null = null,
+        public fetchMultipartForm: ((cb: (type: 'file' | 'field', file: ApiRequestFile | any) => Promise<void>) => Promise<void>) | null = null,
     ) {
         this.method = method.toUpperCase();
 
@@ -39,7 +42,10 @@ export class ApiRequest {
             this.url = url;
         }
 
-        this.params = qs.parse(this.url.search, { ignoreQueryPrefix: true });
+        const params = qs.parse(this.url.search, { ignoreQueryPrefix: true });
+        for (const key in params) {
+            this.getParams[key] = params[key] as string;
+        }
 
         this.headers = {};
         for (const key in headers) {
@@ -106,6 +112,7 @@ export class ApiResponse {
     statusCode: number = 200;
     headers: { [key: string]: string } = {};
     body: Blob | null = null;
+    bodyStream: ReadStream | null = null;
     file: string | null = null;
     constructor() {
         this.setHeader('Content-Type', 'text/plain');
@@ -138,11 +145,15 @@ export class ApiResponse {
         this.sendFile(filePath);
         this.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     }
+    stream(bodyStream: ReadStream, contentType: string) {
+        this.bodyStream = bodyStream;
+        this.setHeader('Content-Type', contentType);
+    }
     redirect(url: string) {
         this.status(301);
         this.setHeader('Location', url);
     }
-    setCookie(key: string, value: string, ttl: number = 20 * 24 * 60 * 60) {
+    setCookie(key: string, value: string, ttl: number = 30 * 24 * 60 * 60) {
         this.setHeader('Set-Cookie', cookie.serialize(key, value, {
             maxAge: ttl,
             path: '/',
@@ -150,7 +161,7 @@ export class ApiResponse {
     }
 
     static error(statusCode: number | string, message: string | any = null, detail: any = null) {
-        if(typeof statusCode === 'string') {
+        if (typeof statusCode === 'string') {
             detail = message;
             message = statusCode;
             statusCode = 400;
@@ -170,6 +181,13 @@ export class ApiResponse {
         response.json(body);
         return response;
     }
+
+    static stream(statusCode: number, bodyStream: ReadStream, contentType: string) {
+        const response = new ApiResponse();
+        response.status(statusCode);
+        response.stream(bodyStream, contentType);
+        return response;
+    }
 }
 
 export type RouteHandler = (request: ApiRequest) => Promise<ApiResponse>;
@@ -186,7 +204,9 @@ export class RouteGroup {
         let handler: RouteHandler;
         if (!!arg2) {
             handler = arg2;
-            for (const decorator of arg1 as ApiDecoratorHandler[]) {
+            const decorators = arg1 as ApiDecoratorHandler[];
+            decorators.reverse();
+            for (const decorator of decorators) {
                 handler = decorator(handler);
             }
         } else {
@@ -204,7 +224,7 @@ export class RouteGroup {
             // console.log('matchResult', matchResult.matches, 'request.path', request.path, 'route.pattern', pattern);
             if (matchResult.matches) {
                 if (matchResult.params) {
-                    request.urlParams = { ...request.params, ...matchResult.params };
+                    request.urlParams = { ...request.urlParams, ...matchResult.params };
                 }
                 request.matchedPattern = request.matchedPattern + route.pattern;
                 return true;

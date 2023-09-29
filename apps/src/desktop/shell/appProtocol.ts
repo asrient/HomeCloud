@@ -58,7 +58,23 @@ export default class AppProtocol {
         if (!!apiResponse.file) {
             return net.fetch('file://' + apiResponse.file);
         }
-        const response = new Response(apiResponse.body, {
+        let responseBody: BodyInit | null | undefined = apiResponse.body;
+        if(!!apiResponse.bodyStream) {
+            responseBody =  new ReadableStream({
+                start(controller) {
+                    apiResponse.bodyStream!.on('data', (chunk) => {
+                        controller.enqueue(chunk);
+                    });
+                    apiResponse.bodyStream!.on('end', () => {
+                        controller.close();
+                    });
+                    apiResponse.bodyStream!.on('error', (err) => {
+                        controller.error(err);
+                    });
+                }
+            });
+        }
+        const response = new Response(responseBody, {
             status: apiResponse.statusCode,
             headers: apiResponse.headers
         });

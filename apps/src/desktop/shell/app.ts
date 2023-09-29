@@ -1,11 +1,14 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 import AppProtocol from './appProtocol';
 import { TabbedAppWindow } from './window';
-import { setupEnvConfig, EnvType, envConfig } from '../../backend/envConfig';
+import { setupEnvConfig, EnvType, envConfig, OptionalType, ProfilesPolicy } from '../../backend/envConfig';
 import isDev from "electron-is-dev";
 import { handleServerEvent, ServerEvent } from '../../backend/serverEvent';
 import { initDb } from '../../backend/db';
+import ffmpegSetup from '../../backend/ffmpeg';
 
 export default class App {
   tabbedWindows: TabbedAppWindow[] = [];
@@ -17,6 +20,7 @@ export default class App {
       app.quit();
     }
     this.setupConfig();
+    ffmpegSetup();
     app.on('activate', this.appActivated);
     app.on('window-all-closed', this.allWindowsClosed);
     app.on('ready', this.appReady);
@@ -31,10 +35,29 @@ export default class App {
     this.tabbedWindows.forEach(w => {
       w.pushServerEvent(type, data);
     });
-    return true;
+  }
+
+  createOrGetSecretKey() {
+    const secretKeyPath = path.join(app.getPath('userData'), 'secret.key');
+    if (!fs.existsSync(secretKeyPath)) {
+      console.log('😼 Secret key not found. Creating a new one..');
+      const secretKey = crypto.randomBytes(20).toString('hex');
+      fs.writeFileSync(secretKeyPath, secretKey);
+      console.log('✅ Secret key written to file:', secretKeyPath);
+      return secretKey;
+    }
+    return fs.readFileSync(secretKeyPath).toString();
   }
 
   setupConfig() {
+    const profilesPolicy: ProfilesPolicy = {
+      passwordPolicy: OptionalType.Optional,
+      allowSignups: true,
+      listProfiles: true,
+      syncPolicy: OptionalType.Optional,
+      adminIsDefault: true,
+      requireUsername: false,
+  };
     setupEnvConfig({
       isDev,
       envType: EnvType.Desktop,
@@ -42,6 +65,10 @@ export default class App {
       baseUrl: isDev ? 'http://localhost:3000/' : AppProtocol.BUNDLE_BASE_URL,
       apiBaseUrl: AppProtocol.API_BASE_URL,
       webBuildDir: path.join(app.getAppPath(), 'bin/web'),
+      profilesPolicy,
+      secretKey: this.createOrGetSecretKey(),
+      oneAuthServerUrl: 'http://localhost:5050', // todo: get from env
+      oneAuthAppId: 'dummy', // todo: get from env
     });
   }
 
