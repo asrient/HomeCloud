@@ -79,7 +79,7 @@ export class Profile extends DbModel {
 
     async validatePassword(password: string) {
         if (!this.isPasswordProtected()) return true;
-        if(!password) return false;
+        if (!password) return false;
         return bcrypt.compare(password, this.hash);
     }
 
@@ -285,12 +285,17 @@ export class Storage extends DbModel {
         },
     }
 
-    getDetails() {
+    async getDetails() {
+        const storageMeta = await this.getStorageMeta();
         return {
             id: this.id,
             name: this.name,
             type: this.type,
             authType: this.authType,
+            url: this.url,
+            username: this.username,
+            oneAuthId: this.oneAuthId,
+            storageMeta: storageMeta?.getDetails() || null,
         }
     }
 
@@ -546,8 +551,8 @@ export class StorageMeta extends DbModel {
     declare thumbsDir: string;
     declare photosDir: string;
     declare photosAssetsDir: string;
-    declare lastScanOn: Date;
     declare photosLastSyncOn: Date;
+    declare isPhotosEnabled: boolean;
     declare setStorage: (storage: Storage) => Promise<void>;
     declare getStorage: () => Promise<Storage>;
 
@@ -583,34 +588,32 @@ export class StorageMeta extends DbModel {
             }
         },
 
-        lastScanOn: {
-            type: DataTypes.DATE,
-            allowNull: false,
-            defaultValue: DataTypes.NOW,
-        },
         photosLastSyncOn: {
             type: DataTypes.DATE,
             allowNull: false,
             defaultValue: new Date(0),
         },
+
+        isPhotosEnabled: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: true,
+        },
     }
 
-    async getDetails() {
-        return this.toJSON();
+    getDetails() {
+        return {
+            id: this.id,
+            hcRoot: this.hcRoot,
+            photosDir: this.photosDir,
+            photosAssetsDir: this.photosAssetsDir,
+            photosLastSyncOn: this.photosLastSyncOn,
+            isPhotosEnabled: this.isPhotosEnabled,
+        }
     }
 
     async del() {
         return this.destroy();
-    }
-
-    async updateLastScan() {
-        this.update({ lastScanOn: new Date() });
-    }
-
-    scanRequired() {
-        const now = new Date();
-        const expired = new Date(now.getTime() - DAYS_5);
-        return this.lastScanOn < expired;
     }
 
     static async getByStorage(storage: Storage) {

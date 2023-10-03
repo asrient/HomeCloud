@@ -56,7 +56,7 @@ api.add('/add', [
     try {
         const storage = await Storage.createStorage(profile, data);
         return ApiResponse.json(201, {
-            storage: storage.getDetails(),
+            storage: await storage.getDetails(),
         });
     }
     catch (e: any) {
@@ -76,7 +76,7 @@ api.add('/callback', [
     try {
         const storage = await complete(referenceId, partialCode2);
         return ApiResponse.json(201, {
-            storage: storage.getDetails(),
+            storage: await storage.getDetails(),
         });
     }
     catch (e: any) {
@@ -116,7 +116,7 @@ api.add('/edit', [
         });
     }
     const resp = ApiResponse.json(201, {
-        storage: storage.getDetails(),
+        storage: await storage.getDetails(),
     });
     return resp;
 });
@@ -151,7 +151,7 @@ api.add('/delete', [
     }
     const resp = ApiResponse.json(201, {
         deleted: true,
-        storage: storage.getDetails(),
+        storage: await storage.getDetails(),
     });
     return resp;
 });
@@ -178,7 +178,7 @@ api.add('/test', [
         const contents = await fsDriver.readRootDir();
 
         const resp = ApiResponse.json(200, {
-            storage: storage.getDetails(),
+            storage: await storage.getDetails(),
             contents,
         });
         return resp;

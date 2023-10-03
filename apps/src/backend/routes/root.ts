@@ -34,9 +34,11 @@ api.add('/state', [
     }
     if (request.profile) {
         res.profile = request.profile.getDetails();
-        res.storages = (await request.profile.getStorages()).map((storage: Storage) => {
+        const storages = await request.profile.getStorages();
+        const promises = storages.map((storage: Storage) => {
             return storage.getDetails();
         });
+        res.storages = await Promise.all(promises);
     }
     return ApiResponse.json(200, res);
 });
