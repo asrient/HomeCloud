@@ -117,6 +117,16 @@ export class ApiResponse {
     constructor() {
         this.setHeader('Content-Type', 'text/plain');
         this.setHeader('Server', 'HomeCloud API Server');
+        if (envConfig.IS_DEV) {
+            const origin = envConfig.BASE_URL.substring(0, envConfig.BASE_URL.length - 1);
+            this.setAccessControl(origin);
+        }
+    }
+    setAccessControl(origin: string) {
+        this.setHeader('Access-Control-Allow-Origin', origin);
+        this.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
+        this.setHeader('Access-Control-Allow-Headers', 'Origin, Content-Type, X-Auth-Token');
+        this.setHeader('Access-Control-Allow-Credentials', 'true');
     }
     status(status: number) {
         this.statusCode = status;

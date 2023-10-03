@@ -1,8 +1,9 @@
 // See the Electron documentation for details on how to use preload scripts:
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
+
 import { contextBridge, ipcRenderer } from 'electron';
 
-contextBridge.exposeInMainWorld('info', {
+contextBridge.exposeInMainWorld('config', {
     nodeVersion: process.versions.node,
     chromeVersion: process.versions.chrome,
     electronVersion: process.versions.electron,

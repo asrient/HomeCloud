@@ -12,6 +12,9 @@ const ajv = new Ajv();
 
 export function method(args: any[]) {
     return makeDecorator(async (request, next) => {
+        if(request.method === 'OPTIONS') {
+            return ApiResponse.json(204, {});
+        }
         if (!args.includes(request.method)) {
             return ApiResponse.error(405, 'Method not allowed: ' + request.method);
         }

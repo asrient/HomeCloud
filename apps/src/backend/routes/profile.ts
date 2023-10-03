@@ -35,6 +35,7 @@ api.add('/create', [
         profile = await Profile.createProfile(data.username, data.name, data.password);
     }
     catch (e: any) {
+        console.error(e);
         return ApiResponse.error(400, 'Could not create profile', {
             error: e.message
         });

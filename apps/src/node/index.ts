@@ -38,7 +38,8 @@ class AppServer {
         const dataDir = process.env.DATA_DIR || isDev ? path.resolve(__dirname, '../nodeData') : path.join(os.homedir(), '/.homecloud');
         this.port = parseInt(process.env.PORT || '5000');
         this.sslPort = parseInt(process.env.PORT || '5001');
-        const baseUrl = process.env.BASE_URL || `http://localhost:${this.port}/`;
+        const serverBaseUrl = process.env.SERVER_BASE_URL || `http://localhost:${this.port}/`;
+        const clientBaseUrl = process.env.CLIENT_BASE_URL || serverBaseUrl;
 
         if(!isDev && !process.env.SECRET_KEY) {
             console.error('❌ SECRET_KEY env variable not set on production!');
@@ -64,7 +65,8 @@ class AppServer {
             isDev,
             envType: EnvType.Server,
             dataDir,
-            baseUrl,
+            baseUrl: clientBaseUrl,
+            apiBaseUrl: serverBaseUrl + 'api/',
             webBuildDir: path.join(__dirname, '../web'),
             profilesPolicy,
             secretKey: process.env.SECRET_KEY || 'secret',
