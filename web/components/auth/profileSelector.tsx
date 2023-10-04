@@ -12,15 +12,12 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import LoadingIcon from "../ui/loadingIcon";
 import { Profile } from "@/lib/types";
+import ProfilePicture from "../profilePicture";
 
 function ProfileHero(profile: Profile) {
     return (<div className="flex flex-col justify-center items-center">
-        <Avatar className="h-16 w-16">
-            <AvatarFallback>
-                {nameToInitials(profile.name)}
-            </AvatarFallback>
-        </Avatar>
-        <div className="text-lg font-semibold">{profile.name}</div>
+        <ProfilePicture profile={profile} />
+        <div className="text-lg font-semibold pt-1">{profile.name}</div>
         {profile.username && <div className="text-[0.7rem] text-slate-500">{profile.username}</div>}
     </div>);
 }
@@ -47,7 +44,7 @@ function ProfileCard({
                 <ProfileHero {...profile} />
             </CardHeader>
             <CardFooter className="p-2">
-                <Button disabled={isLoading} className="w-full" variant='default' onClick={handleOnClick}>
+                <Button disabled={isLoading} className="w-full" variant='secondary' onClick={handleOnClick}>
                     {isLoading ? 'Please wait..' : 'Select'}
                 </Button>
             </CardFooter>

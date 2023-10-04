@@ -8,12 +8,14 @@ export type AppStateType = {
     appError: string | null;
     profile: Profile | null;
     storages: Storage[] | null;
+    disabledStorages: number[];
 };
 
 export enum ActionTypes {
     INITIALIZE = 'INITIALIZE',
     ERROR = 'ERROR',
     APP_LOADED = 'APP_LOADED',
+    TOGGLE_STORAGE = 'DISABLE_STORAGE',
 }
 
 export type AppDispatchType = {
@@ -29,6 +31,7 @@ export const initialAppState: AppStateType = {
     appError: null,
     profile: null,
     storages: null,
+    disabledStorages: [],
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
@@ -46,10 +49,19 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             draft.appError = null;
             draft.profile = payload.profile;
             draft.storages = payload.storages;
+            draft.disabledStorages = [];
             return draft;
         case ActionTypes.ERROR:
             draft.isInitalized = true;
             draft.appError = payload;
+            return draft;
+        case ActionTypes.TOGGLE_STORAGE:
+            const { storageId, disabled } = payload;
+            if (disabled) {
+                draft.disabledStorages.push(storageId);
+            } else {
+                draft.disabledStorages = draft.disabledStorages.filter((id) => id !== storageId);
+            }
             return draft;
         default:
             return draft;
