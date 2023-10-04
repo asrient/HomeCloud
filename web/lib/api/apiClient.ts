@@ -1,4 +1,6 @@
 import { staticConfig } from '@/lib/staticConfig';
+import { ErrorType, ErrorResponse } from '../types';
+import CustomError from '../customError';
 
 export type ErrorData = {
     message: string;
@@ -32,14 +34,19 @@ export class ApiClient {
         if (body) {
             fetchOptions.body = JSON.stringify(body);
         }
-        const response = await fetch(`${apiBaseUrl}${path}`, fetchOptions);
+        let response: Response;
+        try {
+            response = await fetch(`${apiBaseUrl}${path}`, fetchOptions);
+        } catch (e: any) {
+            throw new CustomError(ErrorType.Network, `Network error: ${e.message}`);
+        }
         const isJson = response.headers.get('Content-Type')?.includes('application/json');
         if (!response.ok) {
             if (isJson) {
-                const data = await response.json();
-                throw new Error(data.message || 'Http error', data);
+                const data: ErrorResponse = await response.json();
+                throw CustomError.fromErrorResponse(data.error);
             }
-            throw new Error(`Http error: ${response.status} ${response.statusText}`);
+            throw new CustomError(ErrorType.Generic, `Request failed with status ${response.status}`);
         }
         if (isJson) {
             return await response.json();
@@ -47,11 +54,11 @@ export class ApiClient {
         return await response.text();
     }
 
-    static async get<T>(path: string, params?: any): Promise<T> {
+    static async get<T>(path: string, params?: string | string[][] | Record<string, string> | URLSearchParams): Promise<T> {
         return await this._call('GET', path, params);
     }
 
-    static async post<T>(path: string, params: any, body?: any): Promise<T> {
+    static async post<T>(path: string, params?: any, body?: any): Promise<T> {
         if (!body) {
             body = params;
             params = undefined;

@@ -10,11 +10,14 @@ import {
     FormItem,
     FormLabel,
     FormMessage,
+    FormRootError,
+    errorToFormError,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { useCallback, useState } from 'react';
 import { signup, SignupParams } from '@/lib/api/auth';
 import { useAppState } from '../hooks/useAppState';
+import { OptionalType } from '@/lib/types';
 
 const signupFormSchema = z.object({
     name: z.string().min(2).max(50),
@@ -60,21 +63,19 @@ export default function SignupForm({
             await signup(params);
         } catch (error: any) {
             console.error(error);
-            form.setError("name", {
-                type: "value",
-                message: error.message,
-            });
+            errorToFormError(error, form);
             return;
         }
         onLoginSucess();
     }, [form, onLoginSucess]);
 
-    const showPasswordField = (serverConfig?.passwordPolicy === 'optional' && prefersPassword)
-        || serverConfig?.passwordPolicy === 'required';
+    const showPasswordField = (serverConfig?.passwordPolicy === OptionalType.Optional && prefersPassword)
+        || serverConfig?.passwordPolicy === OptionalType.Required;
 
     return (
         <Form {...form}>
             <FormMessage />
+            <FormRootError />
             <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-8">
                 <FormField
                     control={form.control}
@@ -116,16 +117,16 @@ export default function SignupForm({
                             </FormControl>
                             <FormDescription>
                                 {
-                                    serverConfig?.passwordPolicy === 'required'
+                                    serverConfig?.passwordPolicy === OptionalType.Required
                                         ? 'Required.'
-                                        : 'Not mandatory.'
+                                        : 'Optional.'
                                 }
                             </FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}
                 />}
-                {(serverConfig?.passwordPolicy === 'optional' && !prefersPassword) &&
+                {(serverConfig?.passwordPolicy === OptionalType.Optional && !prefersPassword) &&
                     <div>
                         <Button variant="ghost" className='text-blue-500' type="button" onClick={() => setPrefersPassword(true)}>
                             Set a Password

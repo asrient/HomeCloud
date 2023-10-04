@@ -9,6 +9,8 @@ import {
     FormItem,
     FormLabel,
     FormMessage,
+    errorToFormError,
+    FormRootError,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { useCallback } from 'react';
@@ -33,7 +35,7 @@ export default function LoginForm({
             password: "",
         },
     });
-    
+
     function onFormSubmit(values: z.infer<typeof loginFormSchema>) {
         // This will be type-safe and validated.
         console.log(values);
@@ -51,10 +53,7 @@ export default function LoginForm({
             await login(params);
         } catch (error: any) {
             console.error(error);
-            form.setError("username", {
-                type: "value",
-                message: error.message,
-            });
+            errorToFormError(error, form);
             return;
         }
         onLoginSucess();
@@ -63,7 +62,8 @@ export default function LoginForm({
     return (
         <>
             <Form {...form}>
-            <FormMessage />
+                <FormMessage />
+                <FormRootError />
                 <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-8">
                     <FormField
                         control={form.control}

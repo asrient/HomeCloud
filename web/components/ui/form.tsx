@@ -7,11 +7,14 @@ import {
   FieldPath,
   FieldValues,
   FormProvider,
+  UseFormReturn,
   useFormContext,
 } from "react-hook-form"
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
+import CustomError from '@/lib/customError';
+import { ErrorType } from '@/lib/types';
 
 const Form = FormProvider
 
@@ -164,6 +167,40 @@ const FormMessage = React.forwardRef<
 })
 FormMessage.displayName = "FormMessage"
 
+function FormRootError() {
+
+  const { formState } = useFormContext();
+
+  if (!formState.errors.root) {
+    return null
+  }
+
+  return (
+    <div className='text-[0.8rem] font-medium text-destructive'>{formState.errors.root.message}</div>
+  )
+}
+
+function errorToFormError<T extends FieldValues>(error: Error | CustomError, form: UseFormReturn<T>) {
+  const customError = CustomError.from(error);
+  if (customError.type === ErrorType.Validation && customError.fields) {
+    Object.entries(customError.fields).forEach(([key, values]) => {
+      values.forEach((value) => {
+        form.setError(key as any, {
+          type: "value",
+          message: value,
+        }, {
+          shouldFocus: true,
+        });
+      });
+    });
+  } else {
+    form.setError("root", {
+      type: "value",
+      message: error.message,
+    });
+  }
+}
+
 export {
   useFormField,
   Form,
@@ -173,4 +210,6 @@ export {
   FormDescription,
   FormMessage,
   FormField,
+  FormRootError,
+  errorToFormError,
 }

@@ -1,14 +1,14 @@
 import { Dispatch, createContext } from 'react';
+import { Profile, ServerConfig, Storage } from './types';
 
 export type AppStateType = {
     isInitalized: boolean;
     isAppLoaded: boolean;
-    serverConfig: any | null;
+    serverConfig: ServerConfig | null;
     appError: string | null;
-    profile: any;
-    storages: any;
+    profile: Profile | null;
+    storages: Storage[] | null;
 };
-
 
 export enum ActionTypes {
     INITIALIZE = 'INITIALIZE',

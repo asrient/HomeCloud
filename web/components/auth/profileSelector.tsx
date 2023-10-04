@@ -11,8 +11,9 @@ import {
 } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import LoadingIcon from "../ui/loadingIcon";
+import { Profile } from "@/lib/types";
 
-function ProfileHero(profile: any) {
+function ProfileHero(profile: Profile) {
     return (<div className="flex flex-col justify-center items-center">
         <Avatar className="h-16 w-16">
             <AvatarFallback>
@@ -28,8 +29,8 @@ function ProfileCard({
     profile,
     onSelect,
 }: {
-    profile: any;
-    onSelect: (profile: any) => Promise<void>;
+    profile: Profile;
+    onSelect: (profile: Profile) => Promise<void>;
 }) {
 
     const [isLoading, setIsLoading] = useState(false);
@@ -98,8 +99,8 @@ export default function ProfileSelector({
     onNoProfiles?: () => void,
 }) {
 
-    const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
-    const [profiles, setProfiles] = useState<any[] | null>(null);
+    const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
+    const [profiles, setProfiles] = useState<Profile[] | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -112,7 +113,7 @@ export default function ProfileSelector({
                 }
             } catch (error: any) {
                 console.error(error);
-                setError('Error: ' + error.message);
+                setError(error.message);
             }
         }
         fetchProfiles();
@@ -123,13 +124,13 @@ export default function ProfileSelector({
             await login(params);
         } catch (error: any) {
             console.error(error);
-            setError('Error: ' + error.message);
+            setError(error.message);
             return;
         }
         onLoginSucess();
     }, [onLoginSucess]);
 
-    const onProfileSelect = useCallback(async (profile: any) => {
+    const onProfileSelect = useCallback(async (profile: Profile) => {
         if (!profile.isPasswordProtected) {
             await performLogin({
                 profileId: profile.id,
@@ -139,12 +140,17 @@ export default function ProfileSelector({
         }
     }, [performLogin, setSelectedProfile]);
 
+    const onCancel = useCallback(() => {
+        setSelectedProfile(null);
+        setError(null);
+    }, [setSelectedProfile, setError]);
+
     return (
         <div>
             {
                 selectedProfile && (
                     <div className="flex justify-end">
-                        <Button variant='ghost' className="text-blue-500" onClick={() => setSelectedProfile(null)}>
+                        <Button variant='ghost' className="text-blue-500" onClick={onCancel}>
                             Cancel
                         </Button>
                     </div>
