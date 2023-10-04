@@ -4,6 +4,7 @@ import { envConfig } from "../envConfig";
 import { FsDriver, RemoteItem } from "../storageKit/interface";
 import mime from 'mime';
 import fs from 'fs';
+import CustomError from "../customError";
 
 const api = new RouteGroup();
 
@@ -34,9 +35,8 @@ api.add('/readDir', [
         return ApiResponse.json(200, contents);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not get contents of dir', {
-            error: e.message
-        });
+        e.message = `Could not read dir: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -65,9 +65,8 @@ api.add('/mkDir', [
         return ApiResponse.json(201, item);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not create dir', {
-            error: e.message
-        });
+        e.message = `Could not create dir: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -96,9 +95,8 @@ api.add('/unlink', [
         });
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not delete item', {
-            error: e.message
-        });
+        e.message = `Could not delete item: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -130,9 +128,8 @@ api.add('/unlinkMultiple', [
         });
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not delete items', {
-            error: e.message
-        });
+        e.message = `Could not delete items: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -161,9 +158,8 @@ api.add('/rename', [
         return ApiResponse.json(200, item);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not rename item', {
-            error: e.message
-        });
+        e.message = `Could not rename item: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -190,9 +186,8 @@ api.add('/readFile', [
         return ApiResponse.stream(200, stream, mime || 'application/octet-stream');
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not read stream', {
-            error: e.message
-        });
+        e.message = `Could not read file: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -236,7 +231,7 @@ api.add('/writeFiles', [
         });
         return ApiResponse.json(201, items);
     } else {
-        return ApiResponse.error(400, 'No files found');
+        return ApiResponse.fromError(CustomError.validationSingle('files', 'No files found'));
     }
 });
 
@@ -269,7 +264,7 @@ api.add('/writeFiles/desktop', [
     const fsDriver = request.local.fsDriver as FsDriver;
 
     if (!envConfig.isDesktop()) {
-        return ApiResponse.error(400, 'Not allowed');
+        return ApiResponse.fromError(CustomError.security('Only available in desktop'));
     }
 
     const parentId = request.local.json.parentId;
@@ -289,9 +284,8 @@ api.add('/writeFiles/desktop', [
         return ApiResponse.json(201, items);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not write files', {
-            error: e.message
-        });
+        e.message = `Could not write files: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -330,7 +324,7 @@ api.add('/updateFile', [
         });
         return ApiResponse.json(201, item);
     } else {
-        return ApiResponse.error(400, 'No files found');
+        return ApiResponse.fromError(CustomError.validationSingle('files', 'No files found'));
     }
 });
 
@@ -360,9 +354,8 @@ api.add('/moveFile', [
         return ApiResponse.json(200, item);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not move item', {
-            error: e.message
-        });
+        e.message = `Could not move file: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -392,9 +385,8 @@ api.add('/moveDir', [
         return ApiResponse.json(200, item);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not move item', {
-            error: e.message
-        });
+        e.message = `Could not move dir: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -421,9 +413,8 @@ api.add('/getStat', [
         return ApiResponse.json(200, item);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not get item stat', {
-            error: e.message
-        });
+        e.message = `Could not get item stat: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -453,9 +444,8 @@ api.add('/getStats', [
         return ApiResponse.json(200, items);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not get item stats', {
-            error: e.message
-        });
+        e.message = `Could not get items stats: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -486,9 +476,8 @@ api.add('/getStatByFilename', [
         return ApiResponse.json(200, stats);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not get item id', {
-            error: e.message
-        });
+        e.message = `Could not get item stat by filename: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 

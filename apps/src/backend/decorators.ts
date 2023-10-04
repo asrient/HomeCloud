@@ -1,22 +1,23 @@
 import { ApiResponse } from "./interface";
 import { makeDecorator } from "./utils";
 import isType from 'type-is';
-import Ajv from "ajv";
+import Ajv, { ErrorObject } from "ajv";
 import { verifyJwt } from "./utils/profileUtils";
 import { Profile, Storage } from "./models";
 import { getFsDriver } from "./storageKit/storageHelper";
 import PhotosService from "./services/photos/photosService";
 import { FsDriver } from "./storageKit/interface";
+import CustomError, { ErrorCode } from "./customError";
 
 const ajv = new Ajv();
 
 export function method(args: any[]) {
     return makeDecorator(async (request, next) => {
-        if(request.method === 'OPTIONS') {
+        if (request.method === 'OPTIONS') {
             return ApiResponse.json(204, {});
         }
         if (!args.includes(request.method)) {
-            return ApiResponse.error(405, 'Method not allowed: ' + request.method);
+            return ApiResponse.fromError(CustomError.security('Method not allowed'), 405);
         }
         return next();
     });
@@ -25,16 +26,24 @@ export function method(args: any[]) {
 export function accept(args: any[]) {
     return makeDecorator(async (request, next) => {
         if (!isType.is(request.contentType, args)) {
-            return ApiResponse.error(`Content type is not accepted. Allowed: ${args.join(', ')}. Received: ${request.contentType}`);
+            return ApiResponse.fromError(CustomError.security(
+                `Content type is not accepted. Allowed: ${args.join(', ')}. Received: ${request.contentType}`
+            ), 406);
         }
         return next();
     });
 }
 
-function parseJsonValidatorErrors(errors: any) {
-    return errors.map((err: any) => {
-        return err.message;
+function parseJsonValidatorErrors(errors: ErrorObject[]) {
+    const errorsMap: { [key: string]: string[] } = {};
+    errors.forEach((err: ErrorObject) => {
+        const prop = err.propertyName || 'root';
+        if (!errorsMap[prop]) {
+            errorsMap[prop] = [];
+        }
+        errorsMap[prop].push(err.message || 'Invalid value');
     });
+    return CustomError.validation(errorsMap);
 }
 
 export function validateJson(schema: any) {
@@ -42,17 +51,17 @@ export function validateJson(schema: any) {
 
     return makeDecorator(async (request, next) => {
         if (!request.isJson) {
-            return ApiResponse.error('Content type is not json.');
+            return ApiResponse.fromError(CustomError.generic('Content type is not json'), 406);
         }
         let data;
         try {
             data = await request.json();
         }
         catch (e: any) {
-            return ApiResponse.error(400, 'Could not parse json body');
+            return ApiResponse.fromError(CustomError.generic(`Could not parse json: ${e.message}`));
         }
-        if (!validator(data)) {
-            return ApiResponse.error(400, 'Invalid request body json', parseJsonValidatorErrors(validator.errors));
+        if (!validator(data) && validator.errors) {
+            return ApiResponse.fromError(parseJsonValidatorErrors(validator.errors));
         }
         request.local.json = data;
         return next();
@@ -64,8 +73,8 @@ export function validateQuery(schema: any) {
 
     return makeDecorator(async (request, next) => {
         const data = request.getParams;
-        if (!validator(data)) {
-            return ApiResponse.error(400, 'Invalid query params', parseJsonValidatorErrors(validator.errors));
+        if (!validator(data) && validator.errors) {
+            return ApiResponse.fromError(parseJsonValidatorErrors(validator.errors));
         }
         return next();
     });
@@ -76,7 +85,7 @@ export function authenticate(authType: AuthType = AuthType.Required) {
         const profileId = verifyJwt(request.cookies.jwt);
         const profile = await Profile.getProfileById(profileId);
         if (!profile && authType === AuthType.Required) {
-            return ApiResponse.error(401, 'Not authenticated');
+            return ApiResponse.fromError(CustomError.security('Authentication required'), 401);
         }
         request.profile = profile;
         return next();
@@ -99,11 +108,11 @@ export function fetchStorage() {
             storageId = request.getParams.storageId;
         }
         if (!storageId) {
-            return ApiResponse.error(400, 'Storage id not provided');
+            return ApiResponse.fromError(CustomError.validationSingle('storageId', 'Storage id is required'));
         }
         const storage = await request.profile!.getStorageById(parseInt(storageId));
         if (!storage) {
-            return ApiResponse.error(404, 'Storage not found');
+            return ApiResponse.fromError(CustomError.validationSingle('storageId', 'Storage not found'));
         }
         request.local.storage = storage;
         return next();
@@ -118,9 +127,7 @@ export function fetchFsDriver() {
             request.local.fsDriver = fsDriver;
         } catch (e: any) {
             console.error(e);
-            return ApiResponse.error(400, 'Could not get fs driver', {
-                error: e.message
-            });
+            return ApiResponse.fromError(CustomError.code(ErrorCode.FS_DRIVER_FETCH, `Fetch fs driver: ${e.message}`));
         }
         return next();
     });
@@ -132,7 +139,7 @@ export function fetchPhotoService() {
         const fsDriver: FsDriver = request.local.fsDriver;
         const storageMeta = await storage.getStorageMeta();
         if (!storageMeta) {
-            return ApiResponse.error(400, 'Storage meta not found');
+            return ApiResponse.fromError(CustomError.code(ErrorCode.STORAGE_FETCH, 'Storage meta not found for storage'));
         }
         request.local.photoService = new PhotosService(fsDriver, storageMeta);
         return next();

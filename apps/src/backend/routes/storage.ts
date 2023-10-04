@@ -4,6 +4,7 @@ import { Storage } from "../models";
 import { StorageTypes, StorageAuthTypes, StorageAuthType } from "../envConfig";
 import { initiate, complete } from "../storageKit/oneAuth";
 import { FsDriver } from "../storageKit/interface";
+import CustomError from "../customError";
 
 const api = new RouteGroup();
 
@@ -48,9 +49,8 @@ api.add('/add', [
         }
         catch (e: any) {
             console.error(e);
-            return ApiResponse.error(400, 'Could not initiate auth', {
-                error: e.message
-            });
+            e.message = `Could not initiate auth: ${e.message}`;
+            return ApiResponse.fromError(e);
         }
     }
     try {
@@ -60,19 +60,26 @@ api.add('/add', [
         });
     }
     catch (e: any) {
-        return ApiResponse.error(400, 'Could not add storage', {
-            error: e.message
-        });
+        e.message = `Could not create storage: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
+const completeStorageSchema = {
+    type: 'object',
+    properties: {
+        referenceId: { type: 'string' },
+        partialCode2: { type: 'string' },
+    },
+    required: ['referenceId', 'partialCode2'],
+    additionalProperties: false,
+};
+
 api.add('/callback', [
     method(['GET']),
+    validateQuery(completeStorageSchema),
 ], async (request: ApiRequest) => {
     const { referenceId, partialCode2 } = request.getParams;
-    if (!referenceId || !partialCode2) {
-        return ApiResponse.error(400, 'Invalid request');
-    }
     try {
         const storage = await complete(referenceId, partialCode2);
         return ApiResponse.json(201, {
@@ -80,9 +87,7 @@ api.add('/callback', [
         });
     }
     catch (e: any) {
-        return ApiResponse.error(400, 'Could not complete auth', {
-            error: e.message
-        });
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -105,15 +110,13 @@ api.add('/edit', [
     const profile = request.profile!;
     let storage = await profile.getStorageById(data.storageId);
     if (!storage) {
-        return ApiResponse.error(404, 'Storage not found');
+        return ApiResponse.fromError(CustomError.validationSingle('storageId', 'Storage not found'));
     }
     try {
         storage = await storage.edit(data);
     }
     catch (e: any) {
-        return ApiResponse.error(400, 'Could not edit storage', {
-            error: e.message
-        });
+        return ApiResponse.fromError(e);
     }
     const resp = ApiResponse.json(201, {
         storage: await storage.getDetails(),
@@ -139,15 +142,13 @@ api.add('/delete', [
     const profile = request.profile!;
     const storage = await profile.getStorageById(data.storageId);
     if (!storage) {
-        return ApiResponse.error(404, 'Storage not found');
+        return ApiResponse.fromError(CustomError.validationSingle('storageId', 'Storage not found'));
     }
     try {
         await storage.delete();
     }
     catch (e: any) {
-        return ApiResponse.error(400, 'Could not delete storage', {
-            error: e.message
-        });
+        return ApiResponse.fromError(e);
     }
     const resp = ApiResponse.json(201, {
         deleted: true,
@@ -184,9 +185,7 @@ api.add('/test', [
         return resp;
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not get contents of root dir', {
-            error: e.message
-        });
+        return ApiResponse.fromError(e);
     }
 });
 

@@ -44,9 +44,8 @@ api.add('/getThumbnail', [
         return ApiResponse.json(200, thumb.getDetails());
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could get Thumbnail', {
-            error: e.message
-        });
+        e.message = `Could not get thumbnail: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 

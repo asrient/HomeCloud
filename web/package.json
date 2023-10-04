@@ -37,5 +37,8 @@
     "typescript": "5.1.6",
     "use-immer": "^0.9.0",
     "zod": "^3.22.2"
+  },
+  "devDependencies": {
+    "eslint-plugin-react-hooks": "^4.6.0"
   }
 }

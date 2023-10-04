@@ -5,6 +5,7 @@ import { Storage } from "../models";
 import { scan, toggleService } from "../services/structure";
 import photos from "./services/photos";
 import thumb from "./services/thumb"
+import CustomError, { ErrorCode } from "../customError";
 
 const api = new RouteGroup();
 
@@ -30,9 +31,8 @@ api.add('/scan', [
         return ApiResponse.json(200, storageMeta.getDetails());
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not scan storage structure', {
-            error: e.message
-        });
+        e.message = `Could not scan storage: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -55,16 +55,15 @@ api.add('/toggleService', [
     const { appName, enable } = request.local.json;
     const storageMeta = await storage.getStorageMeta();
     if (!storageMeta) {
-        return ApiResponse.error(400, 'Storage meta not found');
+        return ApiResponse.fromError(CustomError.code(ErrorCode.STORAGE_FETCH, 'Storage meta not found for storage'));
     }
     try {
         await toggleService(storageMeta, appName, enable);
         return ApiResponse.json(200, storageMeta.getDetails());
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not toggle service', {
-            error: e.message
-        });
+        e.message = `Could not toggle service ${appName}: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 

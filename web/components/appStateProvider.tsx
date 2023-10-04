@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { reducer, initialAppState, AppContext, DispatchContext, ActionTypes } from '../lib/state';
 import { useImmerReducer } from 'use-immer';
-import { staticConfig, setupStaticConfig } from '@/lib/staticConfig';
+import { setupStaticConfig } from '@/lib/staticConfig';
 import { initalialState } from '@/lib/api/auth';
 import { useAppDispatch, useAppState } from './hooks/useAppState';
 

@@ -1,6 +1,7 @@
 import { ApiRequest, ApiRequestFile, ApiResponse, RouteGroup } from "../../interface";
 import { method, validateQuery, fetchStorage, fetchFsDriver, fetchPhotoService, validateJson } from "../../decorators";
 import PhotosService, { UploadManager } from "../../services/photos/photosService";
+import CustomError from "../../customError";
 
 const api = new RouteGroup();
 
@@ -42,9 +43,8 @@ api.add('/sync', buildMiddlewares('GET', syncSchema), async (request: ApiRequest
         });
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not sync photos', {
-            error: e.message
-        });
+        e.message = `Could not sync photos: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -58,9 +58,8 @@ api.add('/upload', buildMiddlewares('POST'), async (request: ApiRequest) => {
         }
         catch (e: any) {
             console.error(e);
-            return ApiResponse.error(400, 'Cannot upload photos at this momment', {
-                error: e.message
-            });
+            e.message = `Could not start upload: ${e.message}`;
+            return ApiResponse.fromError(e);
         }
         await request.fetchMultipartForm(async (type, data) => {
             if (type === 'file') {
@@ -72,13 +71,12 @@ api.add('/upload', buildMiddlewares('POST'), async (request: ApiRequest) => {
             return ApiResponse.json(201, updates);
         } catch (e: any) {
             console.error(e);
-            return ApiResponse.error(400, 'Could update change log', {
-                error: e.message
-            });
+            e.message = `Could update change log: ${e.message}`;
+            return ApiResponse.fromError(e);
         }
     } else {
         console.log(request.mayContainFiles, request.fetchMultipartForm)
-        return ApiResponse.error(400, 'No files found');
+        return ApiResponse.fromError(CustomError.validationSingle('files ', 'No files found'));
     }
 });
 
@@ -107,13 +105,12 @@ api.add('/updateAsset', buildMiddlewares('POST'), async (request: ApiRequest) =>
             return ApiResponse.json(201, updates);
         } catch (e: any) {
             console.error(e);
-            return ApiResponse.error(400, 'Could update asset', {
-                error: e.message
-            });
+            e.message = `Could not update asset: ${e.message}`;
+            return ApiResponse.fromError(e);
         }
     } else {
-        console.log(request.mayContainFiles, request.fetchMultipartForm)
-        return ApiResponse.error(400, 'No files found');
+        //console.log(request.mayContainFiles, request.fetchMultipartForm)
+        return ApiResponse.fromError(CustomError.validationSingle('files ', 'No files found'));
     }
 });
 
@@ -134,9 +131,8 @@ api.add('/delete', buildMiddlewares('POST', deleteSchema), async (request: ApiRe
         return ApiResponse.json(200, res);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not delete photos', {
-            error: e.message
-        });
+        e.message = `Could not delete photos: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -159,9 +155,8 @@ api.add('/import', buildMiddlewares('POST', importSchema), async (request: ApiRe
         return ApiResponse.json(200, res);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not import photos', {
-            error: e.message
-        });
+        e.message = `Could not import photos: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -175,9 +170,8 @@ api.add('/archive', buildMiddlewares('POST'), async (request: ApiRequest) => {
     }
     catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not archive photos', {
-            error: e.message
-        });
+        e.message = `Could not archive photos: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -209,9 +203,8 @@ api.add('/list', buildMiddlewares('GET', listPhotosSchema), async (request: ApiR
         return ApiResponse.json(200, res);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not list photos', {
-            error: e.message
-        });
+        e.message = `Could not list photos: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 
@@ -232,9 +225,8 @@ api.add('/photoDetails', buildMiddlewares('GET', getPhotoDetailsSchema), async (
         return ApiResponse.json(200, res);
     } catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not get photo detail', {
-            error: e.message
-        });
+        e.message = `Could not get photo detail: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
 });
 

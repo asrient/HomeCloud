@@ -3,6 +3,7 @@ import { method, accept, validateJson, authenticate, AuthType } from "../decorat
 import { Profile } from "../models";
 import { generateJwt } from "../utils/profileUtils";
 import { envConfig } from "../envConfig";
+import CustomError from "../customError";
 
 const api = new RouteGroup();
 
@@ -36,9 +37,8 @@ api.add('/create', [
     }
     catch (e: any) {
         console.error(e);
-        return ApiResponse.error(400, 'Could not create profile', {
-            error: e.message
-        });
+        e.message = `Could not create profile: ${e.message}`;
+        return ApiResponse.fromError(e);
     }
     const resp = ApiResponse.json(201, {
         profile: profile.getDetails(),
@@ -65,14 +65,14 @@ api.add('/delete', [
     const profile = request.profile! as Profile;
     const { password, profileIds } = request.local.json;
     if (!await profile.validatePassword(password)) {
-        return ApiResponse.error(403, 'Invalid password');
+        return ApiResponse.fromError(CustomError.validationSingle('password', 'Invalid password'));
     }
     if (!profile.isAdmin) {
         if (profileIds.length > 1) {
-            return ApiResponse.error(403, 'Only admins can delete multiple profiles');
+            return ApiResponse.fromError(CustomError.security('You can only delete your own profile'));
         }
         if (profileIds[0] !== profile.id) {
-            return ApiResponse.error(403, 'You need to be an admin to delete other profiles');
+            return ApiResponse.fromError(CustomError.security('You can only delete your own profile'));
         }
     }
     const deletingSelf = profileIds.includes(profile.id);
@@ -107,7 +107,7 @@ api.add('/update', [
     const profile = request.profile! as Profile;
     const { password, ...data } = request.local.json;
     if (!await profile.validatePassword(password)) {
-        return ApiResponse.error(403, 'Invalid password');
+        return ApiResponse.fromError(CustomError.validationSingle('password', 'Invalid password'));
     }
     delete data.password;
     if (data.newPassword) {
@@ -117,9 +117,7 @@ api.add('/update', [
     try {
         await profile.edit(data);
     } catch (e: any) {
-        return ApiResponse.error(400, 'Could not update profile', {
-            error: e.message
-        });
+        return ApiResponse.fromError(e);
     }
     return ApiResponse.json(200, {
         profile: profile.getDetails(),
@@ -150,15 +148,15 @@ api.add('/login', [
         profile = await Profile.getProfileById(profileId);
     } else {
         if (!username) {
-            return ApiResponse.error(400, 'Username is required');
+            return ApiResponse.fromError(CustomError.validationSingle('username', 'Username is required'));
         }
         profile = await Profile.getProfileByUsername(username);
     }
     if (!profile) {
-        return ApiResponse.error(404, 'Profile not found');
+        return ApiResponse.fromError(CustomError.validationSingle('username', 'Profile not found'));
     }
     if (!await profile.validatePassword(password)) {
-        return ApiResponse.error(403, 'Invalid password');
+        return ApiResponse.fromError(CustomError.validationSingle('password', 'Invalid password'));
     }
     const resp = ApiResponse.json(200, {
         profile: profile.getDetails(),
@@ -182,7 +180,7 @@ api.add('/list', [
     authenticate(AuthType.Optional),
 ], async (request: ApiRequest) => {
     if (!envConfig.PROFILES_CONFIG.listProfiles && !request.profile?.isAdmin) {
-        return ApiResponse.error(403, 'Listing profiles is disabled');
+        return ApiResponse.fromError(CustomError.security('Listing profiles is disabled'));
     }
     const offset = parseInt(request.getParams.offset) || 0;
     const limit = parseInt(request.getParams.limit) || 20;

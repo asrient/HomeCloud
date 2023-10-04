@@ -1,8 +1,9 @@
 import { Sequelize, Op, DataTypes, Model } from 'sequelize';
 import { envConfig, OptionalType, StorageType, StorageTypes, StorageAuthType, StorageAuthTypes, StorageTypeMeta } from './envConfig';
 import bcrypt from "bcrypt";
-import { validateUsernameString, validatePasswordString } from './utils/profileUtils';
+import { validateUsernameString, validatePasswordString, validateNameString } from './utils/profileUtils';
 import { createHash } from './utils';
+import CustomError from './customError';
 
 const saltRounds = 10;
 const DAYS_5 = 5 * 24 * 60 * 60 * 1000;
@@ -48,6 +49,9 @@ export class Profile extends DbModel {
         name: {
             type: DataTypes.STRING,
             allowNull: false,
+            validate: {
+                notEmpty: true,
+            }
         },
         isAdmin: {
             type: DataTypes.BOOLEAN,
@@ -114,32 +118,28 @@ export class Profile extends DbModel {
     static async createProfile(username: string | null, name: string, password: string | null = null) {
         let hash: string | null = null;
         if (!envConfig.PROFILES_CONFIG.allowSignups) {
-            throw new Error('Signups are disabled');
+            throw CustomError.security('Signups are disabled');
         }
         if (!password && envConfig.PROFILES_CONFIG.passwordPolicy === OptionalType.Required) {
-            throw new Error('Password is required');
+            throw CustomError.validationSingle('password', 'Password is required');
         }
         if (envConfig.PROFILES_CONFIG.requireUsername && !username) {
-            throw new Error('Username is required');
+            throw CustomError.validationSingle('username', 'Username is required');
         }
+
+        name = validateNameString(name);
+
         if (!!username) {
-            const [valid, str] = validateUsernameString(username);
-            if (!valid) {
-                throw new Error(str);
-            }
-            username = str;
+            username = validateUsernameString(username);
         } else {
             username = null;
         }
+
         if (!!password) {
             if (envConfig.PROFILES_CONFIG.passwordPolicy === OptionalType.Disabled) {
-                throw new Error('Passwords are disabled');
+                throw CustomError.validationSingle('password', 'Passwords are disabled');
             }
-            const [valid, str] = validatePasswordString(password);
-            if (!valid) {
-                throw new Error(str);
-            }
-            password = str;
+            password = validatePasswordString(password);
             hash = await bcrypt.hash(password, saltRounds);
         }
 

@@ -7,6 +7,16 @@ import { envConfig } from './envConfig';
 import { Profile } from './models';
 import { ReadStream } from 'fs';
 import { Readable } from 'stream';
+import CustomError, { ErrorCode, ErrorType } from './customError';
+
+export type ErrorResponse = {
+    message: string;
+    type: ErrorType;
+    code?: ErrorCode;
+    fields?: { [key: string]: string[] };
+    debug?: string[];
+    [key: string]: any;
+}
 
 export type ApiRequestFile = {
     name: string;
@@ -170,19 +180,31 @@ export class ApiResponse {
         }));
     }
 
-    static error(statusCode: number | string, message: string | any = null, detail: any = null) {
-        if (typeof statusCode === 'string') {
-            detail = message;
-            message = statusCode;
-            statusCode = 400;
-        }
+    static error(statusCode: number, errorResponse: ErrorResponse) {
         const response = new ApiResponse();
         response.status(statusCode);
         response.json({
-            message,
-            detail,
+            error: errorResponse,
         });
         return response;
+    }
+
+    static fromError(error: Error, statusCode: number = 400) {
+        let data: ErrorResponse = {
+            type: ErrorType.Generic,
+            message: error.message,
+        };
+        if (error instanceof CustomError) {
+            data = { ...data, ...error.data };
+            data.type = error.type;
+        }
+        if (statusCode === 500) {
+            data.message = `Internal Server Error: ${error.message}`;
+        }
+        if (envConfig.IS_DEV) {
+            data.debug = error.stack?.split('\n');
+        }
+        return ApiResponse.error(statusCode, data);
     }
 
     static json(statusCode: number, body: any) {
@@ -246,15 +268,7 @@ export class RouteGroup {
                 return await route.handler(request);
             } catch (e: any) {
                 console.error('❗️ [API] Internal Server Error', 'URL:', request.url, e);
-                const response500 = new ApiResponse();
-                response500.status(500);
-                let txt = '<h2>500: Internal Server Error</h2>';
-                if (envConfig.IS_DEV) {
-                    txt += e.message;
-                    txt += '<h4>Stack:</h4>' + e.stack;
-                }
-                response500.html(txt);
-                return Promise.resolve(response500);
+                return Promise.resolve(ApiResponse.fromError(e, 500));
             }
         }
         console.log('No match found for ' + request.path, 'queue:', this.queue);
