@@ -4,14 +4,22 @@ import { useRouter } from "next/router";
 import ProfilePicture from "../profilePicture";
 import { useAppDispatch, useAppState } from "../hooks/useAppState";
 import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover"
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import Link from "next/link";
 import { Storage } from "@/lib/types";
 import { Switch } from "@/components/ui/switch"
 import { ActionTypes } from "@/lib/state";
+import AddStorageModal from "../addStorageModal";
+import {
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { getName } from "@/lib/storageConfig";
 
 function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: boolean }) {
     const dispatch = useAppDispatch();
@@ -23,24 +31,29 @@ function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: bo
         });
     }
 
+    const onToggleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+    }
+
     return (
-        <div className="p-2 flex rounded-lg hover:bg-muted">
-            <Link href={`settings/storage/${storage.id}`} className="flex grow">
-                    <div className="flex items-center pr-4">
+        <div className="flex w-full">
+            <Link href={`settings/storage/${storage.id}`} className="flex grow cursor-default">
+                <div className="flex items-center pr-4">
                     <div className="h-[2rem] w-[2rem] rounded-md bg-slate-500 text-white flex items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 17.25v-.228a4.5 4.5 0 00-.12-1.03l-2.268-9.64a3.375 3.375 0 00-3.285-2.602H7.923a3.375 3.375 0 00-3.285 2.602l-2.268 9.64a4.5 4.5 0 00-.12 1.03v.228m19.5 0a3 3 0 01-3 3H5.25a3 3 0 01-3-3m19.5 0a3 3 0 00-3-3H5.25a3 3 0 00-3 3m16.5 0h.008v.008h-.008v-.008zm-3 0h.008v.008h-.008v-.008z" />
                         </svg>
                     </div>
-                    </div>
-                    <div className="grow my-auto font-medium">
-                        <div className="text-[0.9rem]">{storage.name}</div>
-                        <div className="text-[0.7rem] text-slate-500">{storage.type}</div>
-                    </div>
+                </div>
+                <div className="grow my-auto font-medium">
+                    <div className="text-[0.9rem]">{storage.name}</div>
+                    <div className="text-[0.7rem] text-slate-500">{getName(storage.type)}</div>
+                </div>
             </Link>
             <Switch
                 className="ml-2 my-auto"
                 checked={!isDisabled}
+                onClick={onToggleClick}
                 onCheckedChange={onToggle} />
         </div>
     );
@@ -52,39 +65,45 @@ function AccountPopover() {
     if (!profile) return null;
 
     return (
-        <Popover>
-            <PopoverTrigger>
-                <ProfilePicture profile={profile} size="sm" />
-            </PopoverTrigger>
-            <PopoverContent sideOffset={5} align="end" className="p-2">
-                <div className="flex flex-col space-y-1">
+        <AddStorageModal>
+            <DropdownMenu>
+                <DropdownMenuTrigger>
+                    <ProfilePicture profile={profile} size="sm" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-[16rem]" align="end" forceMount>
                     <Link href="/settings">
-                        <div className="flex rounded-lg hover:bg-muted">
-                            <div className="flex items-center pr-4 p-2">
-                                <ProfilePicture profile={profile} size="md" />
+                        <DropdownMenuItem>
+                            <div className="flex">
+                                <div className="flex items-center pr-3">
+                                    <ProfilePicture profile={profile} size="sm" />
+                                </div>
+                                <div className="grow my-auto font-medium">
+                                    <div className="text-[0.9rem]">{profile.username || profile.name}</div>
+                                    <div className="text-[0.7rem] leading-tight text-slate-500">Profile ID</div>
+                                </div>
                             </div>
-                            <div className="grow my-auto font-medium">
-                                <div className="text-[1rem]">{profile.username || profile.name}</div>
-                                <div className="text-[0.7rem] text-slate-500">Profile ID</div>
-                            </div>
-                        </div>
+                        </DropdownMenuItem>
                     </Link>
-                    <hr />
-                    <div className="text-[0.7rem] text-slate-600 pl-1">STORAGES</div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Storages</DropdownMenuLabel>
                     {
                         storages?.map((storage) => (
-                            <StorageItem key={storage.id} storage={storage} isDisabled={disabledStorages.includes(storage.id)} />
+                            <DropdownMenuItem key={storage.id}>
+                                <StorageItem storage={storage} isDisabled={disabledStorages.includes(storage.id)} />
+                            </DropdownMenuItem>
                         ))
                     }
-                    <div>
-                        <Button className="w-full" variant='outline' size='sm'>
+                    <DropdownMenuSeparator />
+                    <DialogTrigger asChild>
+                        <DropdownMenuItem>
                             Add storage
-                        </Button>
-                    </div>
-                </div>
-            </PopoverContent>
-        </Popover>
-    );
+                        </DropdownMenuItem>
+                    </DialogTrigger>
+                    <DropdownMenuItem>Settings</DropdownMenuItem>
+                    <DropdownMenuItem>Tasks</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </AddStorageModal>);
 }
 
 const tabClass = "data-[state=active]:bg-muted data-[state=active]:shadow-none";

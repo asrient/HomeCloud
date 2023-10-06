@@ -1,7 +1,7 @@
 
 export type ServerEvent = {
     type: string;
-    profileId: string;
+    profileId: number;
     data: any;
 }
 

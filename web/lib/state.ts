@@ -1,5 +1,5 @@
 import { Dispatch, createContext } from 'react';
-import { Profile, ServerConfig, Storage } from './types';
+import { Profile, ServerConfig, Storage, StorageMeta } from './types';
 
 export type AppStateType = {
     isInitalized: boolean;
@@ -16,6 +16,8 @@ export enum ActionTypes {
     ERROR = 'ERROR',
     APP_LOADED = 'APP_LOADED',
     TOGGLE_STORAGE = 'DISABLE_STORAGE',
+    ADD_STORAGE = 'ADD_STORAGE',
+    ADD_STORAGE_META = 'ADD_STORAGE_META',
 }
 
 export type AppDispatchType = {
@@ -61,6 +63,22 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 draft.disabledStorages.push(storageId);
             } else {
                 draft.disabledStorages = draft.disabledStorages.filter((id) => id !== storageId);
+            }
+            return draft;
+        case ActionTypes.ADD_STORAGE:
+            const { storage }: {
+                storage: Storage;
+            } = payload;
+            draft.storages?.push(storage);
+            return draft;
+        case ActionTypes.ADD_STORAGE_META:
+            const { storageId: id, storageMeta }: {
+                storageId: number;
+                storageMeta: StorageMeta;
+            } = payload;
+            const storageIndex = draft.storages?.findIndex((storage) => storage.id === id);
+            if (draft.storages && storageIndex !== undefined && storageIndex !== -1) {
+                draft.storages[storageIndex].storageMeta = storageMeta;
             }
             return draft;
         default:

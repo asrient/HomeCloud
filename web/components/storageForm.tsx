@@ -1,0 +1,381 @@
+import React, { useCallback, useEffect } from 'react';
+import { Storage, StorageAuthType, StorageAuthTypes, StorageType } from '@/lib/types';
+import { getName, getOneAuthButtonConfig, isOneAuthSupported, getSupportedAuthTypes, getAuthTypeName } from '@/lib/storageConfig';
+import { Button } from './ui/button';
+import { openExternalLink } from '@/lib/utils';
+import { AddStorageParams, addStorage, storageCallback } from '@/lib/api/storage';
+import { useAppState } from './hooks/useAppState';
+import { Input } from './ui/input';
+import {
+    Form,
+    FormControl,
+    FormDescription,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+    FormRootError,
+    errorToFormError,
+} from "@/components/ui/form";
+import { useForm, useWatch } from 'react-hook-form';
+import * as z from "zod"
+import { zodResolver } from "@hookform/resolvers/zod"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
+function OneAuthButton({
+    storageType,
+    onClick,
+    disabled,
+}: {
+    storageType: StorageType;
+    onClick: () => void;
+    disabled?: boolean;
+}) {
+    const buttonConfig = getOneAuthButtonConfig(storageType);
+    const styles = buttonConfig.styles || {};
+
+    return (<button disabled={!!disabled} className='p-2 px-4 bg-slate-100 text-sm border-none rounded-sm' style={styles} onClick={onClick}>
+        {buttonConfig.text}
+    </button>)
+}
+
+function useSuggestedName(storageType: StorageType) {
+    const { storages } = useAppState();
+    const [suggestedName, setSuggestedName] = React.useState<string>(getName(storageType));
+    React.useEffect(() => {
+        if (!storages) return;
+        const count = storages.filter(s => s.type === storageType).length;
+        setSuggestedName(`${getName(storageType)} ${count + 1}`);
+    }, [storages, storageType]);
+    return suggestedName;
+}
+
+function OneAuthForm({
+    storageType,
+    onCancel,
+    onSuccess,
+    existingStorage
+}: {
+    storageType: StorageType;
+    onCancel: () => void;
+    onSuccess: (params: Storage) => void;
+    existingStorage?: Storage;
+}) {
+    const [error, setError] = React.useState<string | null>(null);
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [manualCode, setManualCode] = React.useState<string | null>(null);
+    const [redirect, setRedirect] = React.useState<{
+        redirectUrl: string;
+        referenceId: string;
+    } | null>(null);
+    const suggestedName = useSuggestedName(storageType);
+
+    const onContinue = useCallback(async () => {
+        const name = existingStorage?.name || suggestedName;
+        setError(null);
+        setManualCode(null);
+        try {
+            setIsLoading(true);
+            const resp = await addStorage({
+                type: storageType,
+                authType: StorageAuthType.OneAuth,
+                name,
+            } as AddStorageParams);
+            if (resp && resp.authUrl && resp.pendingAuth?.referenceId) {
+                setRedirect({
+                    redirectUrl: resp.authUrl,
+                    referenceId: resp.pendingAuth?.referenceId,
+                });
+                openExternalLink(resp.authUrl);
+            } else {
+                throw new Error('Invalid response: missing authUrl or referenceId');
+            }
+        } catch (e: any) {
+            console.error(e);
+            setError(e.message);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [storageType]);
+
+    const onPreferManual = useCallback(() => {
+        setManualCode('');
+    }, []);
+
+    const onManualCodeSubmit = useCallback(async () => {
+        if (!manualCode) return;
+        const params = {
+            referenceId: redirect!.referenceId,
+            partialCode2: manualCode,
+        };
+        setError(null);
+        try {
+            setIsLoading(true);
+            const resp = await storageCallback(params);
+            if (resp && resp.storage) {
+                onSuccess(resp.storage);
+            } else {
+                throw new Error('Invalid response: missing storage');
+            }
+        } catch (e: any) {
+            console.error(e);
+            setError(e.message);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [manualCode, storageType, redirect]);
+
+    return (<div className='flex flex-col justify-center'>
+        <div className='text-lg font-medium'>
+            {
+                redirect ? 'Redirecting..' : 'Sign In'
+            }
+        </div>
+        <div className='text-sm text-slate-500 font-medium'>
+            {
+                redirect ? 'Open the link in browser' : `You will be redirected to ${storageType} to authorize HomeCloud.`
+            }
+        </div>
+        {
+            redirect && <div className='text-xs text-blue-600'>
+                {redirect.redirectUrl}
+            </div>
+        }
+        <div className='p-1'>
+            {error && <div className='text-red-500 text-xs'>{error}</div>}
+        </div>
+        <div className='p-1'>
+            {
+                redirect && manualCode === null && <Button variant='ghost' className='text-blue-500' onClick={onPreferManual}>Enter code manually</Button>
+            }
+            {
+                manualCode !== null &&
+                <Input placeholder='Enter code' value={manualCode} onChange={(e) => setManualCode(e.target.value)} />
+            }
+        </div>
+        <div className='flex justify-end pt-3'>
+            {
+                redirect
+                    ? (
+                        !manualCode
+                            ? <Button variant='outline' className='ml-2' onClick={() => openExternalLink(redirect.redirectUrl)}>Open in browser</Button>
+                            : <Button disabled={isLoading} variant='default' className='ml-2' onClick={onManualCodeSubmit}>Continue</Button>
+                    )
+                    : <OneAuthButton storageType={storageType} onClick={onContinue} />
+            }
+            <Button variant='outline' className='ml-2' onClick={onCancel}>Cancel</Button>
+        </div>
+    </div>)
+}
+
+const storageFormSchema = z.object({
+    name: z.string().min(2).max(50),
+    url: z.string().url().min(3).max(50),
+    authType: z.string().refine((v) => StorageAuthTypes.includes(v as StorageAuthType)),
+    username: z.string().max(50),
+    secret: z.string().max(50),
+});
+
+function StorageFormManual({
+    storageType,
+    onCancel,
+    onSuccess,
+    existingStorage
+}: {
+    storageType: StorageType;
+    onCancel: () => void;
+    onSuccess: (params: Storage) => void;
+    existingStorage?: Storage;
+}) {
+    const suggestedName = useSuggestedName(storageType);
+
+    const form = useForm<z.infer<typeof storageFormSchema>>({
+        resolver: zodResolver(storageFormSchema),
+        defaultValues: {
+            name: existingStorage?.name || suggestedName,
+            url: existingStorage?.url || '',
+            authType: existingStorage?.authType || StorageAuthType.Basic,
+            username: existingStorage?.username || '',
+            secret: '',
+        },
+    });
+
+    const selectedAuthType = useWatch({
+        control: form.control,
+        name: "authType",
+    });
+
+    const allowAuthTypes = getSupportedAuthTypes(storageType);
+
+    useEffect(() => {
+        if (selectedAuthType === StorageAuthType.None) {
+            form.setValue('username', '');
+            form.setValue('secret', '');
+        }
+    }, [selectedAuthType]);
+
+    useEffect(() => {
+        if (!form.getFieldState('name')?.isDirty) {
+            form.setValue('name', suggestedName);
+        }
+    }, [suggestedName]);
+
+    function onFormSubmit(values: z.infer<typeof storageFormSchema>) {
+        // This will be type-safe and validated.
+        console.log(values);
+        if (!!existingStorage) {
+            throw new Error('Not implemented');
+        }
+        const params: AddStorageParams = {
+            name: values.name,
+            type: storageType,
+            authType: values.authType as StorageAuthType,
+            url: values.url,
+            username: values.username,
+            secret: values.secret,
+        };
+        performAddStorage(params);
+    }
+
+    const performAddStorage = useCallback(async (params: AddStorageParams) => {
+        try {
+            const resp = await addStorage(params);
+            if (resp && resp.storage) {
+                onSuccess(resp.storage);
+            } else {
+                throw new Error('Invalid response: missing storage');
+            }
+        } catch (error: any) {
+            console.error(error);
+            errorToFormError(error, form);
+            return;
+        }
+    }, [form, onSuccess]);
+
+    const showCredFields = selectedAuthType !== StorageAuthType.None;
+
+    return (<Form {...form}>
+        <FormMessage />
+        <FormRootError />
+        <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-5">
+            <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                            <Input placeholder={`My ${getName(storageType)}`} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <FormField
+                control={form.control}
+                name="url"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Server URL</FormLabel>
+                        <FormControl>
+                            <Input placeholder="https://example.com" {...field} />
+                        </FormControl>
+                        <FormDescription>
+                            The URL of the {getName(storageType)} server.
+                        </FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <FormField
+                control={form.control}
+                name="authType"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Authentication Type</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select authentication" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {
+                                    allowAuthTypes.map((authType) => (
+                                        <SelectItem key={authType} value={authType}>
+                                            {getAuthTypeName(authType)}
+                                        </SelectItem>
+                                    ))
+                                }
+                            </SelectContent>
+                        </Select>
+                        <FormDescription>
+                            The type of authentication to use.
+                        </FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            {showCredFields && <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Username</FormLabel>
+                        <FormControl>
+                            <Input placeholder="account username" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />}
+            {showCredFields && <FormField
+                control={form.control}
+                name="secret"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                            <Input type='password' placeholder="account password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />}
+            <div className='flex justify-end space-x-2'>
+                <Button type="submit">{
+                    existingStorage ? 'Save changes' : 'Add storage'
+                }</Button>
+                <Button variant="outline" onClick={onCancel}>Cancel</Button>
+            </div>
+        </form>
+    </Form>)
+}
+
+export interface StorageFormProps {
+    storageType: StorageType;
+    existingStorage?: Storage;
+    onCancel: () => void;
+    onSuccess: (storage: Storage) => void;
+}
+
+export default function StorageForm({
+    storageType,
+    existingStorage,
+    onCancel,
+    onSuccess,
+}: StorageFormProps) {
+    const isOneAuth = isOneAuthSupported(storageType);
+
+    if (isOneAuth) {
+        return (<OneAuthForm storageType={storageType} onCancel={onCancel} existingStorage={existingStorage} onSuccess={onSuccess} />)
+    }
+
+    return (<StorageFormManual storageType={storageType} onCancel={onCancel} existingStorage={existingStorage} onSuccess={onSuccess} />)
+}

@@ -126,7 +126,7 @@ export default class PhotosService {
         const e: ServerEvent = {
             type: `photos.${type}`,
             data,
-            profileId: this.storage.ProfileId.toString(),
+            profileId: this.storage.ProfileId,
         }
         await pushServerEvent(e);
     }

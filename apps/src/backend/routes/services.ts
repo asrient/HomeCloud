@@ -28,7 +28,9 @@ api.add('/scan', [
     const force = request.getParams.force === 'true' || false;
     try {
         const storageMeta = await scan(fsDriver, force);
-        return ApiResponse.json(200, storageMeta.getDetails());
+        return ApiResponse.json(200, {
+            storageMeta,
+        });
     } catch (e: any) {
         console.error(e);
         e.message = `Could not scan storage: ${e.message}`;
@@ -59,7 +61,9 @@ api.add('/toggleService', [
     }
     try {
         await toggleService(storageMeta, appName, enable);
-        return ApiResponse.json(200, storageMeta.getDetails());
+        return ApiResponse.json(200, {
+            storageMeta,
+        });
     } catch (e: any) {
         console.error(e);
         e.message = `Could not toggle service ${appName}: ${e.message}`;
