@@ -84,7 +84,7 @@ export type ServerConfig = {
     isDev: boolean;
 }
 
-export enum AppName  {
+export enum AppName {
     Photos = 'photos',
     Files = 'files',
     Notes = 'notes',
@@ -95,3 +95,21 @@ export const AppNames = [
     AppName.Files,
     AppName.Notes,
 ]
+
+export type SidebarItem = {
+    title: string;
+    icon: string;
+    href: string;
+    isDisabled?: boolean;
+};
+
+export type SidebarList = {
+    title?: string;
+    items: SidebarItem[];
+}[];
+
+export enum SidebarType {
+    Files = "files",
+    Settings = "settings",
+    Photos = "photos"
+}

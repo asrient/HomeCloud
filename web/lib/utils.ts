@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
- 
+import { SidebarType } from "./types";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -12,4 +13,14 @@ export function nameToInitials(name: string) {
 
 export function openExternalLink(url: string) {
   window.open(url, "_blank")
+}
+
+export function buildStaticProps(sidebarType: SidebarType, showSidebar = true, props = {}) {
+  return {
+    props: {
+      sidebarType,
+      showSidebar,
+      ...props,
+    },
+  }
 }

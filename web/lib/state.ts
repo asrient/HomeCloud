@@ -9,6 +9,7 @@ export type AppStateType = {
     profile: Profile | null;
     storages: Storage[] | null;
     disabledStorages: number[];
+    showSidebar: boolean;
 };
 
 
@@ -19,7 +20,8 @@ export enum ActionTypes {
     TOGGLE_STORAGE = 'DISABLE_STORAGE',
     ADD_STORAGE = 'ADD_STORAGE',
     ADD_STORAGE_META = 'ADD_STORAGE_META',
-    UPDATE_STORAGE = 'UPDATE_STORAGE'
+    UPDATE_STORAGE = 'UPDATE_STORAGE',
+    TOGGLE_SIDEBAR = 'TOGGLE_SIDEBAR',
 }
 
 export type AppDispatchType = {
@@ -36,6 +38,7 @@ export const initialAppState: AppStateType = {
     profile: null,
     storages: null,
     disabledStorages: [],
+    showSidebar: true,
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
@@ -92,6 +95,12 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             if (draft.storages && storageToUpdateIndex !== undefined && storageToUpdateIndex !== -1) {
                 draft.storages[storageToUpdateIndex] = storageToUpdate;
             }
+            return draft;
+        case ActionTypes.TOGGLE_SIDEBAR:
+            const { showSidebar }: {
+                showSidebar: boolean;
+            } = payload;
+            draft.showSidebar = showSidebar || !draft.showSidebar;
             return draft;
         default:
             console.error('Unknown action type:', type);
