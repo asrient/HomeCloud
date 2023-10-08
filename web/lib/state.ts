@@ -11,6 +11,7 @@ export type AppStateType = {
     disabledStorages: number[];
 };
 
+
 export enum ActionTypes {
     INITIALIZE = 'INITIALIZE',
     ERROR = 'ERROR',
@@ -18,6 +19,7 @@ export enum ActionTypes {
     TOGGLE_STORAGE = 'DISABLE_STORAGE',
     ADD_STORAGE = 'ADD_STORAGE',
     ADD_STORAGE_META = 'ADD_STORAGE_META',
+    UPDATE_STORAGE = 'UPDATE_STORAGE'
 }
 
 export type AppDispatchType = {
@@ -81,7 +83,18 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 draft.storages[storageIndex].storageMeta = storageMeta;
             }
             return draft;
+        case ActionTypes.UPDATE_STORAGE:
+            const { storageId: storageIdToUpdate, storage: storageToUpdate }: {
+                storageId: number;
+                storage: Storage;
+            } = payload;
+            const storageToUpdateIndex = draft.storages?.findIndex((storage) => storage.id === storageIdToUpdate);
+            if (draft.storages && storageToUpdateIndex !== undefined && storageToUpdateIndex !== -1) {
+                draft.storages[storageToUpdateIndex] = storageToUpdate;
+            }
+            return draft;
         default:
+            console.error('Unknown action type:', type);
             return draft;
     }
 }

@@ -49,3 +49,16 @@ export async function serviceScan(params: ServiceScanParams) {
         storageMeta: StorageMeta,
     }>('/services/scan', req);
 }
+
+export type EditStorageParams = {
+    storageId: number;
+    name?: string;
+    authType?: StorageAuthType;
+    url?: string;
+    username?: string;
+    secret?: string;
+};
+
+export async function editStorage(params: EditStorageParams) {
+    return await ApiClient.post<{ storage: Storage }>('/storage/edit', params);
+}

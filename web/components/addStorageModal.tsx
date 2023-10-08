@@ -7,7 +7,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import React, { use, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAppDispatch, useAppState } from "./hooks/useAppState";
 import { Separator } from "@/components/ui/separator";
 import { getName } from "@/lib/storageConfig";
@@ -124,8 +124,10 @@ function SuccessScreen({
 
 export default function AddStorageModal({
     children,
+    existingStorage,
 }: {
     children: React.ReactNode;
+    existingStorage?: Storage;
 }) {
     const [selectedStorageType, setSelectedStorageType] = useState<StorageType | null>(null);
     const [addedStorage, setAddedStorage] = useState<Storage | null>(null);
@@ -133,10 +135,22 @@ export default function AddStorageModal({
     const [screen, setScreen] = useState<'select' | 'form' | 'preference' | 'success'>('select');
     const dispatch = useAppDispatch();
 
+    useEffect(() => {
+        if (existingStorage && screen === 'select') {
+            setSelectedStorageType(existingStorage.type);
+            setScreen('form');
+        }
+    }, [existingStorage]);
+
     const backToBegining = () => {
         setAddedStorage(null);
-        setSelectedStorageType(null);
-        setScreen('select');
+        if (!existingStorage) {
+            setSelectedStorageType(null);
+            setScreen('select');
+        } else {
+            setSelectedStorageType(existingStorage.type);
+            setScreen('form');
+        }
     }
 
     const selectStorageType = (storageType: StorageType) => {
@@ -146,7 +160,11 @@ export default function AddStorageModal({
     }
 
     const storageAdded = (storage: Storage) => {
-        dispatch(ActionTypes.ADD_STORAGE, { storage });
+        if (existingStorage) {
+            dispatch(ActionTypes.UPDATE_STORAGE, { storage, storageId: existingStorage.id });
+        } else {
+            dispatch(ActionTypes.ADD_STORAGE, { storage });
+        }
         setAddedStorage(storage);
         setScreen('preference');
     }
@@ -181,17 +199,17 @@ export default function AddStorageModal({
                                 : screen === 'preference'
                                     ? "Storage Preferences"
                                     : screen === 'form' && selectedStorageType
-                                        ? getName(selectedStorageType)
+                                        ? `${existingStorage ? 'Edit' : 'New'} ${getName(selectedStorageType)} storage`
                                         : "Add Storage"
                         }</DialogTitle>
                         <DialogDescription>
                             {
                                 screen === 'success'
-                                    ? `"${addedStorage?.name}" was added successfully.`
+                                    ? `"${addedStorage?.name}" was ${existingStorage ? 'modified' : 'added'} successfully.`
                                     : screen === 'preference'
                                         ? 'Configure this storage to suit your needs.'
-                                        : screen === 'form' && selectedStorageType
-                                            ? `Connect ${getName(selectedStorageType)} to HomeCloud.`
+                                        : screen === 'form'
+                                            ? 'Connect storage to HomeCloud.'
                                             : 'Select the type of storage you want to add.'
                             }
                         </DialogDescription>
@@ -208,6 +226,7 @@ export default function AddStorageModal({
                                     : screen === 'form' && selectedStorageType
                                         ? (<StorageForm onSuccess={storageAdded}
                                             onCancel={backToBegining}
+                                            existingStorage={existingStorage}
                                             storageType={selectedStorageType} />) :
                                         (<StorageTypeSelector onSelect={selectStorageType} />)
                         }

@@ -3,7 +3,7 @@ import { Storage, StorageAuthType, StorageAuthTypes, StorageType } from '@/lib/t
 import { getName, getOneAuthButtonConfig, isOneAuthSupported, getSupportedAuthTypes, getAuthTypeName } from '@/lib/storageConfig';
 import { Button } from './ui/button';
 import { openExternalLink } from '@/lib/utils';
-import { AddStorageParams, addStorage, storageCallback } from '@/lib/api/storage';
+import { AddStorageParams, addStorage, storageCallback, EditStorageParams, editStorage } from '@/lib/api/storage';
 import { useAppState } from './hooks/useAppState';
 import { Input } from './ui/input';
 import {
@@ -221,7 +221,7 @@ function StorageFormManual({
     }, [selectedAuthType]);
 
     useEffect(() => {
-        if (!form.getFieldState('name')?.isDirty) {
+        if (!form.getFieldState('name')?.isDirty && !existingStorage) {
             form.setValue('name', suggestedName);
         }
     }, [suggestedName]);
@@ -230,7 +230,26 @@ function StorageFormManual({
         // This will be type-safe and validated.
         console.log(values);
         if (!!existingStorage) {
-            throw new Error('Not implemented');
+            const params: EditStorageParams = {
+                storageId: existingStorage.id,
+            };
+            if (values.name !== existingStorage.name) {
+                params.name = values.name;
+            }
+            if (values.url !== existingStorage.url) {
+                params.url = values.url;
+            }
+            if (values.authType !== existingStorage.authType) {
+                params.authType = values.authType as StorageAuthType;
+            }
+            if (values.username !== existingStorage.username) {
+                params.username = values.username;
+            }
+            if (values.secret.length > 0) {
+                params.secret = values.secret;
+            }
+            performEditStorage(params);
+            return;
         }
         const params: AddStorageParams = {
             name: values.name,
@@ -242,6 +261,21 @@ function StorageFormManual({
         };
         performAddStorage(params);
     }
+
+    const performEditStorage = useCallback(async (params: EditStorageParams) => {
+        try {
+            const resp = await editStorage(params);
+            if (resp && resp.storage) {
+                onSuccess(resp.storage);
+            } else {
+                throw new Error('Invalid response: missing storage');
+            }
+        } catch (error: any) {
+            console.error(error);
+            errorToFormError(error, form);
+            return;
+        }
+    }, [form, onSuccess]);
 
     const performAddStorage = useCallback(async (params: AddStorageParams) => {
         try {
@@ -259,6 +293,7 @@ function StorageFormManual({
     }, [form, onSuccess]);
 
     const showCredFields = selectedAuthType !== StorageAuthType.None;
+    const hasPreviousPassword = existingStorage && existingStorage.authType !== StorageAuthType.None;
 
     return (<Form {...form}>
         <FormMessage />
@@ -342,8 +377,15 @@ function StorageFormManual({
                     <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                            <Input type='password' placeholder="account password" {...field} />
+                            <Input type='password' placeholder={
+                                hasPreviousPassword ? '********' : 'account password'
+                            } {...field} />
                         </FormControl>
+                        {
+                            hasPreviousPassword && <FormDescription>
+                                Previous password is hidden, leave blank if you don't want to change.
+                            </FormDescription>
+                        }
                         <FormMessage />
                     </FormItem>
                 )}
@@ -352,7 +394,7 @@ function StorageFormManual({
                 <Button type="submit">{
                     existingStorage ? 'Save changes' : 'Add storage'
                 }</Button>
-                <Button variant="outline" onClick={onCancel}>Cancel</Button>
+                {!existingStorage && <Button variant="outline" onClick={onCancel}>Cancel</Button>}
             </div>
         </form>
     </Form>)

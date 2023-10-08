@@ -65,7 +65,7 @@ function AccountPopover() {
     if (!profile) return null;
 
     return (
-        <AddStorageModal>
+        <AddStorageModal existingStorage={storages ? storages[0]: undefined}>
             <DropdownMenu>
                 <DropdownMenuTrigger>
                     <ProfilePicture profile={profile} size="sm" />
