@@ -83,3 +83,15 @@ export type ServerConfig = {
     storageTypes: StorageType[];
     isDev: boolean;
 }
+
+export enum AppName  {
+    Photos = 'photos',
+    Files = 'files',
+    Notes = 'notes',
+}
+
+export const AppNames = [
+    AppName.Photos,
+    AppName.Files,
+    AppName.Notes,
+]

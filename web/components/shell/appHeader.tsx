@@ -20,6 +20,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { getName } from "@/lib/storageConfig";
+import { useState } from "react";
 
 function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: boolean }) {
     const dispatch = useAppDispatch();
@@ -110,15 +111,19 @@ const tabClass = "data-[state=active]:bg-muted data-[state=active]:shadow-none";
 
 export default function AppHeader() {
     const router = useRouter();
+    const [isRouterBusy, setIsRouterBusy] = useState(false);
     const activeTab = router.pathname.split('/')[1] || 'home';
 
     const onBack = () => {
         router.back();
     }
 
-    const onTabChange = (value: string) => {
+    const onTabChange = async (value: string) => {
         if (value === 'home') value = '';
-        router.push(`/${value}`);
+        if(isRouterBusy) return;
+        setIsRouterBusy(true);
+        await router.push(`/${value}`);
+        setIsRouterBusy(false);
     }
 
     return (<div className="bg-white flex items-center p-2 text-sm top-0 z-20 relative md:sticky border-b-[1px] border-slate-100 border-solid">
