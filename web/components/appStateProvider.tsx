@@ -4,13 +4,14 @@ import { useImmerReducer } from 'use-immer';
 import { setupStaticConfig } from '@/lib/staticConfig';
 import { initalialState } from '@/lib/api/auth';
 import { useAppDispatch, useAppState } from './hooks/useAppState';
-
+import usePinnedFolders from './hooks/usePinnedFolders';
 
 function WithInitialState({ children }: {
     children: React.ReactNode;
 }) {
     const dispatch = useAppDispatch();
     const { isAppLoaded } = useAppState();
+    usePinnedFolders();
 
     useEffect(() => {
         async function fetchInitialState() {

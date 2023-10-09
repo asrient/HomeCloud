@@ -1,9 +1,11 @@
-import { SidebarList } from "@/lib/types";
+import { AppName, SidebarList } from "@/lib/types";
+import useFilterStorages from "./useFilterStorages";
 import { useAppState } from "./useAppState";
+import { join } from "path";
 
 export function useFilesBar(): SidebarList {
-    const { storages } = useAppState();
-
+    const storages = useFilterStorages(AppName.Files);
+    const { pinnedFolders } = useAppState();
     return [
         {
             items: [
@@ -21,10 +23,11 @@ export function useFilesBar(): SidebarList {
         },
         {
             title: 'Favorites',
-            items: [
-                { title: 'Folder 1', icon: 'star', href: '/files/s/1/fav1' },
-                { title: 'Folder 2', icon: 'star', href: '/files/s/1/fav2' },
-            ]
+            items: pinnedFolders?.map((pinnedFolder) => ({
+                title: pinnedFolder.name,
+                icon: 'folder',
+                href: join(`/files/s/${pinnedFolder.storageId}`, pinnedFolder.folderId),
+            })) || []
         },
         {
             title: 'Storages',

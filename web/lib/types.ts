@@ -113,3 +113,10 @@ export enum SidebarType {
     Settings = "settings",
     Photos = "photos"
 }
+
+export type PinnedFolder = {
+    id: number;
+    folderId: string;
+    name: string;
+    storageId: number;
+}

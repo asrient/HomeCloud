@@ -1,5 +1,5 @@
 import { Dispatch, createContext } from 'react';
-import { Profile, ServerConfig, Storage, StorageMeta } from './types';
+import { Profile, ServerConfig, Storage, StorageMeta, PinnedFolder } from './types';
 
 export type AppStateType = {
     isInitalized: boolean;
@@ -10,6 +10,7 @@ export type AppStateType = {
     storages: Storage[] | null;
     disabledStorages: number[];
     showSidebar: boolean;
+    pinnedFolders: PinnedFolder[];
 };
 
 
@@ -22,6 +23,8 @@ export enum ActionTypes {
     ADD_STORAGE_META = 'ADD_STORAGE_META',
     UPDATE_STORAGE = 'UPDATE_STORAGE',
     TOGGLE_SIDEBAR = 'TOGGLE_SIDEBAR',
+    SET_PINNED_FOLDERS = 'SET_PINNED_FOLDERS',
+    ADD_PINNED_FOLDER = 'ADD_PINNED_FOLDER',
 }
 
 export type AppDispatchType = {
@@ -39,6 +42,7 @@ export const initialAppState: AppStateType = {
     storages: null,
     disabledStorages: [],
     showSidebar: true,
+    pinnedFolders: [],
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
@@ -57,6 +61,7 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             draft.profile = payload.profile;
             draft.storages = payload.storages;
             draft.disabledStorages = [];
+            draft.pinnedFolders = [];
             return draft;
         case ActionTypes.ERROR:
             draft.isInitalized = true;
@@ -101,6 +106,18 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 showSidebar: boolean;
             } = payload;
             draft.showSidebar = showSidebar || !draft.showSidebar;
+            return draft;
+        case 'SET_PINNED_FOLDERS':
+            const { pins }: {
+                pins: PinnedFolder[];
+            } = payload;
+            draft.pinnedFolders = pins;
+            return draft;
+        case 'ADD_PINNED_FOLDER':
+            const { pin }: {
+                pin: PinnedFolder;
+            } = payload;
+            draft.pinnedFolders.push(pin);
             return draft;
         default:
             console.error('Unknown action type:', type);
