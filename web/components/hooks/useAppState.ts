@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useCallback, useContext } from 'react';
 import { AppContext, DispatchContext, ActionTypes } from '../../lib/state';
 
 export function useAppState() {
@@ -7,5 +7,5 @@ export function useAppState() {
 
 export function useAppDispatch() {
     const dispatch = useContext(DispatchContext);
-    return (type: ActionTypes, payload: any) => dispatch && dispatch({ type, payload });
+    return useCallback((type: ActionTypes, payload: any) => dispatch && dispatch({ type, payload }), [dispatch]);
 }
