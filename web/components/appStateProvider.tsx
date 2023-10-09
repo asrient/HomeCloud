@@ -10,24 +10,28 @@ function WithInitialState({ children }: {
     children: React.ReactNode;
 }) {
     const dispatch = useAppDispatch();
-    const { isAppLoaded } = useAppState();
+    const { isAppLoaded, isInitalized } = useAppState();
+    const [ isLoading, setIsLoading ] = React.useState(false);
     usePinnedFolders();
 
     useEffect(() => {
         async function fetchInitialState() {
             console.log("Fetching initial state");
+            setIsLoading(true);
             try {
                 const data = await initalialState();
                 dispatch(ActionTypes.INITIALIZE, data);
             } catch (error: any) {
                 console.error(error);
                 dispatch(ActionTypes.ERROR, error.message);
+            } finally {
+                setIsLoading(false);
             }
         }
-        if (isAppLoaded) {
+        if (isAppLoaded && !isInitalized && !isLoading) {
             fetchInitialState();
         }
-    }, [dispatch, isAppLoaded]);
+    }, [dispatch, isAppLoaded, isInitalized, isLoading]);
 
     return children;
 }
