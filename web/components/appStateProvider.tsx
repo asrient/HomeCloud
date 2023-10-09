@@ -27,7 +27,7 @@ function WithInitialState({ children }: {
         if (isAppLoaded) {
             fetchInitialState();
         }
-    }, [isAppLoaded]);
+    }, [dispatch, isAppLoaded]);
 
     return children;
 }
@@ -44,7 +44,7 @@ export default function AppStateProvider({ children }: {
             type: ActionTypes.APP_LOADED,
             payload: null,
         });
-    }, []);
+    }, [dispatch]);
 
     return (
         <AppContext.Provider value={state}>

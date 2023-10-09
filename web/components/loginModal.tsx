@@ -53,7 +53,7 @@ const LoginModal = () => {
             console.error(error);
             setError('Error: ' + error.message);
         }
-    }, []);
+    }, [dispatch]);
 
     const handleNoProfiles = () => {
         setNoProfilesAvailable(true);

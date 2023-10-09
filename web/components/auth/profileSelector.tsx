@@ -114,7 +114,7 @@ export default function ProfileSelector({
             }
         }
         fetchProfiles();
-    }, []);
+    }, [onNoProfiles]);
 
     const performLogin = useCallback(async (params: LoginParams) => {
         try {

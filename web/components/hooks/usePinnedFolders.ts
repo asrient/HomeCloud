@@ -40,5 +40,5 @@ export default function usePinnedFolders() {
         }
         if (!storages || isLoading) return;
         refresh();
-    }, [pinnedFolders, storages, pathname, checkedStorageIds, isLoading]);
+    }, [pinnedFolders, storages, pathname, checkedStorageIds, isLoading, dispatch]);
 }

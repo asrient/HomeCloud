@@ -20,7 +20,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { getName } from "@/lib/storageConfig";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: boolean }) {
     const dispatch = useAppDispatch();
@@ -118,13 +118,13 @@ export default function AppHeader() {
         router.back();
     }
 
-    const onTabChange = async (value: string) => {
+    const onTabChange = useCallback(async (value: string) => {
         if (value === 'home') value = '';
         if(isRouterBusy) return;
         setIsRouterBusy(true);
         await router.push(`/${value}`);
         setIsRouterBusy(false);
-    }
+    }, [router, isRouterBusy]);
 
     return (<div className="bg-white flex items-center p-2 text-sm top-0 z-20 relative md:sticky border-b-[1px] border-slate-100 border-solid">
         <div className="grow max-w-[8rem] md:flex items-center justify-center hidden">

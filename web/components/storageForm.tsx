@@ -102,7 +102,7 @@ function OneAuthForm({
         } finally {
             setIsLoading(false);
         }
-    }, [storageType]);
+    }, [existingStorage?.name, storageType, suggestedName]);
 
     const onPreferManual = useCallback(() => {
         setManualCode('');
@@ -129,7 +129,7 @@ function OneAuthForm({
         } finally {
             setIsLoading(false);
         }
-    }, [manualCode, storageType, redirect]);
+    }, [manualCode, redirect, onSuccess]);
 
     return (<div className='flex flex-col justify-center'>
         <div className='text-lg font-medium'>
@@ -218,13 +218,13 @@ function StorageFormManual({
             form.setValue('username', '');
             form.setValue('secret', '');
         }
-    }, [selectedAuthType]);
+    }, [form, selectedAuthType]);
 
     useEffect(() => {
         if (!form.getFieldState('name')?.isDirty && !existingStorage) {
             form.setValue('name', suggestedName);
         }
-    }, [suggestedName]);
+    }, [existingStorage, form, suggestedName]);
 
     function onFormSubmit(values: z.infer<typeof storageFormSchema>) {
         // This will be type-safe and validated.

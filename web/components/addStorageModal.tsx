@@ -7,7 +7,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useAppDispatch, useAppState } from "./hooks/useAppState";
 import { Separator } from "@/components/ui/separator";
 import { getName } from "@/lib/storageConfig";
@@ -50,13 +50,13 @@ function StoragePreferences({
 
     const dispatch = useAppDispatch();
 
-    const onDone_ = () => {
+    const onDone_ = useCallback(() => {
         setError(null);
         setIsLoading(false);
         onDone();
-    }
+    }, [onDone])
 
-    const onEnable = async () => {
+    const onEnable = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -71,18 +71,18 @@ function StoragePreferences({
             setError(e.message);
             setIsLoading(false);
         }
-    }
+    }, [dispatch, onDone_, storage.id]);
 
     // modify entry point to show storage apps toggles
     useEffect(() => {
         if (storageMeta) {
             onDone_();
         }
-    }, [storageMeta]);
+    }, [onDone_, storageMeta]);
 
     return (<div className='flex flex-col justify-center'>
         <div className='text-lg font-medium'>
-            Enable HomeCloud services for "{storage.name}"?
+        Enable HomeCloud services for &ldquo;{storage.name}&rdquo;?
         </div>
         <div className='text-sm pt-3 text-slate-500'>
             To make some features work, we will create a HomeCloud folder in your storage.
@@ -140,9 +140,9 @@ export default function AddStorageModal({
             setSelectedStorageType(existingStorage.type);
             setScreen('form');
         }
-    }, [existingStorage]);
+    }, [existingStorage, screen]);
 
-    const backToBegining = () => {
+    const backToBegining = useCallback(() => {
         setAddedStorage(null);
         if (!existingStorage) {
             setSelectedStorageType(null);
@@ -151,15 +151,15 @@ export default function AddStorageModal({
             setSelectedStorageType(existingStorage.type);
             setScreen('form');
         }
-    }
+    }, [existingStorage])
 
-    const selectStorageType = (storageType: StorageType) => {
+    const selectStorageType = useCallback((storageType: StorageType) => {
         setSelectedStorageType(storageType);
         setAddedStorage(null);
         setScreen('form');
-    }
+    }, []);
 
-    const storageAdded = (storage: Storage) => {
+    const storageAdded = useCallback((storage: Storage) => {
         if (existingStorage) {
             dispatch(ActionTypes.UPDATE_STORAGE, { storage, storageId: existingStorage.id });
         } else {
@@ -167,18 +167,18 @@ export default function AddStorageModal({
         }
         setAddedStorage(storage);
         setScreen('preference');
-    }
+    }, [dispatch, existingStorage]);
 
-    const showSuccessScreen = () => {
+    const showSuccessScreen = useCallback(() => {
         if (addedStorage) {
             setScreen('success');
         }
-    }
+    }, [addedStorage]);
 
-    const closeDialog = () => {
+    const closeDialog = useCallback(() => {
         setDialogOpen(false);
         backToBegining();
-    }
+    }, [backToBegining]);
 
     return (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen} >
