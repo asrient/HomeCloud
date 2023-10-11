@@ -13,10 +13,7 @@ export function useFilesBar(): SidebarList {
                 {
                     title: 'My Files',
                     href: buildNextUrl('/files'),
-                },
-                {
-                    title: 'Recents',
-                    href: buildNextUrl('/files/recent'),
+                    icon: '/icons/home.png',
                 },
             ]
         },

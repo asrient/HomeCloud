@@ -1,27 +1,61 @@
 import { Inter } from 'next/font/google'
 import Head from 'next/head'
 import { buildPageConfig } from '@/lib/utils'
-import { SidebarType } from "@/lib/types"
+import { RemoteItem, SidebarType, RemoteItemWithStorage } from "@/lib/types"
 import type { NextPageWithConfig } from '../_app'
+import PageBar from '@/components/pageBar'
+import { GridGroup, SortBy } from '@/components/filesView'
+import { AppName } from "@/lib/types";
+import useFilterStorages from "@/components/hooks/useFilterStorages";
+import { useAppState } from "@/components/hooks/useAppState";
+import { folderViewUrl } from "@/lib/urls";
+import { pinnedFolderToRemoteItem, storageToRemoteItem } from "@/lib/fileUtils";
+import { useCallback, useMemo } from 'react'
+import { useRouter } from 'next/router'
 
 const inter = Inter({ subsets: ['latin'] })
 
 const Page: NextPageWithConfig = () => {
+  const { push } = useRouter();
+  const storages = useFilterStorages(AppName.Files);
+  const { pinnedFolders } = useAppState();
+
+  const pinnedItems = useMemo(() => {
+    return pinnedFolders.map(pinnedFolderToRemoteItem);
+  }, [pinnedFolders]);
+
+  const storageItems = useMemo(() => {
+    return storages.map(storageToRemoteItem);
+  }, [storages]);
+
+  const openItem = useCallback((item: RemoteItem) => {
+    const storageId = (item as RemoteItemWithStorage).storageId;
+    if (!storageId) return;
+    push(folderViewUrl(storageId, item.id));
+  }, [push]);
+
   return (
     <>
       <Head>
         <title>Files</title>
       </Head>
+      <PageBar icon='/icons/home.png' title='My Files'>
+      </PageBar>
       <main
-        className={`flex min-h-screen flex-col items-center justify-between p-24 ${inter.className}`}
+        className={inter.className}
       >
-
-        <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700/10 after:dark:from-sky-900 after:dark:via-[#0141ff]/40 before:lg:h-[360px]">
-          <div className="relative flex flex-col items-center justify-center w-full h-full min-h-[30rem] max-w-5xl text-6xl font-bold">
-            Files
-          </div>
-        </div>
-
+        <GridGroup
+          title='Favorites'
+          items={pinnedItems}
+          sortBy={SortBy.None}
+          onDbClick={openItem}
+        />
+        <GridGroup
+          title='My Storages'
+          items={storageItems}
+          sortBy={SortBy.None}
+          onDbClick={openItem}
+        />
       </main>
     </>
   )

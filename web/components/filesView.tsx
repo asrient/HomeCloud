@@ -23,12 +23,12 @@ export enum GroupBy {
     ModifiedOn = 'ModifiedOn',
 }
 
-function ThumbnailImage({ item, className, storageId }: { item: RemoteItem, className?: string, storageId: number }) {
+function ThumbnailImage({ item, className, storageId }: { item: RemoteItem, className?: string, storageId?: number }) {
     const dafaultSrc = useMemo(() => getDefaultIcon(item), [item]);
 
     const fetchThumbnailSrc = useCallback(async () => {
         if (item.type === 'directory') return null;
-        if(!item.thumbnail && canGenerateThumbnail(item)) {
+        if(!item.thumbnail && canGenerateThumbnail(item) && storageId) {
             const thumbResp = await getThumbnail(storageId, item.id);
             item.thumbnail = thumbResp.image;
         }
@@ -45,7 +45,7 @@ function ThumbnailImage({ item, className, storageId }: { item: RemoteItem, clas
     />)
 }
 
-function GridItem({ item, storageId, onDbClick }: { item: RemoteItem, storageId: number, onDbClick: (item: RemoteItem) => void }) {
+function GridItem({ item, storageId, onDbClick }: { item: RemoteItem, storageId?: number, onDbClick: (item: RemoteItem) => void }) {
 
     const onDbClick_ = () => {
         onDbClick(item);
@@ -70,15 +70,15 @@ function GridItem({ item, storageId, onDbClick }: { item: RemoteItem, storageId:
     </div>)
 }
 
-function GridGroup({ items, title, storageId, onDbClick }: {
+export function GridGroup({ items, title, storageId, onDbClick }: {
     items: RemoteItem[];
     title?: string;
     sortBy: SortBy;
-    storageId: number;
+    storageId?: number;
     onDbClick: (item: RemoteItem) => void;
 }) {
-    return (<div className="p-1 py-2 md:p-2 md:py-3 lg:p-4">
-        {title && <h2 className="text-lg font-bold">{title}</h2>}
+    return (<div className="p-4 py-2">
+        {title && <h2 className="text-sm border-b p-2 pb-1 mb-4">{title}</h2>}
         <div className="grid gap-3 grid-cols-3 md:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:cols-8">
             {items.map(item => <div key={item.id} className="h-full w-full flex justify-center items-center">
                 <GridItem onDbClick={onDbClick} storageId={storageId} item={item} />
@@ -87,7 +87,7 @@ function GridGroup({ items, title, storageId, onDbClick }: {
     </div>)
 }
 
-function ListItem({ item, storageId }: { item: RemoteItem, storageId: number }) {
+function ListItem({ item, storageId }: { item: RemoteItem, storageId?: number }) {
     return (<div className="flex items-center px-4 py-2 space-x-3 shadow-sm">
         <div className="flex-shrink-0">
         <ThumbnailImage storageId={storageId} className="h-[2.5rem] w-[3rem]" item={item} />
@@ -101,10 +101,10 @@ function ListItem({ item, storageId }: { item: RemoteItem, storageId: number }) 
     </div>)
 }
 
-function ListGroup({ items, title, storageId }: {
+export function ListGroup({ items, title, storageId }: {
     items: RemoteItem[];
     title?: string;
-    storageId: number;
+    storageId?: number;
 }) {
     return (<div>
         {title && <h2 className="text-lg font-bold">{title}</h2>}

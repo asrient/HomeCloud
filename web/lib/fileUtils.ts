@@ -1,6 +1,5 @@
-import { RemoteItem } from "./types";
+import { PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage } from "./types";
 import mime from 'mime';
-
 
 export enum FileType {
     File = 'File',
@@ -229,4 +228,36 @@ export function getDefaultIcon(item: RemoteItem) {
 export function canGenerateThumbnail(item: RemoteItem) {
     const kind = getKind(item);
     return kind === FileType.Image || kind === FileType.Video;
+}
+
+export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder): RemoteItemWithStorage {
+    return {
+        id: pinnedFolder.folderId,
+        name: pinnedFolder.name,
+        type: 'directory',
+        parentIds: [''],
+        size: 0,
+        mimeType: '',
+        lastModified: new Date(),
+        createdAt: new Date(),
+        etag: '',
+        thumbnail: '',
+        storageId: pinnedFolder.storageId,
+    }
+}
+
+export function storageToRemoteItem(storage: Storage): RemoteItemWithStorage {
+    return {
+        id: '/',
+        name: storage.name,
+        type: 'directory',
+        parentIds: [],
+        size: 0,
+        mimeType: '',
+        lastModified: new Date(),
+        createdAt: new Date(),
+        etag: '',
+        thumbnail: '',
+        storageId: storage.id,
+    }
 }

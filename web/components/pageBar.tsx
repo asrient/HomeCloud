@@ -7,7 +7,7 @@ import { useCallback } from 'react';
 export default function PageBar({ children, title, icon, hideSidebarButton }: {
     children: React.ReactNode,
     title: string,
-    icon?: string,
+    icon?: string | React.ReactNode,
     hideSidebarButton?: boolean,
 }) {
 
@@ -33,7 +33,7 @@ export default function PageBar({ children, title, icon, hideSidebarButton }: {
                     )
                 }
                 {
-                    icon && (
+                    icon && typeof icon === 'string' ? (
                         <Image
                             alt={title}
                             src={icon}
@@ -42,7 +42,7 @@ export default function PageBar({ children, title, icon, hideSidebarButton }: {
                             width={0}
                             className="mr-2 h-6 w-6"
                         />
-                    )
+                    ) : (<span className='mr-2 text-blue-500'>{icon}</span>)
                 }
                 <span className='font-semibold'>{title}</span>
             </div>

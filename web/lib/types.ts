@@ -143,3 +143,7 @@ export interface RemoteItem {
     etag: string | null;
     thumbnail: string | null;
 }
+
+export type RemoteItemWithStorage = RemoteItem & {
+    storageId: number;
+}
