@@ -1,10 +1,11 @@
 import { RemoteItem } from "@/lib/types";
 import { folderViewUrl } from "@/lib/urls";
-import { getKind, getDefaultIcon } from "@/lib/fileUtils";
+import { getKind, getDefaultIcon, canGenerateThumbnail } from "@/lib/fileUtils";
 import { useRouter } from "next/router";
 import LazyImage from "./lazyImage";
 import { cn, isMobile } from "@/lib/utils";
 import Image from "next/image";
+import { getThumbnail } from "@/lib/api/files";
 
 export enum SortBy {
     Name = 'Name',
@@ -21,10 +22,14 @@ export enum GroupBy {
     ModifiedOn = 'ModifiedOn',
 }
 
-function ThumbnailImage({ item, className }: { item: RemoteItem, className?: string }) {
+function ThumbnailImage({ item, className, storageId }: { item: RemoteItem, className?: string, storageId: number }) {
 
     const fetchThumbnailSrc = async () => {
-        if (item.type === 'directory' || !item.thumbnail) return null;
+        if (item.type === 'directory') return null;
+        if(!item.thumbnail && canGenerateThumbnail(item)) {
+            const thumbResp = await getThumbnail(storageId, item.id);
+            item.thumbnail = thumbResp.image;
+        }
         return item.thumbnail;
     }
 
@@ -52,7 +57,7 @@ function GridItem({ item, storageId, onDbClick }: { item: RemoteItem, storageId:
 
     return (<div onDoubleClick={onDbClick_} onClick={onClick} className="flex flex-col cursor-default justify-center items-center text-center rounded-md hover:bg-muted p-2 min-w-[8rem]">
         <div className="pb-1">
-            <ThumbnailImage item={item} />
+            <ThumbnailImage storageId={storageId} item={item} />
         </div>
         <div title={item.name} className="mt-2 text-xs font-medium overflow-ellipsis overflow-hidden max-w-[8rem]">
             {item.name}
@@ -80,10 +85,10 @@ function GridGroup({ items, title, storageId, onDbClick }: {
     </div>)
 }
 
-function ListItem({ item }: { item: RemoteItem }) {
+function ListItem({ item, storageId }: { item: RemoteItem, storageId: number }) {
     return (<div className="flex items-center px-4 py-2 space-x-3 shadow-sm">
         <div className="flex-shrink-0">
-        <ThumbnailImage className="h-[2.5rem] w-[3rem]" item={item} />
+        <ThumbnailImage storageId={storageId} className="h-[2.5rem] w-[3rem]" item={item} />
         </div>
         <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-gray-900 truncate">{item.name}</div>
@@ -94,14 +99,15 @@ function ListItem({ item }: { item: RemoteItem }) {
     </div>)
 }
 
-function ListGroup({ items, title }: {
+function ListGroup({ items, title, storageId }: {
     items: RemoteItem[];
     title?: string;
+    storageId: number;
 }) {
     return (<div>
         {title && <h2 className="text-lg font-bold">{title}</h2>}
         <div className="space-y-3">
-            {items.map(item => <ListItem key={item.id} item={item} />)}
+            {items.map(item => <ListItem storageId={storageId} key={item.id} item={item} />)}
         </div>
     </div>)
 }
@@ -132,6 +138,6 @@ export default function FilesView({ items, view, groupBy, sortBy, storageId }: {
 
     return (<div>
         {view === 'grid' && <GridGroup onDbClick={onDbClick} storageId={storageId} items={items} sortBy={sortBy} />}
-        {view === 'list' && <ListGroup items={items} />}
+        {view === 'list' && <ListGroup storageId={storageId} items={items} />}
     </div>)
 }

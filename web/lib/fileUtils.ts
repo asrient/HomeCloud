@@ -225,3 +225,8 @@ export function iconUrl(kind: FileType) {
 export function getDefaultIcon(item: RemoteItem) {
     return iconUrl(getKind(item));
 }
+
+export function canGenerateThumbnail(item: RemoteItem) {
+    const kind = getKind(item);
+    return kind === FileType.Image || kind === FileType.Video;
+}
