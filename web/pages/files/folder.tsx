@@ -3,7 +3,7 @@ import { buildPageConfig } from '@/lib/utils'
 import { RemoteItem, SidebarType, Storage } from "@/lib/types"
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy } from '@/components/filesView'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getStat, readDir } from '@/lib/api/fs'
 import Head from 'next/head'
 import { useAppState } from '@/components/hooks/useAppState'
@@ -12,6 +12,13 @@ import Image from 'next/image'
 import PageBar from '@/components/pageBar'
 import { getDefaultIcon } from '@/lib/fileUtils'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -26,6 +33,7 @@ const Page: NextPageWithConfig = () => {
   const [currentStorageId, setCurrentStorageId] = useState<number | null>(null)
   const { storages } = useAppState()
   const [storage, setStorage] = useState<Storage | null>(null)
+  const [view, setView] = useState<'list' | 'grid'>('grid')
 
   useEffect(() => {
     if (storageId && storages) {
@@ -82,6 +90,12 @@ const Page: NextPageWithConfig = () => {
     })
   }, [storageId, folderId, isLoading, items, currentFolderId, currentStorageId])
 
+  const defaultIcon = useMemo(() => folderStat ? getDefaultIcon(folderStat) : undefined, [folderStat]);
+
+  const onViewChange = (value: string) => {
+    setView(value as 'list' | 'grid')
+  }
+
   if (isLoading || error || !storageId) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
@@ -104,7 +118,6 @@ const Page: NextPageWithConfig = () => {
   )
 
   const storageName = storage ? storage.name : 'Unknown storage'
-  const defaultIcon = folderStat ? getDefaultIcon(folderStat) : undefined;
 
   return (
     <>
@@ -119,13 +132,30 @@ const Page: NextPageWithConfig = () => {
       </Head>
       <main>
         <PageBar title={folderStat?.name || storageName} icon={defaultIcon}>
+          <Select defaultValue={view} onValueChange={onViewChange}>
+            <SelectTrigger className="px-1 border-none hover:bg-muted">
+              <SelectValue placeholder="view" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="list">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                </svg>
+              </SelectItem>
+              <SelectItem value="grid">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                </svg>
+              </SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant='ghost'>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
             </svg>
           </Button>
         </PageBar>
-        <FilesView storageId={storageId} view='grid' sortBy={SortBy.None} groupBy={GroupBy.None} items={items} />
+        <FilesView storageId={storageId} view={view} sortBy={SortBy.None} groupBy={GroupBy.None} items={items} />
       </main>
     </>)
 }
