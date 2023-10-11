@@ -83,7 +83,7 @@ const Page: NextPageWithConfig = () => {
         <LoadingIcon />
         <span className='text-xs pt-2'>LOADING</span>
         </>
-      ) : (
+      ) : error && (
         <>
         <Image src='/icons/error.png' alt='Error Icon' width={80} height={80} />
         <div className='text-sm pt-4 max-w-md text-center'>{error}</div>
