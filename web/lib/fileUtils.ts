@@ -29,6 +29,7 @@ export enum FileType {
     Csv = 'CSV',
     Html = 'HTML',
     Javascript = 'Javascript',
+    Css = 'CSS',
     Python = 'Python',
     Java = 'Java',
     C = 'C',
@@ -104,6 +105,8 @@ export function mimeToKind(mimeType: string): FileType {
             return FileType.Javascript;
         case 'application/javascript':
             return FileType.Javascript;
+        case 'text/css':
+            return FileType.Css;
         case 'text/x-python':
             return FileType.Python;
         case 'text/x-java-source':
@@ -196,6 +199,8 @@ function iconFilename(kind: FileType) {
             return 'html.png';
         case FileType.Javascript:
             return 'javascript.png';
+        case FileType.Css:
+            return 'css.png';
         case FileType.Python:
             return 'python.png';
         case FileType.Java:
