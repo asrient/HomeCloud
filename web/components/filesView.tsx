@@ -6,6 +6,7 @@ import LazyImage from "./lazyImage";
 import { cn, isMobile } from "@/lib/utils";
 import Image from "next/image";
 import { getThumbnail } from "@/lib/api/files";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 
 export enum SortBy {
     Name = 'Name',
@@ -23,19 +24,20 @@ export enum GroupBy {
 }
 
 function ThumbnailImage({ item, className, storageId }: { item: RemoteItem, className?: string, storageId: number }) {
+    const dafaultSrc = useMemo(() => getDefaultIcon(item), [item]);
 
-    const fetchThumbnailSrc = async () => {
+    const fetchThumbnailSrc = useCallback(async () => {
         if (item.type === 'directory') return null;
         if(!item.thumbnail && canGenerateThumbnail(item)) {
             const thumbResp = await getThumbnail(storageId, item.id);
             item.thumbnail = thumbResp.image;
         }
         return item.thumbnail;
-    }
+    }, [item, storageId]);
 
     return (<LazyImage
         fetchSrc={fetchThumbnailSrc}
-        src={getDefaultIcon(item)}
+        src={dafaultSrc}
         alt={item.name}
         width="0"
         height="0"
@@ -122,11 +124,11 @@ export default function FilesView({ items, view, groupBy, sortBy, storageId }: {
 
     const router = useRouter();
 
-    const onDbClick = (item: RemoteItem) => {
+    const onDbClick = useCallback((item: RemoteItem) => {
         if (item.type === 'directory') {
             router.push(folderViewUrl(storageId, item.id))
         }
-    }
+    }, [router, storageId]);
 
     if(items.length === 0) return (<div className="min-h-[80vh] p-5 flex flex-col justify-center items-center text-center text-gray-500">
         <div className="pb-3">

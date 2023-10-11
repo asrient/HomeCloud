@@ -1,5 +1,4 @@
-import { cn } from "@/lib/utils"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import Image from "next/image"
 
 export default function LazyImage({ fetchSrc, src, alt, ...rest }: {
@@ -8,15 +7,24 @@ export default function LazyImage({ fetchSrc, src, alt, ...rest }: {
 } & React.ComponentProps<typeof Image>) {
 
     const [imgSrc, setImgSrc] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     const loadImage = useCallback(async () => {
+        if(isLoading) return;
+        setIsLoading(true);
         try {
             const imgSrc = await fetchSrc();
             setImgSrc(imgSrc || src);
         } catch (e) {
             setImgSrc(src);
+        } finally {
+            setIsLoading(false);
         }
-    }, [fetchSrc, src]);
+    }, [fetchSrc, src, isLoading]);
+
+    const onError = useCallback(() => {
+        setImgSrc(src);
+    }, [src]);
 
     if (!imgSrc) {
         return (
@@ -34,9 +42,7 @@ export default function LazyImage({ fetchSrc, src, alt, ...rest }: {
             alt={alt}
             src={imgSrc}
             loading="lazy"
-            onError={() => {
-                setImgSrc(src);
-            }}
+            onError={onError}
         />
     )
 }

@@ -138,7 +138,7 @@ export function mimeToKind(mimeType: string): FileType {
 
 export function getKind(item: RemoteItem) {
     if(item.type === 'directory') {
-        if(item.parentIds === null || item.parentIds.length === 0) {
+        if(!item.parentIds || item.parentIds.length === 0) {
             return FileType.Drive;
         }
         return FileType.Folder;

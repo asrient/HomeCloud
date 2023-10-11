@@ -46,7 +46,7 @@ export class WebdavFsDriver extends FsDriver {
       type: item.type,
       name: item.basename,
       id: item.filename,
-      parentIds: [item.filename.split("/").slice(0, -1).join("/")],
+      parentIds: item.filename === '/' ? []: [item.filename.split("/").slice(0, -1).join("/")],
       size: item.size,
       lastModified: new Date(item.lastmod),
       createdAt: new Date(item.created),
