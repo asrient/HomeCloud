@@ -4,7 +4,7 @@ import { RemoteItem, SidebarType, Storage } from "@/lib/types"
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy } from '@/components/filesView'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getStat, readDir, upload } from '@/lib/api/fs'
+import { getStat, readDir, upload, mkDir } from '@/lib/api/fs'
 import Head from 'next/head'
 import { useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import UploadFileSelector from '@/components/uploadFileSelector'
+import TextModal from '@/components/textModal'
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -105,9 +106,19 @@ const Page: NextPageWithConfig = () => {
       parentId: folderId,
       files,
     })
-    console.log('added items:', items)
     setItems((prevItems) => [...prevItems, ...items]);
   }, [storageId, folderId])
+
+  const onNewFolder = useCallback(async (name: string) => {
+    if (!storageId) throw new Error('Storage not set');
+    if (!folderId) throw new Error('Folder not set');
+    const newFolder = await mkDir({
+      storageId,
+      parentId: folderId,
+      name,
+    })
+    setItems((prevItems) => [...prevItems, newFolder]);
+  }, [storageId, folderId]);
 
   if (isLoading || error || !storageId) return (
     <>
@@ -169,6 +180,13 @@ const Page: NextPageWithConfig = () => {
               </svg>
             </Button>
           </UploadFileSelector>
+          <TextModal onDone={onNewFolder} title='New Folder' description='Provide a name.' buttonText='Create'>
+            <Button variant='ghost'>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+              </svg>
+            </Button>
+          </TextModal>
         </PageBar>
         <FilesView storageId={storageId} view={view} sortBy={SortBy.None} groupBy={GroupBy.None} items={items} />
       </main>
