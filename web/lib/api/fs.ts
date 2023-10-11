@@ -77,3 +77,18 @@ export type GetStatParams = {
 export async function getStat(params: GetStatParams) {
     return await ApiClient.post<RemoteItem>('/fs/getStat', params);
 }
+
+export type UploadParams = {
+    storageId: number;
+    parentId: string;
+    files: FileList;
+};
+
+export async function upload(params: UploadParams) {
+    const formData = new FormData();
+    formData.append('parentId', params.parentId);
+    for (let i = 0; i < params.files.length; i++) {
+        formData.append('files', params.files[i], params.files[i].name);
+    }
+    return await ApiClient.post<RemoteItem[]>('/fs/writeFiles', { storageId: params.storageId }, formData);
+}

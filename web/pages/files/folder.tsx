@@ -3,8 +3,8 @@ import { buildPageConfig } from '@/lib/utils'
 import { RemoteItem, SidebarType, Storage } from "@/lib/types"
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy } from '@/components/filesView'
-import { useEffect, useMemo, useState } from 'react'
-import { getStat, readDir } from '@/lib/api/fs'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getStat, readDir, upload } from '@/lib/api/fs'
 import Head from 'next/head'
 import { useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import UploadFileSelector from '@/components/uploadFileSelector'
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -96,6 +97,18 @@ const Page: NextPageWithConfig = () => {
     setView(value as 'list' | 'grid')
   }
 
+  const onUpload = useCallback(async (files: FileList) => {
+    if (!storageId) throw new Error('Storage not set');
+    if (!folderId) throw new Error('Folder not set');
+    const items = await upload({
+      storageId,
+      parentId: folderId,
+      files,
+    })
+    console.log('added items:', items)
+    setItems((prevItems) => [...prevItems, ...items]);
+  }, [storageId, folderId])
+
   if (isLoading || error || !storageId) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
@@ -149,11 +162,13 @@ const Page: NextPageWithConfig = () => {
               </SelectItem>
             </SelectContent>
           </Select>
-          <Button variant='ghost'>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-            </svg>
-          </Button>
+          <UploadFileSelector onUpload={onUpload} title='Upload files'>
+            <Button variant='ghost'>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+              </svg>
+            </Button>
+          </UploadFileSelector>
         </PageBar>
         <FilesView storageId={storageId} view={view} sortBy={SortBy.None} groupBy={GroupBy.None} items={items} />
       </main>

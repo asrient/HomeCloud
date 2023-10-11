@@ -32,7 +32,13 @@ export class ApiClient {
             },
         };
         if (body) {
-            fetchOptions.body = JSON.stringify(body);
+            if(FormData.prototype.isPrototypeOf(body)) {
+                console.log('fetch: form data');
+                fetchOptions.body = body;
+                fetchOptions.headers = {};
+            } else {
+                fetchOptions.body = JSON.stringify(body);
+            }
         }
         let response: Response;
         try {
