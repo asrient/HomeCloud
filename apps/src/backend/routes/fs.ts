@@ -148,9 +148,9 @@ api.add(
     const fsDriver = request.local.fsDriver as FsDriver;
     const ids = request.local.json.ids;
     try {
-      await fsDriver.unlinkMultiple(ids);
+      const deletedIds = await fsDriver.unlinkMultiple(ids);
       return ApiResponse.json(200, {
-        deleted: true,
+        deletedIds,
       });
     } catch (e: any) {
       console.error(e);

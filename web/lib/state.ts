@@ -79,7 +79,14 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             const { storage }: {
                 storage: Storage;
             } = payload;
-            draft.storages?.push(storage);
+            if (draft.storages) {
+                const existingIndex = draft.storages.findIndex((s) => s.id === storage.id);
+                if (existingIndex !== undefined && existingIndex !== -1) {
+                    draft.storages[existingIndex] = storage;
+                } else {
+                    draft.storages.push(storage);
+                }
+            }
             return draft;
         case ActionTypes.ADD_STORAGE_META:
             const { storageId: id, storageMeta }: {

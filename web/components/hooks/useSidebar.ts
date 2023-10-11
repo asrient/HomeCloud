@@ -1,7 +1,8 @@
 import { AppName, SidebarList } from "@/lib/types";
 import useFilterStorages from "./useFilterStorages";
 import { useAppState } from "./useAppState";
-import { join } from "path";
+import { folderViewUrl, buildNextUrl } from "@/lib/urls";
+import { iconUrl, FileType } from "@/lib/fileUtils";
 
 export function useFilesBar(): SidebarList {
     const storages = useFilterStorages(AppName.Files);
@@ -11,13 +12,11 @@ export function useFilesBar(): SidebarList {
             items: [
                 {
                     title: 'My Files',
-                    icon: 'folder',
-                    href: '/files',
+                    href: buildNextUrl('/files'),
                 },
                 {
                     title: 'Recents',
-                    icon: 'recents',
-                    href: '/files/recent',
+                    href: buildNextUrl('/files/recent'),
                 },
             ]
         },
@@ -25,16 +24,16 @@ export function useFilesBar(): SidebarList {
             title: 'Favorites',
             items: pinnedFolders?.map((pinnedFolder) => ({
                 title: pinnedFolder.name,
-                icon: 'folder',
-                href: join(`/files/s/${pinnedFolder.storageId}`, pinnedFolder.folderId),
+                icon: iconUrl(FileType.Folder),
+                href: folderViewUrl(pinnedFolder.storageId, pinnedFolder.folderId),
             })) || []
         },
         {
             title: 'Storages',
             items: storages?.map((storage) => ({
                 title: storage.name,
-                icon: 'drive',
-                href: `/files/s/${storage.id}`,
+                icon: iconUrl(FileType.Drive),
+                href: folderViewUrl(storage.id),
             })) || []
         }
     ]

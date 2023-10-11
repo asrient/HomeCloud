@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { SidebarType } from "./types";
+import { PageUIConfig, SidebarType } from "./types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -15,12 +15,13 @@ export function openExternalLink(url: string) {
   window.open(url, "_blank")
 }
 
-export function buildStaticProps(sidebarType: SidebarType, showSidebar = true, props = {}) {
+export function buildPageConfig(sidebarType?: SidebarType, noAppShell = false): PageUIConfig {
   return {
-    props: {
-      sidebarType,
-      showSidebar,
-      ...props,
-    },
+    sidebarType,
+    noAppShell,
   }
+}
+
+export function isMobile() {
+  return window.innerWidth < 768
 }

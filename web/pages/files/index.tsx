@@ -1,15 +1,16 @@
 import { Inter } from 'next/font/google'
 import Head from 'next/head'
-import { buildStaticProps } from '@/lib/utils'
+import { buildPageConfig } from '@/lib/utils'
 import { SidebarType } from "@/lib/types"
+import type { NextPageWithConfig } from '../_app'
 
 const inter = Inter({ subsets: ['latin'] })
 
-export default function Home() {
+const Page: NextPageWithConfig = () => {
   return (
     <>
       <Head>
-        <title>Homecloud</title>
+        <title>Files</title>
       </Head>
       <main
         className={`flex min-h-screen flex-col items-center justify-between p-24 ${inter.className}`}
@@ -26,6 +27,5 @@ export default function Home() {
   )
 }
 
-export const getStaticProps = (async () => {
-  return buildStaticProps(SidebarType.Files)
-})
+Page.config = buildPageConfig(SidebarType.Files)
+export default Page

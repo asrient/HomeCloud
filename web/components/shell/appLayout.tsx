@@ -16,7 +16,7 @@ export function AppLayout({ children, sidebarType }: { children: React.ReactNode
                     }
                 </ScrollArea>
             </aside>
-            <div className="lg:border-l">
+            <div className="lg:border-l border-muted min-h-full">
             {children}
             </div>
         </div>

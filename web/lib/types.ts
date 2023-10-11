@@ -96,10 +96,15 @@ export const AppNames = [
     AppName.Notes,
 ]
 
+export type NextUrl = {
+    pathname: string;
+    query: any;
+}
+
 export type SidebarItem = {
     title: string;
-    icon: string;
-    href: string;
+    icon?: string;
+    href: NextUrl;
     isDisabled?: boolean;
 };
 
@@ -114,9 +119,27 @@ export enum SidebarType {
     Photos = "photos"
 }
 
+export type PageUIConfig = {
+    sidebarType?: SidebarType;
+    noAppShell: boolean;
+}
+
 export type PinnedFolder = {
     id: number;
     folderId: string;
     name: string;
     storageId: number;
+}
+
+export interface RemoteItem {
+    name: string;
+    id: string;
+    parentIds: string[] | null;
+    type: "file" | "directory";
+    size: number | null;
+    lastModified: Date | null;
+    createdAt: Date | null;
+    mimeType: string | null;
+    etag: string | null;
+    thumbnail: string | null;
 }

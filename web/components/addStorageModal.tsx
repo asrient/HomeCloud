@@ -161,6 +161,7 @@ export default function AddStorageModal({
 
     const storageAdded = useCallback((storage: Storage) => {
         if (existingStorage) {
+            console.log('update storage', storage);
             dispatch(ActionTypes.UPDATE_STORAGE, { storage, storageId: existingStorage.id });
         } else {
             dispatch(ActionTypes.ADD_STORAGE, { storage });
