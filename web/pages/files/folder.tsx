@@ -4,7 +4,7 @@ import { RemoteItem, SidebarType, Storage } from "@/lib/types"
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getStat, readDir, upload, mkDir, rename } from '@/lib/api/fs'
+import { getStat, readDir, upload, mkDir, rename, unlinkMultiple } from '@/lib/api/fs'
 import Head from 'next/head'
 import { useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
@@ -27,9 +27,9 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import ConfirmModal from '@/components/confirmModal'
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -48,6 +48,7 @@ const Page: NextPageWithConfig = () => {
   const [selectMode, setSelectMode] = useState(false)
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false)
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const selectedItems = useMemo(() => items.filter(item => item.isSelected), [items]);
 
@@ -221,6 +222,23 @@ const Page: NextPageWithConfig = () => {
     }))
   }, [storageId, folderId, selectedItems]);
 
+  const onDelete = useCallback(async () => {
+    if (!storageId) throw new Error('Storage not set');
+    const ids = selectedItems.map(item => item.id);
+    const { deletedIds } = await unlinkMultiple({
+      storageId,
+      ids,
+    })
+    if (deletedIds.length === 0) {
+      throw new Error('Failed to delete items');
+    }
+    setItems((prevItems) => prevItems.filter(prevItem => !deletedIds.includes(prevItem.id)));
+  }, [storageId, selectedItems]);
+
+  const openDeleteDialog = useCallback(() => {
+    setDeleteDialogOpen(true);
+  }, []);
+
   if (isLoading || error || !storageId) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
@@ -320,7 +338,9 @@ const Page: NextPageWithConfig = () => {
                 }
                 <ContextMenuItem disabled>Copy</ContextMenuItem>
                 <ContextMenuItem disabled>Cut</ContextMenuItem>
-                <ContextMenuItem className='text-red-500'>Delete</ContextMenuItem>
+                <ContextMenuItem className='text-red-500' onClick={openDeleteDialog}>
+                  Delete
+                </ContextMenuItem>
               </>)
                 : (<>
                   <ContextMenuItem>Get info</ContextMenuItem>
@@ -331,10 +351,19 @@ const Page: NextPageWithConfig = () => {
 
           </ContextMenuContent>
         </ContextMenu>
-        {selectedItems.length > 0 && <TextModal isOpen={renameDialogOpen} onOpenChange={setRenameDialogOpen}
+        {selectedCount > 0 && <TextModal isOpen={renameDialogOpen} onOpenChange={setRenameDialogOpen}
           onDone={onRename} title='Rename' defaultValue={selectedItems[0].name}
           description='Provide a name.' buttonText='Save'>
         </TextModal>}
+        {
+          selectedCount > 0 && <ConfirmModal isOpen={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}
+            title={selectedCount > 1 ? `Delete ${selectedCount} items?` : `Delete "${selectedItems[0].name}"?`}
+            description='These item(s) will be deleted from the remote storage. You may or may not be able to recover them depending on your storage type.'
+            buttonText='Delete'
+            buttonVariant='destructive'
+            onConfirm={onDelete}>
+          </ConfirmModal>
+        }
       </main>
     </>)
 }
