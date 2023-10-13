@@ -1,8 +1,8 @@
 import { useRouter } from 'next/router'
-import { buildPageConfig } from '@/lib/utils'
+import { buildPageConfig, isMobile } from '@/lib/utils'
 import { RemoteItem, SidebarType, Storage } from "@/lib/types"
 import { NextPageWithConfig } from '@/pages/_app'
-import FilesView, { SortBy, GroupBy } from '@/components/filesView'
+import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getStat, readDir, upload, mkDir } from '@/lib/api/fs'
 import Head from 'next/head'
@@ -22,13 +22,14 @@ import {
 import UploadFileSelector from '@/components/uploadFileSelector'
 import TextModal from '@/components/textModal'
 import FolderPath from '@/components/folderPath'
+import { folderViewUrl } from '@/lib/urls'
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
   const { s, id } = router.query as { s: string, id: string };
   const storageId = s ? parseInt(s) : null;
   const folderId = id || '/';
-  const [items, setItems] = useState<RemoteItem[]>([])
+  const [items, setItems] = useState<FileRemoteItem[]>([])
   const [folderStat, setFolderStat] = useState<RemoteItem | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,6 +38,7 @@ const Page: NextPageWithConfig = () => {
   const { storages } = useAppState()
   const [storage, setStorage] = useState<Storage | null>(null)
   const [view, setView] = useState<'list' | 'grid'>('grid')
+  const [selectMode, setSelectMode] = useState(false)
 
   useEffect(() => {
     if (storageId && storages) {
@@ -52,7 +54,12 @@ const Page: NextPageWithConfig = () => {
           storageId: storageId!,
           id: folderId,
         })
-        setItems(items)
+        const fileItems: FileRemoteItem[] = items.map(item => ({
+          ...item,
+          isSelected: false,
+          storageId,
+        }))
+        setItems(fileItems)
         const stat = await getStat({
           storageId: storageId!,
           id: folderId,
@@ -107,7 +114,12 @@ const Page: NextPageWithConfig = () => {
       parentId: folderId,
       files,
     })
-    setItems((prevItems) => [...prevItems, ...items]);
+    const fileItems: FileRemoteItem[] = items.map(item => ({
+      ...item,
+      isSelected: false,
+      storageId,
+    }))
+    setItems((prevItems) => [...prevItems, ...fileItems]);
   }, [storageId, folderId])
 
   const onNewFolder = useCallback(async (name: string) => {
@@ -118,8 +130,46 @@ const Page: NextPageWithConfig = () => {
       parentId: folderId,
       name,
     })
-    setItems((prevItems) => [...prevItems, newFolder]);
+    const item = {
+      ...newFolder,
+      isSelected: false,
+      storageId,
+    }
+    setItems((prevItems) => [...prevItems, item]);
   }, [storageId, folderId]);
+
+  const selectItem = useCallback((item: FileRemoteItem) => {
+    setItems((prevItems) => prevItems.map(prevItem => {
+      if (prevItem.id === item.id) {
+        return {
+          ...prevItem,
+          isSelected: !prevItem.isSelected,
+        }
+      }
+      return { ...prevItem, isSelected: selectMode ? prevItem.isSelected : false }
+    }))
+  }, [selectMode])
+
+  const onItemClick = useCallback((item: FileRemoteItem) => {
+    if (isMobile()) {
+      if (item.type === 'directory') {
+        router.push(folderViewUrl(storageId as number, item.id))
+      }
+    } else {
+      selectItem(item)
+    }
+  }, [router, selectItem, storageId])
+
+  const onClickOutside = useCallback(() => {
+    setItems((prevItems) => prevItems.map(prevItem => ({
+      ...prevItem,
+      isSelected: false,
+    })))
+  }, [])
+
+  const toggleSelectMode = useCallback(() => {
+    setSelectMode(!selectMode)
+  }, [selectMode])
 
   if (isLoading || error || !storageId) return (
     <>
@@ -157,6 +207,11 @@ const Page: NextPageWithConfig = () => {
       </Head>
       <main>
         <PageBar title={folderStat?.name || storageName} icon={defaultIcon}>
+          <Button onClick={toggleSelectMode} variant={selectMode ? 'secondary' : 'ghost'}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </Button>
           <Select defaultValue={view} onValueChange={onViewChange}>
             <SelectTrigger className="px-1 border-none hover:bg-muted">
               <SelectValue placeholder="view" />
@@ -194,7 +249,9 @@ const Page: NextPageWithConfig = () => {
             <FolderPath storage={storage} folder={folderStat} />
           </div>
         }
-        <FilesView storageId={storageId} view={view} sortBy={SortBy.None} groupBy={GroupBy.None} items={items} />
+        <div onClick={onClickOutside} className='min-h-[90vh]'>
+          <FilesView view={view} sortBy={SortBy.None} groupBy={GroupBy.None} onClick={onItemClick} items={items} />
+        </div>
       </main>
     </>)
 }

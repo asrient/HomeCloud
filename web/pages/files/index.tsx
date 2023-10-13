@@ -1,10 +1,10 @@
 import { Inter } from 'next/font/google'
 import Head from 'next/head'
 import { buildPageConfig } from '@/lib/utils'
-import { RemoteItem, SidebarType, RemoteItemWithStorage } from "@/lib/types"
+import { RemoteItem, SidebarType, RemoteItemWithStorage, PinnedFolder, Storage } from "@/lib/types"
 import type { NextPageWithConfig } from '../_app'
 import PageBar from '@/components/pageBar'
-import { GridGroup, SortBy } from '@/components/filesView'
+import { Group, SortBy, FileRemoteItem } from '@/components/filesView'
 import { AppName } from "@/lib/types";
 import useFilterStorages from "@/components/hooks/useFilterStorages";
 import { useAppState } from "@/components/hooks/useAppState";
@@ -15,17 +15,31 @@ import { useRouter } from 'next/router'
 
 const inter = Inter({ subsets: ['latin'] })
 
+const pinnedFolderToFileRemoteItem = (item: PinnedFolder): FileRemoteItem => {
+  return {
+    ...pinnedFolderToRemoteItem(item),
+    isSelected: false,
+  }
+}
+
+const storageToFileRemoteItem = (storage: Storage): FileRemoteItem => {
+  return {
+    ...storageToRemoteItem(storage),
+    isSelected: false,
+  }
+}
+
 const Page: NextPageWithConfig = () => {
   const { push } = useRouter();
   const storages = useFilterStorages(AppName.Files);
   const { pinnedFolders } = useAppState();
 
-  const pinnedItems = useMemo(() => {
-    return pinnedFolders.map(pinnedFolderToRemoteItem);
+  const pinnedItems: FileRemoteItem[] = useMemo(() => {
+    return pinnedFolders.map(pinnedFolderToFileRemoteItem);
   }, [pinnedFolders]);
 
-  const storageItems = useMemo(() => {
-    return storages.map(storageToRemoteItem);
+  const storageItems: FileRemoteItem[] = useMemo(() => {
+    return storages.map(storageToFileRemoteItem);
   }, [storages]);
 
   const openItem = useCallback((item: RemoteItem) => {
@@ -44,17 +58,19 @@ const Page: NextPageWithConfig = () => {
       <main
         className={inter.className}
       >
-        <GridGroup
+        <Group
           title='Favorites'
           items={pinnedItems}
           sortBy={SortBy.None}
           onDbClick={openItem}
+          view='grid'
         />
-        <GridGroup
+        <Group
           title='My Storages'
           items={storageItems}
           sortBy={SortBy.None}
           onDbClick={openItem}
+          view='grid'
         />
       </main>
     </>
