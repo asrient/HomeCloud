@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import LoadingIcon from "./ui/loadingIcon";
@@ -13,7 +13,7 @@ import {
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 
-export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description }: {
+export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description, isOpen, onOpenChange }: {
     title: string,
     children?: React.ReactNode,
     onDone: (newName: string) => Promise<void>,
@@ -21,12 +21,51 @@ export default function TextModal({ title, buttonText, children, onDone, default
     buttonText?: string,
     fieldName?: string,
     description?: string,
+    onOpenChange?: (open: boolean) => void,
+    isOpen?: boolean,
 }) {
     fieldName = fieldName || 'Name';
     const [text, setText] = useState<string>(defaultValue || '');
+    const [isDirty, setIsDirty] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [dialogOpen, setDialogOpen] = useState(false);
+    const [dialogOpen, setDialogOpen] = useState(isOpen || false);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (isOpen === undefined) return;
+        setDialogOpen(isOpen);
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!dialogOpen) {
+            setText('');
+            setError(null);
+            setIsLoading(false);
+            setIsDirty(false);
+        }
+    }, [dialogOpen]);
+
+    useEffect(() => {
+        if (!dialogOpen) return;
+        if (isDirty) {
+            setError(null);
+        }
+    }, [isDirty, dialogOpen]);
+
+    useEffect(() => {
+        if (!dialogOpen) return;
+        if (defaultValue && !isDirty) {
+            setText(defaultValue);
+        }
+    }, [defaultValue, dialogOpen, isDirty]);
+
+    const handleOpenChange = useCallback((open: boolean) => {
+        if (onOpenChange) {
+            onOpenChange(open);
+        } else {
+            setDialogOpen(open);
+        }
+    }, [onOpenChange]);
 
     const handleSubmit = useCallback(async () => {
         if (!text) return;
@@ -34,25 +73,25 @@ export default function TextModal({ title, buttonText, children, onDone, default
         setError(null);
         try {
             await onDone(text);
-            setDialogOpen(false);
+            if (dialogOpen) {
+                handleOpenChange(false);
+            }
         } catch (e: any) {
-            setError(e.message);
+            if (dialogOpen) {
+                setError(e.message);
+            }
         } finally {
-            setText('');
-            setIsLoading(false);
+            if (dialogOpen) {
+                setText('');
+                setIsDirty(false);
+                setIsLoading(false);
+            }
         }
-    }, [text, onDone]);
+    }, [text, onDone, handleOpenChange, dialogOpen]);
 
     const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setText(e.target.value);
-    }, []);
-
-    const handleOpenChange = useCallback((open: boolean) => {
-        if (!open) {
-            setText('');
-            setError(null);
-        }
-        setDialogOpen(open);
+        setIsDirty(true);
     }, []);
 
     return (

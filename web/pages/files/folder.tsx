@@ -4,7 +4,7 @@ import { RemoteItem, SidebarType, Storage } from "@/lib/types"
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getStat, readDir, upload, mkDir } from '@/lib/api/fs'
+import { getStat, readDir, upload, mkDir, rename } from '@/lib/api/fs'
 import Head from 'next/head'
 import { useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
@@ -23,6 +23,13 @@ import UploadFileSelector from '@/components/uploadFileSelector'
 import TextModal from '@/components/textModal'
 import FolderPath from '@/components/folderPath'
 import { folderViewUrl } from '@/lib/urls'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -39,6 +46,10 @@ const Page: NextPageWithConfig = () => {
   const [storage, setStorage] = useState<Storage | null>(null)
   const [view, setView] = useState<'list' | 'grid'>('grid')
   const [selectMode, setSelectMode] = useState(false)
+  const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false)
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+
+  const selectedItems = useMemo(() => items.filter(item => item.isSelected), [items]);
 
   useEffect(() => {
     if (storageId && storages) {
@@ -138,19 +149,20 @@ const Page: NextPageWithConfig = () => {
     setItems((prevItems) => [...prevItems, item]);
   }, [storageId, folderId]);
 
-  const selectItem = useCallback((item: FileRemoteItem) => {
+  const selectItem = useCallback((item: FileRemoteItem, toggle = true) => {
     setItems((prevItems) => prevItems.map(prevItem => {
       if (prevItem.id === item.id) {
         return {
           ...prevItem,
-          isSelected: !prevItem.isSelected,
+          isSelected: toggle ? !prevItem.isSelected : true,
         }
       }
       return { ...prevItem, isSelected: selectMode ? prevItem.isSelected : false }
     }))
   }, [selectMode])
 
-  const onItemClick = useCallback((item: FileRemoteItem) => {
+  const onItemClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (isMobile()) {
       if (item.type === 'directory') {
         router.push(folderViewUrl(storageId as number, item.id))
@@ -167,9 +179,47 @@ const Page: NextPageWithConfig = () => {
     })))
   }, [])
 
+  const onItemRightClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
+    selectItem(item, false)
+  }, [selectItem])
+
+  const onRightClickOutside = useCallback((e: React.MouseEvent) => {
+    if (e.target instanceof HTMLElement && e.target.closest('.fileItem')) return;
+    onClickOutside()
+  }, [onClickOutside])
+
   const toggleSelectMode = useCallback(() => {
     setSelectMode(!selectMode)
   }, [selectMode])
+
+  const openNewFolderDialog = useCallback(() => {
+    setNewFolderDialogOpen(true);
+  }, []);
+
+  const openRenameDialog = useCallback(() => {
+    setRenameDialogOpen(true);
+  }, []);
+
+  const onRename = useCallback(async (newName: string) => {
+    if (!storageId) throw new Error('Storage not set');
+    if (!folderId) throw new Error('Folder not set');
+    const item = selectedItems[0];
+    const newItem = await rename({
+      storageId,
+      newName,
+      id: item.id,
+    })
+    setItems((prevItems) => prevItems.map(prevItem => {
+      if (prevItem.id === item.id) {
+        return {
+          ...newItem,
+          isSelected: false,
+          storageId,
+        }
+      }
+      return prevItem;
+    }))
+  }, [storageId, folderId, selectedItems]);
 
   if (isLoading || error || !storageId) return (
     <>
@@ -193,6 +243,7 @@ const Page: NextPageWithConfig = () => {
   )
 
   const storageName = storage ? storage.name : 'Unknown storage'
+  const selectedCount = selectedItems.length;
 
   return (
     <>
@@ -236,7 +287,7 @@ const Page: NextPageWithConfig = () => {
               </svg>
             </Button>
           </UploadFileSelector>
-          <TextModal onDone={onNewFolder} title='New Folder' description='Provide a name.' buttonText='Create'>
+          <TextModal onOpenChange={setNewFolderDialogOpen} isOpen={newFolderDialogOpen} onDone={onNewFolder} title='New Folder' description='Provide a name.' buttonText='Create'>
             <Button variant='ghost'>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
@@ -249,9 +300,41 @@ const Page: NextPageWithConfig = () => {
             <FolderPath storage={storage} folder={folderStat} />
           </div>
         }
-        <div onClick={onClickOutside} className='min-h-[90vh]'>
-          <FilesView view={view} sortBy={SortBy.None} groupBy={GroupBy.None} onClick={onItemClick} items={items} />
-        </div>
+        <ContextMenu>
+          <ContextMenuTrigger>
+            <div onClick={onClickOutside} className='min-h-[90vh]' onContextMenu={onRightClickOutside}>
+              <FilesView view={view} sortBy={SortBy.None} groupBy={GroupBy.None} onClick={onItemClick} onRightClick={onItemRightClick} items={items} />
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            {
+              selectedCount > 0 ? (<>
+                {
+                  selectedCount === 1 && (<>
+                    <ContextMenuItem>Open</ContextMenuItem>
+                    <ContextMenuItem>Get info</ContextMenuItem>
+                    <ContextMenuItem onClick={openRenameDialog}>
+                      Rename..
+                    </ContextMenuItem>
+                  </>)
+                }
+                <ContextMenuItem disabled>Copy</ContextMenuItem>
+                <ContextMenuItem disabled>Cut</ContextMenuItem>
+                <ContextMenuItem className='text-red-500'>Delete</ContextMenuItem>
+              </>)
+                : (<>
+                  <ContextMenuItem>Get info</ContextMenuItem>
+                  <ContextMenuItem disabled>Paste</ContextMenuItem>
+                  <ContextMenuItem onClick={openNewFolderDialog}>New Folder</ContextMenuItem>
+                </>)
+            }
+
+          </ContextMenuContent>
+        </ContextMenu>
+        {selectedItems.length > 0 && <TextModal isOpen={renameDialogOpen} onOpenChange={setRenameDialogOpen}
+          onDone={onRename} title='Rename' defaultValue={selectedItems[0].name}
+          description='Provide a name.' buttonText='Save'>
+        </TextModal>}
       </main>
     </>)
 }

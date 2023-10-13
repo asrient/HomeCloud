@@ -52,31 +52,29 @@ function ThumbnailImage({ item, className }: { item: FileRemoteItem, className?:
 
 export type ItemParams = {
     item: FileRemoteItem;
-    onDbClick?: (item: FileRemoteItem) => void;
-    onClick?: (item: FileRemoteItem) => void;
-    onRightClick?: (item: FileRemoteItem) => void;
+    onDbClick?: (item: FileRemoteItem, e: React.MouseEvent) => void;
+    onClick?: (item: FileRemoteItem, e: React.MouseEvent) => void;
+    onRightClick?: (item: FileRemoteItem, e: React.MouseEvent) => void;
 }
 
 function GridItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
 
     const onDbClick_ = useCallback((e: React.MouseEvent) => {
-        onDbClick && onDbClick(item);
-        e.stopPropagation();
+        onDbClick && onDbClick(item, e);
     }, [onDbClick, item]);
 
     const onClick_ = useCallback((e: React.MouseEvent) => {
-        onClick && onClick(item);
-        e.stopPropagation();
+        onClick && onClick(item, e);
     }, [onClick, item]);
 
     const onRightClick_ = useCallback((e: React.MouseEvent) => {
-        onRightClick && onRightClick(item);
+        onRightClick && onRightClick(item, e);
     }, [onRightClick, item]);
 
     return (<div onDoubleClick={onDbClick_}
         onClick={onClick_}
         onContextMenu={onRightClick_}
-        className={`flex flex-col cursor-default justify-center items-center text-center rounded-md p-2 min-w-[8rem] ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}>
+        className={`fileItem flex flex-col cursor-default justify-center items-center text-center rounded-md p-2 min-w-[8rem] ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}>
         <div className="pb-1">
             <ThumbnailImage item={item} />
         </div>
@@ -91,19 +89,18 @@ function GridItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
 
 function ListItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
     const onDbClick_ = (e: React.MouseEvent) => {
-        onDbClick && onDbClick(item);
-        e.stopPropagation();
+        onDbClick && onDbClick(item, e);
     }
 
     const onClick_ = (e: React.MouseEvent) => {
-        onClick && onClick(item);
-        e.stopPropagation();
+        onClick && onClick(item, e);
     }
 
     const onRightClick_ = (e: React.MouseEvent) => {
-        onRightClick && onRightClick(item);
+        onRightClick && onRightClick(item, e);
     }
-    return (<div className={`flex items-center px-4 py-2 space-x-3 shadow-sm ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}
+
+    return (<div className={`fileItem flex items-center px-4 py-2 space-x-3 shadow-sm ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}
         onDoubleClick={onDbClick_}
         onClick={onClick_}
         onContextMenu={onRightClick_}>
@@ -151,15 +148,16 @@ export default function FilesView({ items, onDbClick, onClick, groupBy, ...rest 
 
     const router = useRouter();
 
-    const onDbClick_ = useCallback((item: RemoteItem) => {
+    const onDbClick_ = useCallback((item: RemoteItem, e: React.MouseEvent) => {
         if (item.type === 'directory' && 'storageId' in item) {
+            e.stopPropagation();
             router.push(folderViewUrl(item.storageId as number, item.id))
         }
     }, [router]);
 
-    const onClick_ = useCallback((item: RemoteItem) => {
+    const onClick_ = useCallback((item: RemoteItem, e: React.MouseEvent) => {
         if (isMobile()) {
-            onDbClick_(item);
+            onDbClick_(item, e);
         }
     }, [onDbClick_]);
 
