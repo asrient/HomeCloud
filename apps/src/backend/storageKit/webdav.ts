@@ -42,11 +42,15 @@ export class WebdavFsDriver extends FsDriver {
   }
 
   toRemoteItem(item: any): RemoteItem {
+    let parentId: string = item.filename.split("/").slice(0, -1).join("/");
+    if(parentId === "") {
+      parentId = "/";
+    }
     return {
       type: item.type,
       name: item.basename,
       id: item.filename,
-      parentIds: item.filename === '/' ? []: [item.filename.split("/").slice(0, -1).join("/")],
+      parentIds: item.filename === '/' ? null: [parentId],
       size: item.size,
       lastModified: new Date(item.lastmod),
       createdAt: new Date(item.created),

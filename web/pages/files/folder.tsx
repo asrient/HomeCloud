@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import UploadFileSelector from '@/components/uploadFileSelector'
 import TextModal from '@/components/textModal'
+import FolderPath from '@/components/folderPath'
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -188,6 +189,11 @@ const Page: NextPageWithConfig = () => {
             </Button>
           </TextModal>
         </PageBar>
+        {folderStat && storage && folderStat.parentIds && folderStat.parentIds.length > 0 &&
+          <div className='p-2 pt-3 md:py-1 md:fixed md:bottom-0 w-full bg-background z-10'>
+            <FolderPath storage={storage} folder={folderStat} />
+          </div>
+        }
         <FilesView storageId={storageId} view={view} sortBy={SortBy.None} groupBy={GroupBy.None} items={items} />
       </main>
     </>)
