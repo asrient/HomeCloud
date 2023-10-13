@@ -150,7 +150,7 @@ const Page: NextPageWithConfig = () => {
     setItems((prevItems) => [...prevItems, item]);
   }, [storageId, folderId]);
 
-  const selectItem = useCallback((item: FileRemoteItem, toggle = true) => {
+  const selectItem = useCallback((item: FileRemoteItem, toggle = true, persistSelection?: boolean) => {
     setItems((prevItems) => prevItems.map(prevItem => {
       if (prevItem.id === item.id) {
         return {
@@ -158,18 +158,20 @@ const Page: NextPageWithConfig = () => {
           isSelected: toggle ? !prevItem.isSelected : true,
         }
       }
-      return { ...prevItem, isSelected: selectMode ? prevItem.isSelected : false }
+      const persistSelection_ = selectMode || persistSelection;
+      return { ...prevItem, isSelected: persistSelection_ ? prevItem.isSelected : false }
     }))
   }, [selectMode])
 
   const onItemClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
+    const isShift = e.shiftKey;
     e.stopPropagation();
     if (isMobile()) {
       if (item.type === 'directory') {
         router.push(folderViewUrl(storageId as number, item.id))
       }
     } else {
-      selectItem(item)
+      selectItem(item, true, isShift);
     }
   }, [router, selectItem, storageId])
 
@@ -181,7 +183,7 @@ const Page: NextPageWithConfig = () => {
   }, [])
 
   const onItemRightClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
-    selectItem(item, false)
+    selectItem(item, false, true)
   }, [selectItem])
 
   const onRightClickOutside = useCallback((e: React.MouseEvent) => {

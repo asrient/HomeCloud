@@ -1,4 +1,4 @@
-import { RemoteItem, RemoteItemWithStorage } from "@/lib/types";
+import { RemoteItem } from "@/lib/types";
 import { folderViewUrl } from "@/lib/urls";
 import { getKind, getDefaultIcon, canGenerateThumbnail } from "@/lib/fileUtils";
 import { useRouter } from "next/router";
@@ -74,7 +74,7 @@ function GridItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
     return (<div onDoubleClick={onDbClick_}
         onClick={onClick_}
         onContextMenu={onRightClick_}
-        className={`fileItem flex flex-col cursor-default justify-center items-center text-center rounded-md p-2 min-w-[8rem] ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}>
+        className={`fileItem select-none flex flex-col cursor-default justify-center items-center text-center rounded-md p-2 min-w-[8rem] ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}>
         <div className="pb-1">
             <ThumbnailImage item={item} />
         </div>
@@ -100,7 +100,7 @@ function ListItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
         onRightClick && onRightClick(item, e);
     }
 
-    return (<div className={`fileItem flex items-center px-4 py-2 space-x-3 shadow-sm ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}
+    return (<div className={`fileItem select-none flex items-center px-4 py-2 space-x-3 shadow-sm ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}
         onDoubleClick={onDbClick_}
         onClick={onClick_}
         onContextMenu={onRightClick_}>
