@@ -25,6 +25,7 @@ export enum ActionTypes {
     TOGGLE_SIDEBAR = 'TOGGLE_SIDEBAR',
     SET_PINNED_FOLDERS = 'SET_PINNED_FOLDERS',
     ADD_PINNED_FOLDER = 'ADD_PINNED_FOLDER',
+    REMOVE_PINNED_FOLDER = 'REMOVE_PINNED_FOLDER',
 }
 
 export type AppDispatchType = {
@@ -51,10 +52,11 @@ export const DispatchContext = createContext<Dispatch<AppDispatchType> | null>(n
 export function reducer(draft: AppStateType, action: AppDispatchType) {
     const { type, payload } = action;
     switch (type) {
-        case ActionTypes.APP_LOADED:
+        case ActionTypes.APP_LOADED: {
             draft.isAppLoaded = true;
             return draft;
-        case ActionTypes.INITIALIZE:
+        }
+        case ActionTypes.INITIALIZE: {
             draft.isInitalized = true;
             draft.serverConfig = payload.config;
             draft.appError = null;
@@ -63,11 +65,13 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             draft.disabledStorages = [];
             draft.pinnedFolders = [];
             return draft;
-        case ActionTypes.ERROR:
+        }
+        case ActionTypes.ERROR: {
             draft.isInitalized = true;
             draft.appError = payload;
             return draft;
-        case ActionTypes.TOGGLE_STORAGE:
+        }
+        case ActionTypes.TOGGLE_STORAGE: {
             const { storageId, disabled } = payload;
             if (disabled) {
                 draft.disabledStorages.push(storageId);
@@ -75,7 +79,8 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 draft.disabledStorages = draft.disabledStorages.filter((id) => id !== storageId);
             }
             return draft;
-        case ActionTypes.ADD_STORAGE:
+        }
+        case ActionTypes.ADD_STORAGE: {
             const { storage }: {
                 storage: Storage;
             } = payload;
@@ -88,7 +93,8 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 }
             }
             return draft;
-        case ActionTypes.ADD_STORAGE_META:
+        }
+        case ActionTypes.ADD_STORAGE_META: {
             const { storageId: id, storageMeta }: {
                 storageId: number;
                 storageMeta: StorageMeta;
@@ -98,7 +104,8 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 draft.storages[storageIndex].storageMeta = storageMeta;
             }
             return draft;
-        case ActionTypes.UPDATE_STORAGE:
+        }
+        case ActionTypes.UPDATE_STORAGE: {
             const { storageId: storageIdToUpdate, storage: storageToUpdate }: {
                 storageId: number;
                 storage: Storage;
@@ -108,24 +115,41 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 draft.storages[storageToUpdateIndex] = storageToUpdate;
             }
             return draft;
-        case ActionTypes.TOGGLE_SIDEBAR:
+        }
+        case ActionTypes.TOGGLE_SIDEBAR: {
             const { showSidebar }: {
                 showSidebar: boolean;
             } = payload;
             draft.showSidebar = showSidebar || !draft.showSidebar;
             return draft;
-        case 'SET_PINNED_FOLDERS':
+        }
+        case ActionTypes.SET_PINNED_FOLDERS: {
             const { pins }: {
                 pins: PinnedFolder[];
             } = payload;
             draft.pinnedFolders = pins;
             return draft;
-        case 'ADD_PINNED_FOLDER':
+        }
+        case ActionTypes.ADD_PINNED_FOLDER: {
             const { pin }: {
                 pin: PinnedFolder;
             } = payload;
+            const existingIndex = draft.pinnedFolders.findIndex((pinnedFolder) => pinnedFolder.id === pin.id);
+            if (existingIndex !== undefined && existingIndex !== -1) {
+                draft.pinnedFolders[existingIndex] = pin;
+                return draft;
+            }
             draft.pinnedFolders.push(pin);
             return draft;
+        }
+        case ActionTypes.REMOVE_PINNED_FOLDER: {
+            const { storageId, folderId }: {
+                storageId: number;
+                folderId: string;
+            } = payload;
+            draft.pinnedFolders = draft.pinnedFolders.filter((pinnedFolder) => !(pinnedFolder.storageId === storageId && pinnedFolder.folderId === folderId));
+            return draft;
+        }
         default:
             console.error('Unknown action type:', type);
             return draft;

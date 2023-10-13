@@ -2,12 +2,46 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/router";
 import Link from "next/link";
-import { useFilesBar } from "../hooks/useSidebar";
 import { NextUrl, SidebarItem, SidebarList } from "@/lib/types";
 import { useCallback } from "react";
 import Image from "next/image";
 
-export function Sidebar({ className, list }: { className?: string, list?: SidebarList }) {
+
+function SidebarItemView({ item, isMatch, onRightClick }: {
+    item: SidebarItem,
+    isMatch: boolean,
+    onRightClick?: (item: SidebarItem) => void
+}) {
+
+    const onRightClick_ = useCallback((e: React.MouseEvent) => {
+        if (onRightClick && item.rightClickable) {
+            onRightClick(item);
+        } else {
+            e.stopPropagation();
+            e.preventDefault();
+        }
+    }, [item, onRightClick]);
+
+    return (<Link href={item.href} onContextMenu={onRightClick_}>
+        <Button variant={isMatch ? 'secondary' : 'ghost'} className="sidebarItem w-full justify-start">
+            {item.icon && <Image
+                alt={item.title}
+                src={item.icon}
+                loading="eager"
+                height={0}
+                width={0}
+                className="mr-2 h-5 w-5"
+            />}
+            {item.title}
+        </Button>
+    </Link>)
+}
+
+export function Sidebar({ className, list, onRightClick }: {
+    className?: string,
+    list?: SidebarList,
+    onRightClick?: (item: SidebarItem) => void
+}) {
     const router = useRouter();
     const { pathname, query } = router;
 
@@ -22,8 +56,16 @@ export function Sidebar({ className, list }: { className?: string, list?: Sideba
         return true;
     }, [pathname, query]);
 
+    const handleContextMenu = useCallback((e: React.MouseEvent) => {
+        const isSidebarItem = e.target instanceof HTMLElement && e.target.closest('.sidebarItem');
+        if (!isSidebarItem) {
+            e.stopPropagation();
+            e.preventDefault();
+        }
+    }, []);
+
     return (
-        <div className={cn("pb-12", className)}>
+        <div className={cn("pb-12", className)} onContextMenu={handleContextMenu}>
             <div className="space-y-4 pb-2">
                 {
                     list?.map((item, index) => (
@@ -36,20 +78,12 @@ export function Sidebar({ className, list }: { className?: string, list?: Sideba
 
                             <div className="space-y-1">
                                 {
-                                    item.items?.map((item: SidebarItem, index: number) => (
-                                        <Link href={item.href} key={index}>
-                                            <Button variant={isMatch(item.href) ? 'secondary' : 'ghost'} className="w-full justify-start">
-                                                {item.icon && <Image
-                                                    alt={item.title}
-                                                    src={item.icon}
-                                                    loading="eager"
-                                                    height={0}
-                                                    width={0}
-                                                    className="mr-2 h-5 w-5"
-                                                />}
-                                                {item.title}
-                                            </Button>
-                                        </Link>
+                                    item.items?.map((item: SidebarItem) => (
+                                        <SidebarItemView
+                                            key={item.key}
+                                            item={item}
+                                            isMatch={isMatch(item.href)}
+                                            onRightClick={onRightClick} />
                                     ))
                                 }
                             </div>
@@ -59,9 +93,4 @@ export function Sidebar({ className, list }: { className?: string, list?: Sideba
             </div>
         </div>
     )
-}
-
-export function FilesSidebar() {
-    const list = useFilesBar();
-    return <Sidebar list={list} />
 }

@@ -106,6 +106,9 @@ export type SidebarItem = {
     icon?: string;
     href: NextUrl;
     isDisabled?: boolean;
+    key: string;
+    data?: any;
+    rightClickable?: boolean;
 };
 
 export type SidebarList = {

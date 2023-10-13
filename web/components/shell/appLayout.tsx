@@ -1,6 +1,6 @@
 import { useAppState } from "../hooks/useAppState";
 import { ScrollArea } from "../ui/scroll-area";
-import { FilesSidebar } from "./sidebar";
+import { FilesSidebar } from "./filesSidebar";
 
 export function AppLayout({ children, sidebarType }: { children: React.ReactNode, sidebarType: string }) {
     const { showSidebar } = useAppState();

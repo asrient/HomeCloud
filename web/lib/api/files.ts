@@ -9,7 +9,19 @@ export type AddPinParams = {
 export async function addPin(params: AddPinParams) {
     return await ApiClient.post<{
         pin: PinnedFolder,
+        ok: boolean,
     }>('/services/files/pin/add', params);
+}
+
+export type RemovePinParams = {
+    storageId: number;
+    folderId: string;
+};
+
+export async function removePin(params: RemovePinParams) {
+    return await ApiClient.post<{
+        ok: boolean,
+    }>('/services/files/pin/remove', params);
 }
 
 export type ListPinsParams = {
@@ -32,5 +44,5 @@ export type ThumbnailResponse = {
 }
 
 export async function getThumbnail(storageId: number, fileId: string) {
-    return await ApiClient.post<ThumbnailResponse>('/services/thumb/getThumbnail', {storageId, fileId});
+    return await ApiClient.post<ThumbnailResponse>('/services/thumb/getThumbnail', { storageId, fileId });
 }

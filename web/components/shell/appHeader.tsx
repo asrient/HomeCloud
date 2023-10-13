@@ -127,7 +127,7 @@ export default function AppHeader() {
     }, [router, isRouterBusy]);
 
     return (<>
-    <div className="bg-background flex items-center px-2 py-1 h-[2.6rem] text-sm top-0 z-20 relative md:fixed w-full border-b-[1px] border-slate-100 border-solid">
+    <div className="bg-background flex items-center px-2 py-1 h-[2.6rem] text-sm top-0 z-20 relative md:fixed w-full border-b-[1px] border-solid">
         <div className="grow max-w-[8rem] md:flex items-center justify-center hidden">
             <Button size='sm' variant='ghost' onClick={onBack}>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">

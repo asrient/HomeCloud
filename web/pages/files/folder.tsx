@@ -5,8 +5,9 @@ import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getStat, readDir, upload, mkDir, rename, unlinkMultiple } from '@/lib/api/fs'
+import { addPin } from '@/lib/api/files'
 import Head from 'next/head'
-import { useAppState } from '@/components/hooks/useAppState'
+import { useAppDispatch, useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
 import Image from 'next/image'
 import PageBar from '@/components/pageBar'
@@ -30,9 +31,13 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import ConfirmModal from '@/components/confirmModal'
+import { ActionTypes } from '@/lib/state'
+import { useToast } from '@/components/ui/use-toast'
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
+  const dispatch = useAppDispatch()
+  const { toast } = useToast();
   const { s, id } = router.query as { s: string, id: string };
   const storageId = s ? parseInt(s) : null;
   const folderId = id || '/';
@@ -241,6 +246,25 @@ const Page: NextPageWithConfig = () => {
     setDeleteDialogOpen(true);
   }, []);
 
+  const pinFolder = useCallback(async () => {
+    const item = selectedItems[0];
+    if (!item || item.type !== 'directory' || !storage) return;
+    try {
+      const { pin } = await addPin({
+        storageId: storage?.id,
+        folderId: item.id,
+      })
+      dispatch(ActionTypes.ADD_PINNED_FOLDER, { pin });
+    } catch (e) {
+      console.error(e);
+      toast({
+        variant: "destructive",
+        title: 'Uh oh! Something went wrong.',
+        description: `Could not add "${item.name}" to favourites.`,
+      });
+    }
+  }, [selectedItems, storage, dispatch, toast]);
+
   if (isLoading || error || !storageId) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
@@ -264,6 +288,7 @@ const Page: NextPageWithConfig = () => {
 
   const storageName = storage ? storage.name : 'Unknown storage'
   const selectedCount = selectedItems.length;
+  const isFolderSelected = selectedCount === 1 && selectedItems[0].type === 'directory';
 
   return (
     <>
@@ -333,6 +358,11 @@ const Page: NextPageWithConfig = () => {
                   selectedCount === 1 && (<>
                     <ContextMenuItem>Open</ContextMenuItem>
                     <ContextMenuItem>Get info</ContextMenuItem>
+                    {
+                      isFolderSelected && (
+                        <ContextMenuItem onClick={pinFolder}>Add to Favorites</ContextMenuItem>
+                      )
+                    }
                     <ContextMenuItem onClick={openRenameDialog}>
                       Rename..
                     </ContextMenuItem>
