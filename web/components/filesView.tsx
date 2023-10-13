@@ -123,29 +123,7 @@ export type GroupParams = Omit<ItemParams & {
     view?: 'list' | 'grid';
 }, 'item'>;
 
-export function Group({ items, title, view, ...rest }: GroupParams) {
-    return (<div className={`${view === 'grid' ? "p-4" : ''}`}>
-        {title && <h2 className="text-sm border-b p-2 pb-1 mb-4">{title}</h2>}
-        {
-            view === 'grid' ? (<div className="grid gap-3 grid-cols-3 md:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:cols-8">
-                {items.map(item => <div key={item.storageId + item.id} className="h-full w-full flex justify-center items-center">
-                    <GridItem {...rest} item={item} />
-                </div>)}
-            </div>)
-                : (<div>
-                    {items.map(item => <ListItem key={item.storageId + item.id} {...rest} item={item} />)}
-                </div>)
-        }
-
-    </div>)
-}
-
-export type FilesViewParams = GroupParams & {
-    groupBy: GroupBy;
-}
-
-export default function FilesView({ items, onDbClick, onClick, groupBy, ...rest }: FilesViewParams) {
-
+export function Group({ items, title, view, onDbClick, onClick, ...rest }: GroupParams) {
     const router = useRouter();
 
     const onDbClick_ = useCallback((item: RemoteItem, e: React.MouseEvent) => {
@@ -161,6 +139,37 @@ export default function FilesView({ items, onDbClick, onClick, groupBy, ...rest 
         }
     }, [onDbClick_]);
 
+    return (<div className={`${view === 'grid' ? "p-4" : ''}`}>
+        {title && <h2 className="text-sm border-b p-2 pb-1 mb-4">{title}</h2>}
+        {
+            view === 'grid' ? (<div className="grid gap-3 grid-cols-3 md:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:cols-8">
+                {items.map(item => <div key={item.storageId + item.id} className="h-full w-full flex justify-center items-center">
+                    <GridItem
+                        onDbClick={onDbClick || onDbClick_}
+                        onClick={onClick || onClick_}
+                        {...rest}
+                        item={item} />
+                </div>)}
+            </div>)
+                : (<div>
+                    {items.map(item => <ListItem
+                        onDbClick={onDbClick || onDbClick_}
+                        onClick={onClick || onClick_}
+                        key={item.storageId + item.id}
+                        {...rest}
+                        item={item} />)}
+                </div>)
+        }
+
+    </div>)
+}
+
+export type FilesViewParams = GroupParams & {
+    groupBy: GroupBy;
+}
+
+export default function FilesView({ items, groupBy, ...rest }: FilesViewParams) {
+
     if (items.length === 0) return (<div className="min-h-[80vh] p-5 flex flex-col justify-center items-center text-center text-gray-500">
         <div className="pb-3">
             <Image src="/img/papers.png" alt="Empty" width={100} height={100} />
@@ -170,6 +179,6 @@ export default function FilesView({ items, onDbClick, onClick, groupBy, ...rest 
     </div>)
 
     return (<div className='pb-5'>
-        <Group items={items} onDbClick={onDbClick || onDbClick_} onClick={onClick || onClick_} {...rest} />
+        <Group items={items} {...rest} />
     </div>)
 }

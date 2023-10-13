@@ -44,7 +44,7 @@ export default function PageBar({ children, title, icon, hideSidebarButton }: {
                         />
                     ) : (<span className='mr-2 text-blue-500'>{icon}</span>)
                 }
-                <span className='font-semibold'>{title}</span>
+                <span className='font-semibold truncate'>{title}</span>
             </div>
             <div className='flex justify-center items-center md:space-x-1 pl-3 pr-2 text-blue-600'>
                 {children}
