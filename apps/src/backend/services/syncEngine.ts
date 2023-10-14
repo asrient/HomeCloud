@@ -65,11 +65,12 @@ export default abstract class SyncEngine {
   fsDriver: FsDriver;
   storage: Storage;
   parentDirId: string;
-  isLockAquired: boolean = false;
   fileIds: { [key: string]: string } = {};
   files: { [key: string]: any } = {};
   isSoftSynced: boolean = false;
   newActions: ActionType[] = [];
+  lockTimer: NodeJS.Timer | null = null;
+  lockTime: number | null = null;
 
   constructor(fsDriver: FsDriver, parentDirId: string) {
     this.fsDriver = fsDriver;
@@ -77,47 +78,54 @@ export default abstract class SyncEngine {
     this.parentDirId = parentDirId;
   }
 
+  public isLocked() {
+    return this.lockTime !== null && this.lockTime > get5minsAgo();
+  }
+
   public async aquireLock() {
-    this.isLockAquired = true;
-    console.log("aquireLock");
-  }
-
-  public async releaseLock() {
-    if (!this.isLockAquired) return;
-    this.isLockAquired = false;
-    console.log("releaseLock");
-  }
-
-  private async withSyncLock<T>(fn: (isLocked: () => boolean) => Promise<T>): Promise<T> {
-    let lockTime = await this.getsyncLockTime();
-    if (lockTime !== null && lockTime > get5minsAgo()) {
-      throw new Error("Could not aquire sync lock");
+    if (this.lockTimer || this.lockTime !== null) {
+      throw new Error("Lock already aquired");
     }
-    lockTime = getToday();
-    await this.setSyncLockTime(lockTime);
-    const timer = setInterval(async () => {
+    this.lockTime = await this.getsyncLockTime();
+    if (this.lockTime !== null && this.lockTime > get5minsAgo()) {
+      throw new Error(`Lock already aquired at time: ${this.lockTime}`);
+    }
+    this.lockTime = getToday();
+    await this.setSyncLockTime(this.lockTime);
+    this.lockTimer = setInterval(async () => {
       const lockTime_ = await this.getsyncLockTime();
-      if (lockTime_ !== null && lockTime_ > get5minsAgo() && lockTime_ === lockTime) {
+      if (lockTime_ !== null && lockTime_ > get5minsAgo() && lockTime_ === this.lockTime) {
         // console.log('Sync lock refreshed', lockTime_, lockTime);
-        lockTime = getToday();
-        await this.setSyncLockTime(lockTime);
+        this.lockTime = getToday();
+        await this.setSyncLockTime(this.lockTime);
       } else {
-        console.log('Lost sync lock, clearing timer', lockTime_, lockTime);
-        clearInterval(timer);
+        console.log('Lost sync lock, clearing timer', lockTime_, this.lockTime);
+        this.lockTimer && clearInterval(this.lockTimer);
       }
-    }, 5 * 1000);
-    const isLocked = () => {
-      return lockTime !== null && lockTime > get5minsAgo();
+    }, 1 * 60 * 1000);
+  }
+
+  async releaseLock() {
+    this.lockTimer && clearInterval(this.lockTimer);
+    await this.setSyncLockTime(null);
+    this.lockTime = null;
+  }
+
+  checkLock() {
+    if (!this.isLocked()) {
+      throw new Error(`Lock lost, last lock time: ${this.lockTime}, now: ${getToday()}`);
     }
+  }
+
+  public async withLock<T>(fn: () => Promise<T>): Promise<T> {
+    await this.aquireLock();
     try {
-      const resp = await fn(isLocked);
+      const resp = await fn();
       // await new Promise((resolve) => setTimeout(resolve, 60 * 1000)); // debug
-      timer && clearInterval(timer);
-      await this.setSyncLockTime(null);
+      this.releaseLock();
       return resp;
     } catch (e) {
-      timer && clearInterval(timer);
-      await this.setSyncLockTime(null);
+      this.releaseLock();
       throw e;
     }
   }
@@ -194,36 +202,30 @@ export default abstract class SyncEngine {
   }
 
   public async softSync() {
-    return this.withSyncLock(async (isLocked) => {
-      const head = (await this.getFile("head")) as HeadFileType;
-      const lastSyncTime = await this.getLastSyncTime();
-      if (!isLocked()) {
-        throw new Error("Could not aquire sync lock");
-      }
-      console.log("lastSyncTime", lastSyncTime);
-      console.log("head.lastChangeTime", head.lastChangeTime);
-      if (head.lastChangeTime <= lastSyncTime) {
-        this.isSoftSynced = true;
-        return;
-      }
-      if (head.lastPurgeTime > lastSyncTime) {
-        throw new Error("Purge happened after last sync, please hard sync");
-      }
-      const changeLog = (await this.getFile("changeLog")) as ChangeLogType;
-      if (!isLocked()) {
-        throw new Error("Could not aquire sync lock");
-      }
-      const startInd = searchStartIndex(changeLog.actions, "time", lastSyncTime);
-      console.log("startInd", startInd);
-      if (startInd === -1) {
-        throw new Error("Change log is corrupted");
-      }
-      const newActions = changeLog.actions.slice(startInd);
-      const simpleActions = await this.applyActions(newActions);
-      await this.setLastSyncTime(head.lastChangeTime);
+    const head = (await this.getFile("head")) as HeadFileType;
+    const lastSyncTime = await this.getLastSyncTime();
+    this.checkLock();
+    console.log("lastSyncTime", lastSyncTime);
+    console.log("head.lastChangeTime", head.lastChangeTime);
+    if (head.lastChangeTime <= lastSyncTime) {
       this.isSoftSynced = true;
-      return simpleActions;
-    });
+      return;
+    }
+    if (head.lastPurgeTime > lastSyncTime) {
+      throw new Error("Purge happened after last sync, please hard sync");
+    }
+    const changeLog = (await this.getFile("changeLog")) as ChangeLogType;
+    this.checkLock();
+    const startInd = searchStartIndex(changeLog.actions, "time", lastSyncTime);
+    console.log("startInd", startInd);
+    if (startInd === -1) {
+      throw new Error("Change log is corrupted");
+    }
+    const newActions = changeLog.actions.slice(startInd);
+    const simpleActions = await this.applyActions(newActions);
+    await this.setLastSyncTime(head.lastChangeTime);
+    this.isSoftSynced = true;
+    return simpleActions;
   }
 
   private async applyActions(newActions: ActionType[]) {
@@ -290,40 +292,37 @@ export default abstract class SyncEngine {
   }
 
   public async hardSync(force = false) {
-    return this.withSyncLock(async (isLocked) => {
-      const head = (await this.getFile("head")) as HeadFileType;
-      const getLastSyncTime = await this.getLastSyncTime();
-      if (!isLocked()) {
-        throw new Error("Could not aquire sync lock");
-      }
-      if (head.lastPurgeTime <= getLastSyncTime && !force) {
-        throw new Error(
-          "Purge happened before last sync, cannot hard sync, please use soft sync",
-        );
-      }
-      const archive = (await this.getFile("archive")) as ArchiveType;
-      if (!isLocked()) {
-        throw new Error("Could not aquire sync lock");
-      }
-      await this.deleteAllItemsFromDb();
-      await this.addItemsToDb(archive.items);
-      await this.setLastSyncTime(head.lastPurgeTime);
-      this.isSoftSynced = false;
-    });
+    const head = (await this.getFile("head")) as HeadFileType;
+    const getLastSyncTime = await this.getLastSyncTime();
+    this.checkLock();
+    if (head.lastPurgeTime <= getLastSyncTime && !force) {
+      throw new Error(
+        "Purge happened before last sync, cannot hard sync, please use soft sync",
+      );
+    }
+    const archive = (await this.getFile("archive")) as ArchiveType;
+    this.checkLock();
+    await this.deleteAllItemsFromDb();
+    await this.addItemsToDb(archive.items);
+    await this.setLastSyncTime(head.lastPurgeTime);
+    this.isSoftSynced = false;
   }
 
   public async applyNewActions() {
     const actions = this.newActions;
-    if (!this.isSoftSynced || !this.isLockAquired) {
+    if (!this.isSoftSynced) {
       throw new Error(
-        "Cannot perform new actions, Lock not aquired or not synced",
+        "Cannot perform new actions, not synced",
       );
     }
+    this.checkLock();
     console.log("applyNewActions", actions);
     const simpleActions = await this.applyActions(actions);
+    this.checkLock();
     console.log("simpleActions", simpleActions);
 
     const changeLog = (await this.getFile("changeLog")) as ChangeLogType;
+    this.checkLock();
     changeLog.actions.push(...actions);
     changeLog.lastUpdateTime = getToday();
     await this.saveFile("changeLog", changeLog);
@@ -331,6 +330,7 @@ export default abstract class SyncEngine {
     const head = (await this.getFile("head")) as HeadFileType;
     head.lastChangeTime = changeLog.lastUpdateTime;
     await this.saveFile("head", head);
+    this.checkLock();
 
     this.setLastSyncTime(changeLog!.lastUpdateTime);
     this.newActions = [];
@@ -344,6 +344,7 @@ export default abstract class SyncEngine {
 
   public async addItems(items: { [itemId: number]: any }) {
     const head = (await this.getFile("head")) as HeadFileType;
+    this.checkLock();
     let nextItemId = head.nextItemId;
     const actions: ActionType[] = [];
     const sortedItemIds = Object.keys(items).map(Number).sort();
@@ -409,12 +410,13 @@ export default abstract class SyncEngine {
   }
 
   public async archiveChanges() {
-    if (!this.isSoftSynced || !this.isLockAquired) {
-      throw new Error("Cannot perform archive, Lock not aquired or not synced");
+    if (!this.isSoftSynced) {
+      throw new Error("Cannot perform archive, not synced");
     }
     const archive = (await this.getFile("archive")) as ArchiveType;
     const changeLog = (await this.getFile("changeLog")) as ChangeLogType;
     const head = (await this.getFile("head")) as HeadFileType;
+    this.checkLock();
 
     const simpleActions = this.simplifyActions(changeLog.actions);
     for (const itemId of simpleActions.delete) {
@@ -429,13 +431,16 @@ export default abstract class SyncEngine {
     archive.items = { ...archive.items, ...simpleActions.add };
     archive.lastUpdateTime = head.lastChangeTime;
     await this.saveFile("archive", archive);
+    this.checkLock();
 
     const newChangeLog = this.getInitialFile("changeLog") as ChangeLogType;
     newChangeLog.lastUpdateTime = archive.lastUpdateTime;
     await this.saveFile("changeLog", newChangeLog);
+    this.checkLock();
 
     head.lastPurgeTime = archive.lastUpdateTime;
     await this.saveFile("head", head);
+    this.checkLock();
     return simpleActions;
   }
 

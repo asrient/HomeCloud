@@ -44,8 +44,8 @@ export class UploadManager {
   }
 
   public async start() {
-    await this.photoService.softSyncAndPublish();
     await this.photoSync.aquireLock();
+    await this.photoService.softSyncAndPublish();
   }
 
   public async addPhoto(file: ApiRequestFile) {
@@ -94,6 +94,7 @@ export class UploadManager {
 
   public async end() {
     if (this.reqs.length === 0) {
+      await this.photoSync.releaseLock();
       return {
         addCount: 0,
         errors: this.errors,
@@ -163,29 +164,19 @@ export default class PhotosService {
     await this.pushPurgeEvent();
   }
 
-  private async withLock<T>(fn: () => Promise<T>): Promise<T> {
-    await this.photoSync.aquireLock();
-    try {
-      const result = await fn();
-      await this.photoSync.releaseLock();
-      return result;
-    } catch (e) {
-      await this.photoSync.releaseLock();
-      throw e;
-    }
-  }
-
   public async sync(hard = false) {
-    if (hard) {
-      await this.hardSyncAndPublish();
-    } else {
-      await this.softSyncAndPublish();
-    }
+    return this.photoSync.withLock(async () => {
+      if (hard) {
+        await this.hardSyncAndPublish();
+      } else {
+        await this.softSyncAndPublish();
+      }
+    });
   }
 
   public async archive() {
-    await this.softSyncAndPublish();
-    return this.withLock(async () => {
+    return this.photoSync.withLock(async () => {
+      await this.softSyncAndPublish();
       await this.photoSync.archiveChanges();
     });
   }
@@ -211,15 +202,19 @@ export default class PhotosService {
       } as createPhotoType;
     });
     await this.photoSync.addItems(photos);
+    this.photoSync.checkLock();
     const simpleActions = await this.photoSync.applyNewActions();
+    this.photoSync.checkLock();
     await this.pushDeltaEvent(simpleActions);
     return simpleActions.add;
   }
 
   public async importPhotos(fileIds: string[], deleteSource = false) {
-    await this.softSyncAndPublish();
-    return this.withLock(async () => {
+    return this.photoSync.withLock(async () => {
+      await this.softSyncAndPublish();
+      this.photoSync.checkLock();
       const nextItemId = await this.photoSync.getNextItemId();
+      this.photoSync.checkLock();
       const req: createPhoto_[] = [];
       const errors: { [fileId: string]: string } = {};
       const promises = fileIds.map(async (fileId, index) => {
@@ -230,6 +225,7 @@ export default class PhotosService {
           deleteSource,
         );
         const [fileStream, mime] = await this.fsDriver.readFile(assetFileId);
+        this.photoSync.checkLock();
         const detail = await this.assetManager.generateDetail(fileStream, mime);
         req.push({
           itemId,
@@ -246,6 +242,7 @@ export default class PhotosService {
           }),
         ),
       );
+      this.photoSync.checkLock();
       if (req.length === 0) {
         return {
           addCount: 0,
@@ -261,13 +258,15 @@ export default class PhotosService {
   }
 
   public async updateAsset(itemId: number, file: ApiRequestFile) {
-    console.log("updateAsset", itemId, file);
-    await this.softSyncAndPublish();
-    const photo = await Photo.getPhoto(itemId, this.storage);
-    if (!photo) {
-      throw new Error("Photo not found");
-    }
-    return this.withLock(async () => {
+    return this.photoSync.withLock(async () => {
+      console.log("updateAsset", itemId, file);
+      await this.softSyncAndPublish();
+      this.photoSync.checkLock();
+      const photo = await Photo.getPhoto(itemId, this.storage);
+      if (!photo) {
+        throw new Error("Photo not found");
+      }
+      this.photoSync.checkLock();
       let detail!: AssetDetailType;
       let assetFile!: RemoteItem;
       const stream = cloneStream(file.stream as ReadStream);
@@ -289,6 +288,7 @@ export default class PhotosService {
       const update: any = {
         lastEditedOn: new Date(),
       };
+      this.photoSync.checkLock();
 
       if (detail) {
         if (!!detail.duration && detail.duration !== photo.duration) {
@@ -315,8 +315,9 @@ export default class PhotosService {
   }
 
   public async deletePhotos(itemIds: number[]) {
-    await this.softSyncAndPublish();
-    return this.withLock(async () => {
+    return this.photoSync.withLock(async () => {
+      await this.softSyncAndPublish();
+      this.photoSync.checkLock();
       const ids: number[] = [];
       const errors: { [itemId: number]: string } = {};
       const photos = await Photo.getPhotosByIds(itemIds, this.storage);

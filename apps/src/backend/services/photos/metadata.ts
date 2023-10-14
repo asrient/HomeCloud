@@ -108,7 +108,7 @@ export async function metaFromVideoStream(stream: Readable): Promise<any> {
           console.log("Stream ended");
         });
       }
-      console.dir(metadata);
+      // console.dir(metadata);
       const detail: AssetDetailType = {
         metadata: {
           cameraMake: "",
