@@ -25,3 +25,16 @@ export function buildPageConfig(sidebarType?: SidebarType, noAppShell = false): 
 export function isMobile() {
   return window.innerWidth < 768
 }
+
+export function getGreetings() {
+  const date = new Date()
+  const hours = date.getHours()
+
+  if (hours < 12) {
+    return "Good morning"
+  } else if (hours < 18) {
+    return "Good afternoon"
+  } else {
+    return "Good evening"
+  }
+}

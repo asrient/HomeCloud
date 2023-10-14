@@ -21,11 +21,11 @@ export default function PageBar({ children, title, icon, hideSidebarButton }: {
     }, [dispatch, showSidebar]);
 
     return (
-        <div className='sticky top-0 md:top-[2.6rem] w-full h-[2.8rem] flex justify-between items-center p-1 border-b border-muted bg-background z-10'>
-            <div className='flex justify-center items-center'>
+        <div className='sticky top-0 md:top-[2.6rem] w-full h-[2.8rem] flex justify-between items-center p-1 border-muted bg-slate-50/70 border-b backdrop-blur-lg z-10'>
+            <div className='flex justify-center items-center pl-3 md:pl-4'>
                 {
-                    !hideSidebarButton && (
-                        <Button variant='ghost' size='icon' className='mr-2' onClick={toggleSidebar}>
+                    !hideSidebarButton && !showSidebar && (
+                        <Button variant='ghost' size='icon' className='mr-1' title='Show Side Bar' onClick={toggleSidebar}>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                             </svg>
