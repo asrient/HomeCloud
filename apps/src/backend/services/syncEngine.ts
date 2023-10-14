@@ -28,6 +28,10 @@ function searchStartIndex(arr: any[], key: string, val: any) {
   return end;
 }
 
+function get5minsAgo() {
+  return getToday() - 5 * 60 * 1000;
+}
+
 export type HeadFileType = {
   lastChangeTime: number;
   lastPurgeTime: number;
@@ -82,6 +86,40 @@ export default abstract class SyncEngine {
     if (!this.isLockAquired) return;
     this.isLockAquired = false;
     console.log("releaseLock");
+  }
+
+  private async withSyncLock<T>(fn: (isLocked: () => boolean) => Promise<T>): Promise<T> {
+    let lockTime = await this.getsyncLockTime();
+    if (lockTime !== null && lockTime > get5minsAgo()) {
+      throw new Error("Could not aquire sync lock");
+    }
+    lockTime = getToday();
+    await this.setSyncLockTime(lockTime);
+    const timer = setInterval(async () => {
+      const lockTime_ = await this.getsyncLockTime();
+      if (lockTime_ !== null && lockTime_ > get5minsAgo() && lockTime_ === lockTime) {
+        // console.log('Sync lock refreshed', lockTime_, lockTime);
+        lockTime = getToday();
+        await this.setSyncLockTime(lockTime);
+      } else {
+        console.log('Lost sync lock, clearing timer', lockTime_, lockTime);
+        clearInterval(timer);
+      }
+    }, 5 * 1000);
+    const isLocked = () => {
+      return lockTime !== null && lockTime > get5minsAgo();
+    }
+    try {
+      const resp = await fn(isLocked);
+      // await new Promise((resolve) => setTimeout(resolve, 60 * 1000)); // debug
+      timer && clearInterval(timer);
+      await this.setSyncLockTime(null);
+      return resp;
+    } catch (e) {
+      timer && clearInterval(timer);
+      await this.setSyncLockTime(null);
+      throw e;
+    }
   }
 
   private getInitialFile(type: "head" | "changeLog" | "archive") {
@@ -156,28 +194,36 @@ export default abstract class SyncEngine {
   }
 
   public async softSync() {
-    const head = (await this.getFile("head")) as HeadFileType;
-    const lastSyncTime = await this.getLastSyncTime();
-    console.log("lastSyncTime", lastSyncTime);
-    console.log("head.lastChangeTime", head.lastChangeTime);
-    if (head.lastChangeTime <= lastSyncTime) {
+    return this.withSyncLock(async (isLocked) => {
+      const head = (await this.getFile("head")) as HeadFileType;
+      const lastSyncTime = await this.getLastSyncTime();
+      if (!isLocked()) {
+        throw new Error("Could not aquire sync lock");
+      }
+      console.log("lastSyncTime", lastSyncTime);
+      console.log("head.lastChangeTime", head.lastChangeTime);
+      if (head.lastChangeTime <= lastSyncTime) {
+        this.isSoftSynced = true;
+        return;
+      }
+      if (head.lastPurgeTime > lastSyncTime) {
+        throw new Error("Purge happened after last sync, please hard sync");
+      }
+      const changeLog = (await this.getFile("changeLog")) as ChangeLogType;
+      if (!isLocked()) {
+        throw new Error("Could not aquire sync lock");
+      }
+      const startInd = searchStartIndex(changeLog.actions, "time", lastSyncTime);
+      console.log("startInd", startInd);
+      if (startInd === -1) {
+        throw new Error("Change log is corrupted");
+      }
+      const newActions = changeLog.actions.slice(startInd);
+      const simpleActions = await this.applyActions(newActions);
+      await this.setLastSyncTime(head.lastChangeTime);
       this.isSoftSynced = true;
-      return;
-    }
-    if (head.lastPurgeTime > lastSyncTime) {
-      throw new Error("Purge happened after last sync, please hard sync");
-    }
-    const changeLog = (await this.getFile("changeLog")) as ChangeLogType;
-    const startInd = searchStartIndex(changeLog.actions, "time", lastSyncTime);
-    console.log("startInd", startInd);
-    if (startInd === -1) {
-      throw new Error("Change log is corrupted");
-    }
-    const newActions = changeLog.actions.slice(startInd);
-    const simpleActions = await this.applyActions(newActions);
-    await this.setLastSyncTime(head.lastChangeTime);
-    this.isSoftSynced = true;
-    return simpleActions;
+      return simpleActions;
+    });
   }
 
   private async applyActions(newActions: ActionType[]) {
@@ -244,17 +290,26 @@ export default abstract class SyncEngine {
   }
 
   public async hardSync(force = false) {
-    const head = (await this.getFile("head")) as HeadFileType;
-    const getLastSyncTime = await this.getLastSyncTime();
-    if (head.lastPurgeTime <= getLastSyncTime && !force) {
-      throw new Error(
-        "Purge happened before last sync, cannot hard sync, please use soft sync",
-      );
-    }
-    const archive = (await this.getFile("archive")) as ArchiveType;
-    await this.deleteAllItemsFromDb();
-    await this.addItemsToDb(archive.items);
-    await this.setLastSyncTime(head.lastPurgeTime);
+    return this.withSyncLock(async (isLocked) => {
+      const head = (await this.getFile("head")) as HeadFileType;
+      const getLastSyncTime = await this.getLastSyncTime();
+      if (!isLocked()) {
+        throw new Error("Could not aquire sync lock");
+      }
+      if (head.lastPurgeTime <= getLastSyncTime && !force) {
+        throw new Error(
+          "Purge happened before last sync, cannot hard sync, please use soft sync",
+        );
+      }
+      const archive = (await this.getFile("archive")) as ArchiveType;
+      if (!isLocked()) {
+        throw new Error("Could not aquire sync lock");
+      }
+      await this.deleteAllItemsFromDb();
+      await this.addItemsToDb(archive.items);
+      await this.setLastSyncTime(head.lastPurgeTime);
+      this.isSoftSynced = false;
+    });
   }
 
   public async applyNewActions() {
@@ -298,9 +353,9 @@ export default abstract class SyncEngine {
     if (sortedItemIds[0] < nextItemId) {
       throw new Error(
         "Could not add item, Item id already exists: " +
-          sortedItemIds[0] +
-          " < " +
-          nextItemId,
+        sortedItemIds[0] +
+        " < " +
+        nextItemId,
       );
     }
     for (const itemId of sortedItemIds) {
@@ -386,6 +441,9 @@ export default abstract class SyncEngine {
 
   abstract setLastSyncTime(time: number): Promise<void>;
   abstract getLastSyncTime(): Promise<number>;
+
+  abstract getsyncLockTime(): Promise<number | null>;
+  abstract setSyncLockTime(time: number | null): Promise<void>;
 
   abstract addItemsToDb(items: { [itemId: number]: any }): Promise<void>;
   abstract deleteItemsFromDb(itemIds: number[]): Promise<void>;

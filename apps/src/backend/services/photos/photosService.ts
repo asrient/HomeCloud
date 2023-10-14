@@ -273,7 +273,7 @@ export default class PhotosService {
       const stream = cloneStream(file.stream as ReadStream);
       const writeAsset = async () => {
         assetFile = await this.assetManager.updateAsset(
-          photo.folderNo,
+          photo.fileId,
           itemId,
           stream,
           file.mime,
@@ -322,7 +322,7 @@ export default class PhotosService {
       const photos = await Photo.getPhotosByIds(itemIds, this.storage);
       const promises = photos.map(async (photo) => {
         try {
-          await this.assetManager.delete(photo.folderNo, photo.itemId);
+          await this.assetManager.delete(photo.fileId);
           ids.push(photo.itemId);
         } catch (e: any) {
           errors[photo.itemId] = e.message;
@@ -345,10 +345,6 @@ export default class PhotosService {
       throw new Error("Photo not found");
     }
     return photo.getDetails();
-  }
-
-  public async getPhotoAsset(itemId: number, folderNo: number) {
-    return this.assetManager.getAsset(folderNo, itemId);
   }
 
   public async listPhotos({

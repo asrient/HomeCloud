@@ -636,6 +636,7 @@ export class StorageMeta extends DbModel {
   declare photosDir: string;
   declare photosAssetsDir: string;
   declare photosLastSyncOn: Date;
+  declare photosSyncLockOn: Date | null;
   declare isPhotosEnabled: boolean;
   declare setStorage: (storage: Storage) => Promise<void>;
   declare getStorage: () => Promise<Storage>;
@@ -682,6 +683,11 @@ export class StorageMeta extends DbModel {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true,
+    },
+
+    photosSyncLockOn: {
+      type: DataTypes.DATE,
+      allowNull: true,
     },
   };
 

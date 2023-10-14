@@ -7,6 +7,7 @@ import {
 } from "./metadata";
 import { ReadStream } from "original-fs";
 import { Readable } from "stream";
+import mime from "mime";
 
 const PHOTOS_PER_FOLDER = 120;
 
@@ -43,30 +44,21 @@ export default class AssetManager {
     this.paths = new PathStore(storageMeta, fsDriver);
   }
 
-  public async getAssetFileId(folderNo: number, itemId: number) {
-    const parentFolderId = await this.paths.getAssetParentFolderId(folderNo);
-    const stat = await this.fsDriver.getStatByFilename(
-      itemId.toString(),
-      parentFolderId,
-    );
-    return stat.id;
+  private itemIdToFilename(itemId: number, mimeType: string) {
+    return `${itemId}.${mime.getExtension(mimeType)}`;
   }
 
   public async getAsset(
-    folderNo: number,
-    itemId: number,
+    fileId: string,
   ): Promise<[ReadStream, string]> {
-    const [stream, mimeType] = await this.fsDriver.readFile(
-      await this.getAssetFileId(folderNo, itemId),
-    );
-    return [stream, mimeType];
+    return await this.fsDriver.readFile(fileId);
   }
 
   public async createAsset(itemId: number, stream: Readable, mimeType: string) {
     const folderNo = this.getFolderNoFromItemId(itemId);
     const parentFolderId = await this.paths.getAssetParentFolderId(folderNo);
     const stat = await this.fsDriver.writeFile(parentFolderId, {
-      name: itemId.toString(),
+      name: this.itemIdToFilename(itemId, mimeType),
       mime: mimeType,
       stream: stream,
     });
@@ -90,22 +82,21 @@ export default class AssetManager {
   }
 
   public async updateAsset(
-    folderNo: number,
+    fileId: string,
     itemId: number,
     stream: Readable,
     mimeType: string,
   ) {
-    const fileId = await this.getAssetFileId(folderNo, itemId);
     const stat = await this.fsDriver.updateFile(fileId, {
-      name: itemId.toString(),
+      name: this.itemIdToFilename(itemId, mimeType),
       mime: mimeType,
       stream: stream,
     });
     return stat;
   }
 
-  public async delete(folderNo: number, itemId: number) {
-    await this.fsDriver.unlink(await this.getAssetFileId(folderNo, itemId));
+  public async delete(fileId: string) {
+    await this.fsDriver.unlink(fileId);
   }
 
   public async generateDetail(
