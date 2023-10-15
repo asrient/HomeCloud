@@ -1,5 +1,5 @@
 import { FsDriver, RemoteItem } from "../../storageKit/interface";
-import { Storage, StorageMeta, createPhotoType, Photo } from "../../models";
+import { Storage, StorageMeta, createPhotoType, Photo, getPhotosParams } from "../../models";
 import { ApiRequestFile } from "../../interface";
 import AssetManager from "./assetManager";
 import PhotoSync from "./photoSync";
@@ -350,20 +350,5 @@ export default class PhotosService {
       throw new Error("Photo not found");
     }
     return photo.getDetails();
-  }
-
-  public async listPhotos({
-    limit,
-    offset,
-    orderBy,
-    ascending,
-  }: {
-    limit: number;
-    offset: number;
-    orderBy: string;
-    ascending?: boolean;
-  }) {
-    ascending = !!ascending;
-    return Photo.getPhotos(offset, limit, this.storage, orderBy, ascending);
   }
 }

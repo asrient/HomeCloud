@@ -509,9 +509,12 @@ export class Storage extends DbModel {
     return Storage.findByPk(id);
   }
 
-  static async getStoragesForProfile(profile: Profile, storageIds: number[]) {
+  static async getStoragesForProfile(profile: Profile, storageIds: number[], onlyIds = false) {
     const storages = await Storage.findAll({
       where: { id: storageIds, profile },
+      include: {
+        attributes: onlyIds ? ["id"] : undefined
+      }
     });
     return storages;
   }
@@ -827,6 +830,7 @@ export class Photo extends DbModel {
       duration: this.duration,
       height: this.height,
       width: this.width,
+      storageId: this.StorageId,
     };
   }
 
@@ -864,18 +868,12 @@ export class Photo extends DbModel {
     return Photo.destroy({ where: { StorageId: storage.id } });
   }
 
-  static async getPhotos(
-    offset: number,
-    limit: number,
-    storage: Storage,
-    orderBy: string,
-    ascending = true,
-  ) {
+  static async getPhotos({ offset, limit, storageIds, sortBy, ascending = true }: getPhotosParams): Promise<Photo[]> {
     return Photo.findAll({
-      where: { StorageId: storage.id },
+      where: { StorageId: storageIds },
       offset,
       limit,
-      order: [[orderBy, ascending ? "ASC" : "DESC"]],
+      order: [[sortBy, ascending ? "ASC" : "DESC"]],
     });
   }
 
@@ -886,6 +884,14 @@ export class Photo extends DbModel {
     return Photo.bulkCreate(items);
   }
 }
+
+export type getPhotosParams = {
+  offset: number,
+  limit: number,
+  storageIds: number[],
+  sortBy: string,
+  ascending: boolean,
+};
 
 export type createPhotoType = {
   itemId: number;

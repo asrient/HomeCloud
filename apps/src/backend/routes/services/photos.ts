@@ -16,6 +16,7 @@ import PhotosService, {
   UploadManager,
 } from "../../services/photos/photosService";
 import CustomError from "../../customError";
+import { Photo, getPhotosParams } from "../../models";
 
 const api = new RouteGroup();
 
@@ -208,30 +209,26 @@ api.add("/archive", buildMiddlewares("POST"), async (request: ApiRequest) => {
 const listPhotosSchema = {
   type: "object",
   properties: {
-    storageId: { type: "string" },
-    limit: { type: "string" },
-    offset: { type: "string" },
-    orderBy: { type: "string" },
-    ascending: {
-      type: "string",
-      enum: ["true", "false"],
-    },
+    storageIds: { type: "array", items: { type: "number" } },
+    limit: { type: "number" },
+    offset: { type: "number" },
+    sortBy: { type: "string", enum: ["capturedOn", "itemId", "mimeType", "lastEditedOn", "addedOn", "size", "duration"] },
+    ascending: { type: "boolean" },
   },
-  required: ["storageId", "limit", "offset", "orderBy"],
+  required: ["storageIds", "limit", "offset", "sortBy"],
 };
 
 api.add(
   "/list",
-  buildMiddlewares("GET", listPhotosSchema),
+  [
+    method(['POST']),
+    validateJson(listPhotosSchema),
+  ],
   async (request: ApiRequest) => {
-    const photoService = request.local.photoService as PhotosService;
-    const limit = parseInt(request.getParams.limit);
-    const offset = parseInt(request.getParams.offset);
-    const orderBy = request.getParams.orderBy;
-    const ascending = request.getParams.ascending === "true";
+    const params = request.local.json as getPhotosParams;
     try {
       const res = (
-        await photoService.listPhotos({ limit, offset, orderBy, ascending })
+        await Photo.getPhotos(params)
       ).map((photo) => {
         return photo.getMinDetails();
       });
