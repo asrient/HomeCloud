@@ -1,14 +1,15 @@
-import Image from 'next/image'
 import { Inter } from 'next/font/google'
 import Head from 'next/head'
+import { SidebarType } from '@/lib/types'
+import { buildPageConfig } from '@/lib/utils'
 
 const inter = Inter({ subsets: ['latin'] })
 
-export default function Home() {
+export default function Page() {
   return (
     <>
       <Head>
-        <title>Homecloud</title>
+        <title>Photos - Homecloud</title>
       </Head>
     <main
       className={`flex min-h-screen flex-col items-center justify-between p-24 ${inter.className}`}
@@ -24,3 +25,5 @@ export default function Home() {
     </>
   )
 }
+
+Page.config = buildPageConfig(SidebarType.Photos)

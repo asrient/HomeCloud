@@ -98,7 +98,7 @@ export const AppNames = [
 
 export type NextUrl = {
     pathname: string;
-    query: any;
+    query?: { [key: string]: any };
 }
 
 export type SidebarItem = {
