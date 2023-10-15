@@ -1,5 +1,5 @@
-import App from './shell/app';
-import MessageHandlers from './shell/messageHandlers';
+import App from "./shell/app";
+import MessageHandlers from "./shell/messageHandlers";
 
 const homecloudApp = new App();
 const messageHandlers = new MessageHandlers(homecloudApp);
