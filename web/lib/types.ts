@@ -150,3 +150,16 @@ export interface RemoteItem {
 export type RemoteItemWithStorage = RemoteItem & {
     storageId: number;
 }
+
+export type Photo = {
+    itemId: number;
+    folderNo: number;
+    fileId: string;
+    mimeType: string;
+    capturedOn: Date;
+    addedOn: Date;
+    duration: number | null;
+    height: number;
+    width: number;
+    storageId: number;
+}

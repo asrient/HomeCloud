@@ -159,15 +159,15 @@ export default class PhotosService {
     await this.pushDeltaEvent(simpleActions);
   }
 
-  async hardSyncAndPublish() {
-    await this.photoSync.hardSync();
+  async hardSyncAndPublish(force = false) {
+    await this.photoSync.hardSync(force);
     await this.pushPurgeEvent();
   }
 
-  public async sync(hard = false) {
+  public async sync(hard = false, force = false) {
     return this.photoSync.withLock(async () => {
       if (hard) {
-        await this.hardSyncAndPublish();
+        await this.hardSyncAndPublish(force);
       } else {
         await this.softSyncAndPublish();
       }

@@ -40,6 +40,7 @@ const syncSchema = {
   properties: {
     hard: { type: "string" },
     storageId: { type: "string" },
+    force: { type: "string" },
   },
   required: ["storageId"],
 };
@@ -50,8 +51,9 @@ api.add(
   async (request: ApiRequest) => {
     const photoService = request.local.photoService as PhotosService;
     const hard = request.getParams.hard === "true" || false;
+    const force = request.getParams.force === "true" || false;
     try {
-      await photoService.sync(hard);
+      await photoService.sync(hard, force);
       return ApiResponse.json(200, {
         ok: true,
       });
@@ -192,7 +194,15 @@ api.add(
   },
 );
 
-api.add("/archive", buildMiddlewares("POST"), async (request: ApiRequest) => {
+const archiveSchema = {
+  type: "object",
+  properties: {
+    ...commonOptions,
+  },
+  required: ["storageId"],
+};
+
+api.add("/archive", buildMiddlewares("POST", archiveSchema), async (request: ApiRequest) => {
   const photoService = request.local.photoService as PhotosService;
   try {
     await photoService.archive();
