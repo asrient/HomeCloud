@@ -41,7 +41,7 @@ function getDate(dateStr: string, offset: string) {
   return new Date(dateObj.getTime() - offsetInSec * 1000);
 }
 
-export async function metaFromPhotoStream(stream: Readable) {
+export async function metaFromPhotoStream(filePath: string | Readable) {
   const detail: AssetDetailType = {
     metadata: {
       cameraMake: "",
@@ -50,8 +50,11 @@ export async function metaFromPhotoStream(stream: Readable) {
     },
     capturedOn: new Date(),
   };
-  const buffer = await streamToBuffer(stream);
-  const tags = ExifReader.load(buffer);
+  let buffer: Buffer | null = null;
+  if (typeof filePath !== "string") {
+    buffer = await streamToBuffer(filePath);
+  }
+  const tags = buffer ? ExifReader.load(buffer) : await ExifReader.load(filePath as string);
   delete tags["MakerNote"];
   console.log("photo tags:", tags);
 
@@ -93,20 +96,13 @@ export async function metaFromPhotoStream(stream: Readable) {
   return detail;
 }
 
-export async function metaFromVideoStream(stream: Readable): Promise<any> {
+export async function metaFromVideoStream(filePath: string | Readable): Promise<any> {
   return new Promise((resolve, reject) => {
-    ffmpeg(stream).ffprobe(function (err, metadata: ffmpeg.FfprobeData) {
+    ffmpeg(filePath).ffprobe(function (err, metadata: ffmpeg.FfprobeData) {
       if (err) {
         console.error("Error getting video metadata", err);
         reject(err);
         return;
-      }
-      if (stream.isPaused() && !stream.destroyed) {
-        console.log("Resuming stream");
-        stream.resume();
-        stream.on("end", () => {
-          console.log("Stream ended");
-        });
       }
       // console.dir(metadata);
       const detail: AssetDetailType = {

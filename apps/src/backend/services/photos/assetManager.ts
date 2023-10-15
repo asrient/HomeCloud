@@ -8,6 +8,7 @@ import {
 import { ReadStream } from "original-fs";
 import { Readable } from "stream";
 import mime from "mime";
+import fs from "fs";
 
 const PHOTOS_PER_FOLDER = 120;
 
@@ -54,9 +55,10 @@ export default class AssetManager {
     return await this.fsDriver.readFile(fileId);
   }
 
-  public async createAsset(itemId: number, stream: Readable, mimeType: string) {
+  public async createAsset(itemId: number, filePath: string, mimeType: string) {
     const folderNo = this.getFolderNoFromItemId(itemId);
     const parentFolderId = await this.paths.getAssetParentFolderId(folderNo);
+    const stream = fs.createReadStream(filePath);
     const stat = await this.fsDriver.writeFile(parentFolderId, {
       name: this.itemIdToFilename(itemId, mimeType),
       mime: mimeType,
@@ -84,9 +86,10 @@ export default class AssetManager {
   public async updateAsset(
     fileId: string,
     itemId: number,
-    stream: Readable,
+    filePath: string,
     mimeType: string,
   ) {
+    const stream = fs.createReadStream(filePath);
     const stat = await this.fsDriver.updateFile(fileId, {
       name: this.itemIdToFilename(itemId, mimeType),
       mime: mimeType,
@@ -100,13 +103,13 @@ export default class AssetManager {
   }
 
   public async generateDetail(
-    stream: Readable,
+    filePath: string | Readable,
     mimeType: string,
   ): Promise<AssetDetailType> {
     if (mimeType.startsWith("image")) {
-      return await metaFromPhotoStream(stream);
+      return await metaFromPhotoStream(filePath);
     } else if (mimeType.startsWith("video")) {
-      return await metaFromVideoStream(stream);
+      return await metaFromVideoStream(filePath);
     } else {
       throw new Error(`Unknown mime type ${mimeType}`);
     }

@@ -3,11 +3,10 @@ import { Storage, StorageMeta, createPhotoType, Photo } from "../../models";
 import { ApiRequestFile } from "../../interface";
 import AssetManager from "./assetManager";
 import PhotoSync from "./photoSync";
-import { cloneStream } from "../../utils";
-import { ReadStream } from "fs";
 import { AssetDetailType } from "./metadata";
 import { pushServerEvent, ServerEvent } from "../../serverEvent";
 import { SimpleActionSetType } from "../syncEngine";
+import { apiFileToTempFile, removeTempFile } from "../../utils/fileUtils";
 
 /**
  * photoNum format: [folderNo]/[itemId]
@@ -50,13 +49,13 @@ export class UploadManager {
 
   public async addPhoto(file: ApiRequestFile) {
     const itemId = await this.getNextItemId();
-    const stream = cloneStream(file.stream as ReadStream);
+    const filePath = await apiFileToTempFile(file);
     let assetFile: RemoteItem | null = null;
     let detail: AssetDetailType | null = null;
     const getDetail = async () => {
       console.log("Generating metadata..", itemId, file.mime);
       detail = await this.photoService.assetManager.generateDetail(
-        stream.clone(),
+        filePath,
         file.mime,
       );
       console.log("Generated metadata", itemId);
@@ -65,7 +64,7 @@ export class UploadManager {
       console.log("Creating asset..", itemId, file.mime);
       assetFile = await this.photoService.assetManager.createAsset(
         itemId,
-        stream,
+        filePath,
         file.mime,
       );
       console.log("Created asset", itemId, assetFile.id);
@@ -89,6 +88,7 @@ export class UploadManager {
         });
       }
       this.errors[itemId] = e.message;
+      removeTempFile(filePath);
     }
   }
 
@@ -227,6 +227,9 @@ export default class PhotosService {
         const [fileStream, mime] = await this.fsDriver.readFile(assetFileId);
         this.photoSync.checkLock();
         const detail = await this.assetManager.generateDetail(fileStream, mime);
+        if (!fileStream.destroyed) {
+          fileStream.destroy();
+        }
         req.push({
           itemId,
           assetFileId,
@@ -269,18 +272,18 @@ export default class PhotosService {
       this.photoSync.checkLock();
       let detail!: AssetDetailType;
       let assetFile!: RemoteItem;
-      const stream = cloneStream(file.stream as ReadStream);
+      const filePath = await apiFileToTempFile(file);
       const writeAsset = async () => {
         assetFile = await this.assetManager.updateAsset(
           photo.fileId,
           itemId,
-          stream,
+          filePath,
           file.mime,
         );
       };
       const getDetail = async () => {
         detail = await this.assetManager.generateDetail(
-          stream.clone(),
+          filePath,
           file.mime,
         );
       };
@@ -310,6 +313,7 @@ export default class PhotosService {
       });
       const simpleActions = await this.photoSync.applyNewActions();
       await this.pushDeltaEvent(simpleActions);
+      removeTempFile(filePath);
       return simpleActions.update[itemId];
     });
   }
