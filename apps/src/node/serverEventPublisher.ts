@@ -39,7 +39,7 @@ export function initSEPublisher(httpServer: http.Server) {
   handleServerEvent(async (event) => {
     const profileId = event.profileId;
     const room = profileIdToRoom(profileId);
-    console.log("Publishing server event:", event.type, "to room:", room);
+    // console.log("Publishing server event:", event.type, "to room:", room);
     io.to(room).emit(event.type, event.data);
   });
 }

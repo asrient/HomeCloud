@@ -3,22 +3,34 @@ import { buildPageConfig } from '@/lib/utils'
 import PhotosPage, { FetchOptions } from '@/components/photosPage'
 import useFilterStorages from '@/components/hooks/useFilterStorages'
 import { useMemo } from 'react';
+import { useRouter } from 'next/router';
 
 export default function Page() {
+  const router = useRouter();
   const storages = useFilterStorages(AppName.Photos);
-  const storageIds = useMemo(() => storages.map((s) => s.id), [storages]);
+  const { id } = router.query as { id: string };
+
+  const storage = useMemo(() => {
+    return storages.find((s) => s.id === parseInt(id));
+  }, [storages, id]);
 
   const fetchOptions: FetchOptions = useMemo(() => ({
-    sortBy: 'capturedOn',
-    storageIds,
+    sortBy: 'addedOn',
+    storageIds: [parseInt(id)],
     ascending: false,
-  }), [storageIds]);
+  }), [id]);
+
+  if(!id) return (
+    <div className='p-5 py-10 min-h-[50vh] flex justify-center items-center text-red-500'>
+      <span>Invalid storage id</span>
+    </div>
+  )
 
   return (
     <PhotosPage
       fetchOptions={fetchOptions}
-      pageTitle='All Photos'
-      pageIcon='/icons/photos.png'
+      pageTitle={storage?.name || 'Invalid Storage'}
+      pageIcon='/icons/ssd.png'
     />
   )
 }

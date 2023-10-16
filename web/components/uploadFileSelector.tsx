@@ -13,7 +13,15 @@ import {
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 
-export default function UploadFileSelector({ title, children, onUpload }: { title: string, children?: React.ReactNode, onUpload: (files: FileList) => Promise<void> }) {
+export type UploadFileSelectorProps = {
+    title: string,
+    children?: React.ReactNode,
+    onUpload: (files: FileList) => Promise<void>,
+    accept?: string,
+    embedComponent?: React.ReactNode,
+};
+
+export default function UploadFileSelector({ title, children, onUpload, accept, embedComponent }: UploadFileSelectorProps) {
     const [files, setFiles] = useState<FileList | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -65,9 +73,14 @@ export default function UploadFileSelector({ title, children, onUpload }: { titl
                 </DialogHeader>
                 <Separator />
                 <>
+                    {
+                        embedComponent && <div className='mb-4'>
+                            {embedComponent}
+                        </div>
+                    }
                     {!isUploading && <div className="grid w-full max-w-sm items-center gap-1.5">
                         <Label htmlFor="Files">Choose</Label>
-                        <Input onChange={handleFileChange} id="Files" type="file" multiple />
+                        <Input accept={accept} onChange={handleFileChange} id="Files" type="file" multiple />
                     </div>}
 
                     {isUploading && <div className="flex justify-center items-center">
@@ -76,7 +89,7 @@ export default function UploadFileSelector({ title, children, onUpload }: { titl
                     </div>}
 
                     <div className='ml-auto'>
-                    {<Button variant='default' disabled={isUploading || !files || !files.length} onClick={handleUpload}>Upload</Button>}
+                        {<Button variant='default' disabled={isUploading || !files || !files.length} onClick={handleUpload}>Upload</Button>}
                     </div>
                 </>
             </DialogContent>
