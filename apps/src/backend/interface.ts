@@ -102,6 +102,9 @@ export class ApiRequest {
     return this.headers["content-type"];
   }
   get cookieString() {
+    if(envConfig.isDesktop()) {
+      return this.headers["x-key"];
+    }
     return this.headers["cookie"];
   }
   get isJson() {
@@ -198,13 +201,15 @@ export class ApiResponse {
     this.setHeader("Location", url);
   }
   setCookie(key: string, value: string, ttl: number = 30 * 24 * 60 * 60) {
+    const cookieStr = cookie.serialize(key, value, {
+      maxAge: ttl,
+      path: "/",
+    });
+    if(envConfig.isDesktop()) {
+      this.setHeader("X-Key", cookieStr);
+    }
     this.setHeader(
-      "Set-Cookie",
-      cookie.serialize(key, value, {
-        maxAge: ttl,
-        path: "/",
-      }),
-    );
+      "Set-Cookie", cookieStr);
   }
 
   static error(statusCode: number, errorResponse: ErrorResponse) {

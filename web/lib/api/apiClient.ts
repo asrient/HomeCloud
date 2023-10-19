@@ -1,4 +1,4 @@
-import { staticConfig } from '@/lib/staticConfig';
+import { staticConfig, isDesktop } from '@/lib/staticConfig';
 import { ErrorType, ErrorResponse } from '../types';
 import CustomError from '../customError';
 
@@ -10,6 +10,14 @@ export type ErrorData = {
 export class ApiClient {
 
     private constructor() {
+    }
+
+    private static setKey(cookieStr: string) {
+        localStorage.setItem('key', cookieStr);
+    }
+
+    private static getKey(): string | null {
+        return localStorage.getItem('key');
     }
 
     private static async _call(method: string, path: string, params?: any, body?: any): Promise<any> {
@@ -27,19 +35,23 @@ export class ApiClient {
             mode: isCors ? 'cors' : 'no-cors',
             credentials: 'include',
             referrerPolicy: 'no-referrer',
-            headers: {
-                'Content-Type': 'application/json',
-            },
         };
+        const headers: { [key: string]: string } = {
+            'Content-Type': 'application/json',
+        };
+        if (isDesktop()) {
+            headers['X-Key'] = this.getKey() || '';
+        }
         if (body) {
-            if(FormData.prototype.isPrototypeOf(body)) {
+            if (FormData.prototype.isPrototypeOf(body)) {
                 console.log('fetch: form data');
                 fetchOptions.body = body;
-                fetchOptions.headers = {};
+                delete headers['Content-Type'];
             } else {
                 fetchOptions.body = JSON.stringify(body);
             }
         }
+        fetchOptions.headers = headers;
         let response: Response;
         try {
             response = await fetch(`${apiBaseUrl}${path}`, fetchOptions);
@@ -55,6 +67,10 @@ export class ApiClient {
             throw new CustomError(ErrorType.Generic, `Request failed with status ${response.status}`);
         }
         if (isJson) {
+            const keyHeader = response.headers.get('X-Key');
+            if (isDesktop() && keyHeader) {
+                this.setKey(keyHeader);
+            }
             return await response.json();
         }
         return await response.text();
