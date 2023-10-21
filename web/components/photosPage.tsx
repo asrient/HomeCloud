@@ -81,7 +81,7 @@ function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick 
         onContextMenu={handleRightClick}
         width="0"
         height="0"
-        className={cn("photoThumbnail h-full w-full object-cover", className, item.isSelected && 'ring-2 ring-blue-500 opacity-70')}
+        className={cn("photoThumbnail h-full w-full object-cover", className, item.isSelected && 'ring-2 ring-blue-600 opacity-70')}
     />)
 }
 
