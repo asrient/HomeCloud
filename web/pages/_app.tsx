@@ -8,11 +8,12 @@ import { AppLayout } from '@/components/shell/appLayout';
 import type { ReactElement, ReactNode } from 'react'
 import type { NextPage } from 'next'
 import { PageUIConfig } from '@/lib/types';
+import { Toaster } from "@/components/ui/toaster";
 
 export type NextPageWithConfig<P = {}, IP = P> = NextPage<P, IP> & {
   config?: PageUIConfig;
 }
- 
+
 type AppPropsWithConfig = AppProps & {
   Component: NextPageWithConfig;
 }
@@ -31,14 +32,15 @@ export default function App({ Component, pageProps }: AppPropsWithConfig) {
                 !sidebarType
                   ? <Component {...pageProps} />
                   : (<AppLayout sidebarType={sidebarType}>
-                  <Component {...pageProps} />
-                </AppLayout>)
+                    <Component {...pageProps} />
+                  </AppLayout>)
               }
             </AppShell>
           )
       }
       <LoginModal />
       <AppErrorModal />
+      <Toaster />
     </AppStateProvider>
   );
 }

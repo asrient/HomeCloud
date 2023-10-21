@@ -174,3 +174,11 @@ export type PhotosFetchOptions = {
     ascending?: boolean;
     storageIds: number[];
 }
+
+export type SyncState = {
+    isBusy: boolean
+    error: string | null
+    hardSyncRequired: boolean
+    lastSyncedAt: Date | null
+    currentAction: 'softSync' | 'hardSync' | 'archive' | null
+}

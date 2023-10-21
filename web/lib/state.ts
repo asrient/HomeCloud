@@ -1,5 +1,5 @@
 import { Dispatch, createContext } from 'react';
-import { Profile, ServerConfig, Storage, StorageMeta, PinnedFolder } from './types';
+import { Profile, ServerConfig, Storage, StorageMeta, PinnedFolder, SyncState } from './types';
 
 export type AppStateType = {
     isInitalized: boolean;
@@ -11,6 +11,7 @@ export type AppStateType = {
     disabledStorages: number[];
     showSidebar: boolean;
     pinnedFolders: PinnedFolder[];
+    photosSyncState: { [storageId: number]: SyncState };
 };
 
 
@@ -26,6 +27,8 @@ export enum ActionTypes {
     SET_PINNED_FOLDERS = 'SET_PINNED_FOLDERS',
     ADD_PINNED_FOLDER = 'ADD_PINNED_FOLDER',
     REMOVE_PINNED_FOLDER = 'REMOVE_PINNED_FOLDER',
+    PHOTOS_SYNC_START = 'PHOTOS_SYNC_START',
+    PHOTOS_SYNC_STOP = 'PHOTOS_SYNC_STOP',
 }
 
 export type AppDispatchType = {
@@ -44,6 +47,7 @@ export const initialAppState: AppStateType = {
     disabledStorages: [],
     showSidebar: true,
     pinnedFolders: [],
+    photosSyncState: {},
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
@@ -64,6 +68,7 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             draft.storages = payload.storages;
             draft.disabledStorages = [];
             draft.pinnedFolders = [];
+            draft.photosSyncState = {};
             return draft;
         }
         case ActionTypes.ERROR: {
@@ -148,6 +153,44 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 folderId: string;
             } = payload;
             draft.pinnedFolders = draft.pinnedFolders.filter((pinnedFolder) => !(pinnedFolder.storageId === storageId && pinnedFolder.folderId === folderId));
+            return draft;
+        }
+        case ActionTypes.PHOTOS_SYNC_START: {
+            const { storageId, currentAction }: {
+                storageId: number;
+                currentAction: SyncState['currentAction'];
+            } = payload;
+            let oldState = draft.photosSyncState[storageId];
+            if (!oldState) {
+                oldState = {
+                    isBusy: false,
+                    error: null,
+                    hardSyncRequired: false,
+                    lastSyncedAt: null,
+                    currentAction: null,
+                }
+            }
+            draft.photosSyncState[storageId] = {
+                ...oldState,
+                isBusy: true,
+                error: null,
+                currentAction,
+            };
+            return draft;
+        }
+        case ActionTypes.PHOTOS_SYNC_STOP: {
+            const { storageId, error }: {
+                storageId: number;
+                error: string | null;
+                hardSyncRequired?: boolean;
+            } = payload;
+            draft.photosSyncState[storageId] = {
+                lastSyncedAt: new Date(),
+                isBusy: false,
+                error,
+                currentAction: null,
+                hardSyncRequired: payload.hardSyncRequired || false,
+            };
             return draft;
         }
         default:
