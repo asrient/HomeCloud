@@ -1,4 +1,4 @@
-import { AppName, Photo, Storage } from "@/lib/types";
+import { AppName, PhotoView } from "@/lib/types";
 import Head from "next/head";
 import PageBar from "./pageBar";
 import UploadFileSelector from "./uploadFileSelector";
@@ -19,6 +19,7 @@ import { getThumbnail } from "@/lib/api/files";
 import { cn } from "@/lib/utils";
 import { dateToTitle } from "@/lib/photoUtils";
 import Image from "next/image";
+import usePhotosEvents from "./hooks/usePhotosEvents";
 
 export type FetchOptions = {
     sortBy: 'capturedOn' | 'addedOn';
@@ -31,11 +32,6 @@ export type PhotosPageProps = {
     pageIcon: string;
     fetchOptions: FetchOptions;
 }
-
-type PhotoView = {
-    isSelected: boolean;
-    thumbnail?: string;
-} & Photo;
 
 const FETCH_LIMIT = 1000;
 
@@ -130,6 +126,13 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const [selectedStorageId, setSelectedStorageId] = useState<number | null>(null);
     const activeStorages = useFilterStorages(AppName.Photos);
     const [zoom, setZoom] = useState(3);
+
+    usePhotosEvents({
+        photos,
+        setPhotos,
+        sortKey: !fetchOptions.ascending && ['capturedOn', 'addedOn'].includes(fetchOptions.sortBy) ? fetchOptions.sortBy : null,
+        setHasMore,
+    });
 
     const enabledStorages = useMemo(() => {
         return activeStorages.filter((storage) => fetchOptions.storageIds.includes(storage.id));

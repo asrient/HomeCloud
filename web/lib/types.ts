@@ -163,3 +163,8 @@ export type Photo = {
     width: number;
     storageId: number;
 }
+
+export type PhotoView = {
+    isSelected: boolean;
+    thumbnail?: string;
+} & Photo;

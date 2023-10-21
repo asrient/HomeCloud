@@ -138,7 +138,38 @@ export default class PhotosService {
     await pushServerEvent(e);
   }
 
+  private async normalizeSimpleActions(simpleActions: SimpleActionSetType): Promise<SimpleActionSetType> {
+    const add = simpleActions.add;
+    const update = simpleActions.update;
+    const del = simpleActions.delete;
+    const normalized: SimpleActionSetType = {
+      add: {},
+      update: {},
+      delete: [],
+    };
+
+    const addIds = Object.keys(add).map(Number);
+    if (addIds.length) {
+      const addPhotos = await Photo.getPhotosByIds(addIds, this.storage);
+      addPhotos.forEach((photo) => {
+        normalized.add[photo.itemId] = photo.getMinDetails();
+      });
+    }
+
+    const updateIds = Object.keys(update).map(Number);
+    if (updateIds.length) {
+      const updatePhotos = await Photo.getPhotosByIds(updateIds, this.storage);
+      updatePhotos.forEach((photo) => {
+        normalized.update[photo.itemId] = photo.getMinDetails();
+      });
+    }
+
+    normalized.delete = del;
+    return normalized;
+  }
+
   async pushDeltaEvent(simpleActions: SimpleActionSetType) {
+    simpleActions = await this.normalizeSimpleActions(simpleActions);
     const lastSyncTime = await this.photoSync.getLastSyncTime();
     await this.pushServerEvent("delta", {
       updates: simpleActions,

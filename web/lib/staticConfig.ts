@@ -1,6 +1,9 @@
 declare global {
     interface Window {
         isDesktopApp?: boolean;
+        appEvent? : {
+            listen: (eventName: string, callback: (data: any) => void) => () => void;
+        }
     }
 }
 
