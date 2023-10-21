@@ -339,7 +339,7 @@ export default abstract class SyncEngine {
     await this.saveFile("head", head);
     this.checkLock();
 
-    this.setLastSyncTime(changeLog!.lastUpdateTime);
+    this.setLastSyncTime(head.lastChangeTime);
     this.newActions = [];
     return simpleActions;
   }
