@@ -1,10 +1,10 @@
-import { AppName, PhotoView } from "@/lib/types";
+import { AppName, PhotoView, PhotosFetchOptions } from "@/lib/types";
 import Head from "next/head";
 import PageBar from "./pageBar";
 import UploadFileSelector from "./uploadFileSelector";
 import { Button } from "./ui/button";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { listPhotos, uploadPhotos } from "@/lib/api/photos";
+import { listPhotos, uploadPhotos, deletePhotos } from "@/lib/api/photos";
 import {
     Select,
     SelectContent,
@@ -16,26 +16,39 @@ import useFilterStorages from "./hooks/useFilterStorages";
 import Loading from "./ui/loading";
 import LazyImage from "./lazyImage";
 import { getThumbnail } from "@/lib/api/files";
-import { cn } from "@/lib/utils";
+import { cn, isMobile } from "@/lib/utils";
 import { dateToTitle } from "@/lib/photoUtils";
 import Image from "next/image";
 import usePhotosEvents from "./hooks/usePhotosEvents";
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import ConfirmModal from "./confirmModal";
 
-export type FetchOptions = {
-    sortBy: 'capturedOn' | 'addedOn';
-    ascending?: boolean;
-    storageIds: number[];
-}
 
 export type PhotosPageProps = {
     pageTitle: string;
     pageIcon: string;
-    fetchOptions: FetchOptions;
+    fetchOptions: PhotosFetchOptions;
 }
 
 const FETCH_LIMIT = 1000;
 
-function ThumbnailPhoto({ item, className }: { item: PhotoView, className?: string }) {
+type ClickProps = {
+    onClick: (item: PhotoView, e: React.MouseEvent) => void;
+    onDoubleClick: (item: PhotoView, e: React.MouseEvent) => void;
+    onRightClick: (item: PhotoView, e: React.MouseEvent) => void;
+}
+
+type ThumbnailPhotoProps = {
+    item: PhotoView;
+    className?: string;
+} & ClickProps;
+
+function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick }: ThumbnailPhotoProps) {
     const dafaultSrc = '/img/blank-tile.png';
 
     const fetchThumbnailSrc = useCallback(async () => {
@@ -47,13 +60,28 @@ function ThumbnailPhoto({ item, className }: { item: PhotoView, className?: stri
         return item.thumbnail;
     }, [item]);
 
+    const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+        onDoubleClick(item, e);
+    }, [item, onDoubleClick]);
+
+    const handleRightClick = useCallback((e: React.MouseEvent) => {
+        onRightClick(item, e);
+    }, [item, onRightClick]);
+
+    const handleOnClick = useCallback((e: React.MouseEvent) => {
+        onClick(item, e);
+    }, [item, onClick]);
+
     return (<LazyImage
         fetchSrc={fetchThumbnailSrc}
         src={dafaultSrc}
         alt={item.itemId.toString()}
+        onClick={handleOnClick}
+        onDoubleClick={handleDoubleClick}
+        onContextMenu={handleRightClick}
         width="0"
         height="0"
-        className={cn("h-full w-full object-cover", className)}
+        className={cn("photoThumbnail h-full w-full object-cover", className, item.isSelected && 'ring-2 ring-blue-500 opacity-70')}
     />)
 }
 
@@ -62,7 +90,13 @@ type PhotoSection = {
     photos: PhotoView[];
 }
 
-function TimeBasedGrid({ photos, size, dateKey }: { photos: PhotoView[], size: number, dateKey: 'capturedOn' | 'addedOn' }) {
+type TimeBasedGridProps = {
+    photos: PhotoView[];
+    size: number;
+    dateKey: 'capturedOn' | 'addedOn';
+} & ClickProps;
+
+function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridProps) {
     const gridClasses = useMemo(() => {
         switch (size) {
             case 1:
@@ -101,12 +135,12 @@ function TimeBasedGrid({ photos, size, dateKey }: { photos: PhotoView[], size: n
         <>
             {
                 sections.map((section) => (
-                    <div key={section.title} className='p-3'>
+                    <div key={section.title} className='p-3 select-none'>
                         <div className='pb-2 text-md font-bold'>{section.title}</div>
                         <div className={'grid gap-1 ' + gridClasses}>
                             {section.photos.map((photo) => (
                                 <div className='w-full aspect-square' key={`${photo.itemId}-${photo.storageId}`}>
-                                    <ThumbnailPhoto item={photo} />
+                                    <ThumbnailPhoto item={photo} {...clickProps} />
                                 </div>
                             ))}
                         </div>
@@ -126,12 +160,16 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const [selectedStorageId, setSelectedStorageId] = useState<number | null>(null);
     const activeStorages = useFilterStorages(AppName.Photos);
     const [zoom, setZoom] = useState(3);
+    const [selectMode, setSelectMode] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+    const selectedPhotos = useMemo(() => photos.filter(item => item.isSelected), [photos]);
+    const selectedCount = useMemo(() => selectedPhotos.length, [selectedPhotos]);
 
     usePhotosEvents({
-        photos,
         setPhotos,
-        sortKey: !fetchOptions.ascending && ['capturedOn', 'addedOn'].includes(fetchOptions.sortBy) ? fetchOptions.sortBy : null,
         setHasMore,
+        fetchOptions,
     });
 
     const enabledStorages = useMemo(() => {
@@ -164,7 +202,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         }
     }, [fetchOptions.ascending, fetchOptions.sortBy, fetchOptions.storageIds, hasMore, isLoading, photos.length]);
 
-    const [currentFetchOptions, setCurrentFetchOptions] = useState<FetchOptions>(fetchOptions);
+    const [currentFetchOptions, setCurrentFetchOptions] = useState<PhotosFetchOptions>(fetchOptions);
     useEffect(() => {
         const hasChanged = (
             currentFetchOptions.sortBy !== fetchOptions.sortBy ||
@@ -203,6 +241,111 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         setZoom(zoom - 1);
     }, [zoom]);
 
+    const selectPhoto = useCallback((item: PhotoView, toggle = true, persistSelection?: boolean) => {
+        const persistSelection_ = selectMode || persistSelection;
+        setPhotos((prevPhotos) => prevPhotos.map((p) => {
+            if (p.itemId === item.itemId && p.storageId === item.storageId) {
+                return {
+                    ...p,
+                    isSelected: toggle ? !p.isSelected : true,
+                }
+            }
+            if (persistSelection_) {
+                return p;
+            }
+            return { ...p, isSelected: false };
+        }));
+    }, [selectMode]);
+
+    const previewPhoto = useCallback((item: PhotoView) => {
+        // todo
+        console.log('Preview Photo', item);
+    }, []);
+
+    const onClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
+        const isShift = e.shiftKey;
+        e.stopPropagation();
+        if (!isMobile()) {
+            selectPhoto(item, true, isShift);
+        } else {
+            previewPhoto(item);
+        }
+    }, [previewPhoto, selectPhoto]);
+
+    const onDoubleClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
+        previewPhoto(item);
+    }, [previewPhoto]);
+
+    const onRightClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
+        selectPhoto(item, false, true);
+    }, [selectPhoto]);
+
+    const onClickOutside = useCallback(() => {
+        setPhotos((prevPhotos) => prevPhotos.map((p) => {
+            if (!p.isSelected) return p;
+            return {
+                ...p,
+                isSelected: false,
+            }
+        }));
+    }, []);
+
+    const onRightClickOutside = useCallback((e: React.MouseEvent) => {
+        if (e.target instanceof HTMLElement && e.target.closest('.photoThumbnail')) return;
+        onClickOutside()
+    }, [onClickOutside])
+
+    const previewSelected = useCallback(() => {
+        if (selectedCount !== 1) return;
+        const selectedPhoto = selectedPhotos[0];
+        previewPhoto(selectedPhoto);
+    }, [previewPhoto, selectedCount, selectedPhotos]);
+
+    const deleteSelected = useCallback(async () => {
+        if (!selectedCount) return;
+        const delMap = new Map<number, number[]>();
+        selectedPhotos.forEach((p) => {
+            const photos = delMap.get(p.storageId) ?? [];
+            photos.push(p.itemId);
+            delMap.set(p.storageId, photos);
+        });
+        const promises: Promise<void>[] = [];
+        const errors: string[] = [];
+        delMap.forEach((itemIds, storageId) => {
+            promises.push((async () => {
+                try {
+                    const res = await deletePhotos({ storageId, itemIds });
+                    console.log(res);
+                    Object.keys(res.errors).forEach((itemId) => {
+                        errors.push(`#${itemId}: ${res.errors[parseInt(itemId)]}`);
+                    });
+                } catch (err: any) {
+                    errors.push(err.message);
+                }
+            })());
+        });
+        await Promise.all(promises);
+        if (errors.length) {
+            console.error('photos delete errors:', errors);
+            throw new Error(errors.join('\n'));
+        }
+    }, [selectedCount, selectedPhotos]);
+
+    const openDeleteDialog = useCallback(() => {
+        setDeleteDialogOpen(true);
+    }, []);
+
+    const toggleSelectMode = useCallback(() => {
+        setSelectMode((prev) => !prev);
+    }, []);
+
+    const selectAll = useCallback(() => {
+        setPhotos((prevPhotos) => prevPhotos.map((p) => ({
+            ...p,
+            isSelected: true,
+        })));
+    }, []);
+
     return (
         <>
             <Head>
@@ -210,6 +353,11 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             </Head>
             <main>
                 <PageBar title={pageTitle} icon={pageIcon}>
+                    <Button onClick={toggleSelectMode} variant={selectMode ? 'secondary' : 'ghost'} size='icon'>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </Button>
                     <Button variant='ghost' title='Zoom In' size='icon' disabled={zoom >= 4} onClick={zoomIn}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
@@ -244,34 +392,86 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                             </Select>
                         }
                     >
-                        <Button variant='ghost'>
+                        <Button variant='ghost' size='icon'>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
                             </svg>
                         </Button>
                     </UploadFileSelector>
                 </PageBar>
-                <TimeBasedGrid dateKey={fetchOptions.sortBy} photos={photos} size={zoom} />
-                {
-                    !error && !isLoading && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
-                        <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' width={0} height={0} />
-                        <div className='text-lg font-semibold'>No Photos.</div>
-                    </div>
-                }
-                {error && <div className='p-5 py-10 flex justify-center items-center text-red-500'>
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                    </svg>
-                    <span className='ml-2 text-sm'>{error}</span>
-                </div>}
-                {!error && !isLoading && hasMore && <div className='p-5 py-10 flex justify-center items-center'>
-                    <Loading onVisible={fetchNew} />
-                </div>}
-                {
-                    !error && !isLoading && !hasMore && photos.length > 0 && <div className='p-5 py-10 flex justify-center items-center text-gray-500'>
-                        <span className='text-sm font-medium'>{photos.length} photo(s).</span>
-                    </div>
-                }
+                <ContextMenu>
+                    <ContextMenuTrigger>
+                        <div
+                            onClick={onClickOutside}
+                            onContextMenu={onRightClickOutside}
+                            className='min-h-[90vh]'
+                        >
+                            <TimeBasedGrid
+                                dateKey={fetchOptions.sortBy}
+                                photos={photos}
+                                size={zoom}
+                                onClick={onClick}
+                                onDoubleClick={onDoubleClick}
+                                onRightClick={onRightClick}
+                            />
+                            {
+                                !error && !isLoading && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
+                                    <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' width={0} height={0} />
+                                    <div className='text-lg font-semibold'>No Photos.</div>
+                                </div>
+                            }
+                            {error && <div className='p-5 py-10 flex justify-center items-center text-red-500'>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                                </svg>
+                                <span className='ml-2 text-sm'>{error}</span>
+                            </div>}
+                            {!error && !isLoading && hasMore && <div className='p-5 py-10 flex justify-center items-center'>
+                                <Loading onVisible={fetchNew} />
+                            </div>}
+                            {
+                                !error && !isLoading && !hasMore && photos.length > 0 && <div className='p-5 py-10 flex justify-center items-center text-gray-500'>
+                                    <span className='text-sm font-medium'>{photos.length} photo(s).</span>
+                                </div>
+                            }
+                        </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                        {
+                            selectedCount === 0 && (
+                                <>
+                                    <ContextMenuItem disabled>Paste</ContextMenuItem>
+                                    <ContextMenuItem onClick={selectAll}>Select all</ContextMenuItem>
+                                </>
+                            )
+                        }
+                        {
+                            selectedCount === 1 && (
+                                <ContextMenuItem onClick={previewSelected}>
+                                    Preview
+                                </ContextMenuItem>
+                            )
+                        }
+                        {
+                            selectedCount > 0 && (
+                                <>
+                                    <ContextMenuItem disabled>Copy</ContextMenuItem>
+                                    <ContextMenuItem disabled>Cut</ContextMenuItem>
+                                    <ContextMenuItem onClick={openDeleteDialog} className='text-red-500'>
+                                        {`Delete ${selectedCount === 1 ? 'photo' : `(${selectedCount}) photos`}`}
+                                    </ContextMenuItem>
+                                </>
+                            )
+                        }
+                    </ContextMenuContent>
+                </ContextMenu>
+                <ConfirmModal isOpen={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}
+                    title={selectedCount > 1 ? `Delete (${selectedCount}) Photos?` : `Delete Photo?`}
+                    description='These photos(s) will be deleted from the remote storage. You may not be able to recover them.'
+                    buttonText='Delete'
+                    buttonVariant='destructive'
+                    onConfirm={deleteSelected}>
+                </ConfirmModal>
             </main>
         </>
     )

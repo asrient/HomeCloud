@@ -168,3 +168,9 @@ export type PhotoView = {
     isSelected: boolean;
     thumbnail?: string;
 } & Photo;
+
+export type PhotosFetchOptions = {
+    sortBy: 'capturedOn' | 'addedOn';
+    ascending?: boolean;
+    storageIds: number[];
+}
