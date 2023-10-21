@@ -44,7 +44,7 @@ export class ApiClient {
         }
         if (body) {
             if (FormData.prototype.isPrototypeOf(body)) {
-                console.log('fetch: form data');
+                // console.log('fetch: form data');
                 fetchOptions.body = body;
                 delete headers['Content-Type'];
             } else {
