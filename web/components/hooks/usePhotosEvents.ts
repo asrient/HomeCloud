@@ -81,11 +81,24 @@ export default function usePhotosEvents({ setPhotos, setHasMore, fetchOptions }:
 
     }, [fetchOptions, setHasMore, setPhotos]);
 
+    const resetView = useCallback(() => {
+        setPhotos([]);
+        setHasMore(true);
+    }, [setHasMore, setPhotos]);
+
     useEffect(() => {
         if (!isInitalized || !isAppLoaded) return;
-        return onEvent('photos.delta', (data: any) => {
-            console.log('photos.delta', data);
+        const off1 = onEvent('photos.delta', (data: any) => {
+            console.log('photos.delta:', data);
             applyUpdates(data);
         });
-    }, [isInitalized, isAppLoaded, applyUpdates]);
+        const off2 = onEvent('photos.purge', (data: any) => {
+            console.log('Photos purged:', data);
+            resetView();
+        });
+        return () => {
+            off1();
+            off2();
+        }
+    }, [isInitalized, isAppLoaded, applyUpdates, resetView]);
 }
