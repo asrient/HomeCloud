@@ -221,6 +221,7 @@ export default abstract class SyncEngine {
     if (head.lastPurgeTime > lastSyncTime) {
       throw new Error("Purge happened after last sync, please hard sync");
     }
+    console.log('performing soft sync..')
     const changeLog = (await this.getFile("changeLog")) as ChangeLogType;
     this.checkLock();
     const startInd = searchStartIndex(changeLog.actions, "time", lastSyncTime);
@@ -338,8 +339,9 @@ export default abstract class SyncEngine {
     head.lastChangeTime = changeLog.lastUpdateTime;
     await this.saveFile("head", head);
     this.checkLock();
+    // console.log("new head:", head)
 
-    this.setLastSyncTime(head.lastChangeTime);
+    await this.setLastSyncTime(head.lastChangeTime);
     this.newActions = [];
     return simpleActions;
   }
