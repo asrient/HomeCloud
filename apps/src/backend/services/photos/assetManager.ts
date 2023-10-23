@@ -70,6 +70,7 @@ export default class AssetManager {
   public async importAsset(
     itemId: number,
     fileId: string,
+    mimeType: string,
     deleteSource = false,
   ) {
     const folderNo = this.getFolderNoFromItemId(itemId);
@@ -77,7 +78,7 @@ export default class AssetManager {
     const stat = await this.fsDriver.moveFile(
       fileId,
       assetParentId,
-      itemId.toString(),
+      this.itemIdToFilename(itemId, mimeType),
       deleteSource,
     );
     return stat.id;

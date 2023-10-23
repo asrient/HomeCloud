@@ -53,6 +53,7 @@ export async function archivePhotos(storageId: number) {
 export type ImportPhotosParams = {
     fileIds: string[];
     deleteSource: boolean;
+    storageId: number;
 };
 
 export type AddSuccessType = {

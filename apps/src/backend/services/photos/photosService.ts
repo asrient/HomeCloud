@@ -250,9 +250,14 @@ export default class PhotosService {
       const errors: { [fileId: string]: string } = {};
       const promises = fileIds.map(async (fileId, index) => {
         const itemId = nextItemId + index;
+        const stat = await this.fsDriver.getStat(fileId);
+        if(!stat.mimeType) {
+          throw new Error("Mime type not found for file.");
+        }
         const assetFileId = await this.assetManager.importAsset(
           itemId,
           fileId,
+          stat.mimeType,
           deleteSource,
         );
         const [fileStream, mime] = await this.fsDriver.readFile(assetFileId);
