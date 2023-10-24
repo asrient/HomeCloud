@@ -26,6 +26,7 @@ export enum GroupBy {
 export type FileRemoteItem = RemoteItem & {
     storageId: number | null;
     isSelected: boolean;
+    assetUrl?: string;
 }
 
 function ThumbnailImage({ item, className }: { item: FileRemoteItem, className?: string }) {
