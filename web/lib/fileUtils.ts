@@ -1,6 +1,6 @@
 import { PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage } from "./types";
 import mime from 'mime';
-import { staticConfig } from "./staticConfig";
+import { isDesktop, staticConfig } from "./staticConfig";
 import { fileAccessToken } from "./api/files";
 
 export enum FileType {
@@ -138,14 +138,14 @@ export function mimeToKind(mimeType: string): FileType {
 }
 
 export function getKind(item: RemoteItem) {
-    if(item.type === 'directory') {
-        if(!item.parentIds || item.parentIds.length === 0) {
+    if (item.type === 'directory') {
+        if (!item.parentIds || item.parentIds.length === 0) {
             return FileType.Drive;
         }
         return FileType.Folder;
     }
     const mimeType = !!item.mimeType ? item.mimeType : mime.getType(item.name);
-    if(!mimeType) return FileType.File;
+    if (!mimeType) return FileType.File;
     return mimeToKind(mimeType);
 }
 
@@ -265,10 +265,16 @@ export function storageToRemoteItem(storage: Storage): RemoteItemWithStorage {
 }
 
 export async function getFileUrl(storageId: number, fileId: string) {
+    if (!isDesktop()) {
+        return `${staticConfig.apiBaseUrl}/fs/readFile?storageId=${storageId}&id=${fileId}`;
+    }
     const { token } = await fileAccessToken(storageId, fileId);
     return `${staticConfig.apiBaseUrl}/file/${token}`;
 }
 
 export function downloadLinkFromFileUrl(fileUrl: string) {
+    if (!isDesktop()) {
+        return `${fileUrl}&download=1`;
+    }
     return `${fileUrl}?download=1`;
 }

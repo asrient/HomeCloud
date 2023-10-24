@@ -11,7 +11,7 @@ import { useAppDispatch, useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
 import Image from 'next/image'
 import PageBar from '@/components/pageBar'
-import { getDefaultIcon, getFileUrl } from '@/lib/fileUtils'
+import { downloadLinkFromFileUrl, getDefaultIcon, getFileUrl } from '@/lib/fileUtils'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -187,20 +187,23 @@ const Page: NextPageWithConfig = () => {
     }))
   }, [selectMode])
 
+  const fetchAssetUrl = useCallback(async (item: FileRemoteItem) => {
+    if (item.type === 'directory') throw new Error('Cannot fetch asset url for a directory');
+    if (item.assetUrl) return;
+    if (!storageId) throw new Error('Storage not set');
+    const url = await getFileUrl(storageId, item.id);
+    item.assetUrl = url;
+  }, [storageId])
+
   const openItem = useCallback(async (item: FileRemoteItem) => {
     if (item.type === 'directory') {
       router.push(folderViewUrl(storageId as number, item.id))
     } else {
-      if (item.assetUrl) {
-        window.open(item.assetUrl, '_blank');
-        return;
-      }
       if (previewLoading) return;
       setPreviewLoading(true);
       try {
-        const url = await getFileUrl(storageId as number, item.id);
-        item.assetUrl = url;
-        window.open(url, '_blank');
+        await fetchAssetUrl(item);
+        window.open(item.assetUrl, '_blank');
       } catch (e) {
         console.error(e);
         toast({
@@ -212,7 +215,24 @@ const Page: NextPageWithConfig = () => {
         setPreviewLoading(false);
       }
     }
-  }, [previewLoading, router, storageId, toast])
+  }, [fetchAssetUrl, previewLoading, router, storageId, toast])
+
+  const downloadSelected = useCallback(async () => {
+    const item = selectedItems[0];
+    if (!item) return;
+    try {
+      await fetchAssetUrl(item);
+      const downloadLink = downloadLinkFromFileUrl(item.assetUrl!);
+      window.open(downloadLink, '_blank');
+    } catch (e) {
+      console.error(e);
+      toast({
+        variant: "destructive",
+        title: 'Uh oh! Something went wrong.',
+        description: `Could not download "${item.name}".`,
+      });
+    }
+  }, [selectedItems, fetchAssetUrl, toast])
 
   const onItemClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
     const isShift = e.shiftKey;
@@ -425,6 +445,9 @@ const Page: NextPageWithConfig = () => {
                       disabled={previewLoading}
                       onClick={openSelectedItem}>
                       Open
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={downloadSelected}>
+                      Download
                     </ContextMenuItem>
                     <ContextMenuItem>Get info</ContextMenuItem>
                     {

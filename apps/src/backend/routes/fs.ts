@@ -200,6 +200,7 @@ const readFileSchema = {
   properties: {
     id: { type: "string" },
     storageId: { type: "string" },
+    download: { type: "string", enum: ["1", "0"] },
   },
   required: ["id", "storageId"],
 };
@@ -216,13 +217,19 @@ api.add(
   async (request: ApiRequest) => {
     const fsDriver = request.local.fsDriver as FsDriver;
     const id = request.getParams.id;
+    const isDownload = request.getParams.download === "1";
     try {
       const [stream, mime] = await fsDriver.readFile(id);
-      return ApiResponse.stream(
+      const resp = ApiResponse.stream(
         200,
         stream,
         mime || "application/octet-stream",
       );
+      if (isDownload) {
+        const stat = await fsDriver.getStat(id);
+        resp.markAsDownload(stat.name);
+      }
+      return resp;
     } catch (e: any) {
       console.error(e);
       e.message = `Could not read file: ${e.message}`;

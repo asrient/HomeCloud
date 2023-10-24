@@ -13,7 +13,7 @@ export async function readDir(params: ReadDirParams) {
 export async function readFile(storageId: number, fileId: string) {
     return await ApiClient.get<Blob>('/fs/readFile', {
         storageId: storageId.toString(),
-        fileId,
+        id: fileId,
     });
 }
 
