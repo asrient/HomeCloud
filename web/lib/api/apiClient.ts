@@ -73,7 +73,11 @@ export class ApiClient {
             }
             return await response.json();
         }
-        return await response.text();
+        const isText = response.headers.get('Content-Type')?.includes('text/plain');
+        if (isText) {
+            return await response.text();
+        }
+        return await response.blob();
     }
 
     static async get<T>(path: string, params?: string | string[][] | Record<string, string> | URLSearchParams): Promise<T> {

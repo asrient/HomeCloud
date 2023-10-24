@@ -46,3 +46,7 @@ export type ThumbnailResponse = {
 export async function getThumbnail(storageId: number, fileId: string) {
     return await ApiClient.post<ThumbnailResponse>('/services/thumb/getThumbnail', { storageId, fileId });
 }
+
+export async function fileAccessToken(storageId: number, fileId: string) {
+    return await ApiClient.post<{ token: string }>('/services/files/fileToken', { storageId, fileId });
+}

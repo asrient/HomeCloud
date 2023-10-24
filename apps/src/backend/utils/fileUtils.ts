@@ -1,7 +1,9 @@
 import { ApiRequestFile } from "../interface";
 import fs from "fs";
 import os from "os";
-import {v4} from 'uuid';
+import { v4 } from 'uuid';
+import jwt from "jsonwebtoken";
+import { envConfig } from "../envConfig";
 
 const tempDir = os.tmpdir();
 
@@ -23,4 +25,22 @@ export async function apiFileToTempFile(file: ApiRequestFile): Promise<string> {
 
 export async function removeTempFile(filePath: string) {
     return fs.promises.unlink(filePath);
+}
+
+export function generateFileAccessToken(storageId: number, fileId: string) {
+    return jwt.sign({ storageId, fileId }, envConfig.SECRET_KEY, { expiresIn: "2h" });
+}
+
+export function verifyFileAccessToken(token: string) {
+    if (!token) return null;
+    try {
+        const payload = jwt.verify(token, envConfig.SECRET_KEY) as jwt.JwtPayload;
+        if (!payload.storageId || !payload.fileId) return null;
+        return {
+            storageId: payload.storageId,
+            fileId: payload.fileId,
+        };
+    } catch (err) {
+        return null;
+    }
 }

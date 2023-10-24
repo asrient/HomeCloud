@@ -1,7 +1,5 @@
 import { google, drive_v3 } from "googleapis";
-
-import { StorageType, StorageAuthType } from "../envConfig";
-import { Profile, Storage } from "../models";
+import { StorageType } from "../envConfig";
 import { FsDriver, RemoteItem } from "./interface";
 import { getAccessToken } from "./oneAuth";
 import { ApiRequestFile } from "../interface";

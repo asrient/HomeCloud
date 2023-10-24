@@ -17,8 +17,9 @@ import {
   listPinnedFolders,
   removePinnedFolder,
 } from "../../services/files/pinned";
-import { Profile } from "../../models";
+import { Profile, Storage } from "../../models";
 import { FsDriver } from "../../storageKit/interface";
+import { generateFileAccessToken } from "../../utils/fileUtils";
 
 const api = new RouteGroup();
 
@@ -158,5 +159,34 @@ api.add(
     }
   },
 );
+
+const fileTokenSchema = {
+  type: "object",
+  properties: {
+    storageId: { type: "number" },
+    fileId: { type: "string" },
+  },
+  required: ["storageId", "fileId"],
+  additionalProperties: false,
+};
+
+api.add(
+  '/fileToken',
+  buildMiddlewares('POST', fileTokenSchema),
+  async (request: ApiRequest) => {
+    const storage: Storage = request.local.storage;
+    const { fileId } = request.local.json;
+    try {
+      const token = generateFileAccessToken(storage.id, fileId);
+      return ApiResponse.json(200, {
+        token,
+      });
+    } catch (e: any) {
+      console.error(e);
+      e.message = `Could not generate file token: ${e.message}`;
+      return ApiResponse.fromError(e);
+    }
+  },
+)
 
 export default api;

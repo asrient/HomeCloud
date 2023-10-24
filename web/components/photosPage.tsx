@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/context-menu";
 import ConfirmModal from "./confirmModal";
 import PhotosSyncSheet from "./photosSyncSheet";
+import PhotosPreviewModal from "./photosPreviewModal";
 
 
 export type PhotosPageProps = {
@@ -82,7 +83,9 @@ function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick 
         onContextMenu={handleRightClick}
         width="0"
         height="0"
-        className={cn("photoThumbnail h-full w-full object-cover", className, item.isSelected && 'ring-2 ring-blue-600 opacity-70')}
+        className={cn("photoThumbnail h-full w-full object-cover transform dark:brightness-90 brightness-105 transition will-change-auto dark:hover:brightness-110 hover:brightness-75", 
+        className, 
+        item.isSelected && 'ring-4 ring-blue-600 opacity-80')}
     />)
 }
 
@@ -105,9 +108,9 @@ function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridPr
             case 2:
                 return 'grid-cols-7 md:grid-cols-9 lg:grid-cols-12';
             case 3:
-                return 'grid-cols-5 md:grid-cols-7 lg:grid-cols-9';
+                return 'grid-cols-5 md:grid-cols-7 lg:grid-cols-9 lg:gap-2';
             case 4:
-                return 'grid-cols-3 md:grid-cols-5 lg:grid-cols-6';
+                return 'grid-cols-3 md:grid-cols-5 lg:grid-cols-6 md:gap-2 lg:gap-3';
             default:
                 return 'grid-cols-1';
         }
@@ -166,6 +169,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const selectedPhotos = useMemo(() => photos.filter(item => item.isSelected), [photos]);
     const selectedCount = useMemo(() => selectedPhotos.length, [selectedPhotos]);
+    const [photoForPreview, setPhotoForPreview] = useState<PhotoView | null>(null);
 
     usePhotosEvents({
         setPhotos,
@@ -259,8 +263,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     }, [selectMode]);
 
     const previewPhoto = useCallback((item: PhotoView) => {
-        // todo
-        console.log('Preview Photo', item);
+        setPhotoForPreview(item);
     }, []);
 
     const onClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
@@ -353,6 +356,11 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 <title>{`${pageTitle} - Photos`}</title>
             </Head>
             <main>
+                <PhotosPreviewModal 
+                photos={photos}
+                photo={photoForPreview}
+                changePhoto={(photo) => setPhotoForPreview(photo)}
+                 />
                 <PageBar title={pageTitle} icon={pageIcon}>
                     <PhotosSyncSheet />
                     <Button title='Toggle select mode' onClick={toggleSelectMode} variant={selectMode ? 'secondary' : 'ghost'} size='icon'>

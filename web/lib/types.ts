@@ -167,6 +167,7 @@ export type Photo = {
 export type PhotoView = {
     isSelected: boolean;
     thumbnail?: string;
+    assetUrl?: string;
 } & Photo;
 
 export type PhotosFetchOptions = {

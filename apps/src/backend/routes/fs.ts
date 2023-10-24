@@ -10,6 +10,7 @@ import {
   authenticate,
   fetchStorage,
   fetchFsDriver,
+  validateQuery,
 } from "../decorators";
 import { envConfig } from "../envConfig";
 import { FsDriver, RemoteItem } from "../storageKit/interface";
@@ -198,23 +199,23 @@ const readFileSchema = {
   type: "object",
   properties: {
     id: { type: "string" },
-    ...commonOptions,
+    storageId: { type: "string" },
   },
-  required: ["id"],
+  required: ["id", "storageId"],
 };
 
 api.add(
   "/readFile",
   [
-    method(["POST"]),
+    method(["GET"]),
     authenticate(),
-    validateJson(readFileSchema),
+    validateQuery(readFileSchema),
     fetchStorage(),
     fetchFsDriver(),
   ],
   async (request: ApiRequest) => {
     const fsDriver = request.local.fsDriver as FsDriver;
-    const id = request.local.json.id;
+    const id = request.getParams.id;
     try {
       const [stream, mime] = await fsDriver.readFile(id);
       return ApiResponse.stream(

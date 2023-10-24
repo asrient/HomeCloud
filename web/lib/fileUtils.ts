@@ -1,5 +1,7 @@
 import { PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage } from "./types";
 import mime from 'mime';
+import { staticConfig } from "./staticConfig";
+import { fileAccessToken } from "./api/files";
 
 export enum FileType {
     File = 'File',
@@ -260,4 +262,9 @@ export function storageToRemoteItem(storage: Storage): RemoteItemWithStorage {
         thumbnail: '',
         storageId: storage.id,
     }
+}
+
+export async function getFileUrl(storageId: number, fileId: string) {
+    const { token } = await fileAccessToken(storageId, fileId);
+    return `${staticConfig.apiBaseUrl}/file/${token}`;
 }
