@@ -26,8 +26,9 @@ export async function initiate(profile: Profile, storageType: StorageType) {
     }),
   });
   if (!resp.ok) {
-    console.error("Error initiating auth", resp);
-    throw new Error("Could not initiate auth");
+    const body = await resp.json();
+    console.error("Error initiating auth", body);
+    throw new Error("Could not initiate auth: " + body.message);
   }
   const { authUrl, referenceId, partialCode1 } = await resp.json();
 

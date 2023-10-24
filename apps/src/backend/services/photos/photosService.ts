@@ -138,7 +138,38 @@ export default class PhotosService {
     await pushServerEvent(e);
   }
 
+  private async normalizeSimpleActions(simpleActions: SimpleActionSetType): Promise<SimpleActionSetType> {
+    const add = simpleActions.add;
+    const update = simpleActions.update;
+    const del = simpleActions.delete;
+    const normalized: SimpleActionSetType = {
+      add: {},
+      update: {},
+      delete: [],
+    };
+
+    const addIds = Object.keys(add).map(Number);
+    if (addIds.length) {
+      const addPhotos = await Photo.getPhotosByIds(addIds, this.storage);
+      addPhotos.forEach((photo) => {
+        normalized.add[photo.itemId] = photo.getMinDetails();
+      });
+    }
+
+    const updateIds = Object.keys(update).map(Number);
+    if (updateIds.length) {
+      const updatePhotos = await Photo.getPhotosByIds(updateIds, this.storage);
+      updatePhotos.forEach((photo) => {
+        normalized.update[photo.itemId] = photo.getMinDetails();
+      });
+    }
+
+    normalized.delete = del;
+    return normalized;
+  }
+
   async pushDeltaEvent(simpleActions: SimpleActionSetType) {
+    simpleActions = await this.normalizeSimpleActions(simpleActions);
     const lastSyncTime = await this.photoSync.getLastSyncTime();
     await this.pushServerEvent("delta", {
       updates: simpleActions,
@@ -159,15 +190,15 @@ export default class PhotosService {
     await this.pushDeltaEvent(simpleActions);
   }
 
-  async hardSyncAndPublish() {
-    await this.photoSync.hardSync();
+  async hardSyncAndPublish(force = false) {
+    await this.photoSync.hardSync(force);
     await this.pushPurgeEvent();
   }
 
-  public async sync(hard = false) {
+  public async sync(hard = false, force = false) {
     return this.photoSync.withLock(async () => {
       if (hard) {
-        await this.hardSyncAndPublish();
+        await this.hardSyncAndPublish(force);
       } else {
         await this.softSyncAndPublish();
       }
@@ -219,9 +250,14 @@ export default class PhotosService {
       const errors: { [fileId: string]: string } = {};
       const promises = fileIds.map(async (fileId, index) => {
         const itemId = nextItemId + index;
+        const stat = await this.fsDriver.getStat(fileId);
+        if(!stat.mimeType) {
+          throw new Error("Mime type not found for file.");
+        }
         const assetFileId = await this.assetManager.importAsset(
           itemId,
           fileId,
+          stat.mimeType,
           deleteSource,
         );
         const [fileStream, mime] = await this.fsDriver.readFile(assetFileId);

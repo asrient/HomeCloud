@@ -1,7 +1,7 @@
 import { AppName, SidebarList } from "@/lib/types";
 import useFilterStorages from "./useFilterStorages";
 import { useAppState } from "./useAppState";
-import { folderViewUrl, buildNextUrl } from "@/lib/urls";
+import { folderViewUrl, buildNextUrl, photosByStorageUrl } from "@/lib/urls";
 import { iconUrl, FileType } from "@/lib/fileUtils";
 
 export type FilesSidebarData = {
@@ -47,6 +47,38 @@ export function useFilesBar(): SidebarList {
                 data: {
                     storageId: storage.id,
                 } as FilesSidebarData,
+            })) || []
+        }
+    ]
+}
+
+export function usePhotosBar(): SidebarList {
+    const storages = useFilterStorages(AppName.Photos);
+    return [
+        {
+            title: 'Library',
+            items: [
+                {
+                    title: 'All Photos',
+                    href: buildNextUrl('/photos'),
+                    icon: '/icons/photos.png',
+                    key: 'home',
+                },
+                {
+                    title: 'Recently Added',
+                    href: buildNextUrl('/photos/recents'),
+                    icon: '/icons/recents.png',
+                    key: 'recents',
+                },
+            ]
+        },
+        {
+            title: 'Locations',
+            items: storages?.map((storage) => ({
+                title: storage.name,
+                icon: iconUrl(FileType.Drive),
+                href: photosByStorageUrl(storage.id),
+                key: storage.id.toString(),
             })) || []
         }
     ]

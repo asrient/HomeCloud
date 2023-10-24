@@ -9,7 +9,7 @@ export default function Page() {
   const storageIds = useMemo(() => storages.map((s) => s.id), [storages]);
 
   const fetchOptions: FetchOptions = useMemo(() => ({
-    sortBy: 'capturedOn',
+    sortBy: 'addedOn',
     storageIds,
     ascending: false,
   }), [storageIds]);
@@ -17,8 +17,8 @@ export default function Page() {
   return (
     <PhotosPage
       fetchOptions={fetchOptions}
-      pageTitle='All Photos'
-      pageIcon='/icons/photos.png'
+      pageTitle='Recently Added'
+      pageIcon='/icons/recents.png'
     />
   )
 }

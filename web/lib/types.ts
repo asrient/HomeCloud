@@ -98,7 +98,7 @@ export const AppNames = [
 
 export type NextUrl = {
     pathname: string;
-    query: any;
+    query?: { [key: string]: any };
 }
 
 export type SidebarItem = {
@@ -149,4 +149,37 @@ export interface RemoteItem {
 
 export type RemoteItemWithStorage = RemoteItem & {
     storageId: number;
+}
+
+export type Photo = {
+    itemId: number;
+    folderNo: number;
+    fileId: string;
+    mimeType: string;
+    capturedOn: Date;
+    addedOn: Date;
+    duration: number | null;
+    height: number;
+    width: number;
+    storageId: number;
+}
+
+export type PhotoView = {
+    isSelected: boolean;
+    thumbnail?: string;
+    assetUrl?: string;
+} & Photo;
+
+export type PhotosFetchOptions = {
+    sortBy: 'capturedOn' | 'addedOn';
+    ascending?: boolean;
+    storageIds: number[];
+}
+
+export type SyncState = {
+    isBusy: boolean
+    error: string | null
+    hardSyncRequired: boolean
+    lastSyncedAt: Date | null
+    currentAction: 'softSync' | 'hardSync' | 'archive' | null
 }

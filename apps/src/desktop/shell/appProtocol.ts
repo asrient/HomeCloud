@@ -21,6 +21,7 @@ export default class AppProtocol {
           supportFetchAPI: true,
           corsEnabled: true,
           stream: true,
+          secure: true,
         },
       },
     ]);

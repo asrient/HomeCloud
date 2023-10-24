@@ -11,6 +11,7 @@ import {
 import { ApiRequestFile } from "../interface";
 import { ReadStream } from "fs";
 import { streamToBuffer } from "../utils";
+import mime from "mime";
 
 function mapAuthType(authType: StorageAuthType) {
   switch (authType) {
@@ -46,6 +47,10 @@ export class WebdavFsDriver extends FsDriver {
     if(parentId === "") {
       parentId = "/";
     }
+    let mimeType = item.mime;
+    if(!mimeType) {
+      mimeType = mime.getType(item.filename) || "application/octet-stream";
+    }
     return {
       type: item.type,
       name: item.basename,
@@ -54,7 +59,7 @@ export class WebdavFsDriver extends FsDriver {
       size: item.size,
       lastModified: new Date(item.lastmod),
       createdAt: new Date(item.created),
-      mimeType: item.mime,
+      mimeType,
       etag: item.etag,
       thumbnail: null,
     };
@@ -112,9 +117,9 @@ export class WebdavFsDriver extends FsDriver {
   }
 
   public override async readFile(id: string): Promise<[ReadStream, string]> {
-    const stat = (await this.client.stat(id)) as FileStat;
+    const  mimeType = mime.getType(id) || "application/octet-stream";
     const stream = this.client.createReadStream(id);
-    return [stream as ReadStream, stat.mime as string];
+    return [stream as ReadStream, mimeType];
   }
 
   pathToFilename(path: string) {

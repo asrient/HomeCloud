@@ -71,6 +71,7 @@ export default abstract class SyncEngine {
   newActions: ActionType[] = [];
   lockTimer: NodeJS.Timer | null = null;
   lockTime: number | null = null;
+  lockStartTime: number | null = null;
 
   constructor(fsDriver: FsDriver, parentDirId: string) {
     this.fsDriver = fsDriver;
@@ -92,10 +93,16 @@ export default abstract class SyncEngine {
     }
     this.lockTime = getToday();
     await this.setSyncLockTime(this.lockTime);
+    this.lockStartTime = this.lockTime;
     this.lockTimer = setInterval(async () => {
+      if (this.lockStartTime && this.lockStartTime > new Date(this.lockStartTime).getTime() + 10 * 60 * 1000) {
+        console.log('Lock time expired, clearing timer', this.lockStartTime);
+        this.releaseLock();
+        return;
+      }
       const lockTime_ = await this.getsyncLockTime();
       if (lockTime_ !== null && lockTime_ > get5minsAgo() && lockTime_ === this.lockTime) {
-        // console.log('Sync lock refreshed', lockTime_, lockTime);
+        console.log('Sync lock refreshed', lockTime_);
         this.lockTime = getToday();
         await this.setSyncLockTime(this.lockTime);
       } else {
@@ -214,6 +221,7 @@ export default abstract class SyncEngine {
     if (head.lastPurgeTime > lastSyncTime) {
       throw new Error("Purge happened after last sync, please hard sync");
     }
+    console.log('performing soft sync..')
     const changeLog = (await this.getFile("changeLog")) as ChangeLogType;
     this.checkLock();
     const startInd = searchStartIndex(changeLog.actions, "time", lastSyncTime);
@@ -331,8 +339,9 @@ export default abstract class SyncEngine {
     head.lastChangeTime = changeLog.lastUpdateTime;
     await this.saveFile("head", head);
     this.checkLock();
+    // console.log("new head:", head)
 
-    this.setLastSyncTime(changeLog!.lastUpdateTime);
+    await this.setLastSyncTime(head.lastChangeTime);
     this.newActions = [];
     return simpleActions;
   }

@@ -33,6 +33,8 @@ import {
 import ConfirmModal from '@/components/confirmModal'
 import { ActionTypes } from '@/lib/state'
 import { useToast } from '@/components/ui/use-toast'
+import mime from 'mime'
+import ImportPhotosModal from '@/components/importPhotosModal'
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -54,8 +56,24 @@ const Page: NextPageWithConfig = () => {
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false)
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [importPhotosDialogOpen, setImportPhotosDialogOpen] = useState(false)
 
   const selectedItems = useMemo(() => items.filter(item => item.isSelected), [items]);
+
+  const photosImportable = useMemo(() => {
+    if (selectedItems.length > 100) return false;
+    if (selectedItems.length === 0) return false;
+    for (const item of selectedItems) {
+      if (item.type !== 'file') return false;
+      if (!item.mimeType) {
+        item.mimeType = mime.getType(item.name) || '';
+      }
+      if (!item.mimeType) return false;
+      const type = item.mimeType.split('/')[0];
+      if (type !== 'image' && type !== 'video') return false;
+    }
+    return true;
+  }, [selectedItems])
 
   useEffect(() => {
     if (storageId && storages) {
@@ -265,6 +283,10 @@ const Page: NextPageWithConfig = () => {
     }
   }, [selectedItems, storage, dispatch, toast]);
 
+  const openImportPhotosDialog = useCallback(() => {
+    setImportPhotosDialogOpen(true);
+  }, []);
+
   if (isLoading || error || !storageId) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
@@ -368,6 +390,14 @@ const Page: NextPageWithConfig = () => {
                     </ContextMenuItem>
                   </>)
                 }
+                {
+                  photosImportable && (
+                    <ContextMenuItem onClick={openImportPhotosDialog}>
+                      <Image src='/icons/photos.png' alt='Photos Icon' width={16} height={16} className='mr-[0.2rem]' />
+                      Import to photos..
+                    </ContextMenuItem>
+                  )
+                }
                 <ContextMenuItem disabled>Copy</ContextMenuItem>
                 <ContextMenuItem disabled>Cut</ContextMenuItem>
                 <ContextMenuItem className='text-red-500' onClick={openDeleteDialog}>
@@ -396,6 +426,7 @@ const Page: NextPageWithConfig = () => {
             onConfirm={onDelete}>
           </ConfirmModal>
         }
+        <ImportPhotosModal files={selectedItems} isOpen={importPhotosDialogOpen} onOpenChange={setImportPhotosDialogOpen} />
       </main>
     </>)
 }

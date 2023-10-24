@@ -12,9 +12,14 @@ contextBridge.exposeInMainWorld("config", {
 
 contextBridge.exposeInMainWorld("isDesktopApp", true);
 
-contextBridge.exposeInMainWorld("app", {
-  onServerEvent: (callback: Function) =>
-    ipcRenderer.on("server-event", (_event, type, data) => {
-      callback(type, data);
-    }),
+contextBridge.exposeInMainWorld("appEvent", {
+  listen: (eventName: string, callback: (data: any) => void) => {
+    const listener = (_event: any, data: any) => {
+      callback(data);
+    }
+    ipcRenderer.on(`server-event:${eventName}`, listener);
+    return () => {
+      ipcRenderer.removeListener(`server-event:${eventName}`, listener);
+    }
+  }
 });

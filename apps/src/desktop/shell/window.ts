@@ -264,7 +264,7 @@ export class TabbedAppWindow extends AppWindow {
       .map(Number)
       .forEach((tabId) => {
         const tab = this.tabs[tabId];
-        tab.view.webContents.send("server-event", type, data);
+        tab.view.webContents.send(`server-event:${type}`, data);
       });
   }
 }

@@ -10,13 +10,11 @@ export async function readDir(params: ReadDirParams) {
     return await ApiClient.post<RemoteItem[]>('/fs/readDir', params);
 }
 
-export type ReadFileParams = {
-    storageId: number;
-    id: string;
-};
-
-export async function readFile(params: ReadFileParams) {
-    return await ApiClient.post<string>('/fs/readFile', params);
+export async function readFile(storageId: number, fileId: string) {
+    return await ApiClient.get<Blob>('/fs/readFile', {
+        storageId: storageId.toString(),
+        fileId,
+    });
 }
 
 export type MkDirParams = {
@@ -57,7 +55,7 @@ export type UnlinkParams = {
 };
 
 export async function unlink(params: UnlinkParams) {
-    return await ApiClient.post<{deleted: boolean}>('/fs/unlink', params);
+    return await ApiClient.post<{ deleted: boolean }>('/fs/unlink', params);
 }
 
 export type unlinkMultipleParams = {
@@ -66,7 +64,7 @@ export type unlinkMultipleParams = {
 };
 
 export async function unlinkMultiple(params: unlinkMultipleParams) {
-    return await ApiClient.post<{deletedIds: string[]}>('/fs/unlinkMultiple', params);
+    return await ApiClient.post<{ deletedIds: string[] }>('/fs/unlinkMultiple', params);
 }
 
 export type GetStatParams = {

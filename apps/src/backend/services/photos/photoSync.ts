@@ -23,14 +23,14 @@ export default class PhotoSync extends SyncEngine {
   }
 
   async setLastSyncTime(time: number): Promise<void> {
-    this.storageMeta.photosLastSyncOn = new Date(time);
+    this.storageMeta.photosLastSyncOn = time;
     await this.storageMeta.save();
   }
 
   async getLastSyncTime(): Promise<number> {
     return (await this.storageMeta.reload({
       attributes: ["photosLastSyncOn"],
-    })).photosLastSyncOn.getTime();
+    })).photosLastSyncOn;
   }
 
   async addItemsToDb(items: { [itemId: number]: any }) {
