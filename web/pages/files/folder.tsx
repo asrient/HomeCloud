@@ -11,7 +11,7 @@ import { useAppDispatch, useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
 import Image from 'next/image'
 import PageBar from '@/components/pageBar'
-import { getDefaultIcon } from '@/lib/fileUtils'
+import { getDefaultIcon, getFileUrl } from '@/lib/fileUtils'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -57,6 +57,7 @@ const Page: NextPageWithConfig = () => {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [importPhotosDialogOpen, setImportPhotosDialogOpen] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   const selectedItems = useMemo(() => items.filter(item => item.isSelected), [items]);
 
@@ -186,17 +187,47 @@ const Page: NextPageWithConfig = () => {
     }))
   }, [selectMode])
 
+  const openItem = useCallback(async (item: FileRemoteItem) => {
+    if (item.type === 'directory') {
+      router.push(folderViewUrl(storageId as number, item.id))
+    } else {
+      if (item.assetUrl) {
+        window.open(item.assetUrl, '_blank');
+        return;
+      }
+      if (previewLoading) return;
+      setPreviewLoading(true);
+      try {
+        const url = await getFileUrl(storageId as number, item.id);
+        item.assetUrl = url;
+        window.open(url, '_blank');
+      } catch (e) {
+        console.error(e);
+        toast({
+          variant: "destructive",
+          title: 'Uh oh! Something went wrong.',
+          description: `Could not open "${item.name}".`,
+        });
+      } finally {
+        setPreviewLoading(false);
+      }
+    }
+  }, [previewLoading, router, storageId, toast])
+
   const onItemClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
     const isShift = e.shiftKey;
     e.stopPropagation();
     if (isMobile()) {
-      if (item.type === 'directory') {
-        router.push(folderViewUrl(storageId as number, item.id))
-      }
+      openItem(item);
     } else {
       selectItem(item, true, isShift);
     }
-  }, [router, selectItem, storageId])
+  }, [openItem, selectItem])
+
+  const onItemDbClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    openItem(item);
+  }, [openItem]);
 
   const onClickOutside = useCallback(() => {
     setItems((prevItems) => prevItems.map(prevItem => ({
@@ -287,6 +318,12 @@ const Page: NextPageWithConfig = () => {
     setImportPhotosDialogOpen(true);
   }, []);
 
+  const openSelectedItem = useCallback(() => {
+    const item = selectedItems[0];
+    if (!item) return;
+    openItem(item);
+  }, [selectedItems, openItem]);
+
   if (isLoading || error || !storageId) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
@@ -370,7 +407,13 @@ const Page: NextPageWithConfig = () => {
         <ContextMenu>
           <ContextMenuTrigger>
             <div onClick={onClickOutside} className='min-h-[90vh]' onContextMenu={onRightClickOutside}>
-              <FilesView view={view} sortBy={SortBy.None} groupBy={GroupBy.None} onClick={onItemClick} onRightClick={onItemRightClick} items={items} />
+              <FilesView view={view}
+                sortBy={SortBy.None}
+                groupBy={GroupBy.None}
+                onClick={onItemClick}
+                onRightClick={onItemRightClick}
+                onDbClick={onItemDbClick}
+                items={items} />
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
@@ -378,7 +421,11 @@ const Page: NextPageWithConfig = () => {
               selectedCount > 0 ? (<>
                 {
                   selectedCount === 1 && (<>
-                    <ContextMenuItem>Open</ContextMenuItem>
+                    <ContextMenuItem
+                      disabled={previewLoading}
+                      onClick={openSelectedItem}>
+                      Open
+                    </ContextMenuItem>
                     <ContextMenuItem>Get info</ContextMenuItem>
                     {
                       isFolderSelected && (
@@ -427,6 +474,12 @@ const Page: NextPageWithConfig = () => {
           </ConfirmModal>
         }
         <ImportPhotosModal files={selectedItems} isOpen={importPhotosDialogOpen} onOpenChange={setImportPhotosDialogOpen} />
+        {
+          previewLoading && <div className='fixed top-0 left-0 w-screen h-screen bg-background/80 z-50 flex flex-col justify-center items-center'>
+            <LoadingIcon />
+            <span className='text-xs pt-2'>Loading Preview</span>
+          </div>
+        }
       </main>
     </>)
 }
