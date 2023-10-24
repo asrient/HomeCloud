@@ -446,9 +446,11 @@ const Page: NextPageWithConfig = () => {
                       onClick={openSelectedItem}>
                       Open
                     </ContextMenuItem>
-                    <ContextMenuItem onClick={downloadSelected}>
-                      Download
-                    </ContextMenuItem>
+                    {
+                      !isFolderSelected && <ContextMenuItem onClick={downloadSelected}>
+                        Download
+                      </ContextMenuItem>
+                    }
                     <ContextMenuItem>Get info</ContextMenuItem>
                     {
                       isFolderSelected && (
