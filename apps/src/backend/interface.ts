@@ -188,9 +188,12 @@ export class ApiResponse {
       mime.getType(filePath) || "application/octet-stream",
     );
   }
+  markAsDownload(filename: string) {
+    this.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  }
   sendFileAsDownload(filePath: string, filename: string) {
     this.sendFile(filePath);
-    this.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    this.markAsDownload(filename);
   }
   stream(bodyStream: ReadStream, contentType: string) {
     this.bodyStream = bodyStream;

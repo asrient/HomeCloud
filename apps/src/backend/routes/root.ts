@@ -1,5 +1,5 @@
 import { ApiRequest, ApiResponse, RouteGroup } from "../interface";
-import { method, authenticate, AuthType } from "../decorators";
+import { method, authenticate, AuthType, validateQuery } from "../decorators";
 import { envConfig } from "../envConfig";
 import { Storage } from "../models";
 import { verifyFileAccessToken } from "../utils/fileUtils";
@@ -47,11 +47,24 @@ api.add(
   },
 );
 
+const fileTokenSchema = {
+  type: 'object',
+  properties: {
+    download: { type: 'string', enum: ['1', '0'] },
+  },
+  required: [],
+};
+
 api.add(
   '/file/:token',
-  [method(['GET'])],
+  [
+    method(['GET']),
+    validateQuery(fileTokenSchema),
+  ],
   async (request: ApiRequest) => {
     const token = request.urlParams.token;
+    const isDownload = request.getParams.download === '1';
+
     if (!token) {
       return ApiResponse.fromError(
         CustomError.validationSingle('token', 'Token is required'),
@@ -73,11 +86,16 @@ api.add(
     try {
       const fsDriver = await getFsDriver(storage);
       const [stream, mime] = await fsDriver.readFile(fileId);
-      return ApiResponse.stream(
+      const resp = ApiResponse.stream(
         200,
         stream,
         mime || "application/octet-stream",
       );
+      if (isDownload) {
+        const stat = await fsDriver.getStat(fileId);
+        resp.markAsDownload(stat.name);
+      }
+      return resp;
     } catch (e: any) {
       console.error(e);
       e.message = `Could not read file: ${e.message}`;

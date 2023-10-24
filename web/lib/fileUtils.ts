@@ -268,3 +268,7 @@ export async function getFileUrl(storageId: number, fileId: string) {
     const { token } = await fileAccessToken(storageId, fileId);
     return `${staticConfig.apiBaseUrl}/file/${token}`;
 }
+
+export function downloadLinkFromFileUrl(fileUrl: string) {
+    return `${fileUrl}?download=1`;
+}
