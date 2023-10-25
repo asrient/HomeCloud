@@ -13,7 +13,7 @@ import {
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 
-export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description, isOpen, onOpenChange, noTrigger }: {
+export type TextModalProps = {
     title: string,
     children?: React.ReactNode,
     onDone: (newName: string) => Promise<void>,
@@ -24,7 +24,11 @@ export default function TextModal({ title, buttonText, children, onDone, default
     onOpenChange?: (open: boolean) => void,
     isOpen?: boolean,
     noTrigger?: boolean,
-}) {
+    additionalContent?: React.ReactNode,
+    textType?: 'text' | 'password',
+}
+
+export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description, isOpen, onOpenChange, noTrigger, additionalContent, textType }: TextModalProps) {
     fieldName = fieldName || 'Name';
     const [text, setText] = useState<string>(defaultValue || '');
     const [isDirty, setIsDirty] = useState(false);
@@ -115,10 +119,13 @@ export default function TextModal({ title, buttonText, children, onDone, default
                 </DialogHeader>
                 <Separator />
                 <>
-                    {!isLoading && <div className="grid w-full max-w-sm items-center gap-1.5">
-                        <Label>{fieldName}</Label>
-                        <Input onChange={handleNameChange} value={text} type="text" />
-                    </div>}
+                    {!isLoading && (<>
+                        <div className="grid w-full max-w-sm items-center gap-1.5">
+                            <Label>{fieldName}</Label>
+                            <Input onChange={handleNameChange} value={text} type={textType || "text"} />
+                        </div>
+                        {additionalContent}
+                    </>)}
 
                     {isLoading && <div className="flex justify-center items-center">
                         <LoadingIcon />

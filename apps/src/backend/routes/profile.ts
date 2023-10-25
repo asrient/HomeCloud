@@ -112,7 +112,7 @@ const updateProfileSchema = {
 };
 
 api.add(
-  "/update",
+  "/update/",
   [method(["POST"]), authenticate(), validateJson(updateProfileSchema)],
   async (request: ApiRequest) => {
     const profile = request.profile! as Profile;
@@ -136,6 +136,7 @@ const updateProfileProtectedSchema = {
     username: { type: "string" },
     isDisabled: { type: "boolean" },
   },
+  required: ["password"],
   additionalProperties: false,
 };
 
