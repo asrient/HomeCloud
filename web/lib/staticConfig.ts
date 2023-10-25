@@ -1,7 +1,7 @@
 declare global {
     interface Window {
         isDesktopApp?: boolean;
-        appEvent? : {
+        appEvent?: {
             listen: (eventName: string, callback: (data: any) => void) => () => void;
         }
     }
@@ -12,6 +12,7 @@ export type StaticConfigType = {
     apiBaseUrl: string;
     envType: 'desktop' | 'node';
     isDev: boolean;
+    webVersion: string;
 }
 
 export const staticConfig: StaticConfigType = {
@@ -19,10 +20,12 @@ export const staticConfig: StaticConfigType = {
     apiBaseUrl: '',
     envType: 'node',
     isDev: false,
+    webVersion: 'unknown',
 };
 
 export function setupStaticConfig() {
     staticConfig.baseUrl = window.location.origin;
+    staticConfig.webVersion = process.env.NEXT_PUBLIC_WEB_VERSION || 'unknown';
     staticConfig.envType = window.isDesktopApp ? 'desktop' : 'node';
     staticConfig.apiBaseUrl = `${staticConfig.baseUrl}/api`;
     if (window.location.host === 'localhost:3000') {

@@ -183,18 +183,10 @@ export class Profile extends DbModel {
     isDisabled?: boolean;
   }) {
     if (username) {
-      const [valid, str] = validateUsernameString(username);
-      if (!valid) {
-        throw new Error(str);
-      }
-      username = str;
+      username = validateUsernameString(username);
     }
     if (password) {
-      const [valid, str] = validatePasswordString(password);
-      if (!valid) {
-        throw new Error(str);
-      }
-      password = str;
+      password = validatePasswordString(password);
       this.hash = await bcrypt.hash(password, saltRounds);
     }
     if (name) this.name = name;

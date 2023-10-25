@@ -1,6 +1,6 @@
-import { AppName, SidebarType } from '@/lib/types'
+import { AppName, SidebarType, PhotosFetchOptions } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
-import PhotosPage, { FetchOptions } from '@/components/photosPage'
+import PhotosPage from '@/components/photosPage'
 import useFilterStorages from '@/components/hooks/useFilterStorages'
 import { useMemo } from 'react';
 import { useRouter } from 'next/router';
@@ -14,7 +14,7 @@ export default function Page() {
     return storages.find((s) => s.id === parseInt(id));
   }, [storages, id]);
 
-  const fetchOptions: FetchOptions = useMemo(() => ({
+  const fetchOptions: PhotosFetchOptions = useMemo(() => ({
     sortBy: 'addedOn',
     storageIds: [parseInt(id)],
     ascending: false,
