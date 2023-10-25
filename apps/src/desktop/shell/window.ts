@@ -16,8 +16,8 @@ export class AppWindow {
       };
     }
     this.win = new BrowserWindow({
-      width: 870,
-      height: 520,
+      width: 1270,
+      height: 820,
       minHeight: 400,
       minWidth: 600,
       ...opts,
