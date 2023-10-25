@@ -85,7 +85,7 @@ export function usePhotosBar(): SidebarList {
 }
 
 export function useSettingsBar(): SidebarList {
-    const {storages, profile} = useAppState();
+    const { storages } = useAppState();
     return [
         {
             items: [
@@ -96,10 +96,10 @@ export function useSettingsBar(): SidebarList {
                     key: 'profile',
                 },
                 {
-                    title: 'Appearance',
-                    href: buildNextUrl('/settings/appearance'),
-                    icon: '/icons/paint.png',
-                    key: 'appearance',
+                    title: 'General',
+                    href: buildNextUrl('/settings/general'),
+                    icon: '/icons/settings.png',
+                    key: 'general',
                 },
             ]
         },
@@ -108,7 +108,7 @@ export function useSettingsBar(): SidebarList {
             items: [...(storages?.map((storage) => ({
                 title: storage.name,
                 icon: iconUrl(FileType.Drive),
-                href: buildNextUrl('/settings/storage', {id: storage.id.toString()}),
+                href: buildNextUrl('/settings/storage', { id: storage.id.toString() }),
                 key: storage.id.toString(),
             })) || []),
             {
@@ -116,7 +116,7 @@ export function useSettingsBar(): SidebarList {
                 icon: '/icons/add.png',
                 key: 'add-storage',
             },
-        ]
+            ]
         },
     ]
 }
