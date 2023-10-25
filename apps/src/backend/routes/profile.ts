@@ -106,11 +106,7 @@ api.add(
 const updateProfileSchema = {
   type: "object",
   properties: {
-    password: { type: "string" },
-    newPassword: { type: "string" },
     name: { type: "string" },
-    username: { type: "string" },
-    isDisabled: { type: "boolean" },
   },
   additionalProperties: false,
 };
@@ -118,6 +114,34 @@ const updateProfileSchema = {
 api.add(
   "/update",
   [method(["POST"]), authenticate(), validateJson(updateProfileSchema)],
+  async (request: ApiRequest) => {
+    const profile = request.profile! as Profile;
+    const data = request.local.json;
+    try {
+      await profile.edit(data);
+    } catch (e: any) {
+      return ApiResponse.fromError(e);
+    }
+    return ApiResponse.json(200, {
+      profile: profile.getDetails(),
+    });
+  },
+);
+
+const updateProfileProtectedSchema = {
+  type: "object",
+  properties: {
+    password: { type: "string" },
+    newPassword: { type: "string" },
+    username: { type: "string" },
+    isDisabled: { type: "boolean" },
+  },
+  additionalProperties: false,
+};
+
+api.add(
+  "/update/protected",
+  [method(["POST"]), authenticate(), validateJson(updateProfileProtectedSchema)],
   async (request: ApiRequest) => {
     const profile = request.profile! as Profile;
     const { password, ...data } = request.local.json;
@@ -195,7 +219,10 @@ api.add(
   [method(["POST"]), authenticate()],
   async (request: ApiRequest) => {
     const profile = request.profile;
-    const resp = ApiResponse.json(200, profile!.getDetails());
+    const resp = ApiResponse.json(200, {
+      profile: profile?.getDetails(),
+      ok: true,
+    });
     logout(resp);
     return resp;
   },

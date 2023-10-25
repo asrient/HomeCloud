@@ -1,6 +1,6 @@
 import { useAppDispatch, useAppState } from '@/components/hooks/useAppState'
 import PageBar from '@/components/pageBar'
-import { PageContainer, Section, Line } from '@/components/settingsView'
+import { PageContainer, Section, Line, LineLink } from '@/components/settingsView'
 import { Button } from '@/components/ui/button'
 import { ActionTypes } from '@/lib/state'
 import { getName } from '@/lib/storageConfig'
@@ -13,12 +13,13 @@ import { useRouter } from 'next/router'
 import { useCallback, useMemo, useState } from 'react'
 import AddStorageModal from '@/components/addStorageModal'
 import { DialogTrigger } from '@/components/ui/dialog'
-import { serviceScan, deleteStorage } from '@/lib/api/storage'
+import { serviceScan, deleteStorage, editStorage } from '@/lib/api/storage'
 import { useToast } from '@/components/ui/use-toast'
 import LoadingIcon from '@/components/ui/loadingIcon'
 import ConfirmModal from '@/components/confirmModal'
 import { settingsUrl } from '@/lib/urls'
-
+import TextModal from '@/components/textModal'
+import React from 'react'
 
 function Page() {
   const router = useRouter();
@@ -72,6 +73,15 @@ function Page() {
     router.push(settingsUrl());
   }, [dispatch, router, storage]);
 
+  const performUpdateName = useCallback(async (name: string) => {
+    if (!storageId) return;
+    const { storage: storage_ } = await editStorage({
+      storageId,
+      name
+    });
+    dispatch(ActionTypes.UPDATE_STORAGE, { storageId, storage: storage_ });
+  }, [dispatch, storageId]);
+
   return (
     <>
       <Head>
@@ -90,7 +100,7 @@ function Page() {
           storage && (
             <PageContainer>
               <div className='mt-6 mb-10 flex justify-center'>
-                <Image src='/icons/ssd.png' alt='storage icon' width={80} height={80} />
+                <Image src='/icons/ssd.png' priority alt='storage icon' width={80} height={80} />
               </div>
               <Section>
                 <Line title='Enabled'>
@@ -104,9 +114,19 @@ function Page() {
               <AddStorageModal existingStorage={storage} >
                 <Section>
                   <Line title='Name'>
-                    <DialogTrigger>
-                      {storage.name}
-                    </DialogTrigger>
+                    <TextModal
+                      title='Storage Name'
+                      description='Provide a name for the storage.'
+                      defaultValue={storage.name}
+                      fieldName='Name'
+                      onDone={performUpdateName}
+                      buttonText='Save'
+                      noTrigger
+                    >
+                      <DialogTrigger>
+                        <LineLink text={storage.name} />
+                      </DialogTrigger>
+                    </TextModal>
                   </Line>
                   <Line title='Type'>
                     {getName(storage.type)}

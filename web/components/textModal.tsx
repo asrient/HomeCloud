@@ -13,7 +13,7 @@ import {
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 
-export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description, isOpen, onOpenChange }: {
+export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description, isOpen, onOpenChange, noTrigger }: {
     title: string,
     children?: React.ReactNode,
     onDone: (newName: string) => Promise<void>,
@@ -23,6 +23,7 @@ export default function TextModal({ title, buttonText, children, onDone, default
     description?: string,
     onOpenChange?: (open: boolean) => void,
     isOpen?: boolean,
+    noTrigger?: boolean,
 }) {
     fieldName = fieldName || 'Name';
     const [text, setText] = useState<string>(defaultValue || '');
@@ -96,9 +97,13 @@ export default function TextModal({ title, buttonText, children, onDone, default
 
     return (
         <Dialog open={dialogOpen} onOpenChange={handleOpenChange} >
-            <DialogTrigger asChild>
-                {children}
-            </DialogTrigger>
+            {
+                !noTrigger
+                    ? (<DialogTrigger asChild>
+                        {children}
+                    </DialogTrigger>)
+                    : (<>{children}</>)
+            }
             <DialogContent className="sm:max-w-[28rem]">
                 <DialogHeader>
                     <DialogTitle>

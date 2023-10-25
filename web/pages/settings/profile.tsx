@@ -1,15 +1,35 @@
-import { useAppState } from '@/components/hooks/useAppState'
+import { useAppDispatch, useAppState } from '@/components/hooks/useAppState'
 import PageBar from '@/components/pageBar'
 import ProfilePicture from '@/components/profilePicture'
-import { PageContainer, Section, Line } from '@/components/settingsView'
+import { PageContainer, Section, Line, LineLink } from '@/components/settingsView'
+import TextModal from '@/components/textModal'
 import { Button } from '@/components/ui/button'
 import { SidebarType } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
+import { DialogTrigger } from '@/components/ui/dialog'
 import Head from 'next/head'
-
+import { updateProfile } from '@/lib/api/profile'
+import { logout } from '@/lib/api/auth'
+import { useCallback } from 'react'
+import { ActionTypes } from '@/lib/state'
+import ConfirmModal from '@/components/confirmModal'
 
 function Page() {
   const { profile, serverConfig } = useAppState();
+  const dispatch = useAppDispatch();
+
+  const performUpdateName = useCallback(async (name: string) => {
+    if (!profile) return;
+    const { profile: profile_ } = await updateProfile({
+      name,
+    });
+    dispatch(ActionTypes.UPDATE_PROFILE, { profile: profile_ })
+  }, [dispatch, profile]);
+
+  const performLogout = useCallback(async () => {
+    await logout();
+    window.location.href = '/';
+  }, []);
 
   return (
     <>
@@ -27,7 +47,19 @@ function Page() {
                   <ProfilePicture profile={profile} size='sm' />
                 </Line>
                 <Line title='Name'>
-                  {profile?.name}
+                  <TextModal
+                    title='Profile Name'
+                    description='Update your profile name.'
+                    defaultValue={profile.name}
+                    fieldName='Name'
+                    onDone={performUpdateName}
+                    buttonText='Save'
+                    noTrigger
+                  >
+                    <DialogTrigger>
+                      <LineLink text={profile.name} />
+                    </DialogTrigger>
+                  </TextModal>
                 </Line>
               </Section>
               <Section>
@@ -35,20 +67,28 @@ function Page() {
                   {profile?.username}
                 </Line>}
                 <Line title='Password'>
-                  <Button variant='ghost' className='text-blue-500' size='sm'>
-                    {
+                  <button>
+                    <LineLink text={
                       profile.isPasswordProtected ?
                         'Change'
                         : 'Set password'
-                    }
-                  </Button>
+                    } color='blue' />
+                  </button>
                 </Line>
               </Section>
               <Section>
                 <Line>
-                  <Button variant='ghost' className='text-red-500' size='sm'>
-                    Logout..
-                  </Button>
+                  <ConfirmModal
+                    title='Logout'
+                    description='Are you sure you want to logout from this device?'
+                    onConfirm={performLogout}
+                    buttonVariant='destructive'
+                    buttonText='Logout'
+                  >
+                    <Button variant='ghost' className='text-red-500' size='sm'>
+                      Logout..
+                    </Button>
+                  </ConfirmModal>
                 </Line>
               </Section>
             </PageContainer>

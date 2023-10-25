@@ -34,3 +34,10 @@ export async function initalialState() {
 export async function listProfiles() {
     return await ApiClient.get<{ profiles: Profile[] }>('/profile/list');
 }
+
+export async function logout() {
+    return await ApiClient.post<{
+        profile: Profile;
+        ok: boolean;
+    }>('/profile/logout');
+}

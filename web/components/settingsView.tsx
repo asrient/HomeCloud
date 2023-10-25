@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils"
+import { ChevronRightIcon } from "@heroicons/react/24/outline"
 
 export function Section({ title, children }: {
     title?: string,
@@ -32,7 +34,33 @@ export function Line({ children, title }: {
                     {title}
                 </div>
             }
-            <div className='ml-2 text-foreground text-right'>{children}</div>
+            <div className='ml-2 text-xs text-foreground text-right'>{children}</div>
+        </div>
+    )
+}
+
+export function LineLink({ text, color }: {
+    text: string,
+    color?: 'blue' | 'red' | 'default',
+}) {
+
+    let textColor = 'text-foreground/70';
+
+    switch (color) {
+        case 'blue':
+            textColor = 'text-blue-500';
+            break;
+        case 'red':
+            textColor = 'text-red-500';
+            break;
+        default:
+            break;
+    }
+
+    return (
+        <div className={cn('flex items-center justify-end hover:bg-muted p-1 rounded-md select-none text-xs', textColor)}>
+            <span>{text}</span>
+            <ChevronRightIcon className='h-4 w-4 ml-1' />
         </div>
     )
 }
