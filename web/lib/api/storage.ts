@@ -1,5 +1,5 @@
 import { ApiClient } from './apiClient';
-import { Profile, Storage, ServerConfig, StorageAuthType, StorageType, StorageMeta } from '../types';
+import { Storage, StorageAuthType, StorageType, StorageMeta } from '../types';
 
 export type AddStorageParams = {
     name: string;
@@ -61,4 +61,11 @@ export type EditStorageParams = {
 
 export async function editStorage(params: EditStorageParams) {
     return await ApiClient.post<{ storage: Storage }>('/storage/edit', params);
+}
+
+export async function deleteStorage(storageId: number) {
+    return await ApiClient.post<{
+        deleted: true,
+        storageId: number,
+    }>('/storage/delete', { storageId });
 }

@@ -7,10 +7,11 @@ import { useCallback } from "react";
 import Image from "next/image";
 
 
-function SidebarItemView({ item, isMatch, onRightClick }: {
+function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
     item: SidebarItem,
     isMatch: boolean,
-    onRightClick?: (item: SidebarItem) => void
+    onRightClick?: (item: SidebarItem) => void,
+    onClick?: (item: SidebarItem, e: React.MouseEvent) => void,
 }) {
 
     const onRightClick_ = useCallback((e: React.MouseEvent) => {
@@ -22,7 +23,13 @@ function SidebarItemView({ item, isMatch, onRightClick }: {
         }
     }, [item, onRightClick]);
 
-    return (<Link href={item.href} onContextMenu={onRightClick_}>
+    const onClick_ = useCallback((e: React.MouseEvent) => {
+        if (onClick ) {
+            onClick(item, e);
+        }
+    }, [item, onClick]);
+
+    return (<Link href={item.href || ''} onContextMenu={onRightClick_} onClick={onClick_}>
         <Button variant={isMatch ? 'secondary' : 'ghost'} className="sidebarItem w-full justify-start">
             {item.icon && <Image
                 alt={item.title}
@@ -37,10 +44,11 @@ function SidebarItemView({ item, isMatch, onRightClick }: {
     </Link>)
 }
 
-export function Sidebar({ className, list, onRightClick }: {
+export function Sidebar({ className, list, onRightClick, onClick }: {
     className?: string,
     list?: SidebarList,
-    onRightClick?: (item: SidebarItem) => void
+    onRightClick?: (item: SidebarItem) => void,
+    onClick?: (item: SidebarItem, e: React.MouseEvent) => void,
 }) {
     const router = useRouter();
     const { pathname, query } = router;
@@ -82,8 +90,9 @@ export function Sidebar({ className, list, onRightClick }: {
                                         <SidebarItemView
                                             key={item.key}
                                             item={item}
-                                            isMatch={isMatch(item.href)}
-                                            onRightClick={onRightClick} />
+                                            isMatch={!!item.href && isMatch(item.href)}
+                                            onRightClick={onRightClick}
+                                            onClick={onClick} />
                                     ))
                                 }
                             </div>

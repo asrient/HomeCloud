@@ -21,6 +21,7 @@ export enum ActionTypes {
     APP_LOADED = 'APP_LOADED',
     TOGGLE_STORAGE = 'DISABLE_STORAGE',
     ADD_STORAGE = 'ADD_STORAGE',
+    REMOVE_STORAGE = 'REMOVE_STORAGE',
     ADD_STORAGE_META = 'ADD_STORAGE_META',
     UPDATE_STORAGE = 'UPDATE_STORAGE',
     TOGGLE_SIDEBAR = 'TOGGLE_SIDEBAR',
@@ -119,6 +120,13 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             if (draft.storages && storageToUpdateIndex !== undefined && storageToUpdateIndex !== -1) {
                 draft.storages[storageToUpdateIndex] = storageToUpdate;
             }
+            return draft;
+        }
+        case ActionTypes.REMOVE_STORAGE: {
+            const { storageId }: {
+                storageId: number;
+            } = payload;
+            draft.storages = draft.storages?.filter((storage) => storage.id !== storageId) || null;
             return draft;
         }
         case ActionTypes.TOGGLE_SIDEBAR: {

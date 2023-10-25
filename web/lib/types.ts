@@ -104,7 +104,7 @@ export type NextUrl = {
 export type SidebarItem = {
     title: string;
     icon?: string;
-    href: NextUrl;
+    href?: NextUrl;
     isDisabled?: boolean;
     key: string;
     data?: any;
