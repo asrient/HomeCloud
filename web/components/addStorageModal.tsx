@@ -82,7 +82,7 @@ function StoragePreferences({
 
     return (<div className='flex flex-col justify-center'>
         <div className='text-lg font-medium'>
-        Enable HomeCloud services for &ldquo;{storage.name}&rdquo;?
+            Enable HomeCloud services for &ldquo;{storage.name}&rdquo;?
         </div>
         <div className='text-sm pt-3 text-slate-500'>
             To make some features work, we will create a HomeCloud folder in your storage.
@@ -125,15 +125,33 @@ function SuccessScreen({
 export default function AddStorageModal({
     children,
     existingStorage,
+    isOpen,
+    onOpenChange,
 }: {
     children: React.ReactNode;
     existingStorage?: Storage;
+    isOpen?: boolean;
+    onOpenChange?: (isOpen: boolean) => void;
 }) {
     const [selectedStorageType, setSelectedStorageType] = useState<StorageType | null>(null);
     const [addedStorage, setAddedStorage] = useState<Storage | null>(null);
-    const [dialogOpen, setDialogOpen] = useState(false);
+    const [dialogOpen, setDialogOpen] = useState(isOpen || false);
     const [screen, setScreen] = useState<'select' | 'form' | 'preference' | 'success'>('select');
     const dispatch = useAppDispatch();
+
+    const onOpenChange_ = useCallback((isOpen: boolean) => {
+        if (onOpenChange) {
+            onOpenChange(isOpen);
+        } else {
+            setDialogOpen(isOpen);
+        }
+    }, [onOpenChange]);
+
+    useEffect(() => {
+        if (isOpen !== undefined) {
+            setDialogOpen(isOpen);
+        }
+    }, [isOpen]);
 
     useEffect(() => {
         if (existingStorage && screen === 'select') {
@@ -177,12 +195,17 @@ export default function AddStorageModal({
     }, [addedStorage]);
 
     const closeDialog = useCallback(() => {
-        setDialogOpen(false);
-        backToBegining();
-    }, [backToBegining]);
+        onOpenChange_(false);
+    }, [onOpenChange_]);
+
+    useEffect(() => {
+        if (!dialogOpen) {
+            backToBegining();
+        }
+    }, [backToBegining, dialogOpen]);
 
     return (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen} >
+        <Dialog open={dialogOpen} onOpenChange={onOpenChange_} >
             {children}
             <DialogContent className="sm:max-w-[28rem]">
                 <DialogHeader className="md:flex-row">

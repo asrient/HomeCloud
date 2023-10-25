@@ -83,3 +83,40 @@ export function usePhotosBar(): SidebarList {
         }
     ]
 }
+
+export function useSettingsBar(): SidebarList {
+    const { storages } = useAppState();
+    return [
+        {
+            items: [
+                {
+                    title: 'Profile',
+                    href: buildNextUrl('/settings/profile'),
+                    icon: '/icons/user.png',
+                    key: 'profile',
+                },
+                {
+                    title: 'General',
+                    href: buildNextUrl('/settings/general'),
+                    icon: '/icons/settings.png',
+                    key: 'general',
+                },
+            ]
+        },
+        {
+            title: 'Storages',
+            items: [...(storages?.map((storage) => ({
+                title: storage.name,
+                icon: iconUrl(FileType.Drive),
+                href: buildNextUrl('/settings/storage', { id: storage.id.toString() }),
+                key: storage.id.toString(),
+            })) || []),
+            {
+                title: 'Add new',
+                icon: '/icons/add.png',
+                key: 'add-storage',
+            },
+            ]
+        },
+    ]
+}

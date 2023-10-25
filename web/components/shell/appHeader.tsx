@@ -12,7 +12,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link";
-import { Storage } from "@/lib/types";
+import { NextUrl, Storage } from "@/lib/types";
 import { Switch } from "@/components/ui/switch"
 import { ActionTypes } from "@/lib/state";
 import AddStorageModal from "../addStorageModal";
@@ -20,7 +20,9 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { getName } from "@/lib/storageConfig";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
+import { settingsUrl } from "@/lib/urls";
 
 function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: boolean }) {
     const dispatch = useAppDispatch();
@@ -38,7 +40,7 @@ function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: bo
 
     return (
         <div className="flex w-full">
-            <Link href={`settings/storage/${storage.id}`} className="flex grow cursor-default">
+            <Link href={`/settings/storage?id=${storage.id}`} className="flex grow cursor-default">
                 <div className="flex items-center pr-4">
                     <div className="h-[2rem] w-[2rem] rounded-md bg-slate-500 text-white flex items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
@@ -62,6 +64,11 @@ function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: bo
 
 function AccountPopover() {
     const { profile, storages, disabledStorages } = useAppState();
+    const [settingsUrl_, setSettingsUrl_] = useState<NextUrl | null>(null);
+
+    useEffect(() => {
+        setSettingsUrl_(settingsUrl());
+    }, []);
 
     if (!profile) return null;
 
@@ -72,7 +79,7 @@ function AccountPopover() {
                     <ProfilePicture profile={profile} size="sm" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-[16rem]" align="end" forceMount>
-                    <Link href="/settings">
+                    <Link href="/settings/profile">
                         <DropdownMenuItem>
                             <div className="flex">
                                 <div className="flex items-center pr-3">
@@ -97,11 +104,12 @@ function AccountPopover() {
                     <DropdownMenuSeparator />
                     <DialogTrigger asChild>
                         <DropdownMenuItem>
-                            Add storage
+                            Add storage..
                         </DropdownMenuItem>
                     </DialogTrigger>
-                    <DropdownMenuItem>Settings</DropdownMenuItem>
-                    <DropdownMenuItem>Tasks</DropdownMenuItem>
+                    <Link href={settingsUrl_ || '/'}>
+                        <DropdownMenuItem>Settings</DropdownMenuItem>
+                    </Link>
                 </DropdownMenuContent>
             </DropdownMenu>
         </AddStorageModal>);
@@ -120,44 +128,51 @@ export default function AppHeader() {
 
     const onTabChange = useCallback(async (value: string) => {
         if (value === 'home') value = '';
-        if(isRouterBusy) return;
+        if (isRouterBusy) return;
         setIsRouterBusy(true);
-        await router.push(`/${value}`);
+        if (value === 'settings') {
+            await router.push(settingsUrl());
+        } else {
+            await router.push(`/${value}`);
+        }
         setIsRouterBusy(false);
     }, [router, isRouterBusy]);
 
     return (<>
-    <div className="bg-background flex items-center px-2 py-1 h-[2.6rem] text-sm top-0 z-20 relative md:fixed w-full border-b-[1px] border-solid">
-        <div className="grow max-w-[8rem] md:flex items-center justify-center hidden">
-            <Button size='sm' variant='ghost' onClick={onBack}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                </svg>
-                Back
-            </Button>
+        <div className="bg-background flex items-center px-2 py-1 h-[2.6rem] text-sm top-0 z-20 relative md:fixed w-full border-b-[1px] border-solid">
+            <div className="grow max-w-[8rem] md:flex items-center justify-center hidden">
+                <Button size='sm' variant='ghost' onClick={onBack}>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                    Back
+                </Button>
+            </div>
+            <div className="flex items-center md:pl-3">
+                <Tabs value={activeTab} onValueChange={onTabChange} className="h-full space-y-6">
+                    <TabsList className="bg-background">
+                        <TabsTrigger className={tabClass} value="home">
+                            Home
+                        </TabsTrigger>
+                        <TabsTrigger className={tabClass} value="photos">
+                            Photos
+                        </TabsTrigger>
+                        <TabsTrigger className={tabClass} value="files">
+                            Files
+                        </TabsTrigger>
+                        <TabsTrigger className={tabClass} value="notes" disabled>
+                            Notes
+                        </TabsTrigger>
+                        <TabsTrigger className={cn(tabClass, 'hidden sm:block')} value="settings">
+                            Settings
+                        </TabsTrigger>
+                    </TabsList>
+                </Tabs>
+            </div>
+            <div className="ml-auto md:mr-1">
+                <AccountPopover />
+            </div>
         </div>
-        <div className="flex items-center md:pl-3">
-            <Tabs value={activeTab} onValueChange={onTabChange} className="h-full space-y-6">
-                <TabsList className="bg-background">
-                    <TabsTrigger className={tabClass} value="home">
-                        Home
-                    </TabsTrigger>
-                    <TabsTrigger className={tabClass} value="photos">
-                        Photos
-                    </TabsTrigger>
-                    <TabsTrigger className={tabClass} value="files">
-                        Files
-                    </TabsTrigger>
-                    <TabsTrigger className={tabClass} value="notes" disabled>
-                        Notes
-                    </TabsTrigger>
-                </TabsList>
-            </Tabs>
-        </div>
-        <div className="ml-auto md:mr-1">
-            <AccountPopover />
-        </div>
-    </div>
-    <div className="md:h-[2.6rem]"></div>
+        <div className="md:h-[2.6rem]"></div>
     </>)
 }

@@ -158,7 +158,7 @@ api.add(
     }
     const resp = ApiResponse.json(201, {
       deleted: true,
-      storage: await storage.getDetails(),
+      storageId: data.storageId,
     });
     return resp;
   },

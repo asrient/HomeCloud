@@ -21,6 +21,7 @@ export enum ActionTypes {
     APP_LOADED = 'APP_LOADED',
     TOGGLE_STORAGE = 'DISABLE_STORAGE',
     ADD_STORAGE = 'ADD_STORAGE',
+    REMOVE_STORAGE = 'REMOVE_STORAGE',
     ADD_STORAGE_META = 'ADD_STORAGE_META',
     UPDATE_STORAGE = 'UPDATE_STORAGE',
     TOGGLE_SIDEBAR = 'TOGGLE_SIDEBAR',
@@ -29,6 +30,7 @@ export enum ActionTypes {
     REMOVE_PINNED_FOLDER = 'REMOVE_PINNED_FOLDER',
     PHOTOS_SYNC_START = 'PHOTOS_SYNC_START',
     PHOTOS_SYNC_STOP = 'PHOTOS_SYNC_STOP',
+    UPDATE_PROFILE = 'UPDATE_PROFILE',
 }
 
 export type AppDispatchType = {
@@ -121,6 +123,13 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             }
             return draft;
         }
+        case ActionTypes.REMOVE_STORAGE: {
+            const { storageId }: {
+                storageId: number;
+            } = payload;
+            draft.storages = draft.storages?.filter((storage) => storage.id !== storageId) || null;
+            return draft;
+        }
         case ActionTypes.TOGGLE_SIDEBAR: {
             const { showSidebar }: {
                 showSidebar: boolean;
@@ -191,6 +200,13 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 currentAction: null,
                 hardSyncRequired: payload.hardSyncRequired || false,
             };
+            return draft;
+        }
+        case ActionTypes.UPDATE_PROFILE: {
+            const { profile }: {
+                profile: Profile;
+            } = payload;
+            draft.profile = profile;
             return draft;
         }
         default:
