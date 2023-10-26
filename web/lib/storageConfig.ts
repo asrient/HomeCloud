@@ -13,6 +13,7 @@ export const StorageTypeConfig: {
         name: string;
         authTypes: StorageAuthType[];
         oneAuthButtonConfig?: OneAuthButtonConfig;
+        urlIsPath?: boolean;
     }
 } = {
     [StorageType.WebDav]: {
@@ -30,6 +31,11 @@ export const StorageTypeConfig: {
                 backgroundColor: '#4285F4',
             },
         },
+    },
+    [StorageType.Local]: {
+        name: 'Local',
+        authTypes: [StorageAuthType.None],
+        urlIsPath: true,
     },
 }
 

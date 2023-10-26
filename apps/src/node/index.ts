@@ -81,9 +81,11 @@ class AppServer {
     const disabledStorageTypes: StorageType[] = process.env
       .DISABLED_STORAGE_TYPES
       ? process.env.DISABLED_STORAGE_TYPES.split(",").map(
-          (t) => t.trim() as StorageType,
-        )
-      : [];
+        (t) => t.trim() as StorageType,
+      )
+      : !isDev
+        ? [StorageType.Local] // Local is disabled by default in production for security if DISABLED_STORAGE_TYPES not specified.
+        : [];
 
     setupEnvConfig({
       isDev,

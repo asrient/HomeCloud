@@ -17,6 +17,7 @@ export type SetupParams = {
   disabledStorageTypes?: StorageType[];
   oneAuthServerUrl: string | null;
   oneAuthAppId: string | null;
+  userHomeDir?: string;
 };
 
 export enum OptionalType {
@@ -51,6 +52,7 @@ export const StorageAuthTypes = [
 export enum StorageType {
   WebDav = "webdav",
   Google = "google",
+  Local = "local",
 }
 
 export const StorageTypeMeta: {
@@ -58,6 +60,7 @@ export const StorageTypeMeta: {
     name: string;
     allowedAuthTypes?: StorageAuthType[];
     allowedUrlProtocols?: string[];
+    urlIsPath?: boolean;
   };
 } = {
   [StorageType.WebDav]: {
@@ -74,11 +77,16 @@ export const StorageTypeMeta: {
     allowedAuthTypes: [StorageAuthType.OneAuth],
     allowedUrlProtocols: [],
   },
+  [StorageType.Local]: {
+    name: "Local",
+    allowedAuthTypes: [StorageAuthType.None],
+    urlIsPath: true,
+  },
 };
 
 export const StorageTypes = Object.keys(StorageTypeMeta) as StorageType[];
 
-export const implementedStorageTypes = [StorageType.WebDav, StorageType.Google];
+export const implementedStorageTypes = [StorageType.WebDav, StorageType.Google, StorageType.Local];
 
 class EnvConfig {
   readonly DATA_DIR;
@@ -92,6 +100,7 @@ class EnvConfig {
   readonly ENABLED_STORAGE_TYPES;
   readonly ONEAUTH_SERVER_URL;
   readonly ONEAUTH_APP_ID;
+  readonly USER_HOME_DIR;
 
   constructor(config: SetupParams) {
     this.DATA_DIR = config.dataDir || "";
@@ -105,11 +114,12 @@ class EnvConfig {
     this.SECRET_KEY = config.secretKey;
     this.ENABLED_STORAGE_TYPES = !!config.disabledStorageTypes
       ? implementedStorageTypes.filter(
-          (t) => !config.disabledStorageTypes?.includes(t),
-        )
+        (t) => !config.disabledStorageTypes?.includes(t),
+      )
       : implementedStorageTypes;
     this.ONEAUTH_SERVER_URL = config.oneAuthServerUrl;
     this.ONEAUTH_APP_ID = config.oneAuthAppId;
+    this.USER_HOME_DIR = config.userHomeDir;
 
     if (this.IS_DEV) console.log("❗️ Warning: Running in DEV MODE ❗️");
     console.log("🌩️ Enabled storage types:", this.ENABLED_STORAGE_TYPES);

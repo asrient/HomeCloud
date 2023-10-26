@@ -64,6 +64,12 @@ export default class App {
       adminIsDefault: true,
       requireUsername: false,
     };
+    let userHomeDir = undefined;
+    try {
+      userHomeDir = app.getPath('home');
+    } catch (e) {
+      console.error("Failed to get home dir:", e);
+    }
     setupEnvConfig({
       isDev,
       envType: EnvType.Desktop,
@@ -75,6 +81,7 @@ export default class App {
       secretKey: this.createOrGetSecretKey(),
       oneAuthServerUrl: "http://localhost:5050", // todo: get from env
       oneAuthAppId: "dummy", // todo: get from env
+      userHomeDir,
     });
   }
 

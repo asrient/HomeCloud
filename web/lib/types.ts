@@ -60,6 +60,7 @@ export const StorageAuthTypes = [
 export enum StorageType {
     WebDav = 'webdav',
     Google = 'google',
+    Local = 'local',
 }
 
 export type StorageMeta = {

@@ -16,6 +16,8 @@ import {
 } from "./utils/profileUtils";
 import { createHash } from "./utils";
 import CustomError from "./customError";
+import path from "path";
+import fs from "fs/promises";
 
 const saltRounds = 10;
 const DAYS_5 = 5 * 24 * 60 * 60 * 1000;
@@ -356,6 +358,16 @@ export class Storage extends DbModel {
       const protocol = data.url.split("://")[0];
       if (!allowedUrlProtocols.includes(protocol)) {
         throw new Error("Invalid url protocol for this storage type");
+      }
+    }
+
+    if (data.url && StorageTypeMeta[data.type].urlIsPath) {
+      if (!path.isAbsolute(data.url)) {
+        throw new Error(`Path must be absolute starting with: ${path.sep}`);
+      }
+      const stat = await fs.stat(data.url);
+      if (!stat.isDirectory()) {
+        throw new Error(`Path must be a directory`);
       }
     }
 

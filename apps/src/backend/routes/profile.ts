@@ -6,9 +6,9 @@ import {
   authenticate,
   AuthType,
 } from "../decorators";
-import { Profile } from "../models";
+import { Profile, Storage } from "../models";
 import { generateJwt } from "../utils/profileUtils";
-import { envConfig } from "../envConfig";
+import { StorageAuthType, StorageType, envConfig } from "../envConfig";
 import CustomError from "../customError";
 
 const api = new RouteGroup();
@@ -48,6 +48,23 @@ api.add(
       console.error(e);
       e.message = `Could not create profile: ${e.message}`;
       return ApiResponse.fromError(e);
+    }
+    if (envConfig.isDesktop() && envConfig.USER_HOME_DIR && envConfig.isStorageTypeEnabled(StorageType.Local)) {
+      const homeDir = envConfig.USER_HOME_DIR;
+      try {
+        await Storage.createStorage(profile, {
+          type: StorageType.Local,
+          name: 'This Computer',
+          authType: StorageAuthType.None,
+          oneAuthId: null,
+          username: null,
+          secret: null,
+          url: homeDir,
+        });
+      } catch (e: any) {
+        console.error(`Could not create default storage:`, e);
+        // Not throwing error here because we don't want to block profile creation.
+      }
     }
     const resp = ApiResponse.json(201, {
       profile: profile.getDetails(),

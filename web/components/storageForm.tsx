@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect } from 'react';
 import { Storage, StorageAuthType, StorageAuthTypes, StorageType } from '@/lib/types';
-import { getName, getOneAuthButtonConfig, isOneAuthSupported, getSupportedAuthTypes, getAuthTypeName } from '@/lib/storageConfig';
+import { getName, getOneAuthButtonConfig, isOneAuthSupported, getSupportedAuthTypes, getAuthTypeName, StorageTypeConfig } from '@/lib/storageConfig';
 import { Button } from './ui/button';
 import { openExternalLink } from '@/lib/utils';
 import { AddStorageParams, addStorage, storageCallback, EditStorageParams, editStorage } from '@/lib/api/storage';
@@ -176,7 +176,7 @@ function OneAuthForm({
 
 const storageFormSchema = z.object({
     name: z.string().min(2).max(50),
-    url: z.string().url().min(3).max(50),
+    url: z.string().min(1).max(50),
     authType: z.string().refine((v) => StorageAuthTypes.includes(v as StorageAuthType)),
     username: z.string().max(50),
     secret: z.string().max(50),
@@ -200,7 +200,7 @@ function StorageFormManual({
         defaultValues: {
             name: existingStorage?.name || suggestedName,
             url: existingStorage?.url || '',
-            authType: existingStorage?.authType || StorageAuthType.Basic,
+            authType: existingStorage?.authType || StorageTypeConfig[storageType].authTypes[0],
             username: existingStorage?.username || '',
             secret: '',
         },
@@ -317,9 +317,17 @@ function StorageFormManual({
                 name="url"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Server URL</FormLabel>
+                        <FormLabel>{
+                            StorageTypeConfig[storageType].urlIsPath
+                                ? 'Folder Path'
+                                : 'Server URL'
+                        }</FormLabel>
                         <FormControl>
-                            <Input placeholder="https://example.com" {...field} />
+                            <Input placeholder={
+                                StorageTypeConfig[storageType].urlIsPath
+                                    ? '/path/to/folder'
+                                    : "https://example.com"
+                            } {...field} />
                         </FormControl>
                         <FormDescription>
                             The URL of the {getName(storageType)} server.
