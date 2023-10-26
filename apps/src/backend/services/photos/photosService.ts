@@ -24,48 +24,46 @@ type createPhoto_ = {
 export class UploadManager {
   photoService: PhotosService;
   photoSync: PhotoSync;
-  nextItemId: number | null = null;
+  nextItemId: number;
   reqs: createPhoto_[] = [];
   errors: { [itemId: number]: string } = {};
 
   constructor(photoService: PhotosService) {
     this.photoService = photoService;
     this.photoSync = photoService.photoSync;
+    this.nextItemId = -1;
   }
 
-  async getNextItemId() {
-    if (this.nextItemId === null) {
-      this.nextItemId = await this.photoSync.getNextItemId();
-      return this.nextItemId;
-    }
+  getNextItemId() {
+    const curr = this.nextItemId;
     this.nextItemId++;
-    return this.nextItemId;
+    return curr;
   }
 
   public async start() {
     await this.photoSync.aquireLock();
     await this.photoService.softSyncAndPublish();
+    this.nextItemId = await this.photoSync.getNextItemId();
   }
 
-  public async addPhoto(file: ApiRequestFile) {
-    const itemId = await this.getNextItemId();
-    const filePath = await apiFileToTempFile(file);
+  public async addPhotoFromFile(filePath: string, mimeType: string): Promise<boolean> {
+    const itemId = this.getNextItemId();
     let assetFile: RemoteItem | null = null;
     let detail: AssetDetailType | null = null;
     const getDetail = async () => {
-      console.log("Generating metadata..", itemId, file.mime);
+      console.log("Generating metadata..", itemId, mimeType);
       detail = await this.photoService.assetManager.generateDetail(
         filePath,
-        file.mime,
+        mimeType,
       );
       console.log("Generated metadata", itemId);
     };
     const getAssetFileId = async () => {
-      console.log("Creating asset..", itemId, file.mime);
+      console.log("Creating asset..", itemId, mimeType);
       assetFile = await this.photoService.assetManager.createAsset(
         itemId,
         filePath,
-        file.mime,
+        mimeType,
       );
       console.log("Created asset", itemId, assetFile.id);
     };
@@ -73,23 +71,30 @@ export class UploadManager {
       await Promise.all([getDetail(), getAssetFileId()]);
       this.reqs.push({
         itemId,
-        mime: file.mime,
+        mime: mimeType,
         assetFileId: assetFile!.id,
         detail: detail!,
         size: assetFile!.size || 0,
       });
+      return true;
     } catch (e: any) {
       console.error("Error adding photo", e);
-      if (!file.stream.destroyed) {
-        file.stream.resume();
-        file.stream.on("end", () => {
-          // dummy listener to make sure whole stream is consumed or else next stream may not begin in certain cases.
-          console.log("Stream ended");
-        });
-      }
       this.errors[itemId] = e.message;
-      removeTempFile(filePath);
+      return false;
     }
+  }
+
+  public async addPhoto(file: ApiRequestFile) {
+    const filePath = await apiFileToTempFile(file);
+    const result = await this.addPhotoFromFile(filePath, file.mime);
+    if (!result && !file.stream.destroyed) {
+      file.stream.resume();
+      file.stream.on("end", () => {
+        // dummy listener to make sure whole stream is consumed or else next stream may not begin in certain cases.
+        console.log("Stream ended");
+      });
+    }
+    removeTempFile(filePath);
   }
 
   public async end() {
@@ -251,7 +256,7 @@ export default class PhotosService {
       const promises = fileIds.map(async (fileId, index) => {
         const itemId = nextItemId + index;
         const stat = await this.fsDriver.getStat(fileId);
-        if(!stat.mimeType) {
+        if (!stat.mimeType) {
           throw new Error("Mime type not found for file.");
         }
         const assetFileId = await this.assetManager.importAsset(

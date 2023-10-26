@@ -1,4 +1,4 @@
-import { AppName, PhotoView, PhotosFetchOptions } from "@/lib/types";
+import { AppName, FileList_, PhotoView, PhotosFetchOptions } from "@/lib/types";
 import Head from "next/head";
 import PageBar from "./pageBar";
 import UploadFileSelector from "./uploadFileSelector";
@@ -227,7 +227,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         await loadPhotos();
     }, [loadPhotos]);
 
-    const onUpload = useCallback(async (files: FileList) => {
+    const onUpload = useCallback(async (files: FileList_) => {
         if (!selectedStorageId) throw new Error('Please select a storage.');
         await uploadPhotos(selectedStorageId, files);
     }, [selectedStorageId])

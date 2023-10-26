@@ -12,24 +12,25 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
+import { FileList_ } from "@/lib/types";
 
 export type UploadFileSelectorProps = {
     title: string,
     children?: React.ReactNode,
-    onUpload: (files: FileList) => Promise<void>,
+    onUpload: (files: FileList_) => Promise<void>,
     accept?: string,
     embedComponent?: React.ReactNode,
 };
 
 export default function UploadFileSelector({ title, children, onUpload, accept, embedComponent }: UploadFileSelectorProps) {
-    const [files, setFiles] = useState<FileList | null>(null);
+    const [files, setFiles] = useState<FileList_ | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            setFiles(e.target.files);
+            setFiles(e.target.files as FileList_);
         }
     }, []);
 

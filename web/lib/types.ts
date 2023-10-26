@@ -1,3 +1,11 @@
+export interface File_ extends File {
+    path?: string;
+}
+
+export interface FileList_ extends FileList {
+    [index: number]: File_;
+}
+
 export enum ErrorType {
     Validation = 'Validation',
     Security = 'Security',

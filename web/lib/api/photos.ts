@@ -1,5 +1,6 @@
 import { ApiClient } from './apiClient';
-import { Photo } from '../types';
+import { FileList_, Photo } from '../types';
+import { isDesktop } from '../staticConfig';
 
 export type ListPhotosParams = {
     offset: number,
@@ -67,7 +68,14 @@ export async function importPhotos(params: ImportPhotosParams) {
     return await ApiClient.post<AddSuccessType>('/services/photos/import', params);
 }
 
-export async function uploadPhotos(storageId: number, files: FileList) {
+export async function uploadPhotos(storageId: number, files: FileList_) {
+    if (isDesktop()) {
+        const filePaths = [];
+        for (let i = 0; i < files.length; i++) {
+            filePaths.push(files[i].path);
+        }
+        return await ApiClient.post<AddSuccessType>('/services/photos/upload/desktop', { storageId, filePaths });
+    }
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
         formData.append('files', files[i], files[i].name);

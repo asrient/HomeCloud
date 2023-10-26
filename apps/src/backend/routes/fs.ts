@@ -239,7 +239,7 @@ api.add(
 );
 
 api.add(
-  "/writeFiles",
+  "/writeFiles/",
   [method(["POST"]), authenticate(), fetchStorage(), fetchFsDriver()],
   async (request: ApiRequest) => {
     const fsDriver = request.local.fsDriver as FsDriver;
@@ -286,19 +286,15 @@ const writeFilesSchema = {
   type: "object",
   properties: {
     parentId: { type: "string" },
-    files: {
+    filePaths: {
       type: "array",
       items: {
-        type: "object",
-        properties: {
-          path: { type: "string" },
-        },
-        required: ["path"],
+        type: "string",
       },
     },
     ...commonOptions,
   },
-  required: ["parentId", "files"],
+  required: ["parentId", "filePaths", "storageId"],
 };
 
 api.add(
@@ -320,13 +316,13 @@ api.add(
     }
 
     const parentId = request.local.json.parentId;
-    const files = request.local.json.files;
+    const filePaths = request.local.json.filePaths as string[];
 
-    const fileItems: ApiRequestFile[] = files.map((file: any) => {
-      const stream = fs.createReadStream(file.path);
+    const fileItems: ApiRequestFile[] = filePaths.map((p) => {
+      const stream = fs.createReadStream(p);
       return {
-        name: file.path.split("/").pop()!,
-        mime: mime.getType(file.path) || "application/octet-stream",
+        name: p.split("/").pop()!,
+        mime: mime.getType(p) || "application/octet-stream",
         stream,
       } as ApiRequestFile;
     });

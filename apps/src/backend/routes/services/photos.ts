@@ -17,6 +17,7 @@ import PhotosService, {
 } from "../../services/photos/photosService";
 import CustomError from "../../customError";
 import { Photo, getPhotosParams } from "../../models";
+import mime from "mime";
 
 const api = new RouteGroup();
 
@@ -65,7 +66,7 @@ api.add(
   },
 );
 
-api.add("/upload", buildMiddlewares("POST"), async (request: ApiRequest) => {
+api.add("/upload/", buildMiddlewares("POST"), async (request: ApiRequest) => {
   const photoService = request.local.photoService as PhotosService;
   const uploadManager = new UploadManager(photoService);
 
@@ -97,6 +98,51 @@ api.add("/upload", buildMiddlewares("POST"), async (request: ApiRequest) => {
     );
   }
 });
+
+const uploadDesktopSchema = {
+  type: "object",
+  properties: {
+    filePaths: { type: "array", items: { type: "string" } },
+    ...commonOptions,
+  },
+  required: ["storageId"],
+};
+
+api.add(
+  "/upload/desktop",
+  buildMiddlewares("POST", uploadDesktopSchema),
+  async (request: ApiRequest) => {
+    const photoService = request.local.photoService as PhotosService;
+    const uploadManager = new UploadManager(photoService);
+    try {
+      await uploadManager.start();
+    } catch (e: any) {
+      console.error(e);
+      e.message = `Could not start upload: ${e.message}`;
+      return ApiResponse.fromError(e);
+    }
+    const filePaths = request.local.json.filePaths as string[];
+    if (!filePaths.length) {
+      return ApiResponse.fromError(
+        CustomError.validationSingle("files ", "No files found"),
+      );
+    }
+    const promises = filePaths.map(async (filePath) => {
+      const mimeType = mime.getType(filePath);
+      if (!mimeType) return;
+      await uploadManager.addPhotoFromFile(filePath, mimeType);
+    });
+    await Promise.all(promises);
+    try {
+      const updates = await uploadManager.end();
+      return ApiResponse.json(201, updates);
+    } catch (e: any) {
+      console.error(e);
+      e.message = `Could update change log: ${e.message}`;
+      return ApiResponse.fromError(e);
+    }
+  },
+);
 
 api.add(
   "/updateAsset",

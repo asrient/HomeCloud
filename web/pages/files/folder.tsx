@@ -1,6 +1,6 @@
 import { useRouter } from 'next/router'
 import { buildPageConfig, isMobile } from '@/lib/utils'
-import { RemoteItem, SidebarType, Storage } from "@/lib/types"
+import { FileList_, RemoteItem, SidebarType, Storage } from "@/lib/types"
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -142,7 +142,7 @@ const Page: NextPageWithConfig = () => {
     setView(value as 'list' | 'grid')
   }
 
-  const onUpload = useCallback(async (files: FileList) => {
+  const onUpload = useCallback(async (files: FileList_) => {
     if (!storageId) throw new Error('Storage not set');
     if (!folderId) throw new Error('Folder not set');
     const items = await upload({

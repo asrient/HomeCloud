@@ -23,7 +23,7 @@ export function FilesSidebar() {
 
     const openItem = useCallback(() => {
         if (!selectedSidebarItem) return;
-        router.push(selectedSidebarItem.href);
+        router.push(selectedSidebarItem.href || '/files');
     }, [selectedSidebarItem, router]);
 
     const removePinnedFolder = useCallback(async () => {
