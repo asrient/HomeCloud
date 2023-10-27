@@ -25,7 +25,7 @@ app.get('/auth', async function (req, res) {
     return;
   }
 
-  const authUrl = provider.getRedirectUrl(referenceId);
+  const authUrl = await provider.getRedirectUrl(referenceId);
   res.redirect(authUrl);
 });
 
@@ -67,6 +67,7 @@ app.get('/callback', async (req, res) => {
     account = await Accounts.getOrCreate(id, storageType, refreshToken);
   }
   catch (e) {
+    // console.log(e);
     res.render("error", { error: e.message, code: "ACCOUNT_CREATION_FAILED" });
     return;
   }

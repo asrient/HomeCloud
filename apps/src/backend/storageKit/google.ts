@@ -52,8 +52,7 @@ export class GoogleFsDriver extends FsDriver {
     return "file";
   }
 
-  fileAttrs =
-    "id, name, mimeType, size, modifiedTime, createdTime, parents, thumbnailLink";
+  fileAttrs = "id, name, mimeType, size, modifiedTime, createdTime, parents, thumbnailLink";
   folderMineType = "application/vnd.google-apps.folder";
 
   public override async readDir(id: string) {
@@ -337,5 +336,23 @@ export class GoogleFsDriver extends FsDriver {
     baseId: string,
   ): Promise<string> {
     return (await this.getStatByFilename(filename, baseId)).id;
+  }
+
+  public override async getThumbnailUrl(id: string): Promise<string> {
+    try {
+      const res = await this.driver!.files.get({
+        fileId: id,
+        fields: "thumbnailLink",
+      });
+      if (!res.data) {
+        console.error("Error getting thumbnail", res);
+        throw new Error("Could not get thumbnail");
+      }
+      return res.data.thumbnailLink!;
+    } catch (err) {
+      // Handle error
+      console.error(err);
+      throw err;
+    }
   }
 }

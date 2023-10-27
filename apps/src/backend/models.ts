@@ -962,7 +962,6 @@ export class Thumb extends DbModel {
   getDetails() {
     return {
       fileId: this.fileId,
-      mimeType: this.mimeType,
       updatedAt: this.updatedAt,
       image: this.image,
       height: this.height,

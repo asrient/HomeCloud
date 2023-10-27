@@ -61,6 +61,7 @@ export enum StorageType {
     WebDav = 'webdav',
     Google = 'google',
     Local = 'local',
+    Dropbox = 'dropbox',
 }
 
 export type StorageMeta = {

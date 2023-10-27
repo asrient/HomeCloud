@@ -32,15 +32,19 @@ api.add(
     const { fileId, lastUpdated } = request.local.json;
     const fsDriver = request.local.fsDriver as FsDriver;
     if (fsDriver.providesThumbnail) {
-      const stat = await fsDriver.getStat(fileId);
-      return ApiResponse.json(200, {
-        fileId: stat.id,
-        mimeType: stat.mimeType,
-        updatedAt: stat.lastModified,
-        image: stat.thumbnail,
-        height: null,
-        width: null,
-      });
+      try {
+        const img = await fsDriver.getThumbnailUrl(fileId);
+        return ApiResponse.json(200, {
+          fileId,
+          updatedAt: null,
+          image: img,
+          height: null,
+          width: null,
+        });
+      } catch (e: any) {
+        e.message = `Could not get thumbnail: ${e.message}`;
+        return ApiResponse.fromError(e);
+      }
     }
     const thumbService = new ThumbService(fsDriver);
     try {

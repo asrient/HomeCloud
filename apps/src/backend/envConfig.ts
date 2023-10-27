@@ -52,6 +52,7 @@ export const StorageAuthTypes = [
 export enum StorageType {
   WebDav = "webdav",
   Google = "google",
+  Dropbox = "dropbox",
   Local = "local",
 }
 
@@ -82,11 +83,16 @@ export const StorageTypeMeta: {
     allowedAuthTypes: [StorageAuthType.None],
     urlIsPath: true,
   },
+  [StorageType.Dropbox]: {
+    name: "Dropbox",
+    allowedAuthTypes: [StorageAuthType.OneAuth],
+    allowedUrlProtocols: [],
+  },
 };
 
 export const StorageTypes = Object.keys(StorageTypeMeta) as StorageType[];
 
-export const implementedStorageTypes = [StorageType.WebDav, StorageType.Google, StorageType.Local];
+export const implementedStorageTypes = [StorageType.WebDav, StorageType.Google, StorageType.Local, StorageType.Dropbox];
 
 class EnvConfig {
   readonly DATA_DIR;

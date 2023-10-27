@@ -37,6 +37,18 @@ export const StorageTypeConfig: {
         authTypes: [StorageAuthType.None],
         urlIsPath: true,
     },
+    [StorageType.Dropbox]: {
+        name: 'Dropbox',
+        authTypes: [StorageAuthType.OneAuth],
+        oneAuthButtonConfig: {
+            text: 'Sign in to Dropbox',
+            icon: 'dropbox',
+            styles: {
+                color: '#FFFFFF',
+                backgroundColor: '#0061fe',
+            },
+        },
+    },
 }
 
 export const AuthTypeNames: { [key in StorageAuthType]: string } = {

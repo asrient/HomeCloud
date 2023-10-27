@@ -102,7 +102,6 @@ accountSchema.statics.createNew = async function (targetId, storageType, refresh
     if (!refreshToken) throw new Error("Refresh token is required");
     const r = new Accounts({
         target_id: targetId,
-        email,
         storage_type: storageType,
         refresh_token: refreshToken
     });

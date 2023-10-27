@@ -27,6 +27,8 @@
     "cloneable-readable": "^3.0.0",
     "cookie": "^0.5.0",
     "dotenv": "^16.3.1",
+    "dropbox": "^10.34.0",
+    "dropbox-stream": "^3.2.0",
     "electron-is-dev": "^2.0.0",
     "electron-squirrel-startup": "^1.0.0",
     "exifreader": "^4.13.0",
@@ -67,7 +69,8 @@
     "sharp",
     "sqlite3",
     "type-is",
-    "webdav"
+    "webdav",
+    "dropbox"
   ],
   "devDependencies": {
     "@electron-forge/cli": "^6.4.0",

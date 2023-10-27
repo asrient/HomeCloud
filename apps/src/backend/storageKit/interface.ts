@@ -150,4 +150,8 @@ export class FsDriver {
       return this.mkDir(name, baseId);
     }
   }
+
+  public async getThumbnailUrl(id: string): Promise<string> {
+    throw new Error("Not implemented");
+  }
 }

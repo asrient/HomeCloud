@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { DropboxAuth } from 'dropbox';
+import { Dropbox } from 'dropbox';
 
 const REDIRECT_URL = process.env.BASE_URL + 'flow/callback';
 
@@ -9,7 +9,7 @@ export class ServiceProvider {
             throw new Error('This Service provider cannot run');
         }
     }
-    getRedirectUrl(referenceId) {
+    async getRedirectUrl(referenceId) {
         throw new Error('Not implemented');
     }
 
@@ -42,7 +42,7 @@ export class GoogleServiceProvider extends ServiceProvider {
         return process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET;
     }
 
-    getRedirectUrl(referenceId) {
+    async getRedirectUrl(referenceId) {
         return this._client.generateAuthUrl({
             access_type: 'offline',
             scope: [
@@ -101,7 +101,7 @@ export class DropboxServiceProvider extends ServiceProvider {
 
     constructor() {
         super();
-        this._client = new DropboxAuth({
+        this._client = new Dropbox({
             clientId: process.env.DROPBOX_CLIENT_ID,
             clientSecret: process.env.DROPBOX_CLIENT_SECRET
         });
@@ -111,23 +111,33 @@ export class DropboxServiceProvider extends ServiceProvider {
         return process.env.DROPBOX_CLIENT_ID && process.env.DROPBOX_CLIENT_SECRET;
     }
 
-    getRedirectUrl(referenceId) {
-        return this._client.getAuthenticationUrl(REDIRECT_URL, referenceId, 'code');
+    async getRedirectUrl(referenceId) {
+        return this._client.auth.getAuthenticationUrl(REDIRECT_URL, referenceId, 'code', 'offline', null, 'none', false);
     }
 
     async getAccountDetails(code) {
-        const { result: { account_id, email, refresh_token } } = await this._client.getAccessTokenFromCode(REDIRECT_URL, code);
+        const { result } = await this._client.auth.getAccessTokenFromCode(REDIRECT_URL, code);
+        this._client.auth.setRefreshToken(result.refresh_token);
+        const expiry_date = new Date().getTime() + result.expires_in * 1000;
         return {
-            id: account_id,
-            email,
+            id: result.account_id,
             name: 'Dropbox User',
-            refreshToken: refresh_token
+            email: undefined,
+            refreshToken: result.refresh_token,
+            accessToken: result.access_token,
+            expiryDate: expiry_date,
         };
     }
 
     async getAccessToken(refreshToken) {
-        const { result: { access_token } } = await this._client.refreshAccessToken(refreshToken);
-        return access_token;
+        this._client.auth.setRefreshToken(refreshToken);
+        await this._client.auth.checkAndRefreshAccessToken();
+        const access_token = this._client.auth.getAccessToken();
+        const expiryDate = this._client.auth.getAccessTokenExpiresAt();
+        return {
+            accessToken: access_token,
+            expiryDate: expiryDate.getTime(),
+        }
     }
 }
 

@@ -36,8 +36,7 @@ export async function listPins(params: ListPinsParams) {
 
 export type ThumbnailResponse = {
     fileId: string,
-    mimeType: string,
-    updatedAt: Date,
+    updatedAt: Date | null,
     image: string,
     height: number | null,
     width: number | null

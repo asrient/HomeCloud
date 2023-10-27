@@ -4,6 +4,7 @@ import { Storage, Profile } from "../models";
 import { WebdavFsDriver } from "./webdav";
 import { GoogleFsDriver } from "./google";
 import { LocalFsDriver } from "./local";
+import { DropboxFsDriver } from "./dropbox";
 
 export async function getFsDriverById(
   profile: Profile,
@@ -32,6 +33,9 @@ export async function getFsDriver(storage: Storage) {
       break;
     case StorageType.Local:
       driver = new LocalFsDriver(storage);
+      break;
+    case StorageType.Dropbox:
+      driver = new DropboxFsDriver(storage);
       break;
     default:
       throw new Error(`Unknown storage type: ${storageType}`);
