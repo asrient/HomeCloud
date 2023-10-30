@@ -71,6 +71,8 @@ export type StorageMeta = {
     photosAssetsDir: string;
     photosLastSyncOn: Date;
     isPhotosEnabled: boolean;
+    notesDir: string;
+    isNotesEnabled: boolean;
 }
 
 export type Storage = {
@@ -129,7 +131,8 @@ export type SidebarList = {
 export enum SidebarType {
     Files = "files",
     Settings = "settings",
-    Photos = "photos"
+    Photos = "photos",
+    Notes = "notes",
 }
 
 export type PageUIConfig = {
@@ -192,4 +195,11 @@ export type SyncState = {
     hardSyncRequired: boolean
     lastSyncedAt: Date | null
     currentAction: 'softSync' | 'hardSync' | 'archive' | null
+}
+
+export type NoteItem = {
+    stat: RemoteItem;
+    storageId: number;
+    childNoteStats: RemoteItem[];
+    isRootNote: boolean;
 }

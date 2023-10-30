@@ -6,6 +6,7 @@ import { FilesSidebar } from "./filesSidebar";
 import { ActionTypes } from "@/lib/state";
 import { PhotosSidebar } from "./photosSidebar";
 import { SettingsSidebar } from "./settingsSidebar";
+import { NotesSidebar } from "./notesSidebar";
 
 export function AppLayout({ children, sidebarType }: { children: React.ReactNode, sidebarType: string }) {
     const { showSidebar } = useAppState();
@@ -33,9 +34,11 @@ export function AppLayout({ children, sidebarType }: { children: React.ReactNode
                             ? <FilesSidebar />
                             : sidebarType === 'photos'
                                 ? <PhotosSidebar />
-                                : sidebarType === 'settings'
-                                    ? <SettingsSidebar />
-                                    : <div>{sidebarType} Nav</div>
+                                : sidebarType === 'notes'
+                                    ? <NotesSidebar />
+                                    : sidebarType === 'settings'
+                                        ? <SettingsSidebar />
+                                        : <div>{sidebarType} Nav</div>
                     }
                 </ScrollArea>
             </aside>

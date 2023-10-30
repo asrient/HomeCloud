@@ -1,5 +1,5 @@
 import { Dispatch, createContext } from 'react';
-import { Profile, ServerConfig, Storage, StorageMeta, PinnedFolder, SyncState } from './types';
+import { Profile, ServerConfig, Storage, StorageMeta, PinnedFolder, SyncState, NoteItem, RemoteItem } from './types';
 
 export type AppStateType = {
     isInitalized: boolean;
@@ -12,6 +12,8 @@ export type AppStateType = {
     showSidebar: boolean;
     pinnedFolders: PinnedFolder[];
     photosSyncState: { [storageId: number]: SyncState };
+    notes: { [id: string]: NoteItem };
+    rootNoteStats: Record<number, RemoteItem[]>;
 };
 
 
@@ -31,6 +33,10 @@ export enum ActionTypes {
     PHOTOS_SYNC_START = 'PHOTOS_SYNC_START',
     PHOTOS_SYNC_STOP = 'PHOTOS_SYNC_STOP',
     UPDATE_PROFILE = 'UPDATE_PROFILE',
+    ADD_NOTE = 'ADD_NOTE',
+    RENAME_NOTE = 'RENAME_NOTE',
+    REMOVE_NOTE = 'REMOVE_NOTE',
+    SET_ROOT_NOTE_STATS = 'SET_ROOT_NOTE_STATS',
 }
 
 export type AppDispatchType = {
@@ -50,10 +56,16 @@ export const initialAppState: AppStateType = {
     showSidebar: true,
     pinnedFolders: [],
     photosSyncState: {},
+    notes: {},
+    rootNoteStats: {},
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
 export const DispatchContext = createContext<Dispatch<AppDispatchType> | null>(null);
+
+export function noteUid(storageId: number, id: string) {
+    return `${storageId}:${id}`;
+}
 
 export function reducer(draft: AppStateType, action: AppDispatchType) {
     const { type, payload } = action;
@@ -71,6 +83,8 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             draft.disabledStorages = [];
             draft.pinnedFolders = [];
             draft.photosSyncState = {};
+            draft.notes = {};
+            draft.rootNoteStats = {};
             return draft;
         }
         case ActionTypes.ERROR: {
@@ -207,6 +221,97 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 profile: Profile;
             } = payload;
             draft.profile = profile;
+            return draft;
+        }
+        case ActionTypes.ADD_NOTE: {
+            const { note }: {
+                note: NoteItem;
+            } = payload;
+
+            const parentId = note.stat.parentIds?.[0];
+            if (parentId) {
+                const parentNote = draft.notes[noteUid(note.storageId, parentId)];
+                if (parentNote) {
+                    const existingIndex = parentNote.childNoteStats.findIndex((stat) => stat.id === note.stat.id);
+                    if (existingIndex !== undefined && existingIndex !== -1) {
+                        parentNote.childNoteStats[existingIndex] = note.stat;
+                    } else {
+                        parentNote.childNoteStats.push(note.stat);
+                    }
+                }
+            }
+            draft.notes[noteUid(note.storageId, note.stat.id)] = note;
+            if (note.isRootNote && draft.rootNoteStats[note.storageId]) {
+                const rootNoteStats = draft.rootNoteStats[note.storageId];
+                const existingIndex = rootNoteStats.findIndex((stat) => stat.id === note.stat.id);
+                if (existingIndex !== undefined && existingIndex !== -1) {
+                    rootNoteStats[existingIndex] = note.stat;
+                } else {
+                    draft.rootNoteStats[note.storageId] = [...rootNoteStats, note.stat];
+                }
+            }
+            return draft;
+        }
+        case ActionTypes.RENAME_NOTE: {
+            const { newName, newId, childNoteStats, oldId, storageId }: {
+                newName: string;
+                newId: string;
+                oldId: string;
+                storageId: number;
+                childNoteStats: RemoteItem[];
+            } = payload;
+            const oldUid = noteUid(storageId, oldId);
+            const note = draft.notes[oldUid];
+            if (note) {
+                note.stat.name = newName;
+                note.stat.id = newId;
+                note.childNoteStats = childNoteStats;
+                draft.notes[noteUid(note.storageId, newId)] = note;
+                delete draft.notes[oldUid];
+                const parentId = note.stat.parentIds?.[0];
+                if (parentId) {
+                    const parentNote = draft.notes[noteUid(note.storageId, parentId)];
+                    if (parentNote) {
+                        parentNote.childNoteStats = parentNote.childNoteStats.filter((stat) => stat.id !== oldId);
+                        parentNote.childNoteStats.push(note.stat);
+                    }
+                }
+                if (note.isRootNote && draft.rootNoteStats[note.storageId]) {
+                    const rootNoteStats = draft.rootNoteStats[note.storageId]
+                    draft.rootNoteStats[note.storageId] = [...rootNoteStats.filter((stat) => stat.id !== oldId), note.stat];
+                }
+            }
+            return draft;
+        }
+        case ActionTypes.REMOVE_NOTE: {
+            const { id, storageId }: {
+                id: string;
+                storageId: number;
+            } = payload;
+            const note = draft.notes[noteUid(storageId, id)];
+            if (!note) return draft;
+            const parentId = note.stat.parentIds?.[0];
+            if (parentId) {
+                const parentNote = draft.notes[noteUid(note.storageId, parentId)];
+                if (parentNote) {
+                    parentNote.childNoteStats = parentNote.childNoteStats.filter((stat) => stat.id !== id);
+                }
+            }
+
+            if (note.isRootNote && draft.rootNoteStats[note.storageId]) {
+                const rootNoteStats = draft.rootNoteStats[note.storageId];
+                draft.rootNoteStats[note.storageId] = rootNoteStats.filter((stat) => stat.id !== id);
+            }
+
+            delete draft.notes[noteUid(storageId, id)];
+            return draft;
+        }
+        case ActionTypes.SET_ROOT_NOTE_STATS: {
+            const { storageId, rootNoteStats }: {
+                storageId: number;
+                rootNoteStats: RemoteItem[];
+            } = payload;
+            draft.rootNoteStats[storageId] = rootNoteStats;
             return draft;
         }
         default:

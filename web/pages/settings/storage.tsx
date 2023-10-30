@@ -49,7 +49,7 @@ function Page() {
     if (isStorageMetaLoading) return;
     setIsStorageMetaLoading(true);
     try {
-      const storageMeta = await serviceScan({
+      const { storageMeta } = await serviceScan({
         storageId: storage.id,
         force: true,
       });

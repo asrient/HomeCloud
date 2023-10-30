@@ -9,7 +9,7 @@ function isAppEnabled(appName: AppName, storage: Storage) {
         case AppName.Files:
             return true;
         case AppName.Notes:
-            return false;
+            return !!storage.storageMeta?.isNotesEnabled;
         default:
             return false;
     }

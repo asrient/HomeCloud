@@ -22,3 +22,11 @@ export function settingsUrl() {
     }
     return buildNextUrl('/settings/profile');
 }
+
+export function notesUrl() {
+    return buildNextUrl('/notes');
+}
+
+export function noteUrl(storageId: number, noteId: string) {
+    return buildNextUrl('/notes/view', { s: storageId, id: noteId });
+}

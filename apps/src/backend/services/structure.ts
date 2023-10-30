@@ -5,12 +5,12 @@ async function setup(fsDriver: FsDriver): Promise<StorageMeta> {
   const storage = fsDriver.storage;
   const meta = {
     hcRoot: "",
-    thumbsDir: "",
+    notesDir: "",
     photosDir: "",
     photosAssetsDir: "",
   };
   meta.hcRoot = (await fsDriver.makeOrGetDir("HomeCloud", "/")).id;
-  meta.thumbsDir = (await fsDriver.makeOrGetDir("Thumbs", meta.hcRoot)).id;
+  meta.notesDir = (await fsDriver.makeOrGetDir("Notes", meta.hcRoot)).id;
   meta.photosDir = (await fsDriver.makeOrGetDir("Photos", meta.hcRoot)).id;
   meta.photosAssetsDir = (
     await fsDriver.makeOrGetDir("Assets", meta.photosDir)
@@ -38,6 +38,9 @@ export async function toggleService(
   switch (appName) {
     case "photos":
       storageMeta.isPhotosEnabled = enable;
+      break;
+    case "notes":
+      storageMeta.isNotesEnabled = enable;
       break;
     default:
       throw new Error(`Unknown service ${appName}`);

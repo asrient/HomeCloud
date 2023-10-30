@@ -77,6 +77,16 @@ export async function getStat(params: GetStatParams) {
     return await ApiClient.post<RemoteItem>('/fs/getStat', params);
 }
 
+export type GetStatByFilename = {
+    storageId: number;
+    parentId: string;
+    name: string;
+};
+
+export async function getStatByFilename(params: GetStatByFilename) {
+    return await ApiClient.post<RemoteItem>('/fs/getStatByFilename', params);
+}
+
 export type UploadParams = {
     storageId: number;
     parentId: string;
@@ -98,4 +108,27 @@ export async function upload(params: UploadParams) {
         formData.append('files', params.files[i], params.files[i].name);
     }
     return await ApiClient.post<RemoteItem[]>('/fs/writeFiles', { storageId: params.storageId }, formData);
+}
+
+export type writeTextFileParams = {
+    storageId: number;
+    parentId: string;
+    fileName: string;
+    content: string;
+    mimeType: string;
+};
+
+export async function writeTextFile(params: writeTextFileParams) {
+    return await ApiClient.post<RemoteItem>('/fs/writeTextFile', params);
+}
+
+export type updateTextFileParams = {
+    storageId: number;
+    fileId: string;
+    content: string;
+    mimeType: string;
+};
+
+export async function updateTextFile(params: updateTextFileParams) {
+    return await ApiClient.post<RemoteItem>('/fs/updateTextFile', params);
 }

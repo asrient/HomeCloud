@@ -17,6 +17,7 @@ import { FsDriver, RemoteItem } from "../storageKit/interface";
 import mime from "mime";
 import fs from "fs";
 import CustomError from "../customError";
+import { bufferToStream } from "../utils";
 
 const api = new RouteGroup();
 
@@ -236,6 +237,86 @@ api.add(
       return ApiResponse.fromError(e);
     }
   },
+);
+
+const writeTextFileSchema = {
+  type: "object",
+  properties: {
+    parentId: { type: "string" },
+    fileName: { type: "string" },
+    content: { type: "string" },
+    mimeType: { type: "string" },
+    ...commonOptions,
+  },
+  required: ["parentId", "fileName", "content", "mimeType"],
+};
+
+api.add(
+  "/writeTextFile",
+  [method(["POST"]),
+  authenticate(),
+  validateJson(writeTextFileSchema),
+  fetchStorage(),
+  fetchFsDriver()],
+  async (request: ApiRequest) => {
+    const fsDriver = request.local.fsDriver as FsDriver;
+    const parentId = request.local.json.parentId;
+    const { fileName, content, mimeType } = request.local.json;
+    const contentBuffer = Buffer.from(content);
+    const contentStream = bufferToStream(contentBuffer);
+    const apiRequestFile: ApiRequestFile = {
+      name: fileName,
+      mime: mimeType,
+      stream: contentStream,
+    };
+    try {
+      const item = await fsDriver.writeFile(parentId, apiRequestFile);
+      return ApiResponse.json(200, item);
+    } catch (e: any) {
+      console.error(e);
+      e.message = `Could not write text file: ${e.message}`;
+      return ApiResponse.fromError(e);
+    }
+  }
+);
+
+const updateTextFileSchema = {
+  type: "object",
+  properties: {
+    fileId: { type: "string" },
+    content: { type: "string" },
+    mimeType: { type: "string" },
+    ...commonOptions,
+  },
+  required: ["fileId", "content", "mimeType"],
+};
+
+api.add(
+  "/updateTextFile",
+  [method(["POST"]),
+  authenticate(),
+  validateJson(updateTextFileSchema),
+  fetchStorage(),
+  fetchFsDriver()],
+  async (request: ApiRequest) => {
+    const fsDriver = request.local.fsDriver as FsDriver;
+    const { content, fileId, mimeType } = request.local.json;
+    const contentBuffer = Buffer.from(content);
+    const contentStream = bufferToStream(contentBuffer);
+    const apiRequestFile: ApiRequestFile = {
+      name: fileId,
+      mime: mimeType,
+      stream: contentStream,
+    };
+    try {
+      const item = await fsDriver.updateFile(fileId, apiRequestFile);
+      return ApiResponse.json(200, item);
+    } catch (e: any) {
+      console.error(e);
+      e.message = `Could not update text file: ${e.message}`;
+      return ApiResponse.fromError(e);
+    }
+  }
 );
 
 api.add(

@@ -639,12 +639,13 @@ export class PendingAuth extends DbModel {
 export class StorageMeta extends DbModel {
   declare id: number;
   declare hcRoot: string;
-  declare thumbsDir: string;
+  declare notesDir: string;
   declare photosDir: string;
   declare photosAssetsDir: string;
   declare photosLastSyncOn: number;
   declare photosSyncLockOn: Date | null;
   declare isPhotosEnabled: boolean;
+  declare isNotesEnabled: boolean;
   declare setStorage: (storage: Storage) => Promise<void>;
   declare getStorage: () => Promise<Storage>;
 
@@ -657,7 +658,7 @@ export class StorageMeta extends DbModel {
       },
     },
 
-    thumbsDir: {
+    notesDir: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
@@ -692,6 +693,12 @@ export class StorageMeta extends DbModel {
       defaultValue: true,
     },
 
+    isNotesEnabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    },
+
     photosSyncLockOn: {
       type: DataTypes.DATE,
       allowNull: true,
@@ -702,10 +709,12 @@ export class StorageMeta extends DbModel {
     return {
       id: this.id,
       hcRoot: this.hcRoot,
+      notesDir: this.notesDir,
       photosDir: this.photosDir,
       photosAssetsDir: this.photosAssetsDir,
       photosLastSyncOn: this.photosLastSyncOn,
       isPhotosEnabled: this.isPhotosEnabled,
+      isNotesEnabled: this.isNotesEnabled,
     };
   }
 
@@ -724,7 +733,7 @@ export class StorageMeta extends DbModel {
     storage: Storage,
     data: {
       hcRoot: string;
-      thumbsDir: string;
+      notesDir: string;
       photosDir: string;
       photosAssetsDir: string;
     },

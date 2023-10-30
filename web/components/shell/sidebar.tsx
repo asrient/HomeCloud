@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/router";
 import Link from "next/link";
-import { NextUrl, SidebarItem, SidebarList } from "@/lib/types";
+import { SidebarItem, SidebarList } from "@/lib/types";
 import { useCallback } from "react";
 import Image from "next/image";
+import { useUrlMatch } from "../hooks/useUrlMatch";
 
 
 function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
@@ -50,19 +50,7 @@ export function Sidebar({ className, list, onRightClick, onClick }: {
     onRightClick?: (item: SidebarItem) => void,
     onClick?: (item: SidebarItem, e: React.MouseEvent) => void,
 }) {
-    const router = useRouter();
-    const { pathname, query } = router;
-
-    const isMatch = useCallback((nextUrl: NextUrl) => {
-        if (pathname != nextUrl.pathname) return false;
-        if (!nextUrl.query) return true;
-        const keys = Object.keys(nextUrl.query);
-        for (let i = 0; i < keys.length; i++) {
-            const key = keys[i];
-            if (nextUrl.query[key] != query[key]) return false;
-        }
-        return true;
-    }, [pathname, query]);
+    const isMatch = useUrlMatch();
 
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
         const isSidebarItem = e.target instanceof HTMLElement && e.target.closest('.sidebarItem');
