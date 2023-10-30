@@ -79,7 +79,7 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
     return (
         <>
             <div style={{ paddingLeft: `${depth * 0.7}rem` }}
-                className={cn('hover:bg-muted rounded-sm my-[0.1rem]', matched && 'bg-muted')}
+                className={cn('hover:bg-muted group rounded-sm my-[0.1rem]', matched && 'bg-muted')}
             >
                 <div className={cn('flex text-sm px-2 py-1 font-medium',
                     matched ? 'text-foreground/80' : 'text-foreground/70')}>
@@ -94,7 +94,7 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
                         </button>
                         {stat.name}
                     </Link>
-                    <button title="New note inside" className={inlineButtonClass} onClick={createChildNote}>
+                    <button title="New note inside" className={cn(inlineButtonClass, 'opacity-0 group-hover:opacity-100')} onClick={createChildNote}>
                         <PlusIcon strokeWidth={3} className='w-3 h-3' />
                     </button>
                 </div>
