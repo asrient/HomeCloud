@@ -124,6 +124,8 @@ export function useNoteContent(note: NoteItem | null) {
     useEffect(() => {
         if (note === null) {
             setContent('');
+            uid.current = null;
+            setError(null);
             return;
         }
         if (uid.current === noteUid(note.storageId, note.stat.id)) return;

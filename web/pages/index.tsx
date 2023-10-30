@@ -99,7 +99,7 @@ export default function Home() {
             <div className='max-w-[45rem]'>
             <b className='text-orange-600'>HomeCloud</b> is a personal media management solution that puts you in control of your data. 
             With HomeClould you no longer need to rely on a single cloud storage provider for things like photos, notes, files. 
-            You can keep or move your data into which every service you want (even external drives) and still get the same seemless experience.
+            You can keep or move your data into whichever service you want (even external drives) and still get the same seemless experience.
             </div>
           </div>
         </div>
