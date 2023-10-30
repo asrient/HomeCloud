@@ -67,39 +67,34 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Start | Homecloud</title>
+        <title>HomeCloud</title>
       </Head>
       <main className='bg-slate-50 home-bg min-h-screen pb-10'>
         <div className='container'>
           <div className={`flex min-h-[70vh] justify-center flex-col lg:flex-row lg:space-x-12 lg:items-end pt-16 ${inter.className}`}>
-            <div className="flex-col pb-32 text-slate-400">
+            <div className="flex-col pb-16 md:pb-32 text-slate-400">
               <div className='pb-2 text-3xl pl-3 font-bold'>
                 Hey,
               </div>
-              <div className="max-w-xl text-5xl md:text-8xl font-bold">
+              <div className="max-w-xl text-6xl md:text-8xl font-bold">
                 {greetings}.
               </div>
             </div>
 
-            <div>
-              <div className='text-xl p-4 font-light'>
-                Let's Start
-              </div>
-              <div className="mb-32 flex items-baseline flex-col md:grid w-full md:grid-cols-2 xl:grid-cols-3 text-left">
-                {
-                  apps.map((app) => (
-                    <AppCard key={app.name} {...app} />
-                  ))
-                }
-              </div>
+            <div className="mb-32 flex items-baseline flex-col md:grid w-full md:grid-cols-2 xl:grid-cols-3 text-left">
+              {
+                apps.map((app) => (
+                  <AppCard key={app.name} {...app} />
+                ))
+              }
             </div>
           </div>
-          <hr/>
+          <hr />
           <div className='p-2 pt-4 text-sm opacity-50'>
             <div className='max-w-[45rem]'>
-            <b className='text-orange-600'>HomeCloud</b> is a personal media management solution that puts you in control of your data. 
-            With HomeClould you no longer need to rely on a single cloud storage provider for things like photos, notes, files. 
-            You can keep or move your data into whichever service you want (even external drives) and still get the same seemless experience.
+              <b className='text-orange-600'>HomeCloud</b> is a personal media management solution that puts you in control of your data.
+              With HomeClould you no longer need to rely on a single cloud storage provider for things like photos, notes, files.
+              You can keep or move your data into whichever service you want (even external drives) and still get the same seemless experience.
             </div>
           </div>
         </div>
