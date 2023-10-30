@@ -56,6 +56,7 @@
     "zod": "^3.22.2"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.10",
     "@types/mime": "^3.0.2",
     "eslint-plugin-react-hooks": "^4.6.0"
   }

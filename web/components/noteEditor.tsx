@@ -39,7 +39,7 @@ const NoteEditor = ({ content, setContent }: NoteEditorProps) => {
 
     return (
         <EditorContent
-            className='w-full h-full'
+            className='prose max-w-full h-full'
             editor={editor} />
     )
 }
