@@ -42,19 +42,22 @@ const Page: NextPageWithConfig = () => {
   return (
     <>
       <Head>
-        <title>Files</title>
+        <title>My Files</title>
       </Head>
-      <PageBar icon='/icons/home.png' title='My Files'>
+      <PageBar icon='/icons/folder.png' title='My Files'>
       </PageBar>
       <main
         className={inter.className}
       >
-        <Group
-          title='Favorites'
-          items={pinnedItems}
-          sortBy={SortBy.None}
-          view='grid'
-        />
+        {
+          pinnedItems.length > 0 
+          && <Group
+            title='Favorites'
+            items={pinnedItems}
+            sortBy={SortBy.None}
+            view='grid'
+          />
+        }
         <Group
           title='My Storages'
           items={storageItems}

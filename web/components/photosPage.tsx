@@ -426,8 +426,8 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                             />
                             {
                                 !error && !isLoading && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
-                                    <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' width={0} height={0} />
-                                    <div className='text-lg font-semibold'>No Photos.</div>
+                                    <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' priority width={0} height={0} />
+                                    <div className='text-lg font-semibold'>Nothing to see here, except for the cat.</div>
                                 </div>
                             }
                             {error && <div className='p-5 py-10 flex justify-center items-center text-red-500'>

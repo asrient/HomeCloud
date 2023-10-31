@@ -18,7 +18,7 @@ export default function Page() {
     <PhotosPage
       fetchOptions={fetchOptions}
       pageTitle='Recently Added'
-      pageIcon='/icons/recents.png'
+      pageIcon='/icons/clock.png'
     />
   )
 }

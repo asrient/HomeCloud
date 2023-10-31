@@ -7,6 +7,12 @@ import { cn, isMobile } from "@/lib/utils";
 import Image from "next/image";
 import { getThumbnail } from "@/lib/api/files";
 import { useCallback, useMemo } from "react";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion"
 
 export enum SortBy {
     Name = 'Name',
@@ -140,28 +146,38 @@ export function Group({ items, title, view, onDbClick, onClick, ...rest }: Group
         }
     }, [onDbClick_]);
 
-    return (<div className={`${view === 'grid' ? "p-4" : ''}`}>
-        {title && <h2 className="text-sm border-b p-2 pb-1 mb-4">{title}</h2>}
-        {
-            view === 'grid' ? (<div className="grid gap-3 grid-cols-3 md:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:cols-8">
-                {items.map(item => <div key={item.storageId + item.id} className="h-full w-full flex justify-center items-center">
-                    <GridItem
-                        onDbClick={onDbClick || onDbClick_}
-                        onClick={onClick || onClick_}
-                        {...rest}
-                        item={item} />
-                </div>)}
-            </div>)
-                : (<div>
-                    {items.map(item => <ListItem
-                        onDbClick={onDbClick || onDbClick_}
-                        onClick={onClick || onClick_}
-                        key={item.storageId + item.id}
-                        {...rest}
-                        item={item} />)}
-                </div>)
-        }
+    const main = view === 'grid'
+        ? (<div className="grid gap-3 grid-cols-3 md:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:cols-8">
+            {items.map(item => <div key={item.storageId + item.id} className="h-full w-full flex justify-center items-center">
+                <GridItem
+                    onDbClick={onDbClick || onDbClick_}
+                    onClick={onClick || onClick_}
+                    {...rest}
+                    item={item} />
+            </div>)}
+        </div>)
+        : (<div>
+            {items.map(item => <ListItem
+                onDbClick={onDbClick || onDbClick_}
+                onClick={onClick || onClick_}
+                key={item.storageId + item.id}
+                {...rest}
+                item={item} />)}
+        </div>)
 
+    return (<div className={cn(view === 'grid' && "px-2 sm:px-4", view === 'grid' && !title && 'py-4')}>
+        {
+            !!title
+                ? (<Accordion type="single" defaultValue="item-1" collapsible>
+                    <AccordionItem value="item-1">
+                        <AccordionTrigger>{title}</AccordionTrigger>
+                        <AccordionContent>
+                            {main}
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>)
+                : (main)
+        }
     </div>)
 }
 
@@ -173,9 +189,9 @@ export default function FilesView({ items, groupBy, ...rest }: FilesViewParams) 
 
     if (items.length === 0) return (<div className="min-h-[80vh] p-5 flex flex-col justify-center items-center text-center text-gray-500">
         <div className="pb-3">
-            <Image src="/img/papers.png" alt="Empty" width={100} height={100} />
+            <Image src="/img/purr-page-not-found.png" priority alt="Empty" width={200} height={200} />
         </div>
-        <div className="text-lg text-primary">No files</div>
+        <div className="text-lg text-primary">It's Empty</div>
         <div className="text-sm">Upload some files to see them here.</div>
     </div>)
 

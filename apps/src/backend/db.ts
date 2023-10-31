@@ -38,5 +38,6 @@ export async function initDb(dbType: string, path: string) {
   if (envConfig.IS_DEV) {
     //await db.sync({ alter: true });
   }
+  await db.sync();
   return true;
 }

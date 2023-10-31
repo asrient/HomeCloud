@@ -12,18 +12,20 @@ export type FilesSidebarData = {
 export function useFilesBar(): SidebarList {
     const storages = useFilterStorages(AppName.Files);
     const { pinnedFolders } = useAppState();
-    return [
+    const list: SidebarList = [
         {
             items: [
                 {
                     title: 'My Files',
                     href: buildNextUrl('/files'),
-                    icon: '/icons/home.png',
+                    icon: '/icons/stack.png',
                     key: 'home',
                 },
             ]
         },
-        {
+    ]
+    if (pinnedFolders?.length > 0) {
+        list.push({
             title: 'Favorites',
             items: pinnedFolders?.map((pinnedFolder) => ({
                 title: pinnedFolder.name,
@@ -36,20 +38,21 @@ export function useFilesBar(): SidebarList {
                     storageId: pinnedFolder.storageId,
                 } as FilesSidebarData,
             })) || []
-        },
-        {
-            title: 'Storages',
-            items: storages?.map((storage) => ({
-                title: storage.name,
-                icon: iconUrl(FileType.Drive),
-                href: folderViewUrl(storage.id),
-                key: storage.id.toString(),
-                data: {
-                    storageId: storage.id,
-                } as FilesSidebarData,
-            })) || []
-        }
-    ]
+        })
+    }
+    list.push({
+        title: 'Locations',
+        items: storages?.map((storage) => ({
+            title: storage.name,
+            icon: iconUrl(FileType.Drive),
+            href: folderViewUrl(storage.id),
+            key: storage.id.toString(),
+            data: {
+                storageId: storage.id,
+            } as FilesSidebarData,
+        })) || []
+    })
+    return list;
 }
 
 export function usePhotosBar(): SidebarList {
@@ -67,7 +70,7 @@ export function usePhotosBar(): SidebarList {
                 {
                     title: 'Recently Added',
                     href: buildNextUrl('/photos/recents'),
-                    icon: '/icons/recents.png',
+                    icon: '/icons/clock.png',
                     key: 'recents',
                 },
             ]

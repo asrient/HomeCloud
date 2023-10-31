@@ -11,7 +11,7 @@ import { noteUrl } from "@/lib/urls";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "../ui/context-menu";
 import { useRouter } from "next/router";
 import DeleteNoteModal from "../deleteNoteModal";
-import { ChevronRightIcon, ChevronDownIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { ChevronRightIcon, ChevronDownIcon, PlusIcon, ServerIcon } from "@heroicons/react/24/outline";
 import LoadingIcon from "../ui/loadingIcon";
 import { cn } from "@/lib/utils";
 import { useUrlMatch } from "../hooks/useUrlMatch";
@@ -24,7 +24,7 @@ type NoteNavItemProps = {
     depth: number;
 }
 
-const inlineButtonClass = 'p-[0.1rem] mr-1 hover:bg-muted-foreground/20 rounded-sm';
+const inlineButtonClass = 'p-[0.1rem] mr-1 text-muted-foreground/60 hover:bg-muted-foreground/20 rounded-sm';
 
 function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemProps) {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -142,10 +142,11 @@ function StorageTree({ storage }: { storage: Storage }) {
 
     const fetchNoteStats = useCallback(async (storage: Storage) => {
         if (!storage.storageMeta?.notesDir) return;
-        const rootNoteStats = await readDir({
+        let rootNoteStats = await readDir({
             id: storage.storageMeta.notesDir,
             storageId: storage.id,
         });
+        rootNoteStats = rootNoteStats.filter((stat) => stat.type === 'directory');
         dispatch(ActionTypes.SET_ROOT_NOTE_STATS, {
             storageId: storage.id,
             rootNoteStats,
@@ -200,7 +201,7 @@ function StorageTree({ storage }: { storage: Storage }) {
     }, [selectedStat]);
 
     return (
-        <div className='py-3'>
+        <div className='my-2 py-1 px-1 border-b border-muted'>
             <NewNoteModal
                 storage={storage}
                 parentId={selectedStat?.id}
@@ -212,8 +213,11 @@ function StorageTree({ storage }: { storage: Storage }) {
                 isOpen={deleteNoteModalOpen}
                 onOpenChange={setDeleteNoteModalOpen} />
             <div className='flex justify-between px-2'>
-                <div className='text-sm font-semibold'>
-                    {storage.name}
+                <div>
+                    <ServerIcon className='w-4 h-4 inline-block' />
+                    <span className='ml-2 text-sm font-semibold'>
+                        {storage.name}
+                    </span>
                 </div>
                 <button title="New Note" className={inlineButtonClass} onClick={newRootNote}>
                     <PlusIcon strokeWidth={3} className='w-3 h-3' />
@@ -246,7 +250,10 @@ function StorageTree({ storage }: { storage: Storage }) {
 export function NotesSidebar() {
     const storages = useFilterStorages(AppName.Notes);
     return (
-        <div>
+        <div className='mb-2 mt-6'>
+            <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
+                Collections
+            </h2>
             {
                 storages.map((storage) => <StorageTree key={storage.id} storage={storage} />)
             }
