@@ -24,6 +24,12 @@ function fixPackageJson(packageJson) {
 
 module.exports = {
   packagerConfig: {
+    protocols: [
+      {
+        name: "HomeCloud Desktop",
+        schemes: ["homecloud"]
+      }
+    ],
     extraResource: [
       path.resolve(__dirname, 'node_modules/ffmpeg-static', os.platform() !== 'win32' ? 'ffmpeg' : 'ffmpeg.exe'),
       path.resolve(__dirname, 'node_modules/ffprobe-static/bin', os.platform(), os.arch(), os.platform() !== 'win32' ? 'ffprobe' : 'ffprobe.exe'),
@@ -42,7 +48,11 @@ module.exports = {
       "^/web-public$",
       "^/tsconfig[.]json$",
       "[.](cmd|user|DotSettings|njsproj|sln)$"
-    ]
+    ],
+    icon: "appIcons/icon",
+    appCopyright: "@ASRIENT",
+    publisherName: "ASRIENT",
+    appBundleId: "org.homecloud.desktop",
   },
   rebuildConfig: {},
   makers: [

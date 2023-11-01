@@ -45,7 +45,6 @@ export default function AppStateProvider({ children }: {
 
     useEffect(() => {
         setupStaticConfig();
-        console.log('ismobile', isMobile())
         dispatch({
             type: ActionTypes.APP_LOADED,
             payload: {

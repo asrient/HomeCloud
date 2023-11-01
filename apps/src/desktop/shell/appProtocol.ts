@@ -6,7 +6,7 @@ import apiRouter from "../../backend/apiRouter";
 import { envConfig } from "../../backend/envConfig";
 
 export default class AppProtocol {
-  static PROTOCOL_NAME = "app";
+  static PROTOCOL_NAME = "homecloud";
   static API_BASE_URL = AppProtocol.PROTOCOL_NAME + "://host/api/";
   static BUNDLE_BASE_URL = AppProtocol.PROTOCOL_NAME + "://host/";
 
@@ -90,9 +90,17 @@ export default class AppProtocol {
     return response;
   };
 
+  registerExternalProtocol() {
+    app.setAsDefaultProtocolClient(AppProtocol.PROTOCOL_NAME);
+    if(!app.isDefaultProtocolClient(AppProtocol.PROTOCOL_NAME)) {
+      console.error("Failed to register homecloud protocol");
+    }
+  };
+
   register() {
     // Customize protocol to handle bundle resources and api.
     protocol.handle(AppProtocol.PROTOCOL_NAME, (request) => {
+
       if (request.url.startsWith(AppProtocol.API_BASE_URL)) {
         return this.handleApi(request);
       }
@@ -110,5 +118,6 @@ export default class AppProtocol {
         );
       });
     });
+    this.registerExternalProtocol();
   }
 }

@@ -43,11 +43,11 @@ export class ApiRequest {
     public body: (() => Promise<Buffer>) | null = null,
     public fetchMultipartForm:
       | ((
-          cb: (
-            type: "file" | "field",
-            file: ApiRequestFile | any,
-          ) => Promise<void>,
-        ) => Promise<void>)
+        cb: (
+          type: "file" | "field",
+          file: ApiRequestFile | any,
+        ) => Promise<void>,
+      ) => Promise<void>)
       | null = null,
   ) {
     this.method = method.toUpperCase();
@@ -102,7 +102,7 @@ export class ApiRequest {
     return this.headers["content-type"];
   }
   get cookieString() {
-    if(envConfig.isDesktop()) {
+    if (envConfig.isDesktop()) {
       return this.headers["x-key"];
     }
     return this.headers["cookie"];
@@ -208,7 +208,7 @@ export class ApiResponse {
       maxAge: ttl,
       path: "/",
     });
-    if(envConfig.isDesktop()) {
+    if (envConfig.isDesktop()) {
       this.setHeader("X-Key", cookieStr);
     }
     this.setHeader(
@@ -249,6 +249,12 @@ export class ApiResponse {
     return response;
   }
 
+  static redirect(url: string) {
+    const response = new ApiResponse();
+    response.redirect(url);
+    return response;
+  }
+
   static stream(
     statusCode: number,
     bodyStream: ReadStream,
@@ -269,7 +275,7 @@ export type ApiDecorator = (args: any[] | any) => ApiDecoratorHandler;
 
 export class RouteGroup {
   queue: { pattern: string; handler: RouteHandler }[] = [];
-  constructor() {}
+  constructor() { }
   add(
     pattern: string,
     arg1: RouteHandler | ApiDecoratorHandler[],

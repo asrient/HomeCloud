@@ -8,10 +8,11 @@ import {
   fetchFsDriver,
 } from "../decorators";
 import { Storage } from "../models";
-import { StorageTypes, StorageAuthTypes, StorageAuthType } from "../envConfig";
+import { StorageTypes, StorageAuthTypes, StorageAuthType, envConfig } from "../envConfig";
 import { initiate, complete } from "../storageKit/oneAuth";
 import { FsDriver } from "../storageKit/interface";
 import CustomError from "../customError";
+import { joinUrlPath } from "../utils";
 
 const api = new RouteGroup();
 
@@ -87,9 +88,8 @@ api.add(
     const { referenceId, partialCode2 } = request.getParams;
     try {
       const storage = await complete(referenceId, partialCode2);
-      return ApiResponse.json(201, {
-        storage: await storage.getDetails(),
-      });
+      const redirectUrl = joinUrlPath(envConfig.BASE_URL, `/settings/storage?id=${storage.id}`);
+      return ApiResponse.redirect(redirectUrl);
     } catch (e: any) {
       return ApiResponse.fromError(e);
     }

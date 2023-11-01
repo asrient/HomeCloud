@@ -30,8 +30,28 @@ export default class App {
     app.on("activate", this.appActivated);
     app.on("window-all-closed", this.allWindowsClosed);
     app.on("ready", this.appReady);
+    app.on('open-url', (_e, url) => this.handleOpenUrl(url));
+    app.on("second-instance", (_e, argv, workingDirectory) => this.handleSecondInstance(argv, workingDirectory));
     handleServerEvent(this.handleServerEvent);
     this.appProtocol = new AppProtocol();
+  }
+
+  handleOpenUrl = (url: string | null) => {
+    console.log("Opening deep link:", url);
+    if (this.tabbedWindows.length === 0) {
+      this.createTabbedWindow();
+    }
+    const window = this.tabbedWindows[this.tabbedWindows.length - 1];
+    if (window.win.isMinimized()) {
+      window.win.restore();
+    }
+    window.win.focus();
+    window.createNewTab(url);
+  }
+
+  handleSecondInstance = (argv: string[], _workingDirectory: string) => {
+    const url = argv.pop();
+    this.handleOpenUrl(url || null);
   }
 
   handleServerEvent = async (event: ServerEvent) => {

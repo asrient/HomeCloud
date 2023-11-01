@@ -33,7 +33,7 @@ export function setupStaticConfig() {
         if (staticConfig.envType === 'node') {
             staticConfig.apiBaseUrl = 'http://localhost:5000/api';
         } else {
-            staticConfig.apiBaseUrl = 'app://host/api';
+            staticConfig.apiBaseUrl = 'homecloud://host/api';
         }
     }
 }

@@ -1,4 +1,4 @@
-import { BrowserWindow, BrowserView } from "electron";
+import { BrowserWindow, BrowserView, BrowserWindowConstructorOptions } from "electron";
 import path from "path";
 import { envConfig } from "../../backend/envConfig";
 
@@ -8,7 +8,7 @@ export class AppWindow {
   win: BrowserWindow;
   id: number;
 
-  constructor(preloadScript: string | null = null, opts: any = {}) {
+  constructor(preloadScript: string | null = null, opts: BrowserWindowConstructorOptions = {}) {
     // Create the browser window.
     if (!!preloadScript) {
       opts["webPreferences"] = {
@@ -20,6 +20,7 @@ export class AppWindow {
       height: 820,
       minHeight: 400,
       minWidth: 600,
+      icon: path.join(__dirname, "public/icon.png"),
       ...opts,
     });
     this.id = this.win.webContents.id;

@@ -26,7 +26,7 @@ const Page: NextPageWithConfig = () => {
                     </h1>
                     <hr />
                     <div className='mt-8'>
-                        {storages.length && <NewNoteModal
+                        {storages.length > 0 && <NewNoteModal
                             storage={storages[0]}
                         >
                             <Button className='text-blue-500' variant='link'>
