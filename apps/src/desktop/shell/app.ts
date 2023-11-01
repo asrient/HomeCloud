@@ -82,6 +82,7 @@ export default class App {
       oneAuthServerUrl: "http://localhost:5050", // todo: get from env
       oneAuthAppId: "dummy", // todo: get from env
       userHomeDir,
+      allowPrivateUrls: true,
     });
   }
 

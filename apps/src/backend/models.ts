@@ -18,6 +18,7 @@ import { createHash } from "./utils";
 import CustomError from "./customError";
 import path from "path";
 import fs from "fs/promises";
+import { isUrlPrivate } from "./utils/privateUrlChecker";
 
 const saltRounds = 10;
 const DAYS_5 = 5 * 24 * 60 * 60 * 1000;
@@ -358,6 +359,15 @@ export class Storage extends DbModel {
       const protocol = data.url.split("://")[0];
       if (!allowedUrlProtocols.includes(protocol)) {
         throw new Error("Invalid url protocol for this storage type");
+      }
+      if (data.url && !StorageTypeMeta[data.type].urlIsPath && !envConfig.ALLOW_PRIVATE_URLS) {
+        try {
+          if (await isUrlPrivate(data.url)) {
+            throw new Error("Url domain is private");
+          }
+        } catch (e: any) {
+          throw CustomError.validationSingle("url", e.message);
+        }
       }
     }
 

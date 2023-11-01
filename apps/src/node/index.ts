@@ -99,6 +99,7 @@ class AppServer {
       disabledStorageTypes,
       oneAuthServerUrl: process.env.ONEAUTH_SERVER_URL || null,
       oneAuthAppId: process.env.ONEAUTH_APP_ID || null,
+      allowPrivateUrls: process.env.ALLOW_PRIVATE_URLS === "true",
     });
   }
 

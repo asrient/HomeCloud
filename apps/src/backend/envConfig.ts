@@ -18,6 +18,7 @@ export type SetupParams = {
   oneAuthServerUrl: string | null;
   oneAuthAppId: string | null;
   userHomeDir?: string;
+  allowPrivateUrls?: boolean;
 };
 
 export enum OptionalType {
@@ -107,6 +108,7 @@ class EnvConfig {
   readonly ONEAUTH_SERVER_URL;
   readonly ONEAUTH_APP_ID;
   readonly USER_HOME_DIR;
+  readonly ALLOW_PRIVATE_URLS;
 
   constructor(config: SetupParams) {
     this.DATA_DIR = config.dataDir || "";
@@ -126,6 +128,8 @@ class EnvConfig {
     this.ONEAUTH_SERVER_URL = config.oneAuthServerUrl;
     this.ONEAUTH_APP_ID = config.oneAuthAppId;
     this.USER_HOME_DIR = config.userHomeDir;
+
+    this.ALLOW_PRIVATE_URLS = config.allowPrivateUrls ?? false;
 
     if (this.IS_DEV) console.log("❗️ Warning: Running in DEV MODE ❗️");
     console.log("🌩️ Enabled storage types:", this.ENABLED_STORAGE_TYPES);
