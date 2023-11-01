@@ -20,8 +20,8 @@ export function AppLayout({ children, sidebarType }: { children: React.ReactNode
 
     return (<div>
         <div className={`flex-1 items-start ${showSidebar && 'md:grid md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)]'}`}>
-            <aside className={`sidebar fixed top-0 md:top-[2.6rem] z-10 hidden h-[calc(100vh-2.6rem)] w-full shrink-0 md:sticky ${showSidebar ? 'md:block' : 'md:hidden'}`}>
-                <ScrollArea className="h-full py-6 pl-1 lg:pr-2 lg:border-r border-muted">
+            <aside className={`sidebar bg-background/80 backdrop-blur-lg top-0 md:top-[2.6rem] z-20 h-[100vh] md:h-[calc(100vh-2.6rem)] w-[85vw] max-w-[20rem] md:w-full md:max-w-full shrink-0 fixed md:sticky ${showSidebar ? 'block' : 'hidden'}`}>
+                <ScrollArea className="h-full py-6 pl-1 lg:pr-2 border-r md:border-r-0 lg:border-r border-muted">
                     <div className='flex justify-start items-center pl-4'>
                         <Button variant='ghost' size='icon' onClick={hideSidebar} className='text-slate-400' title='Hide Side Bar'>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
@@ -42,7 +42,7 @@ export function AppLayout({ children, sidebarType }: { children: React.ReactNode
                     }
                 </ScrollArea>
             </aside>
-            <div className="border-muted min-h-full">
+            <div className="min-h-full">
                 {children}
             </div>
         </div>

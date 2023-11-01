@@ -5,7 +5,6 @@ import LoginModal from '@/components/loginModal';
 import AppErrorModal from '@/components/appErrorModal';
 import AppShell from '@/components/appShell';
 import { AppLayout } from '@/components/shell/appLayout';
-import type { ReactElement, ReactNode } from 'react'
 import type { NextPage } from 'next'
 import { PageUIConfig } from '@/lib/types';
 import { Toaster } from "@/components/ui/toaster";

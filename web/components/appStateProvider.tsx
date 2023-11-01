@@ -5,13 +5,14 @@ import { setupStaticConfig } from '@/lib/staticConfig';
 import { initalialState } from '@/lib/api/auth';
 import { useAppDispatch, useAppState } from './hooks/useAppState';
 import usePinnedFolders from './hooks/usePinnedFolders';
+import { isMobile } from '@/lib/utils';
 
 function WithInitialState({ children }: {
     children: React.ReactNode;
 }) {
     const dispatch = useAppDispatch();
     const { isAppLoaded, isInitalized } = useAppState();
-    const [ isLoading, setIsLoading ] = React.useState(false);
+    const [isLoading, setIsLoading] = React.useState(false);
     usePinnedFolders();
 
     useEffect(() => {
@@ -44,9 +45,12 @@ export default function AppStateProvider({ children }: {
 
     useEffect(() => {
         setupStaticConfig();
+        console.log('ismobile', isMobile())
         dispatch({
             type: ActionTypes.APP_LOADED,
-            payload: null,
+            payload: {
+                showSidebar: !isMobile(),
+            },
         });
     }, [dispatch]);
 

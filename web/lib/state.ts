@@ -53,7 +53,7 @@ export const initialAppState: AppStateType = {
     profile: null,
     storages: null,
     disabledStorages: [],
-    showSidebar: true,
+    showSidebar: false,
     pinnedFolders: [],
     photosSyncState: {},
     notes: {},
@@ -71,6 +71,10 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
     const { type, payload } = action;
     switch (type) {
         case ActionTypes.APP_LOADED: {
+            const { showSidebar }: {
+                showSidebar: boolean | undefined;
+            } = payload;
+            draft.showSidebar = showSidebar || false;
             draft.isAppLoaded = true;
             return draft;
         }
