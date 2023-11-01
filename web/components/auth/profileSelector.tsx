@@ -2,8 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useCallback, useEffect, useState } from 'react';
 import { login, LoginParams, listProfiles } from '@/lib/api/auth';
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { nameToInitials } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import {
     Card,
     CardFooter,
@@ -100,22 +99,6 @@ export default function ProfileSelector({
     const [profiles, setProfiles] = useState<Profile[] | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        async function fetchProfiles() {
-            try {
-                const data = await listProfiles();
-                setProfiles(data.profiles);
-                if (!data.profiles || !data.profiles.length) {
-                    onNoProfiles();
-                }
-            } catch (error: any) {
-                console.error(error);
-                setError(error.message);
-            }
-        }
-        fetchProfiles();
-    }, [onNoProfiles]);
-
     const performLogin = useCallback(async (params: LoginParams) => {
         try {
             await login(params);
@@ -136,6 +119,22 @@ export default function ProfileSelector({
             setSelectedProfile(profile);
         }
     }, [performLogin, setSelectedProfile]);
+
+    useEffect(() => {
+        async function fetchProfiles() {
+            try {
+                const data = await listProfiles();
+                setProfiles(data.profiles);
+                if (!data.profiles || !data.profiles.length) {
+                    onNoProfiles();
+                }
+            } catch (error: any) {
+                console.error(error);
+                setError(error.message);
+            }
+        }
+        fetchProfiles();
+    }, [onNoProfiles, onProfileSelect]);
 
     const onCancel = useCallback(() => {
         setSelectedProfile(null);
@@ -164,7 +163,8 @@ export default function ProfileSelector({
                             <LoadingIcon />
                         </div>
                     ) : profiles.length ? (<ScrollArea className="h-[28rem] w-full">
-                        <div className="flex flex-row flex-wrap justify-center">
+                        <div className={cn("flex flex-row flex-wrap",
+                            profiles?.length === 1 && 'justify-center items-center min-h-[20rem]')}>
                             {profiles?.map(profile => (
                                 <div key={profile.id} className="p-1 basis-1/2">
                                     <ProfileCard

@@ -67,22 +67,24 @@ const LoginModal = () => {
         <AlertDialog open={isOpen}>
             <AlertDialogContent onEscapeKeyDown={preventDefault} className='min-h-[40rem] max-w-[27rem]'>
                 <Tabs value={activeTab} onValueChange={setActiveTab} >
-                    {showSwitch && (<div className="flex justify-center">
+                    {showSwitch && (<div className="flex justify-center sm:justify-start">
                         <TabsList>
                             <TabsTrigger value="login">Login</TabsTrigger>
                             <TabsTrigger value="signup">Sign Up</TabsTrigger>
                         </TabsList>
                     </div>)}
-                    <AlertDialogHeader className='pt-5'>
-                        <AlertDialogTitle>
-                            <TabsContent value="login">Welcome back home, folks</TabsContent>
-                            <TabsContent value="signup">Hey, let's get you started ✨</TabsContent>
+                    <AlertDialogHeader className='pt-5 pb-3'>
+                        <AlertDialogTitle className='text-2xl font-bold'>
+                            <TabsContent value="login">
+                                Welcome to HomeCloud 🎉
+                            </TabsContent>
+                            <TabsContent value="signup">Let's get you started ✨</TabsContent>
                         </AlertDialogTitle>
                         <TabsContent value="login">
                             <AlertDialogDescription>
                                 {
                                     profileListingEnabled
-                                        ? "Continue as.."
+                                        ? "Select a profile to login."
                                         : "Login with your credentials."
                                 }
                             </AlertDialogDescription>
@@ -102,7 +104,7 @@ const LoginModal = () => {
                             : (<LoginForm onLoginSucess={handleLoginSucess} />)}
                     </TabsContent>
                     <TabsContent value="signup">
-                        <SignupForm onLoginSucess={handleLoginSucess} />
+                        <SignupForm isFirstProfile={noProfilesAvailable} onLoginSucess={handleLoginSucess} />
                     </TabsContent>
                 </Tabs>
             </AlertDialogContent>

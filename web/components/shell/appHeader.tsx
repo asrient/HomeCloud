@@ -87,7 +87,7 @@ function AccountPopover() {
                                 </div>
                                 <div className="grow my-auto font-medium">
                                     <div className="text-[0.9rem]">{profile.username || profile.name}</div>
-                                    <div className="text-[0.7rem] leading-tight text-slate-500">Profile ID</div>
+                                    <div className="text-[0.7rem] leading-tight text-slate-500">Profile Settings</div>
                                 </div>
                             </div>
                         </DropdownMenuItem>

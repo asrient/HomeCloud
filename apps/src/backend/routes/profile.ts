@@ -10,6 +10,8 @@ import { Profile, Storage } from "../models";
 import { generateJwt } from "../utils/profileUtils";
 import { StorageAuthType, StorageType, envConfig } from "../envConfig";
 import CustomError from "../customError";
+import { scan } from "../services/structure";
+import { getFsDriver } from "../storageKit/storageHelper";
 
 const api = new RouteGroup();
 
@@ -52,7 +54,7 @@ api.add(
     if (envConfig.isDesktop() && envConfig.USER_HOME_DIR && envConfig.isStorageTypeEnabled(StorageType.Local)) {
       const homeDir = envConfig.USER_HOME_DIR;
       try {
-        await Storage.createStorage(profile, {
+        const storage = await Storage.createStorage(profile, {
           type: StorageType.Local,
           name: 'This Computer',
           authType: StorageAuthType.None,
@@ -61,8 +63,10 @@ api.add(
           secret: null,
           url: homeDir,
         });
+        const fsDriver = await getFsDriver(storage);
+        await scan(fsDriver, true);
       } catch (e: any) {
-        console.error(`Could not create default storage:`, e);
+        console.error(`Could not setup default storage:`, e);
         // Not throwing error here because we don't want to block profile creation.
       }
     }
