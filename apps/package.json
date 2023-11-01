@@ -71,7 +71,8 @@
     "sqlite3",
     "type-is",
     "webdav",
-    "dropbox"
+    "dropbox",
+    "ip"
   ],
   "devDependencies": {
     "@electron-forge/cli": "^6.4.0",
