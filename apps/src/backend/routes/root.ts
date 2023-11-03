@@ -17,6 +17,7 @@ function getConfig() {
     syncPolicy: envConfig.PROFILES_CONFIG.syncPolicy,
     storageTypes: envConfig.ENABLED_STORAGE_TYPES,
     isDev: envConfig.IS_DEV,
+    version: envConfig.VERSION,
   };
 }
 

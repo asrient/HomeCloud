@@ -82,8 +82,14 @@ export class WindowTab {
     this.attachEventHandlers();
     this.loadURL(url || envConfig.BASE_URL);
     this.config.id = this.id;
-    this.view.webContents.openDevTools();
     this.config.title = this.view.webContents.getTitle() || "New Tab";
+    this.openDevTools();
+  }
+
+  openDevTools(force = false) {
+    if (force || envConfig.IS_DEV) {
+      this.view.webContents.openDevTools();
+    }
   }
 
   isDestroyed() {

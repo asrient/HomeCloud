@@ -15,6 +15,7 @@ import { ChevronRightIcon, ChevronDownIcon, PlusIcon, ServerIcon } from "@heroic
 import LoadingIcon from "../ui/loadingIcon";
 import { cn } from "@/lib/utils";
 import { useUrlMatch } from "../hooks/useUrlMatch";
+import { useToast } from "../ui/use-toast";
 
 type NoteNavItemProps = {
     stat: RemoteItem;
@@ -31,6 +32,7 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
     const [isLoading, setIsLoading] = useState(false);
     const dispatch = useAppDispatch();
     const { notes } = useAppState();
+    const [isError, setIsError] = useState(false);
 
     const note: NoteItem = useMemo(() => notes[noteUid(storage.id, stat.id)], [notes, storage.id, stat.id]);
 
@@ -40,6 +42,7 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
         if (isLoading) return;
         if (note) return;
         setIsLoading(true);
+        setIsError(false);
         try {
             const note = await getNoteByStat(storage, stat);
             dispatch(ActionTypes.ADD_NOTE, { note });
@@ -47,6 +50,7 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
         }
         catch (e: any) {
             console.error('Error fetching note', e);
+            setIsError(true);
         }
         finally {
             setIsLoading(false);
@@ -82,7 +86,11 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
                 className={cn('hover:bg-muted group rounded-sm my-[0.1rem]', matched && 'bg-muted')}
             >
                 <div className={cn('flex text-sm px-2 py-1 font-medium',
-                    matched ? 'text-foreground/80' : 'text-foreground/70')}>
+                    isError
+                        ? 'text-red-500'
+                        : matched
+                            ? 'text-foreground/80'
+                            : 'text-foreground/70')}>
                     <Link href={url} className='noteNavItem grow flex' onContextMenu={handleMenu}>
                         <button className={inlineButtonClass} onClick={toggleExpand}>
                             {
@@ -128,11 +136,13 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
 function StorageTree({ storage }: { storage: Storage }) {
     const { rootNoteStats } = useAppState();
     const [isRootLoading, setIsRootLoading] = useState(false);
+    const [isError, setIsError] = useState(false);
     const dispatch = useAppDispatch();
     const [selectedStat, setSelectedStat] = useState<RemoteItem | undefined>(undefined);
     const [isNewNoteModalOpen, setIsNewNoteModalOpen] = useState(false);
     const router = useRouter();
     const [deleteNoteModalOpen, setDeleteNoteModalOpen] = useState(false);
+    const { toast } = useToast();
 
     const noteStats = useMemo(() => {
         const noteStats = rootNoteStats[storage.id];
@@ -141,27 +151,44 @@ function StorageTree({ storage }: { storage: Storage }) {
     }, [rootNoteStats, storage.id]);
 
     const fetchNoteStats = useCallback(async (storage: Storage) => {
-        if (!storage.storageMeta?.notesDir) return;
-        let rootNoteStats = await readDir({
-            id: storage.storageMeta.notesDir,
-            storageId: storage.id,
-        });
-        rootNoteStats = rootNoteStats.filter((stat) => stat.type === 'directory');
-        dispatch(ActionTypes.SET_ROOT_NOTE_STATS, {
-            storageId: storage.id,
-            rootNoteStats,
-        });
-    }, [dispatch]);
+        if (isRootLoading) return;
+        if (isError) return;
+        if (!storage.storageMeta?.notesDir) {
+            setIsError(true);
+            return;
+        }
+        setIsRootLoading(true);
+        try {
+            let rootNoteStats = await readDir({
+                id: storage.storageMeta.notesDir,
+                storageId: storage.id,
+            });
+            rootNoteStats = rootNoteStats.filter((stat) => stat.type === 'directory');
+            dispatch(ActionTypes.SET_ROOT_NOTE_STATS, {
+                storageId: storage.id,
+                rootNoteStats,
+            });
+        } catch (e: any) {
+            console.error('Error fetching note stats', e);
+            toast({
+                title: `${storage.name} notes`,
+                description: e.message,
+                variant: 'destructive',
+            });
+            setIsError(true);
+        } finally {
+            setIsRootLoading(false);
+        }
+    }, [dispatch, isError, isRootLoading, toast]);
 
     useEffect(() => {
-        if (isRootLoading) return;
         if (noteStats) return;
-        setIsRootLoading(true);
-        fetchNoteStats(storage).finally(() => {
-            setIsRootLoading(false);
-        });
-    }, [storage, isRootLoading, noteStats, fetchNoteStats]);
+        fetchNoteStats(storage);
+    }, [noteStats, fetchNoteStats, storage]);
 
+    useEffect(() => {
+        setIsError(false);
+    }, [storage.id, storage.storageMeta?.notesDir]);
 
     const newChildNote = useCallback(async (stat: RemoteItem) => {
         setSelectedStat(stat);
@@ -213,7 +240,7 @@ function StorageTree({ storage }: { storage: Storage }) {
                 isOpen={deleteNoteModalOpen}
                 onOpenChange={setDeleteNoteModalOpen} />
             <div className='flex justify-between px-2'>
-                <div>
+                <div className={cn(isError && 'text-red-500')}>
                     <ServerIcon className='w-4 h-4 inline-block' />
                     <span className='ml-2 text-sm font-semibold'>
                         {storage.name}

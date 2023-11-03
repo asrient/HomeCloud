@@ -28,13 +28,15 @@ export function setupStaticConfig() {
     staticConfig.webVersion = process.env.NEXT_PUBLIC_WEB_VERSION || 'unknown';
     staticConfig.envType = window.isDesktopApp ? 'desktop' : 'node';
     staticConfig.apiBaseUrl = `${staticConfig.baseUrl}/api`;
-    if (window.location.host === 'localhost:3000') {
+    if (process.env.NODE_ENV === 'development') {
+        console.log('🚀 Development mode');
         staticConfig.isDev = true;
-        if (staticConfig.envType === 'node') {
-            staticConfig.apiBaseUrl = 'http://localhost:5000/api';
-        } else {
-            staticConfig.apiBaseUrl = 'homecloud://host/api';
-        }
+    }
+    if (staticConfig.envType === 'node' && process.env.NEXT_PUBLIC_API_BASE_URL) {
+        staticConfig.apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    }
+    if (staticConfig.envType === 'desktop' && process.env.NEXT_PUBLIC_DESKTOP_API_BASE_URL) {
+        staticConfig.apiBaseUrl = process.env.NEXT_PUBLIC_DESKTOP_API_BASE_URL;
     }
 }
 

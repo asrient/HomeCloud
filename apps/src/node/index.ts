@@ -100,6 +100,7 @@ class AppServer {
       oneAuthServerUrl: process.env.ONEAUTH_SERVER_URL || null,
       oneAuthAppId: process.env.ONEAUTH_APP_ID || null,
       allowPrivateUrls: process.env.ALLOW_PRIVATE_URLS === "true",
+      version: process.env.npm_package_version,
     });
   }
 

@@ -9,7 +9,7 @@ import { staticConfig, isDesktop } from '@/lib/staticConfig'
 import { useAppState } from '@/components/hooks/useAppState'
 
 function Page() {
-  const { isAppLoaded } = useAppState();
+  const { isAppLoaded, serverConfig } = useAppState();
 
   return (
     <>
@@ -31,16 +31,30 @@ function Page() {
             </div>
           </div>
           <Section>
-            <Line title='Version'>
+            <Line title='Web Version'>
               {staticConfig.webVersion}
             </Line>
+            {
+              serverConfig?.version && (
+                <Line title='Backend Version'>
+                  {serverConfig.version}
+                </Line>
+              )
+            }
             <Line title='Platform'>
               {staticConfig.envType}
             </Line>
             {
               staticConfig.isDev && (
-                <Line title='Development Mode'>
-                  <div className='text-yellow-500'>Enabled</div>
+                <Line title='Web Mode'>
+                  <div className='text-yellow-500'>Development</div>
+                </Line>
+              )
+            }
+            {
+              serverConfig?.isDev && (
+                <Line title='Backend Mode'>
+                  <div className='text-yellow-500'>Development</div>
                 </Line>
               )
             }

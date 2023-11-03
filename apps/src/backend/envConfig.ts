@@ -19,6 +19,8 @@ export type SetupParams = {
   oneAuthAppId: string | null;
   userHomeDir?: string;
   allowPrivateUrls?: boolean;
+  desktopIsPackaged?: boolean;
+  version?: string;
 };
 
 export enum OptionalType {
@@ -109,6 +111,8 @@ class EnvConfig {
   readonly ONEAUTH_APP_ID;
   readonly USER_HOME_DIR;
   readonly ALLOW_PRIVATE_URLS;
+  readonly DESKTOP_IS_PACKAGED;
+  readonly VERSION;
 
   constructor(config: SetupParams) {
     this.DATA_DIR = config.dataDir || "";
@@ -130,7 +134,10 @@ class EnvConfig {
     this.USER_HOME_DIR = config.userHomeDir;
 
     this.ALLOW_PRIVATE_URLS = config.allowPrivateUrls ?? false;
+    this.DESKTOP_IS_PACKAGED = config.desktopIsPackaged ?? false;
+    this.VERSION = config.version ?? null;
 
+    console.log(`🆔 HomeCloud Version: ${this.VERSION || "Unknown"}`);
     if (this.IS_DEV) console.log("❗️ Warning: Running in DEV MODE ❗️");
     console.log("🌩️ Enabled storage types:", this.ENABLED_STORAGE_TYPES);
   }

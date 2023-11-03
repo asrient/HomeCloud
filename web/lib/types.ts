@@ -94,6 +94,7 @@ export type ServerConfig = {
     syncPolicy: OptionalType;
     storageTypes: StorageType[];
     isDev: boolean;
+    version?: string;
 }
 
 export enum AppName {

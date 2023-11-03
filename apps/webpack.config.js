@@ -1,11 +1,11 @@
 const CopyPlugin = require("copy-webpack-plugin");
 const nodeExternals = require('webpack-node-externals');
-const WebpackHookPlugin = require('webpack-hook-plugin');
-const path = require('path');
-const os = require('os');
+const webpack = require('webpack');
+
+console.log('Webpack running in mode:', process.env.NODE_ENV || 'development');
 
 const baseconfig = {
-    mode: 'development',
+    mode: process.env.NODE_ENV || 'development',
     module: {
         rules: [{
             test: /\.ts$/,
@@ -20,6 +20,11 @@ const baseconfig = {
     },
     resolve: {
         extensions: ['.js', '.ts', '.json'],
+    },
+    optimization: {
+        // Only takes effect in production mode
+        // minimize=true breaks sequalize automatic functions like profile.getStorages()
+        minimize: false,
     },
 }
 
@@ -45,6 +50,12 @@ module.exports = [
                     { from: "./src/desktop/public", to: __dirname + '/bin/desktop/public' },
                 ],
             }),
+            new webpack.EnvironmentPlugin({
+                NODE_ENV: 'development',
+                ONEAUTH_SERVER_URL: 'http://localhost:5050',
+                ONEAUTH_APP_ID: 'test',
+                DEV_WEB_URL: 'http://localhost:3000',
+              }),
         ],
     },
     {

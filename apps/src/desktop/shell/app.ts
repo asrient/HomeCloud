@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, dialog } from "electron";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
@@ -11,10 +11,11 @@ import {
   OptionalType,
   ProfilesPolicy,
 } from "../../backend/envConfig";
-import isDev from "electron-is-dev";
 import { handleServerEvent, ServerEvent } from "../../backend/serverEvent";
 import { initDb } from "../../backend/db";
 import ffmpegSetup from "../../backend/ffmpeg";
+
+const isDev = process.env.NODE_ENV === "development";
 
 export default class App {
   tabbedWindows: TabbedAppWindow[] = [];
@@ -34,6 +35,18 @@ export default class App {
     app.on("second-instance", (_e, argv, workingDirectory) => this.handleSecondInstance(argv, workingDirectory));
     handleServerEvent(this.handleServerEvent);
     this.appProtocol = new AppProtocol();
+  }
+
+  checkMode() {
+    if (isDev && app.isPackaged) {
+      console.log("🚨 Electron app is packed but NODE_ENV=development.");
+      dialog.showMessageBox({
+        type: "warning",
+        message: "Development Mode",
+        detail: "This version of HomeCloud is meant for development and testing. This is not an official release. Please download the latest public release from the website.",
+        buttons: ["OK"],
+      })
+    }
   }
 
   handleOpenUrl = (url: string | null) => {
@@ -92,17 +105,19 @@ export default class App {
     }
     setupEnvConfig({
       isDev,
+      desktopIsPackaged: app.isPackaged,
       envType: EnvType.Desktop,
       dataDir: app.getPath("userData"),
-      baseUrl: isDev ? "http://localhost:3000/" : AppProtocol.BUNDLE_BASE_URL,
+      baseUrl: isDev && process.env.DEV_WEB_URL ? process.env.DEV_WEB_URL : AppProtocol.BUNDLE_BASE_URL,
       apiBaseUrl: AppProtocol.API_BASE_URL,
       webBuildDir: path.join(app.getAppPath(), "bin/web"),
       profilesPolicy,
       secretKey: this.createOrGetSecretKey(),
-      oneAuthServerUrl: "http://localhost:5050", // todo: get from env
-      oneAuthAppId: "dummy", // todo: get from env
+      oneAuthServerUrl: process.env.ONEAUTH_SERVER_URL || '',
+      oneAuthAppId: process.env.ONEAUTH_APP_ID || '',
       userHomeDir,
       allowPrivateUrls: true,
+      version: app.getVersion(),
     });
   }
 
@@ -113,7 +128,8 @@ export default class App {
 
   connectDb = async () => {
     const dataDir = envConfig.DATA_DIR;
-    const dbPath = path.join(dataDir, "homecloud.db");
+    const dbFilename = envConfig.IS_DEV ? "homecloud_dev.db" : "homecloud.db";
+    const dbPath = path.join(dataDir, dbFilename);
     if (!(await initDb("sqlite", dbPath))) {
       console.error("❌ Failed to initialize database.");
       return false;
@@ -131,6 +147,7 @@ export default class App {
     }
     this.appProtocol.register();
     this.createTabbedWindow();
+    this.checkMode();
   };
 
   appActivated = () => {

@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import { Inter } from 'next/font/google'
 import Head from 'next/head'
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { getGreetings } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -62,7 +62,11 @@ const apps: AppProps[] = [
 ]
 
 export default function Home() {
-  const greetings = useMemo(getGreetings, []);
+  const [greetings, setGreetings] = useState('Good day');
+
+  useEffect(() => {
+    setGreetings(getGreetings());
+  }, []);
 
   return (
     <>
