@@ -1127,36 +1127,40 @@ export function initModels(db: Sequelize) {
   for (const cls of classes) {
     cls.register(db);
   }
-  Profile.hasMany(Storage, { onDelete: "CASCADE" });
-  Storage.belongsTo(Profile, {
-    foreignKey: {
-      allowNull: false,
-    },
+
+  Profile.hasMany(Storage, {
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
   });
-  Storage.hasOne(StorageMeta, { onDelete: "CASCADE" });
-  StorageMeta.belongsTo(Storage, {
-    foreignKey: {
-      allowNull: false,
-    },
+  Storage.belongsTo(Profile);
+
+  Storage.hasOne(StorageMeta, {
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  StorageMeta.belongsTo(Storage);
+
+  Profile.hasMany(PendingAuth, {
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
   });
   PendingAuth.belongsTo(Profile);
-  Photo.belongsTo(Storage, {
-    foreignKey: {
-      allowNull: false,
-    },
-    constraints: true,
+
+  Storage.hasMany(Photo, {
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
   });
-  Storage.hasMany(Photo, { onDelete: "CASCADE" });
-  Thumb.belongsTo(Storage, {
-    foreignKey: {
-      allowNull: false,
-    },
+  Photo.belongsTo(Storage);
+
+  Storage.hasMany(Thumb, {
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
   });
-  Storage.hasMany(Thumb, { onDelete: "CASCADE" });
-  PinnedFolders.belongsTo(Storage, {
-    foreignKey: {
-      allowNull: false,
-    },
+  Thumb.belongsTo(Storage);
+
+  Storage.hasMany(PinnedFolders, {
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
   });
-  Storage.hasMany(PinnedFolders, { onDelete: "CASCADE" });
+  PinnedFolders.belongsTo(Storage);
 }
