@@ -14,6 +14,7 @@ import {
 import { handleServerEvent, ServerEvent } from "../../backend/serverEvent";
 import { initDb } from "../../backend/db";
 import ffmpegSetup from "../../backend/ffmpeg";
+import { updateElectronApp } from 'update-electron-app';
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -26,6 +27,14 @@ export default class App {
     if (require("electron-squirrel-startup")) {
       app.quit();
     }
+
+    if (app.isPackaged && !isDev) {
+      updateElectronApp({
+        updateInterval: '1 hour',
+        logger: console,
+      });
+    }
+
     this.setupConfig();
     ffmpegSetup();
     app.on("activate", this.appActivated);

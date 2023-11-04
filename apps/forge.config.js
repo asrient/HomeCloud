@@ -24,6 +24,7 @@ function fixPackageJson(packageJson) {
 
 module.exports = {
   packagerConfig: {
+    overwrite: true,
     protocols: [
       {
         name: "HomeCloud Desktop",
@@ -62,7 +63,6 @@ module.exports = {
     },
     {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin'],
     },
     {
       name: '@electron-forge/maker-deb',
@@ -72,6 +72,27 @@ module.exports = {
       name: '@electron-forge/maker-rpm',
       config: {},
     },
+    {
+      name: '@electron-forge/maker-dmg', 
+      config: {
+        icon: "appIcons/icon.icns",
+        format: "ULFO",
+        overwrite: true,
+      }
+    }
+  ],
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'asrient',
+          name: 'HomeCloud'
+        },
+        prerelease: true,
+        draft: true,
+      }
+    }
   ],
   hooks: {
     generateAssets: async () => {
@@ -118,4 +139,5 @@ module.exports = {
     //   config: {},
     // },
   ],
+  appCategoryType: "public.app-category.productivity",
 };

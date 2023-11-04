@@ -1,5 +1,5 @@
 {
-  "name": "ui",
+  "name": "web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next build && serve out",
     "lint": "next lint",
-    "cp": "cp -rf out/* ../apps/bin/web/"
+    "cp": "mkdir -p ../apps/bin/web && cp -rf out/* ../apps/bin/web/"
   },
   "dependencies": {
     "@heroicons/react": "^2.0.18",

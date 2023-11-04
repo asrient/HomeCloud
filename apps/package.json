@@ -9,6 +9,11 @@
     "name": "asrient",
     "email": "44570278+asrient@users.noreply.github.com"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/asrient/HomeCloud.git",
+    "directory": "apps"
+  },
   "scripts": {
     "dev:build": "webpack --config ./webpack.config.js --watch",
     "dev:node": "nodemon --watch bin/node bin/node/index.js",
@@ -48,6 +53,7 @@
     "socket.io": "^4.7.2",
     "sqlite3": "^5.1.6",
     "type-is": "^1.6.18",
+    "update-electron-app": "^3.0.0",
     "uuid": "^9.0.1",
     "webdav": "^5.2.3"
   },
@@ -73,15 +79,18 @@
     "webdav",
     "dropbox",
     "dropbox-stream",
-    "ip"
+    "ip",
+    "update-electron-app"
   ],
   "devDependencies": {
     "@electron-forge/cli": "^6.4.0",
     "@electron-forge/maker-deb": "^6.4.0",
+    "@electron-forge/maker-dmg": "^6.4.2",
     "@electron-forge/maker-rpm": "^6.4.0",
     "@electron-forge/maker-squirrel": "^6.4.0",
     "@electron-forge/maker-zip": "^6.4.0",
     "@electron-forge/plugin-auto-unpack-natives": "^6.4.0",
+    "@electron-forge/publisher-github": "^6.4.2",
     "@types/bcrypt": "^5.0.0",
     "@types/busboy": "^1.5.0",
     "@types/cloneable-readable": "^2.0.1",
