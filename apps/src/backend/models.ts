@@ -1,4 +1,4 @@
-import { Sequelize, Op, DataTypes, Model } from "sequelize";
+import { Sequelize, Op, DataTypes, Model, ModelAttributes, ModelIndexesOptions } from "sequelize";
 import {
   envConfig,
   OptionalType,
@@ -24,8 +24,8 @@ const saltRounds = 10;
 const DAYS_5 = 5 * 24 * 60 * 60 * 1000;
 
 class DbModel extends Model {
-  static _columns: any;
-  static _indexes: any;
+  static _columns: ModelAttributes;
+  static _indexes?: ModelIndexesOptions[];
 
   get json() {
     return this.toJSON();
@@ -47,7 +47,7 @@ export class Profile extends DbModel {
   declare isDisabled: boolean;
   declare getStorages: () => Promise<Storage[]>;
 
-  static _columns = {
+  static _columns: ModelAttributes = {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -236,7 +236,7 @@ export class Storage extends DbModel {
   declare setProfile: (profile: Profile) => Promise<void>;
   declare getProfile: () => Promise<Profile>;
 
-  static _columns = {
+  static _columns: ModelAttributes = {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -543,7 +543,11 @@ export class PendingAuth extends DbModel {
   declare setProfile: (profile: Profile) => Promise<void>;
   declare getProfile: () => Promise<Profile>;
 
-  static _columns = {
+  static _indexes: ModelIndexesOptions[] = [
+    { unique: true, fields: ['referenceId', 'ProfileId'] }
+  ];
+
+  static _columns: ModelAttributes = {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -659,7 +663,7 @@ export class StorageMeta extends DbModel {
   declare setStorage: (storage: Storage) => Promise<void>;
   declare getStorage: () => Promise<Storage>;
 
-  static _columns = {
+  static _columns: ModelAttributes = {
     hcRoot: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -777,7 +781,11 @@ export class Photo extends DbModel {
   declare metadata: string | null;
   declare StorageId: number;
 
-  static _columns = {
+  static _indexes: ModelIndexesOptions[] = [
+    { unique: true, fields: ['itemId', 'StorageId'] }
+  ];
+
+  static _columns: ModelAttributes = {
     itemId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -944,7 +952,11 @@ export class Thumb extends DbModel {
   declare lastReadOn: Date;
   declare StorageId: number;
 
-  static _columns = {
+  static _indexes: ModelIndexesOptions[] = [
+    { unique: true, fields: ['fileId', 'StorageId'] }
+  ];
+
+  static _columns: ModelAttributes = {
     fileId: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -1066,7 +1078,11 @@ export class PinnedFolders extends DbModel {
   declare setStorage: (storage: Storage) => Promise<void>;
   declare getStorage: () => Promise<Storage>;
 
-  static _columns = {
+  static _indexes: ModelIndexesOptions[] = [
+    { unique: true, fields: ['folderId', 'StorageId'] }
+  ];
+
+  static _columns: ModelAttributes = {
     folderId: {
       type: DataTypes.STRING,
       allowNull: false,
