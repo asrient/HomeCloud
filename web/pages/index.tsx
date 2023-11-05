@@ -48,16 +48,16 @@ const apps: AppProps[] = [
     href: '/photos'
   },
   {
-    name: 'Files',
-    icon: '/icons/folder.png',
-    description: 'Access and manage your files from all your storages in one place.',
-    href: '/files'
-  },
-  {
     name: 'Notes',
     icon: '/icons/notes.png',
     description: 'Organize your texts into notes and wikis and store them wherever you want.',
     href: '/notes'
+  },
+  {
+    name: 'Files',
+    icon: '/icons/folder.png',
+    description: 'Access and manage your files from all your storages in one place.',
+    href: '/files'
   },
 ]
 
