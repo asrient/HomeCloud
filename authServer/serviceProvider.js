@@ -48,7 +48,6 @@ export class GoogleServiceProvider extends ServiceProvider {
             scope: [
                 'https://www.googleapis.com/auth/drive',
                 'https://www.googleapis.com/auth/userinfo.profile',
-                'https://www.googleapis.com/auth/userinfo.email',
             ],
             state: referenceId,
             // to get refresh token every time 
@@ -72,10 +71,9 @@ export class GoogleServiceProvider extends ServiceProvider {
             version: 'v2'
         });
         try {
-            const { data: { id, email, name, picture } } = await oauth2.userinfo.get();
+            const { data: { id, name, picture } } = await oauth2.userinfo.get();
             return {
                 id,
-                email,
                 name,
                 picture,
                 refreshToken: tokens.refresh_token,
@@ -122,7 +120,6 @@ export class DropboxServiceProvider extends ServiceProvider {
         return {
             id: result.account_id,
             name: 'Dropbox User',
-            email: undefined,
             refreshToken: result.refresh_token,
             accessToken: result.access_token,
             expiryDate: expiry_date,

@@ -19,6 +19,10 @@ export function code(length = 10) {
     return crypto.randomBytes(length).toString('hex');
 }
 
+export function uniqueCode() {
+    return crypto.randomUUID();
+}
+
 export function createHash(text) {
     return crypto.createHash('md5').update(text).digest('hex');
 }

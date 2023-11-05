@@ -2,7 +2,6 @@
 *::before,
 *::after {
   box-sizing: border-box;
-  outline: none;
 }
 
 a {
@@ -43,14 +42,6 @@ body {
   color: #818181;
 }
 
-@media (min-width: 992px) {
-
-  html,
-  body {
-    font-size: 1.1rem;
-  }
-}
-
 hr {
   box-sizing: content-box;
   height: 0;
@@ -79,7 +70,7 @@ p {
 
 button {
   font-family: 'Segoe UI', sans-serif;
-  font-size: 1rem;
+  font-size: 0.8rem;
   font-weight: 400;
   border-radius: 0.5rem;
   padding: 0.3rem;
@@ -99,57 +90,55 @@ button {
 }
 
 .size-xs {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
 }
 
 .size-s {
-  font-size: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .size-m {
-  font-size: 1.2rem;
+  font-size: 1rem;
+  /* 16px */
+  line-height: 1.5rem;
+  /* 24px */
 }
 
 .size-l {
-  font-size: 1.5rem;
+  font-size: 1.125rem;
+  /* 18px */
+  line-height: 1.75rem;
+  /* 28px */
 }
 
 .size-xl {
-  font-size: 2rem;
+  font-size: 1.25rem;
+  /* 20px */
+  line-height: 1.75rem;
+  /* 28px */
 }
 
 .size-xxl {
-  font-size: 3rem;
+  font-size: 1.5rem;
+  /* 24px */
+  line-height: 2rem;
+  /* 32px */
 }
 
-
-@media(min-width:360px) {
-  .size-xs {
-    font-size: 0.9rem;
-  }
-
-  .size-s {
-    font-size: 1.1rem;
-  }
-
-  .size-m {
-    font-size: 1.5rem;
-  }
-
-  .size-l {
-    font-size: 1.8rem;
-  }
-
-  .size-xl {
-    font-size: 2.2rem;
-  }
-
-  .size-xxl {
-    font-size: 3.5rem;
-  }
-
+/* same as xxl */
+.size-2xl {
+  font-size: 1.5rem;
+  /* 24px */
+  line-height: 2rem;
+  /* 32px */
 }
 
+.size-3xl {
+  font-size: 1.875rem; /* 30px */
+  line-height: 2.25rem; /* 36px */
+}
 
 .ink-black {
   color: #2D2D2D;
@@ -172,7 +161,7 @@ button {
 }
 
 .ink-orange {
-  color: #FFB84D;
+  color: rgb(235, 176, 48);
 }
 
 .ink-red {

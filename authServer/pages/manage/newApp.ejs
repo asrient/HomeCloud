@@ -1,27 +1,38 @@
 <!doctype html>
 <html>
-    <%- include('../blocks/head', {title: 'Create App'}); %>
-<body>
-    <%- include('../blocks/header'); %>
-    <div class="container">
-        <br/>
-        <a href="/manage" class="link">&larr; Account</a>
-        <br/>
-        <hr/>
-        <br/>
-        <div class="base-regular ink-orange size-m">New app</div>
-        <div>
-            <form id="createForm">
-                <input type="text" name="name" placeholder="App name" />
-                <input type="text" name="description" placeholder="Description" />
-                <input type="text" name="redirectOrigins" placeholder="Redirect origins (comma seperated)" />
-            </form>
-            <div id="message" class="size-xs ink-red"></div>
-            <button style="width: 10rem; max-width: 95%; padding: 0.6rem;" onclick="createApp()">Create</button>
-        </div>
+<%- include('../blocks/head', {title: 'Create App' }); %>
 
-    </div>
-</body>
+    <body>
+        <%- include('../blocks/header'); %>
+            <div class="container">
+                <br />
+                <a href="/manage" class="link">&larr; My Account</a>
+                <br />
+                <hr />
+                <br />
+                <div class="base-regular ink-orange size-m">Create a New App</div>
+                <br />
+                <div>
+                    <form id="createForm">
+                        <label for="nameInput">App name</label>
+                        <input type="text" id="nameInput" name="name" placeholder="my server" />
+                        <label for="descriptionInput">Description</label>
+                        <input type="text" id="descriptionInput" name="description"
+                            placeholder="My cool homecloud instance." />
+                        <label for="redirectOriginsInput">Redirect origins</label>
+                        <input type="text" id="redirectOriginsInput" name="redirectOrigins"
+                            placeholder="https://example.com, http://localhost:2000" />
+                        <div class="size-xs ink-tertiary">
+                            Use comma to seperate multiple values.
+                        </div>
+                    </form>
+                    <br />
+                    <div id="message" class="size-xs ink-red"></div>
+                    <button style="width: 10rem; max-width: 95%; padding: 0.6rem;" onclick="createApp()">Create</button>
+                </div>
+
+            </div>
+    </body>
 
 </html>
 
@@ -29,10 +40,11 @@
     async function createApp() {
         const form = document.getElementById('createForm');
         const formData = new FormData(form);
+        const redirectOriginsValue = formData.get('redirectOrigins');
         const payload = {
             name: formData.get('name') || '',
             description: formData.get('description') || '',
-            redirectOrigins: (formData.get('redirectOrigins') || '').split(','),
+            redirectOrigins: redirectOriginsValue ? redirectOriginsValue.split(',') : [],
         }
         console.log('form data: ', payload);
         try {
@@ -43,16 +55,16 @@
                 },
                 body: JSON.stringify(payload),
             });
-            if(res.status !== 200) throw new Error('Something went wrong');
             const data = await res.json();
+            if (!res.ok) throw new Error(`${data.error ? `${data.error}: ` : ''}${data.message}`);
             console.log('create app response: ', data);
+            window.setTimeout(() => {
+                window.location.href = '/manage/';
+            }, 200);
         } catch (err) {
             console.log('error: ', err);
             document.getElementById('message').innerHTML = err.message;
             return;
         }
-        window.setTimeout(() => {
-            window.location.href = '/manage';
-        }, 200);
     }
 </script>

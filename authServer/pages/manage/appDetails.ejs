@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+<%- include('../blocks/head', {title: 'App details' }); %>
+
+    <body>
+        <%- include('../blocks/header'); %>
+            <div class="container">
+                <br />
+                <a href="/manage" class="link">&larr; My Account</a>
+                <br />
+                <hr />
+                <br />
+                <div class="base-semilight ink-tertiary size-s">
+                    App Settings
+                </div>
+                <div class="base-regular ink-orange size-l">
+                    <%- app.name %>
+                </div>
+                <div class="size-s" style="padding: 1rem;">
+                    <div>App ID: <code><%- app._id %></code></div>
+                    <div>Created on: <%- new Date(app.created_on).toDateString(); %></div>
+                </div>
+                <div>
+                    <form id="updateForm">
+                        <label for="descriptionInput">Description</label>
+                        <input type="text" id="descriptionInput" name="description" placeholder="Description"
+                            value="<%- app.description %>" />
+                        <label for="redirectOriginsInput">Redirect origins</label>
+                        <input id="redirectOriginsInput" type="text" name="redirectOrigins" value="<%- app.redirect_origins.join(',') %>"
+                            placeholder="Redirect origins (comma seperated)" />
+                    </form>
+                    <div id="message" class="size-xs ink-red"></div>
+                    <button id="updateButton" style="width: 10rem; max-width: 95%; padding: 0.6rem;"
+                        onclick="updateApp()">Update</button>
+                </div>
+                <br />
+                <div>
+                    <hr />
+                    <div class="base-semilight size-s">
+                        More options
+                    </div>
+                    <br />
+                    <button id="deleteButton" class="ink-red" style="background: none;" onclick="deleteApp()">
+                        Delete App...
+                    </button>
+                </div>
+            </div>
+    </body>
+
+</html>
+
+<script>
+    const appId = '<%- app._id %>';
+    async function updateApp() {
+        const form = document.getElementById('updateForm');
+        const formData = new FormData(form);
+        const redirectOriginsValue = formData.get('redirectOrigins');
+        const payload = {
+            appId,
+            description: formData.get('description') || '',
+            redirectOrigins: redirectOriginsValue ? redirectOriginsValue.split(',') : [],
+        }
+        console.log('form data: ', payload);
+        const btn = document.getElementById('updateButton');
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/app/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) throw new Error('Something went wrong');
+            const data = await res.json();
+            console.log('update app response: ', data);
+        } catch (err) {
+            btn.disabled = false;
+            console.log('error: ', err);
+            document.getElementById('message').innerHTML = err.message;
+            return;
+        }
+        window.setTimeout(() => {
+            window.location.reload();
+        }, 200);
+    }
+
+    async function deleteApp() {
+        const btn = document.getElementById('deleteButton');
+        if (!window.confirm("Are you sure you want to delete this app?")) {
+            return;
+        }
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/app/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ appId }),
+            });
+            if (!res.ok) throw new Error('Something went wrong');
+            const data = await res.json();
+            console.log('delete app response: ', data);
+        } catch (err) {
+            btn.disabled = false;
+            console.log('error: ', err);
+            document.getElementById('message').innerHTML = err.message;
+            return;
+        }
+        window.setTimeout(() => {
+            window.location.href = '/manage';
+        }, 200);
+    }
+</script>

@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import { code, time, createHash, stringToUrlOrigin } from './utils.js';
+import { code, time, createHash, stringToUrlOrigin, uniqueCode } from './utils.js';
 
 const SECRET_KEY = process.env.SECRET_KEY;
 const SETTINGS_APP_NAME = 'Settings';
@@ -246,7 +246,7 @@ pendingAuthSchema.statics.createNew = async function (app, storageType, redirect
     if (!app) throw new Error("App not found");
     if (!app.isRedirectUrlValid(redirectUrl)) throw new Error("Redirect url not allowed");
     if (redirectUrl.includes('?')) throw new Error("Redirect url cannot contain query parameters");
-    const referenceId = code(15);
+    const referenceId = uniqueCode();
     const partialCode1 = code(10);
     const r = new PendingAuths({
         reference_id: referenceId,
