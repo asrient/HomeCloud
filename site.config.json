@@ -1,6 +1,6 @@
 {
     "title": "HomeCloud",
-    "description": "HomeCloud is a personal digital content management app that supports multiple storage locations like Google Drive, NAS. One app to manage content from all the storage devices you own.",
+    "description": "HomeCloud is a self-hosted app for your photos, notes and files that supports multiple storage locations like Google Drive, NAS.",
     "iconPath": "img/icon.png",
     "docsPath": "docs",
     "accentColor": "red"
