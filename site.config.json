@@ -1,6 +1,6 @@
 {
     "title": "HomeCloud",
-    "description": HomeCloud is one stop hub for your photos, notes and files with support for multiple storage options like Google Drive, Dropbox, NAS.",
+    "description": "HomeCloud is one stop hub for your photos, notes and files with support for multiple storage options like Google Drive, Dropbox, NAS.",
     "iconPath": "img/icon.png",
     "docsPath": "docs",
     "accentColor": "red"
