@@ -29,4 +29,4 @@ jobs:
           context: .
           push: true
           # target: prod # set it if in future we have multiple final targets
-          tags: ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/homecloud:latest
