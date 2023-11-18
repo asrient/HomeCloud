@@ -11,6 +11,7 @@ export default class AppProtocol {
   static BUNDLE_BASE_URL = AppProtocol.PROTOCOL_NAME + "://host/";
 
   indexHtmlPath: string;
+  html404Path: string;
   constructor() {
     protocol.registerSchemesAsPrivileged([
       {
@@ -26,6 +27,7 @@ export default class AppProtocol {
       },
     ]);
     this.indexHtmlPath = path.join(envConfig.WEB_BUILD_DIR, "index.html");
+    this.html404Path = path.join(envConfig.WEB_BUILD_DIR, "404.html");
   }
 
   handleBundle = (request: Request): Promise<Response> => {
@@ -39,11 +41,15 @@ export default class AppProtocol {
         fileRelativeUrl.length - 1,
       );
     }
+    const ext = path.extname(fileRelativeUrl);
+    if (!ext) {
+      fileRelativeUrl = `${fileRelativeUrl}.html`;
+    }
     let filePath = path.join(envConfig.WEB_BUILD_DIR, fileRelativeUrl);
     return new Promise<Response>((resolve, reject) => {
       stat(filePath, (err, stats) => {
         if (err || !stats.isFile()) {
-          filePath = this.indexHtmlPath;
+          filePath = this.html404Path;
         }
         net
           .fetch("file://" + filePath)
@@ -92,7 +98,7 @@ export default class AppProtocol {
 
   registerExternalProtocol() {
     app.setAsDefaultProtocolClient(AppProtocol.PROTOCOL_NAME);
-    if(!app.isDefaultProtocolClient(AppProtocol.PROTOCOL_NAME)) {
+    if (!app.isDefaultProtocolClient(AppProtocol.PROTOCOL_NAME)) {
       console.error("Failed to register homecloud protocol");
     }
   };

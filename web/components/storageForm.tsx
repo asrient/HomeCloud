@@ -27,21 +27,26 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import LoadingIcon from './ui/loadingIcon';
 
 function OneAuthButton({
     storageType,
     onClick,
-    disabled,
+    isLoading,
 }: {
     storageType: StorageType;
     onClick: () => void;
-    disabled?: boolean;
+    isLoading?: boolean;
 }) {
     const buttonConfig = getOneAuthButtonConfig(storageType);
     const styles = buttonConfig.styles || {};
 
-    return (<button disabled={!!disabled} className='p-2 px-4 bg-slate-100 text-sm border-none rounded-sm' style={styles} onClick={onClick}>
-        {buttonConfig.text}
+    return (<button disabled={!!isLoading} className='p-2 px-4 bg-slate-100 text-sm border-none rounded-sm' style={styles} onClick={onClick}>
+        {
+            isLoading 
+            ? (<LoadingIcon className='w-4 h-4' />)
+            : buttonConfig.text
+        }
     </button>)
 }
 
@@ -78,6 +83,9 @@ function OneAuthForm({
 
     const onContinue = useCallback(async () => {
         const name = existingStorage?.name || suggestedName;
+        if (isLoading) {
+            return;
+        }
         setError(null);
         setManualCode(null);
         try {
@@ -102,7 +110,7 @@ function OneAuthForm({
         } finally {
             setIsLoading(false);
         }
-    }, [existingStorage?.name, storageType, suggestedName]);
+    }, [existingStorage?.name, isLoading, storageType, suggestedName]);
 
     const onPreferManual = useCallback(() => {
         setManualCode('');
@@ -167,7 +175,7 @@ function OneAuthForm({
                             ? <Button variant='outline' className='ml-2' onClick={() => openExternalLink(redirect.redirectUrl)}>Open in browser</Button>
                             : <Button disabled={isLoading} variant='default' className='ml-2' onClick={onManualCodeSubmit}>Continue</Button>
                     )
-                    : <OneAuthButton storageType={storageType} onClick={onContinue} />
+                    : <OneAuthButton storageType={storageType} isLoading={isLoading} onClick={onContinue} />
             }
             <Button variant='outline' className='ml-2' onClick={onCancel}>Cancel</Button>
         </div>

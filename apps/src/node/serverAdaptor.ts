@@ -23,20 +23,30 @@ export default class ServerAdaptor {
   ) {
     let pathname = url.pathname;
     if (pathname === "/") {
-      pathname = "/index.html";
+      pathname = "/index";
     }
     let filePath = path.join(envConfig.WEB_BUILD_DIR, pathname);
 
+    const ext = path.extname(filePath);
+    if (!ext) {
+      filePath = `${filePath}.html`;
+    }
+
     fs.stat(filePath, (err, stats) => {
+      let status = 200;
+
       if (err || !stats.isFile()) {
-        filePath = path.join(envConfig.WEB_BUILD_DIR, "index.html");
+        status = 404;
+        filePath = path.join(envConfig.WEB_BUILD_DIR, "404.html");
       }
 
-      res.writeHead(200, {
+      res.writeHead(status, {
         "Content-Type": mime.getType(filePath) || "application/octet-stream",
       });
+
       const fileStream = fs.createReadStream(filePath);
       fileStream.pipe(res);
+
       fileStream.on("end", () => {
         res.end();
       });
