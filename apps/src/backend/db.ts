@@ -19,6 +19,9 @@ export async function initDb(dbType: string, path: string) {
       db = new Sequelize(path, {
         dialect: "mysql",
         dialectModule: require("mysql2"),
+        dialectOptions: {
+          ssl: { minVersion: "TLSv1.2", rejectUnauthorized: !envConfig.IS_DEV },
+        },
       });
       break;
     default:
