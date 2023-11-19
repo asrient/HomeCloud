@@ -21,9 +21,9 @@ jobs:
       - name: Enter the app directory
         run: cd apps && ls
       - name: Install dependencies
-        run: npm install
+        run: pwd && ls && npm install
       - name: Build and Publish
-        run: pwd && npm run publish:desktop
+        run: npm run publish:desktop
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_ENV: production
