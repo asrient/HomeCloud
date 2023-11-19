@@ -62,15 +62,10 @@ module.exports = {
       config: {},
     },
     {
-      name: '@electron-forge/maker-zip',
-    },
-    {
       name: '@electron-forge/maker-deb',
-      config: {},
-    },
-    {
-      name: '@electron-forge/maker-rpm',
-      config: {},
+      config: {
+        bin: 'HomeCloud',
+      },
     },
     {
       name: '@electron-forge/maker-dmg', 
@@ -79,7 +74,10 @@ module.exports = {
         format: "ULFO",
         overwrite: true,
       }
-    }
+    },
+    {
+      name: '@electron-forge/maker-zip',
+    },
   ],
   publishers: [
     {
