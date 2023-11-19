@@ -18,7 +18,17 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '18.17.0'
-      - name: Install dependencies
+      # setup web
+      - name: Install web dependencies
+        run: npm install
+        working-directory: ./web
+      - name: Build web
+        run: npm run build
+        working-directory: ./web
+        env:
+          NODE_ENV: production
+      # desktop app
+      - name: Install app dependencies
         run: npm install
         working-directory: ./apps
       - name: Build and Publish
