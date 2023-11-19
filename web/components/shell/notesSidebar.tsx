@@ -13,9 +13,10 @@ import { useRouter } from "next/router";
 import DeleteNoteModal from "../deleteNoteModal";
 import { ChevronRightIcon, ChevronDownIcon, PlusIcon, ServerIcon } from "@heroicons/react/24/outline";
 import LoadingIcon from "../ui/loadingIcon";
-import { cn } from "@/lib/utils";
+import { cn, isMobile } from "@/lib/utils";
 import { useUrlMatch } from "../hooks/useUrlMatch";
 import { useToast } from "../ui/use-toast";
+import useHideSidebar from "../hooks/useHideSidebar";
 
 type NoteNavItemProps = {
     stat: RemoteItem;
@@ -33,6 +34,7 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
     const dispatch = useAppDispatch();
     const { notes } = useAppState();
     const [isError, setIsError] = useState(false);
+    const hideSidebar = useHideSidebar();
 
     const note: NoteItem = useMemo(() => notes[noteUid(storage.id, stat.id)], [notes, storage.id, stat.id]);
 
@@ -80,6 +82,12 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
     const isMatch = useUrlMatch();
     const matched = useMemo(() => isMatch(url), [isMatch, url]);
 
+    const onLinkClick = useCallback((e: React.MouseEvent) => {
+        if (isMobile()) {
+            hideSidebar();
+        }
+    }, [hideSidebar]);
+
     return (
         <>
             <div style={{ paddingLeft: `${depth * 0.7}rem` }}
@@ -91,7 +99,7 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
                         : matched
                             ? 'text-foreground/80'
                             : 'text-foreground/70')}>
-                    <Link href={url} className='noteNavItem grow flex' onContextMenu={handleMenu}>
+                    <Link href={url} onClick={onLinkClick} className='noteNavItem grow flex' onContextMenu={handleMenu}>
                         <button className={inlineButtonClass} onClick={toggleExpand}>
                             {
                                 isLoading

@@ -1,10 +1,11 @@
-import { cn } from "@/lib/utils"
+import { cn, isMobile } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import Link from "next/link";
 import { SidebarItem, SidebarList } from "@/lib/types";
 import { useCallback } from "react";
 import Image from "next/image";
 import { useUrlMatch } from "../hooks/useUrlMatch";
+import useHideSidebar from "../hooks/useHideSidebar";
 
 
 function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
@@ -13,7 +14,7 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
     onRightClick?: (item: SidebarItem) => void,
     onClick?: (item: SidebarItem, e: React.MouseEvent) => void,
 }) {
-
+    const hideSidebar = useHideSidebar();
     const onRightClick_ = useCallback((e: React.MouseEvent) => {
         if (onRightClick && item.rightClickable) {
             onRightClick(item);
@@ -26,8 +27,12 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
     const onClick_ = useCallback((e: React.MouseEvent) => {
         if (onClick ) {
             onClick(item, e);
+        } else {
+            if (isMobile()) {
+                hideSidebar();
+            }
         }
-    }, [item, onClick]);
+    }, [hideSidebar, item, onClick]);
 
     return (<Link href={item.href || ''} onContextMenu={onRightClick_} onClick={onClick_}>
         <Button variant={isMatch ? 'secondary' : 'ghost'} className="sidebarItem w-full justify-start">
