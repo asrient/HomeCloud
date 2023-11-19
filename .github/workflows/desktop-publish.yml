@@ -18,12 +18,12 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '18.17.0'
-      - name: Enter the app directory
-        run: cd apps && ls
       - name: Install dependencies
-        run: pwd && ls && npm install
+        run: npm install
+        working-directory: ./apps
       - name: Build and Publish
         run: npm run publish:desktop
+        working-directory: ./apps
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_ENV: production
