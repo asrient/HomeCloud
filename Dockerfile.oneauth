@@ -1,0 +1,20 @@
+# ============================================================================= \
+# Production stage
+# =============================================================================
+
+FROM --platform=linux/amd64 node:18-alpine3.18
+LABEL authors="asrient"
+
+WORKDIR /app
+
+ENV NODE_ENV production
+
+# Install dependencies
+COPY authServer/package*.json ./
+RUN npm ci --production
+
+# Copy source code
+COPY authServer ./
+
+# Start the server
+CMD ["npm", "start"]

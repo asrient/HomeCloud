@@ -39,4 +39,4 @@ RUN npm ci --production
 EXPOSE 5000
 
 # Start the server
-CMD ["node", "bin/node/index.js"]
+CMD ["npm", "run", "start:node:prod"]

@@ -18,6 +18,7 @@
     "dev:build": "webpack --config ./webpack.config.js --watch",
     "dev:node": "nodemon --watch bin/node bin/node/index.js",
     "start:node": "npm run build && node bin/node/index.js",
+    "start:node:prod": "node bin/node/index.js",
     "build": "webpack --config ./webpack.config.js",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "start:desktop": "npm run build && electron-forge start",
