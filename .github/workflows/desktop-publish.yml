@@ -18,6 +18,14 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18.17.0'
+      # macos-latest ships with Python 3.12 by default, but this removes a
+      # utility that's used by electron-builder (distutils) so we need to pin
+      # Python to an earlier version.
+      # Fixes error `ModuleNotFoundError: No module named 'distutils'`
+      # Ref: https://github.com/nodejs/node-gyp/issues/2869
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
       # setup web
       - name: Install web dependencies
         run: npm install
