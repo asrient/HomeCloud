@@ -1,0 +1,31 @@
+name: Desktop App CI
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-publish:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # Do not use unbuntu-latest because it causes `The operation was canceled` failures:
+        # https://github.com/actions/runner-images/issues/6709
+        os: [macos-latest, ubuntu-latest, windows-2019]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18.17.0'
+      - name: Enter the app directory
+        run: cd apps
+      - name: Install dependencies
+        run: npm install
+      - name: Build and Publish
+        run: npm run publish:desktop
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_ENV: production
+          ONEAUTH_SERVER_URL: ${{ secrets.ONEAUTH_SERVER_URL }}
+          ONEAUTH_APP_ID: ${{ secrets.ONEAUTH_APP_ID }}
