@@ -24,7 +24,8 @@
     "start:desktop": "npm run build && electron-forge start",
     "package:desktop": "npm run build && electron-forge package",
     "make:desktop": "npm run build && electron-forge make",
-    "publish:desktop": "npm run build && electron-forge publish"
+    "publish:desktop": "npm run build && electron-forge publish",
+    "publish:desktop:arm64": "npm run build && electron-forge publish --arch arm64"
   },
   "dependencies": {
     "ajv": "^8.12.0",
