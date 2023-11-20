@@ -22,10 +22,10 @@
     "build": "webpack --config ./webpack.config.js",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "start:desktop": "npm run build && electron-forge start",
-    "package:desktop": "npm run build && electron-forge package",
-    "make:desktop": "npm run build && electron-forge make",
-    "publish:desktop": "npm run build && electron-forge publish",
-    "publish:desktop:arm64": "npm run build && electron-forge publish --arch arm64"
+    "package:desktop": "electron-forge package",
+    "make:desktop": "electron-forge make",
+    "make:desktop:macos": "electron-forge make --arch arm64,x64",
+    "publish:desktop": "electron-forge publish"
   },
   "dependencies": {
     "ajv": "^8.12.0",
