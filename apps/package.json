@@ -24,8 +24,8 @@
     "start:desktop": "npm run build && electron-forge start",
     "package:desktop": "electron-forge package",
     "make:desktop": "electron-forge make",
-    "make:desktop:macos": "electron-forge make --arch arm64,x64",
-    "publish:desktop": "electron-forge publish"
+    "publish:desktop": "electron-forge publish",
+    "publish:desktop:macos": "electron-forge publish --arch \"arm64,x64\""
   },
   "dependencies": {
     "ajv": "^8.12.0",

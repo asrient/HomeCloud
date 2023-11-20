@@ -2,8 +2,7 @@ name: App CI
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "v*" ]
+    tags: [ "v*", "desktop-v*" ]
 
 jobs:
   build-and-publish:
@@ -48,22 +47,18 @@ jobs:
           ONEAUTH_SERVER_URL: ${{ secrets.ONEAUTH_SERVER_URL }}
           ONEAUTH_APP_ID: ${{ secrets.ONEAUTH_APP_ID }}
           NODE_OPTIONS: "--max_old_space_size=4096"
-      - name: Make app
-        if: matrix.os != 'macos-latest'
-        run: npm run make:desktop
-        working-directory: ./apps
-        env:
-          NODE_ENV: production
-      - name: Make app - MacOS
-        if: matrix.os == 'macos-latest'
-        run: npm run make:desktop:macos
-        working-directory: ./apps
-        env:
-          NODE_ENV: production
-          NODE_OPTIONS: "--max_old_space_size=4096"
       - name: Publish app
+        if: matrix.os != 'macos-latest'
         run: npm run publish:desktop
         working-directory: ./apps
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           NODE_ENV: production
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+      - name: Publish app - MacOS
+        if: matrix.os == 'macos-latest'
+        run: npm run publish:desktop:macos
+        working-directory: ./apps
+        env:
+          NODE_ENV: production
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          NODE_OPTIONS: "--max_old_space_size=4096"

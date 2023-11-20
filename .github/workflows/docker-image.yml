@@ -2,8 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "v*" ]
+    tags: [ "v*", "server-v*" ]
 
 jobs:
   build-server:
