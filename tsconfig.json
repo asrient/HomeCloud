@@ -1,0 +1,17 @@
+{
+  "references": [
+    {
+      "path": "./packages/js-core"
+    },
+    {
+      "path": "./packages/server"
+    },
+    {
+      "path": "./packages/desktop"
+    }
+  ],
+  "compilerOptions": {
+    "target": "ESNext",
+    "composite": true,
+  }
+}

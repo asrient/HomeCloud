@@ -1,0 +1,15 @@
+{
+  "name": "homecloud",
+  "private": true,
+  "packageManager": "yarn@4.4.1",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "tsc": "tsc -b"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.4",
+    "typescript": "^5.6.2"
+  }
+}

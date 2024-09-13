@@ -113,7 +113,8 @@
     "webpack": "^5.88.2",
     "webpack-cli": "^5.1.4",
     "webpack-hook-plugin": "^1.0.7",
-    "webpack-node-externals": "^3.0.0"
+    "webpack-node-externals": "^3.0.0",
+    "node-gyp": "^10.2.0"
   },
   "engines": {
     "node": ">=16.0.0"

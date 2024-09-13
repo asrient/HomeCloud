@@ -14,7 +14,7 @@ connect(process.env.MONGO_DB_URL).then(() => {
 });
 
 const app = express();
-app.set('port', process.env.PORT || 3000);
+app.set('port', process.env.PORT || 5050);
 app.set('views', './pages');
 app.disable('x-powered-by');
 app.set('view engine', 'ejs');
