@@ -5,9 +5,9 @@ import {
   ApiDecoratorHandler,
   RouteHandler,
 } from "./interface";
-import { ReadStream } from "original-fs";
 import cloneable from "cloneable-readable";
 import { Readable } from "stream";
+import fs from "fs";
 
 export function makeDecorator(
   cb: (
@@ -59,7 +59,7 @@ export async function streamToJson(stream: Readable) {
   return JSON.parse(str);
 }
 
-export function cloneStream(stream: ReadStream) {
+export function cloneStream(stream: fs.ReadStream) {
   return cloneable(stream);
 }
 

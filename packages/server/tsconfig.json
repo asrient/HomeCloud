@@ -1,8 +1,14 @@
 {
-  "extends": "../tsconfig.common.json",
-  "references": [
-    {
-      "path": "../js-core"
-    }
-  ],
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es6",
+    "sourceMap": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["./**/**.ts"]
 }

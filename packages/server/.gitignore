@@ -21,3 +21,6 @@ out/
 .env
 *.sqlite
 *.db
+
+src/*.js
+src/*.d.ts

@@ -6,10 +6,11 @@
     "packages/*"
   ],
   "scripts": {
-    "tsc": "tsc -b"
-  },
-  "devDependencies": {
-    "@types/node": "^22.5.4",
-    "typescript": "^5.6.2"
+    "build:jscore": "yarn wokspace @homecloud/js-core run build",
+    "build:server": "yarn workspace @homecloud/server run build",
+    "build:desktop": "yarn workspace @homecloud/desktop run build",
+    "dev:jscore": "yarn workspace @homecloud/js-core run dev",
+    "dev:server": "yarn workspace @homecloud/server run dev",
+    "dev:desktop": "yarn workspace @homecloud/desktop run dev"
   }
 }

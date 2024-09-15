@@ -69,7 +69,7 @@ export default abstract class SyncEngine {
   files: { [key: string]: any } = {};
   isSoftSynced: boolean = false;
   newActions: ActionType[] = [];
-  lockTimer: NodeJS.Timer | null = null;
+  lockTimer: NodeJS.Timeout | null = null;
   lockTime: number | null = null;
   lockStartTime: number | null = null;
 

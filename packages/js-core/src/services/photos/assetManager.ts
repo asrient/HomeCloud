@@ -5,7 +5,6 @@ import {
   metaFromVideoStream,
   AssetDetailType,
 } from "./metadata";
-import { ReadStream } from "original-fs";
 import { Readable } from "stream";
 import mime from "mime";
 import fs from "fs";
@@ -51,7 +50,7 @@ export default class AssetManager {
 
   public async getAsset(
     fileId: string,
-  ): Promise<[ReadStream, string]> {
+  ): Promise<[fs.ReadStream, string]> {
     return await this.fsDriver.readFile(fileId);
   }
 

@@ -26,11 +26,11 @@ export async function initiate(profile: Profile, storageType: StorageType) {
     }),
   });
   if (!resp.ok) {
-    const body = await resp.json();
+    const body: any = await resp.json(); // todo: add type
     console.error("Error initiating auth", body);
     throw new Error("Could not initiate auth: " + body.message);
   }
-  const { authUrl, referenceId, partialCode1 } = await resp.json();
+  const { authUrl, referenceId, partialCode1 } = (await resp.json()) as any; // todo: add type
 
   const pendingAuth = await PendingAuth.createPendingAuth({
     profile,
@@ -69,7 +69,7 @@ async function fetchAccessToken(apiKey: string): Promise<{
   const {
     token: { accessToken, expiryDate },
     account: { id, storageType, targetId },
-  } = await resp.json();
+  } = (await resp.json()) as any; // todo: add type
   return {
     accessToken,
     expiresOn: new Date(expiryDate),

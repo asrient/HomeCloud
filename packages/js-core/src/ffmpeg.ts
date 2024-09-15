@@ -24,10 +24,10 @@ export default function ffmpegSetup() {
 
   if (envConfig.isDesktop() && envConfig.DESKTOP_IS_PACKAGED) {
     //Get the paths to the packaged versions of the binaries we want to use
-    console.log("Desktop mode resource path:", process.resourcesPath);
-    const binPath = process.resourcesPath;
-    ffmpegPath = path.join(binPath, ffmpegFilename);
-    ffprobePath = path.join(binPath, ffprobeFilename);
+    // console.log("Desktop mode resource path:", process.resourcesPath);
+    // const binPath = process.resourcesPath;
+    // ffmpegPath = path.join(binPath, ffmpegFilename);
+    // ffprobePath = path.join(binPath, ffprobeFilename);
   } else {
     const nodeModulesPath = path.join(__dirname, "..", "..", "node_modules");
     ffmpegPath = path.join(nodeModulesPath, "ffmpeg-static", ffmpegFilename);

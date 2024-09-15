@@ -1,8 +1,8 @@
 import { Server } from "socket.io";
 import http from "http";
-import { handleServerEvent } from "../backend/serverEvent";
+import { handleServerEvent } from "@homecloud/js-core/serverEvent";
 import cookie from "cookie";
-import { verifyJwt } from "../backend/utils/profileUtils";
+import { verifyJwt } from "@homecloud/js-core/utils/profileUtils";
 
 function profileIdToRoom(profileId: number) {
   return `profile-${profileId}`;
