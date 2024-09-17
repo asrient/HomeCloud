@@ -1,19 +1,9 @@
 {
+  "extends": "../../tsconfig-base.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "target": "ESNext",
-      "lib": ["esnext"],
-    "sourceMap": true,
-    "strict": true,
-    "esModuleInterop": true,
-    "moduleResolution": "node",
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "baseUrl": "./src",
-    "outDir": "./dist",
-    "declaration": true,
-    "declarationMap": true,
+    "outDir": "dist",
+    "rootDir": "./src",
     "types": ["node"]
   },
-  "include": ["./**/**.ts"]
+  "include": ["src"]
 }

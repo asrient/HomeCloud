@@ -6,11 +6,12 @@
     "packages/*"
   ],
   "scripts": {
-    "build:jscore": "yarn wokspace @homecloud/js-core run build",
+    "build:jscore": "yarn workspace @homecloud/js-core run build",
     "build:server": "yarn workspace @homecloud/server run build",
     "build:desktop": "yarn workspace @homecloud/desktop run build",
     "dev:jscore": "yarn workspace @homecloud/js-core run dev",
     "dev:server": "yarn workspace @homecloud/server run dev",
-    "dev:desktop": "yarn workspace @homecloud/desktop run dev"
+    "dev:desktop": "yarn workspace @homecloud/desktop run dev",
+    "start:server": "yarn workspace @homecloud/server run start"
   }
 }

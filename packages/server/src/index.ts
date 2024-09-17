@@ -9,11 +9,11 @@ import {
   envConfig,
   OptionalType,
   StorageType,
-} from "@homecloud/js-core/envConfig";
+  initDb,
+  ffmpegSetup,
+} from "@homecloud/js-core";
 import path from "path";
 import os from "os";
-import { initDb } from "@homecloud/js-core/db";
-import ffmpegSetup from "@homecloud/js-core/ffmpeg";
 import { initSEPublisher } from "./serverEventPublisher";
 
 const startText = `\n

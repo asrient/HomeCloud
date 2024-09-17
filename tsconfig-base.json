@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "target": "ESNext",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "composite": true,
+    "baseUrl": ".", // This must be specified if "paths" is.
+      "paths": {
+      "packages/*": ["packages/*"]
+    }
+  }
+}

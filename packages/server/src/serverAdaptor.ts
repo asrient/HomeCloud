@@ -1,10 +1,8 @@
 import http from "http";
-import { envConfig } from "@homecloud/js-core/envConfig";
-import { ApiRequest, ApiRequestFile } from "@homecloud/js-core/interface";
+import { envConfig, ApiRequest, ApiRequestFile, apiRouter } from "@homecloud/js-core";
 import path from "path";
 import fs from "fs";
 import busboy from "busboy";
-import apiRouter from "@homecloud/js-core/apiRouter";
 import mime from "mime";
 
 export default class ServerAdaptor {

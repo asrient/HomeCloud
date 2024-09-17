@@ -16,7 +16,7 @@ function stats() {
   });
 }
 
-export default function ffmpegSetup() {
+export function ffmpegSetup() {
   let ffmpegPath: string = "";
   let ffprobePath: string = "";
   const ffmpegFilename = os.platform() !== "win32" ? "ffmpeg" : "ffmpeg.exe";
@@ -29,7 +29,7 @@ export default function ffmpegSetup() {
     // ffmpegPath = path.join(binPath, ffmpegFilename);
     // ffprobePath = path.join(binPath, ffprobeFilename);
   } else {
-    const nodeModulesPath = path.join(__dirname, "..", "..", "node_modules");
+    const nodeModulesPath = path.join(__dirname, "..", "node_modules");
     ffmpegPath = path.join(nodeModulesPath, "ffmpeg-static", ffmpegFilename);
     ffprobePath = path.join(
       nodeModulesPath,
