@@ -132,7 +132,11 @@ class AppServer {
   }
 
   async start() {
-    if (!process.env.DB_URL || !(await initDb("mysql", process.env.DB_URL))) {
+    const dataDir = envConfig.DATA_DIR;
+    const dbFilename = envConfig.IS_DEV ? "homecloud_dev.db" : "homecloud.db";
+    const dbPath = path.join(dataDir, dbFilename);
+    console.log(`🗄️ Database path: ${dbPath}`);
+    if (!(await initDb("sqlite", dbPath))) {
       if (!process.env.DB_URL) {
         console.error("❗️ DB_URL env variable not set!");
       }

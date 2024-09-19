@@ -24,3 +24,5 @@ out/
 
 src/*.js
 src/*.d.ts
+bundle/
+.env.*

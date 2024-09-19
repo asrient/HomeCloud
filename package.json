@@ -5,6 +5,8 @@
   "workspaces": [
     "packages/*"
   ],
+  "main": "./packages/desktop/dist/index.js",
+  "bin": "./packages/desktop/dist/index.js",
   "scripts": {
     "build:jscore": "yarn workspace @homecloud/js-core run build",
     "build:server": "yarn workspace @homecloud/server run build",
@@ -12,6 +14,11 @@
     "dev:jscore": "yarn workspace @homecloud/js-core run dev",
     "dev:server": "yarn workspace @homecloud/server run dev",
     "dev:desktop": "yarn workspace @homecloud/desktop run dev",
-    "start:server": "yarn workspace @homecloud/server run start"
+    "start:server": "yarn workspace @homecloud/server run start",
+    "package:desktop": "ncc build --external sharp --external sqlite3 --external bcrypt -o ./packages/desktop/bundle && pkg --compress GZip ./pkg.config.json"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.1",
+    "pkg": "^5.8.1"
   }
 }

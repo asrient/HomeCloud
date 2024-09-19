@@ -16,8 +16,6 @@
     "dropbox": "^10.34.0",
     "dropbox-stream": "^3.2.0",
     "exifreader": "^4.13.0",
-    "ffmpeg-static": "^5.2.0",
-    "ffprobe-static": "^3.1.0",
     "fluent-ffmpeg": "^2.1.2",
     "googleapis": "^126.0.1",
     "ip": "^2.0.0",
