@@ -12,7 +12,6 @@
     "busboy": "^1.6.0",
     "cloneable-readable": "^3.0.0",
     "cookie": "^0.5.0",
-    "dotenv": "^16.3.1",
     "dropbox": "^10.34.0",
     "dropbox-stream": "^3.2.0",
     "exifreader": "^4.13.0",

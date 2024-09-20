@@ -1,5 +1,7 @@
 import http from "http";
-import { envConfig, ApiRequest, ApiRequestFile, apiRouter } from "@homecloud/js-core";
+import { envConfig } from "./envConfig";
+import { ApiRequest, ApiRequestFile } from "./interface";
+import apiRouter from "./apiRouter";
 import path from "path";
 import fs from "fs";
 import busboy from "busboy";

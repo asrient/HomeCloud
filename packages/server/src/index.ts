@@ -1,7 +1,6 @@
 import "dotenv/config";
 import http from "http";
 import https from "https";
-import ServerAdaptor from "./serverAdaptor";
 import fs from "fs";
 import {
   setupEnvConfig,
@@ -11,10 +10,11 @@ import {
   StorageType,
   initDb,
   ffmpegSetup,
+  ServerAdaptor,
+  initSEPublisher
 } from "@homecloud/js-core";
 import path from "path";
 import os from "os";
-import { initSEPublisher } from "./serverEventPublisher";
 
 const startText = `\n
 ██╗░░██╗░█████╗░███╗░░░███╗███████╗░█████╗░██╗░░░░░░█████╗░██╗░░░██╗██████╗░

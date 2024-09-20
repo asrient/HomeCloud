@@ -1,8 +1,8 @@
 import { Server } from "socket.io";
 import http from "http";
-import { handleServerEvent } from "@homecloud/js-core";
+import { handleServerEvent } from "./serverEvent";
 import cookie from "cookie";
-import { profileUtils } from "@homecloud/js-core";
+import { verifyJwt } from "./utils/profileUtils";
 
 function profileIdToRoom(profileId: number) {
   return `profile-${profileId}`;
@@ -20,7 +20,7 @@ export function initSEPublisher(httpServer: http.Server) {
     let profileId: number | null = null;
     if (cookieString) {
       const cookies = cookie.parse(cookieString);
-      profileId = profileUtils.verifyJwt(cookies.jwt);
+      profileId = verifyJwt(cookies.jwt);
     }
     if (!profileId) {
       console.log("SocketIO: User not authenticated");
