@@ -1,13 +1,21 @@
 import http from "http";
+import tls from "tls";
 import { envConfig } from "./envConfig";
-import { ApiRequest, ApiRequestFile } from "./interface";
-import apiRouter from "./apiRouter";
+import { ApiRequest, ApiRequestFile, RequestOriginType, RouteGroup } from "./interface";
 import path from "path";
 import fs from "fs";
 import busboy from "busboy";
 import mime from "mime";
 
 export default class ServerAdaptor {
+  router: RouteGroup;
+  requestType: RequestOriginType;
+
+  constructor(router: RouteGroup, requestOrigin: RequestOriginType) {
+    this.router = router;
+    this.requestType = requestOrigin;
+  }
+
   getUrl(req: http.IncomingMessage) {
     if (!req.url) return null;
     if (req.url.endsWith("/") && req.url.length > 1) {
@@ -57,18 +65,47 @@ export default class ServerAdaptor {
     });
   }
 
-  async handleApi(
+  async ServerAdaptor(
     url: URL,
     req: http.IncomingMessage,
     res: http.ServerResponse,
   ) {
     const headers: { [key: string]: string } = {};
+    const secureSocket: tls.TLSSocket | null = req.socket instanceof tls.TLSSocket ? req.socket : null;
+    const cert = secureSocket?.getPeerCertificate();
+
+    // Make sure agent requests have a client cert
+    if (this.requestType === RequestOriginType.Agent) {
+      if (!cert) {
+        console.error("[ServerAdaptor] Agent request without client cert");
+        res.writeHead(401);
+        res.end();
+        return;
+      }
+      if (!cert.raw) {
+        console.error("[ServerAdaptor] Agent request with empty client cert");
+        res.writeHead(401);
+        res.end();
+        return;
+      }
+    }
+
+    // Validate client cert date
+    if (cert) {
+      if (cert.valid_to && new Date(cert.valid_to) < new Date()) {
+        console.error("[ServerAdaptor] Client cert expired");
+        res.writeHead(401);
+        res.end();
+        return;
+      }
+    }
+
     if (!!req.headers) {
       Object.keys(req.headers).forEach((key) => {
         let val = req.headers[key];
         if (!val) return;
         if (typeof val !== "string") {
-          console.log("[handleApi] request header is an array:", key, val);
+          console.log("[ServerAdaptor] request header is an array:", key, val);
           val = val.toString();
         }
         headers[key] = val;
@@ -132,14 +169,23 @@ export default class ServerAdaptor {
       });
     };
 
+    const clientPublicKey = () => {
+      return cert?.pubkey.toString("base64"); 
+    }
+
+    const remoteAddress = req.socket.remoteAddress || null;
+
     const apiRequest = new ApiRequest(
       req.method!,
       url,
       headers,
       getBody,
       fetchMultipartForm,
+      this.requestType,
+      clientPublicKey,
+      remoteAddress,
     );
-    const apiResponse = await apiRouter.handle(apiRequest);
+    const apiResponse = await this.router.handle(apiRequest);
 
     res.writeHead(apiResponse.statusCode, apiResponse.headers);
     if (!!apiResponse.file) {
@@ -189,7 +235,7 @@ export default class ServerAdaptor {
 
     try {
       if (url.pathname.startsWith("/api/")) {
-        await this.handleApi(url, req, res);
+        await this.ServerAdaptor(url, req, res);
       } else {
         await this.handleStatic(url, req, res);
       }

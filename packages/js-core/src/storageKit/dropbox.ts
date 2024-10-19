@@ -8,6 +8,7 @@ import { ApiRequestFile } from "../interface";
 import { ReadStream } from "fs";
 import path from "path";
 import mime from 'mime';
+import { Readable } from 'stream';
 
 export class DropboxFsDriver extends FsDriver {
   override storageType = StorageType.Dropbox;
@@ -66,7 +67,7 @@ export class DropboxFsDriver extends FsDriver {
       id: '/',
       type: 'directory',
       name: 'Dropbox',
-      mimeType: null,
+      mimeType: 'application/x-drive',
       lastModified: null,
       size: null,
       parentIds: null,
@@ -84,11 +85,16 @@ export class DropboxFsDriver extends FsDriver {
   }
 
   public override async readDir(id: string) {
+
+    if (id === '') {
+      return [this.rootToRemoteItem()];
+    }
+
     id = this.normalizeRootId(id);
     try {
       const res = await this.driver!.filesListFolder({
         path: id,
-        limit: 2000,
+        limit: 10000,
       });
       if (!res.result.entries) {
         console.error("Error getting files", res);
@@ -200,13 +206,13 @@ export class DropboxFsDriver extends FsDriver {
     return this.writeFile(parentDir, file, 'overwrite');
   }
 
-  public override async readFile(id: string): Promise<[ReadStream, string]> {
+  public override async readFile(id: string): Promise<[Readable, string]> {
     id = this.normalizeRootId(id);
     const down = ds.createDropboxDownloadStream({
       token: this.accessToken!,
       path: id,
     });
-    return new Promise<[ReadStream, string]>((resolve, reject) => {
+    return new Promise<[Readable, string]>((resolve, reject) => {
       down.on('error', reject)
         .on('metadata', (metadata: dbxFiles.FileMetadata) => {
           const item = this.toRemoteItem(metadata);
@@ -286,10 +292,6 @@ export class DropboxFsDriver extends FsDriver {
       console.error(err);
       throw err;
     }
-  }
-
-  public override async readRootDir() {
-    return this.readDir("/");
   }
 
   public override async getStatByFilename(

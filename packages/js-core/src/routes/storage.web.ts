@@ -13,6 +13,7 @@ import { initiate, complete } from "../storageKit/oneAuth";
 import { FsDriver } from "../storageKit/interface";
 import CustomError from "../customError";
 import { joinUrlPath } from "../utils";
+import { requestPairing, sendOTP } from "../agentKit/client";
 
 const api = new RouteGroup();
 
@@ -46,6 +47,10 @@ api.add(
   async (request: ApiRequest) => {
     const data = request.local.json;
     const profile = request.profile!;
+    if(data.authType === StorageAuthType.Pairing) {
+      return ApiResponse.fromError(
+        CustomError.validationSingle("authType", "Pairing is not supported"), 400);
+    }
     if (data.authType === StorageAuthType.OneAuth) {
       try {
         const { pendingAuth, authUrl } = await initiate(profile, data.type);
@@ -66,6 +71,70 @@ api.add(
       });
     } catch (e: any) {
       e.message = `Could not create storage: ${e.message}`;
+      return ApiResponse.fromError(e);
+    }
+  },
+);
+
+const addPairingStorageSchema = {
+  type: "object",
+  properties: {
+    host: { type: "string" },
+    fingerprint: { type: "string" },
+    targetProfileId: { type: "number" },
+    password: { type: "string" },
+  },
+  required: ["host", "fingerprint", "targetProfileId"],
+  additionalProperties: false,
+};
+
+api.add(
+  "/pair",
+  [method(["POST"]), authenticate(), validateJson(addPairingStorageSchema)],
+  async (request: ApiRequest) => {
+    const data = request.local.json as {
+      host: string;
+      fingerprint: string;
+      targetProfileId: number;
+      password: string;
+    };
+    const profile = request.profile!;
+    try {
+      const { storage, token } = await requestPairing(profile, data.host, data.fingerprint, data.targetProfileId, data.password || null);
+      const requireOTP = !storage && token;
+      return ApiResponse.json(201, {
+        requireOTP,
+        storage: await storage?.getDetails(),
+        token,
+      });
+    } catch (e: any) {
+      return ApiResponse.fromError(e);
+    }
+  },
+);
+
+const otpSchema = {
+  type: "object",
+  properties: {
+    token: { type: "string" },
+    otp: { type: "string" },
+    host: { type: "string" },
+    fingerprint: { type: "string" },
+  },
+  required: ["token", "otp", "host", "fingerprint"],
+  additionalProperties: false,
+};
+
+api.add(
+  "/otp",
+  [method(["POST"]), authenticate(), validateJson(otpSchema)],
+  async (request: ApiRequest) => {
+    const data = request.local.json as { token: string; otp: string, host: string, fingerprint: string };
+    const profile = request.profile!;
+    try {
+      const storage = await sendOTP(profile, data.host, data.fingerprint, data.token, data.otp);
+      return ApiResponse.json(201, { storage: await storage.getDetails() });
+    } catch (e: any) {
       return ApiResponse.fromError(e);
     }
   },
@@ -117,6 +186,10 @@ api.add(
       return ApiResponse.fromError(
         CustomError.validationSingle("storageId", "Storage not found"),
       );
+    }
+    if(storage.authType === StorageAuthType.Pairing) {
+      return ApiResponse.fromError(
+        CustomError.validationSingle("storageId", "Storage of pairing type cannot be edited."), 400);
     }
     try {
       storage = await storage.edit(data);
@@ -185,7 +258,7 @@ api.add(
     const storage = request.local.storage as Storage;
     const fsDriver = request.local.fsDriver as FsDriver;
     try {
-      const contents = await fsDriver.readRootDir();
+      const contents = await fsDriver.readDir('');
 
       const resp = ApiResponse.json(200, {
         storage: await storage.getDetails(),

@@ -1,7 +1,7 @@
 import { StorageType } from "../envConfig";
-import { Storage } from "../models";
+import { Profile, Storage } from "../models";
 import { ApiRequestFile } from "../interface";
-import { ReadStream } from "fs";
+import { Readable } from "stream";
 
 export interface RemoteItem {
   name: string;
@@ -18,21 +18,19 @@ export interface RemoteItem {
 
 export class FsDriver {
   storage: Storage;
+  profile: Profile;
   storageType: StorageType = StorageType.WebDav;
   providesThumbnail: boolean = false;
 
-  constructor(storage: Storage) {
+  constructor(storage: Storage, profile: Profile) {
     this.storage = storage;
+    this.profile = profile;
   }
 
   public async init() {}
 
   public async readDir(id: string): Promise<RemoteItem[]> {
     throw new Error("Not implemented");
-  }
-
-  public async readRootDir(): Promise<RemoteItem[]> {
-    return this.readDir("/");
   }
 
   public async mkDir(name: string, baseId: string): Promise<RemoteItem> {
@@ -86,7 +84,7 @@ export class FsDriver {
     throw new Error("Not implemented");
   }
 
-  public async readFile(id: string): Promise<[ReadStream, string]> {
+  public async readFile(id: string): Promise<[Readable, string]> {
     throw new Error("Not implemented");
   }
 

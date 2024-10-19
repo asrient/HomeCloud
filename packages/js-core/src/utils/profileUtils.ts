@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { envConfig } from "../envConfig";
 import CustomError from "../customError";
+import { ApiResponse } from "../interface";
 
 export function validateUsernameString(name: string): string {
   name = name.trim().toLowerCase();
@@ -52,16 +53,29 @@ export function validatePasswordString(password: string): string {
   return password;
 }
 
-export function generateJwt(profileId: number) {
-  return jwt.sign({ profileId }, envConfig.SECRET_KEY, { expiresIn: "30d" });
+export function generateJwt(profileId: number, fingerprint: string | null = null, agentId: number | null = null) {
+  return jwt.sign({ profileId, fingerprint, deviceFingerprint: envConfig.FINGERPRINT, agentId }, envConfig.SECRET_KEY, { expiresIn: "300d" });
 }
 
-export function verifyJwt(token: string) {
+export function verifyJwt(token: string) : { profileId: number, fingerprint: string | null, agentId: number | null } | null {
   if (!token) return null;
   try {
     const payload = jwt.verify(token, envConfig.SECRET_KEY) as jwt.JwtPayload;
-    return payload.profileId;
+    if (payload.deviceFingerprint !== envConfig.FINGERPRINT) return null;
+    return {
+      profileId: payload.profileId,
+      fingerprint: payload.fingerprint,
+      agentId: payload.agentId,
+    }
   } catch (e) {
     return null;
   }
+}
+
+export function login(profileId: number, res: ApiResponse) {
+  res.setCookie("jwt", generateJwt(profileId));
+}
+
+export function logout(res: ApiResponse) {
+  res.setCookie("jwt", "", 0);
 }

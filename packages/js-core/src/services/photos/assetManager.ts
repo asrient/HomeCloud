@@ -1,5 +1,5 @@
 import { FsDriver } from "../../storageKit/interface";
-import { Storage, StorageMeta } from "../../models";
+import { Storage } from "../../models";
 import {
   metaFromPhotoStream,
   metaFromVideoStream,
@@ -8,15 +8,14 @@ import {
 import { Readable } from "stream";
 import mime from "mime";
 import fs from "fs";
+import { buildLibraryPath, LibraryLocation } from "../../utils/libraryUtils";
 
 const PHOTOS_PER_FOLDER = 120;
 
 class PathStore {
-  storageMeta: StorageMeta;
   assetFolderIds = new Map<number, string>();
   fsDriver: FsDriver;
-  constructor(storageMeta: StorageMeta, fsDriver: FsDriver) {
-    this.storageMeta = storageMeta;
+  constructor(fsDriver: FsDriver) {
     this.fsDriver = fsDriver;
   }
 
@@ -26,7 +25,7 @@ class PathStore {
     }
     const dir = await this.fsDriver.makeOrGetDir(
       folderNo.toString(),
-      this.storageMeta.photosAssetsDir,
+      buildLibraryPath(LibraryLocation.PhotosDir),
     );
     this.assetFolderIds.set(folderNo, dir.id);
     return dir.id;
@@ -38,10 +37,10 @@ export default class AssetManager {
   storage: Storage;
   paths: PathStore;
 
-  constructor(fsDriver: FsDriver, storageMeta: StorageMeta) {
+  constructor(fsDriver: FsDriver) {
     this.fsDriver = fsDriver;
     this.storage = fsDriver.storage;
-    this.paths = new PathStore(storageMeta, fsDriver);
+    this.paths = new PathStore(fsDriver);
   }
 
   private itemIdToFilename(itemId: number, mimeType: string) {
@@ -50,7 +49,7 @@ export default class AssetManager {
 
   public async getAsset(
     fileId: string,
-  ): Promise<[fs.ReadStream, string]> {
+  ): Promise<[Readable, string]> {
     return await this.fsDriver.readFile(fileId);
   }
 

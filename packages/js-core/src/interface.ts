@@ -5,24 +5,19 @@ import mime from "mime";
 import { match } from "node-match-path";
 import { envConfig } from "./envConfig";
 import { Profile } from "./models";
-import { ReadStream } from "fs";
 import { Readable } from "stream";
-import CustomError, { ErrorCode, ErrorType } from "./customError";
-
-export type ErrorResponse = {
-  message: string;
-  type: ErrorType;
-  code?: ErrorCode;
-  fields?: { [key: string]: string[] };
-  debug?: string[];
-  [key: string]: any;
-};
+import CustomError, { ErrorCode, ErrorType, ErrorResponse } from "./customError";
 
 export type ApiRequestFile = {
   name: string;
   mime: string;
   stream: Readable;
 };
+
+export enum RequestOriginType {
+  Web = 'Web',
+  Agent = 'Agent',
+}
 
 export class ApiRequest {
   getParams: { [key: string]: string } = {};
@@ -35,7 +30,9 @@ export class ApiRequest {
   cookies: { [key: string]: string } = {};
   method: string;
   local: any = {};
+  requestOrigin: RequestOriginType;
   profile: Profile | null = null;
+  remoteAddress: string | null = null;
   constructor(
     method: string,
     url: string | URL,
@@ -49,8 +46,13 @@ export class ApiRequest {
         ) => Promise<void>,
       ) => Promise<void>)
       | null = null,
+      requestOrigin: RequestOriginType,
+    public clientPublicKey: (() => string | null),
+    remoteAddress: string | null,
   ) {
     this.method = method.toUpperCase();
+    this.requestOrigin = requestOrigin;
+    this.remoteAddress = remoteAddress;
 
     if (typeof url === "string") {
       if (url.endsWith("/") && url.length > 1) {
@@ -101,10 +103,10 @@ export class ApiRequest {
   get contentType() {
     return this.headers["content-type"];
   }
+  get userAgent() {
+    return this.headers["user-agent"];
+  }
   get cookieString() {
-    if (envConfig.isDesktop()) {
-      return this.headers["x-key"];
-    }
     return this.headers["cookie"];
   }
   get isJson() {
@@ -137,7 +139,7 @@ export class ApiResponse {
   statusCode: number = 200;
   headers: { [key: string]: string } = {};
   body: Blob | null = null;
-  bodyStream: ReadStream | null = null;
+  bodyStream: Readable | null = null;
   file: string | null = null;
   constructor() {
     this.setHeader("Content-Type", "text/plain");
@@ -195,7 +197,7 @@ export class ApiResponse {
     this.sendFile(filePath);
     this.markAsDownload(filename);
   }
-  stream(bodyStream: ReadStream, contentType: string) {
+  stream(bodyStream: Readable, contentType: string) {
     this.bodyStream = bodyStream;
     this.setHeader("Content-Type", contentType);
   }
@@ -257,7 +259,7 @@ export class ApiResponse {
 
   static stream(
     statusCode: number,
-    bodyStream: ReadStream,
+    bodyStream: Readable,
     contentType: string,
   ) {
     const response = new ApiResponse();

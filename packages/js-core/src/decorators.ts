@@ -1,13 +1,14 @@
-import { ApiResponse } from "./interface";
+import { ApiResponse, RequestOriginType } from "./interface";
 import { makeDecorator } from "./utils";
 import isType from "type-is";
 import Ajv, { ErrorObject } from "ajv";
 import { verifyJwt } from "./utils/profileUtils";
-import { Profile, Storage } from "./models";
+import { Profile, Storage, Agent } from "./models";
 import { getFsDriver } from "./storageKit/storageHelper";
 import PhotosService from "./services/photos/photosService";
 import { FsDriver } from "./storageKit/interface";
 import CustomError, { ErrorCode } from "./customError";
+import { getFingerprint } from "./utils/cryptoUtils";
 
 const ajv = new Ajv();
 
@@ -89,42 +90,108 @@ export function validateQuery(schema: any) {
   });
 }
 
+export enum AuthType {
+  Required,
+  Optional,
+  Admin,
+}
+
+const requiredAuthTypes = [AuthType.Admin, AuthType.Required];
+
 export function authenticate(authType: AuthType = AuthType.Required) {
   return makeDecorator(async (request, next) => {
-    const profileId = verifyJwt(request.cookies.jwt);
+    let token = request.cookies.jwt;
+    if (request.requestOrigin === RequestOriginType.Agent) {
+      token = request.headers['x-access-key'];
+    }
+    const { profileId, fingerprint, agentId } = verifyJwt(token);
+
+    if (!!agentId && request.requestOrigin === RequestOriginType.Web) {
+      return ApiResponse.fromError(
+        CustomError.security('Invalid access key.'),
+        401,
+      );
+    }
+
     const profile = await Profile.getProfileById(profileId);
-    if (!profile && authType === AuthType.Required) {
+    if (!profile && requiredAuthTypes.includes(authType)) {
       return ApiResponse.fromError(
         CustomError.security("Authentication required"),
         401,
       );
     }
+
+    if (authType === AuthType.Admin && !profile?.isAdmin) {
+      return ApiResponse.fromError(
+        CustomError.security("Admin access required"),
+        403,
+      );
+    }
     request.profile = profile;
+
+    if (request.requestOrigin === RequestOriginType.Agent) {
+      // Vaildate fingerprint in socket with fingerprint in jwt.
+      const clientPK = request.clientPublicKey();
+      if (!clientPK) {
+        return ApiResponse.fromError(
+          CustomError.security('No client public key found.'),
+          401,
+        );
+      }
+      const clientFingerprint = getFingerprint(clientPK);
+      if (fingerprint && clientFingerprint !== fingerprint) {
+        return ApiResponse.fromError(
+          CustomError.security('Client fingerprint mismatch.'),
+          401,
+        );
+      }
+      const agent = await Agent.getAgentById(agentId);
+      if (requiredAuthTypes.includes(authType) && !agent) {
+        return ApiResponse.fromError(
+          CustomError.security('Client agent invalid.'),
+          401,
+        );
+      }
+      if (requiredAuthTypes.includes(authType) && !agent.hasClientAccess()) {
+        return ApiResponse.fromError(
+          CustomError.security('Client access denied.'),
+          401,
+        );
+      }
+      request.local.clientAgent = agent;
+    }
     return next();
   });
-}
-
-export enum AuthType {
-  Required,
-  Optional,
 }
 
 export function fetchStorage() {
   return makeDecorator(async (request, next) => {
     console.log("Fetch storage");
-    let storageId = request.headers["x-storage-id"];
-    if (!storageId && request.local.json && request.local.json.storageId) {
-      storageId = request.local.json.storageId;
+    let storage: Storage = null;
+    if (request.requestOrigin === RequestOriginType.Web) {
+      let storageId = request.headers["x-storage-id"];
+      if (!storageId && request.local.json && request.local.json.storageId) {
+        storageId = request.local.json.storageId;
+      }
+      if (!storageId && request.getParams.storageId) {
+        storageId = request.getParams.storageId;
+      }
+      if (!storageId) {
+        return ApiResponse.fromError(
+          CustomError.validationSingle("storageId", "Storage id is required"),
+        );
+      }
+      storage = await request.profile!.getStorageById(parseInt(storageId));
     }
-    if (!storageId && request.getParams.storageId) {
-      storageId = request.getParams.storageId;
+    else if (request.requestOrigin === RequestOriginType.Agent) {
+      storage = await request.profile?.getLocalStorage();
     }
-    if (!storageId) {
+    else {
       return ApiResponse.fromError(
-        CustomError.validationSingle("storageId", "Storage id is required"),
+        CustomError.generic(`Request origin type: ${request.requestOrigin} not supported by fetchStorage.`),
       );
     }
-    const storage = await request.profile!.getStorageById(parseInt(storageId));
+
     if (!storage) {
       return ApiResponse.fromError(
         CustomError.validationSingle("storageId", "Storage not found"),
@@ -139,7 +206,7 @@ export function fetchFsDriver() {
   return makeDecorator(async (request, next) => {
     const storage = request.local.storage;
     try {
-      const fsDriver = await getFsDriver(storage);
+      const fsDriver = await getFsDriver(storage, request.profile);
       request.local.fsDriver = fsDriver;
     } catch (e: any) {
       console.error(e);

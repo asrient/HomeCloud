@@ -10,5 +10,8 @@
     "baseUrl": "./src",
     "outDir": "./dist"
   },
-  "include": ["./**/**.ts"]
+  "include": ["src"],
+  "references": [
+    { "path": "../js-core" }
+  ]
 }

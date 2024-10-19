@@ -1,34 +1,23 @@
 import { Sequelize } from "sequelize";
 import { envConfig } from "./envConfig";
-import { initModels } from "./models";
+import { initModels, Profile } from "./models";
+import { verbose } from "sqlite3";
 
 export let db: Sequelize;
 
-export async function initDb(dbType: string, path: string) {
+export type DefaultProfile = {
+  name: string;
+  username: string | null;
+  password: string | null;
+}
+
+export async function initDb(path: string, defaultProfile: DefaultProfile) {
   console.log("💽 Connecting to database:", path);
-
-  switch (dbType) {
-    case "sqlite":
-      db = new Sequelize({
-        dialect: "sqlite",
-        storage: path,
-        dialectModule: require("sqlite3").verbose(),
-      });
-      break;
-    case "mysql":
-      db = new Sequelize(path, {
-        dialect: "mysql",
-        dialectModule: require("mysql2"),
-        dialectOptions: {
-          ssl: { minVersion: "TLSv1.2", rejectUnauthorized: !envConfig.IS_DEV },
-        },
-      });
-      break;
-    default:
-      console.error(`Unsupported database type: ${dbType}`);
-      return false;
-  }
-
+    db = new Sequelize({
+      dialect: "sqlite",
+      storage: path,
+      dialectModule: verbose(),
+    });
   try {
     await db.authenticate();
     console.log("💽 Database Connection established.");
@@ -42,5 +31,21 @@ export async function initDb(dbType: string, path: string) {
     //await db.sync({ alter: true });
   }
   await db.sync();
+
+  const count = await Profile.countProfiles();
+  if (count === 0) {
+    console.log("🔑 Creating default profile...");
+    const profile = await Profile.createProfile({
+      ...defaultProfile,
+      isAdmin: true,
+      accessControl: null,
+    });
+    envConfig.setMainProfileId(profile.id);
+  }
+  else if (count === 1) {
+    const profile = await Profile.getFirstProfile();
+    envConfig.setMainProfileId(profile.id);
+  }
+
   return true;
 }

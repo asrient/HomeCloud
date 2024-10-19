@@ -17,7 +17,7 @@ const getThumbnailSchema = {
     storageId: { type: "number" },
     lastUpdated: { type: "number" },
   },
-  required: ["fileId", "storageId"],
+  required: ["fileId"],
 };
 
 api.add(
@@ -52,8 +52,8 @@ api.add(
       if (lastUpdated) {
         date = new Date(lastUpdated);
       }
-      const thumb = await thumbService.getOrCreateThumb(fileId, date);
-      return ApiResponse.json(200, thumb.getDetails());
+      const thumbDetails = await thumbService.getOrCreateThumb(fileId, date);
+      return ApiResponse.json(200, thumbDetails);
     } catch (e: any) {
       console.error(e);
       e.message = `Could not get thumbnail: ${e.message}`;

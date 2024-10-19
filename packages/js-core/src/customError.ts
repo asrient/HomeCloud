@@ -8,7 +8,18 @@ export enum ErrorType {
 export enum ErrorCode {
   FS_DRIVER_FETCH = "FS_DRIVER_FETCH",
   STORAGE_FETCH = "STORAGE_FETCH",
+  LIMIT_REACHED = "LIMIT_REACHED",
+  AGENT_NETWORK = "AGENT_NETWORK",
 }
+
+export type ErrorResponse = {
+  message: string;
+  type: ErrorType;
+  code?: ErrorCode;
+  fields?: { [key: string]: string[] };
+  debug?: string[];
+  [key: string]: any;
+};
 
 export default class CustomError extends Error {
   data: any = {};
@@ -50,4 +61,11 @@ export default class CustomError extends Error {
       ...data,
     });
   }
+
+  static fromErrorResponse(errorResponse: ErrorResponse) {
+    const resp: any = { ...errorResponse };
+    delete resp.message;
+    delete resp.type;
+    return new CustomError(errorResponse.type || ErrorType.Generic, errorResponse.message || 'Error', errorResponse);
+}
 }

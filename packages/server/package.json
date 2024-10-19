@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "generateKeys": "node dist/scripts/generateKeys.js"
   },
   "dependencies": {
     "@homecloud/js-core": "workspace:^",

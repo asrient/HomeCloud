@@ -1,12 +1,13 @@
 import { FsDriver } from "../../storageKit/interface";
-import { StorageMeta, Photo, createPhotoType } from "../../models";
+import { Photo, StorageMeta, createPhotoType } from "../../models";
 import SyncEngine from "../syncEngine";
+import { buildLibraryPath, LibraryLocation } from "../../utils/libraryUtils";
 
 export default class PhotoSync extends SyncEngine {
   storageMeta: StorageMeta;
 
   constructor(fsDriver: FsDriver, storageMeta: StorageMeta) {
-    const photosDir = storageMeta.photosDir;
+    const photosDir = buildLibraryPath(LibraryLocation.PhotosDir);
     super(fsDriver, photosDir);
     this.storageMeta = storageMeta;
   }

@@ -1,3 +1,4 @@
+import { Secret } from "jsonwebtoken";
 import { joinUrlPath } from "./utils";
 
 export enum EnvType {
@@ -21,6 +22,14 @@ export type SetupParams = {
   allowPrivateUrls?: boolean;
   desktopIsPackaged?: boolean;
   version?: string;
+  defaultProfileId?: number;
+  agentPort?: number;
+  deviceName: string;
+  libraryDir: string;
+  publicKey: string;
+  privateKey: string;
+  fingerprint: string;
+  cert: string;
 };
 
 export enum OptionalType {
@@ -36,6 +45,7 @@ export type ProfilesPolicy = {
   requireUsername: boolean;
   syncPolicy: OptionalType;
   adminIsDefault: boolean; // Make new profiles admin by default
+  singleProfile: boolean;
 };
 
 export enum StorageAuthType {
@@ -43,6 +53,7 @@ export enum StorageAuthType {
   None = "none",
   Digest = "digest",
   OneAuth = "oneauth",
+  Pairing = "pairing",
 }
 
 export const StorageAuthTypes = [
@@ -50,6 +61,7 @@ export const StorageAuthTypes = [
   StorageAuthType.None,
   StorageAuthType.Digest,
   StorageAuthType.OneAuth,
+  StorageAuthType.Pairing,
 ];
 
 export enum StorageType {
@@ -57,7 +69,37 @@ export enum StorageType {
   Google = "google",
   Dropbox = "dropbox",
   Local = "local",
+  Agent = "agent",
 }
+
+export enum PairingAuthType {
+  Password = "password",
+  OTP = "otp",
+}
+
+export enum OSType {
+  Windows = "windows",
+  MacOS = "macos",
+  Linux = "linux",
+  Android = "android",
+  iOS = "ios",
+  Unknown = "unknown",
+}
+
+export enum DeviceFormType {
+  Desktop = "desktop",
+  Laptop = "laptop",
+  Mobile = "mobile",
+  Tablet = "tablet",
+  Unknown = "unknown",
+  Server = "server",
+}
+
+export type DeviceInfo = {
+  os: OSType;
+  osFlavour: string | null;
+  formFactor: DeviceFormType;
+};
 
 export const StorageTypeMeta: {
   [key in StorageType]: {
@@ -84,12 +126,15 @@ export const StorageTypeMeta: {
   [StorageType.Local]: {
     name: "Local",
     allowedAuthTypes: [StorageAuthType.None],
-    urlIsPath: true,
   },
   [StorageType.Dropbox]: {
     name: "Dropbox",
     allowedAuthTypes: [StorageAuthType.OneAuth],
     allowedUrlProtocols: [],
+  },
+  [StorageType.Agent]: {
+    name: "Agent",
+    allowedAuthTypes: [StorageAuthType.Pairing],
   },
 };
 
@@ -98,21 +143,30 @@ export const StorageTypes = Object.keys(StorageTypeMeta) as StorageType[];
 export const implementedStorageTypes = [StorageType.WebDav, StorageType.Google, StorageType.Local, StorageType.Dropbox];
 
 class EnvConfig {
-  readonly DATA_DIR;
-  readonly ENV_TYPE;
-  readonly IS_DEV;
-  readonly BASE_URL;
-  readonly API_BASE_URL;
-  readonly WEB_BUILD_DIR;
-  readonly PROFILES_CONFIG;
-  readonly SECRET_KEY;
-  readonly ENABLED_STORAGE_TYPES;
-  readonly ONEAUTH_SERVER_URL;
-  readonly ONEAUTH_APP_ID;
-  readonly USER_HOME_DIR;
-  readonly ALLOW_PRIVATE_URLS;
-  readonly DESKTOP_IS_PACKAGED;
-  readonly VERSION;
+  readonly DATA_DIR: string;
+  readonly ENV_TYPE: EnvType;
+  readonly IS_DEV: boolean;
+  readonly BASE_URL: string;
+  readonly API_BASE_URL: string;
+  readonly WEB_BUILD_DIR: string;
+  readonly PROFILES_CONFIG: ProfilesPolicy;
+  readonly SECRET_KEY: Secret;
+  readonly ENABLED_STORAGE_TYPES: string | StorageType[];
+  readonly ONEAUTH_SERVER_URL: string;
+  readonly ONEAUTH_APP_ID: string;
+  readonly USER_HOME_DIR: string;
+  readonly ALLOW_PRIVATE_URLS: boolean;
+  readonly DESKTOP_IS_PACKAGED: boolean;
+  readonly VERSION: string;
+  DEFAULT_PROFILE_ID: number | null;
+  AGENT_PORT: number | null;
+  readonly DEVICE_NAME: string;
+  readonly LIBRARY_DIR: string;
+  readonly PUBLIC_KEY: string;
+  readonly PRIVATE_KEY: string;
+  readonly FINGERPRINT: string;
+  readonly CERTIFICATE: string;
+  readonly PAIRING_AUTH_TYPE: PairingAuthType;
 
   constructor(config: SetupParams) {
     this.DATA_DIR = config.dataDir || "";
@@ -136,10 +190,23 @@ class EnvConfig {
     this.ALLOW_PRIVATE_URLS = config.allowPrivateUrls ?? false;
     this.DESKTOP_IS_PACKAGED = config.desktopIsPackaged ?? false;
     this.VERSION = config.version ?? null;
+    this.DEFAULT_PROFILE_ID = config.defaultProfileId ?? null;
+    this.AGENT_PORT = config.agentPort ?? null;
+    this.DEVICE_NAME = config.deviceName;
+    this.LIBRARY_DIR = config.libraryDir;
+    this.PUBLIC_KEY = config.publicKey;
+    this.PRIVATE_KEY = config.privateKey;
+    this.FINGERPRINT = config.fingerprint;
+    this.CERTIFICATE = config.cert;
+    this.PAIRING_AUTH_TYPE = config.envType === EnvType.Desktop ? PairingAuthType.OTP : PairingAuthType.Password;
 
+    console.log(`🖥️ Device Name: ${this.DEVICE_NAME}`);
+    console.log(`📂 Data Directory: ${this.DATA_DIR}`);
     console.log(`🆔 HomeCloud Version: ${this.VERSION || "Unknown"}`);
     if (this.IS_DEV) console.log("❗️ Warning: Running in DEV MODE ❗️");
     console.log("🌩️ Enabled storage types:", this.ENABLED_STORAGE_TYPES);
+    // fingerprint is a unique identifier for the device
+    console.log(`🔑 Device Fingerprint: ${this.FINGERPRINT}`);
   }
 
   isStorageTypeEnabled(type: StorageType) {
@@ -156,6 +223,14 @@ class EnvConfig {
 
   isOneAuthEnabled() {
     return !!this.ONEAUTH_SERVER_URL && !!this.ONEAUTH_APP_ID;
+  }
+
+  setMainProfileId(profileId: number) {
+    this.DEFAULT_PROFILE_ID = profileId;
+  }
+
+  setAgentPort(port: number) {
+    this.AGENT_PORT = port;
   }
 }
 

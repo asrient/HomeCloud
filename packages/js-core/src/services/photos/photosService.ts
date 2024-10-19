@@ -1,5 +1,5 @@
 import { FsDriver, RemoteItem } from "../../storageKit/interface";
-import { Storage, StorageMeta, createPhotoType, Photo, getPhotosParams } from "../../models";
+import { Storage, createPhotoType, Photo, getPhotosParams, StorageMeta } from "../../models";
 import { ApiRequestFile } from "../../interface";
 import AssetManager from "./assetManager";
 import PhotoSync from "./photoSync";
@@ -130,7 +130,7 @@ export default class PhotosService {
     this.fsDriver = fsDriver;
     this.storage = fsDriver.storage;
     this.storageMeta = storageMeta;
-    this.assetManager = new AssetManager(fsDriver, storageMeta);
+    this.assetManager = new AssetManager(fsDriver);
     this.photoSync = new PhotoSync(fsDriver, storageMeta);
   }
 

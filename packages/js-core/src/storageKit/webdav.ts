@@ -10,6 +10,7 @@ import { ApiRequestFile } from "../interface";
 import { ReadStream } from "fs";
 import { streamToBuffer } from "../utils";
 import mime from "mime";
+import { Readable } from "stream";
 
 let createClient: null | ((remoteURL: string, options?: WebDAVClientOptions) => WebDAVClient) = null;
 let WebdavAuthType: any | null = null; // enum to imported from webdav
@@ -72,6 +73,21 @@ export class WebdavFsDriver extends FsDriver {
     };
   }
 
+  getRootRemoteItem(): RemoteItem {
+    return {
+      type: "directory",
+      name: "WebDAV",
+      id: "/",
+      parentIds: null,
+      size: null,
+      lastModified: null,
+      createdAt: null,
+      mimeType: 'application/x-drive',
+      etag: "",
+      thumbnail: null,
+    }
+  }
+
   normalizeRootId(id: string): string {
     if (id === "/") {
       return "";
@@ -80,14 +96,14 @@ export class WebdavFsDriver extends FsDriver {
   }
 
   public override async readDir(path: string) {
+    if (path === "") {
+      return [this.getRootRemoteItem()];
+    }
+    path = this.normalizeRootId(path);
     const contents = (await this.client.getDirectoryContents(
       path,
     )) as FileStat[];
     return contents.map((item: FileStat) => this.toRemoteItem(item));
-  }
-
-  public override async readRootDir() {
-    return this.readDir("/");
   }
 
   public override async mkDir(name: string, baseId: string) {
@@ -123,10 +139,10 @@ export class WebdavFsDriver extends FsDriver {
     return this.getStat(path);
   }
 
-  public override async readFile(id: string): Promise<[ReadStream, string]> {
+  public override async readFile(id: string): Promise<[Readable, string]> {
     const  mimeType = mime.getType(id) || "application/octet-stream";
     const stream = this.client.createReadStream(id);
-    return [stream as ReadStream, mimeType];
+    return [stream, mimeType];
   }
 
   pathToFilename(path: string) {

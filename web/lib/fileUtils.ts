@@ -42,6 +42,8 @@ export enum FileType {
 
 export function mimeToKind(mimeType: string): FileType {
     switch (mimeType) {
+        case 'application/x-drive':
+            return FileType.Drive;
         case 'application/epub+zip':
             return FileType.EPUB;
         case 'application/pdf':
@@ -250,7 +252,7 @@ export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder): RemoteItem
 
 export function storageToRemoteItem(storage: Storage): RemoteItemWithStorage {
     return {
-        id: '/',
+        id: '',
         name: storage.name,
         type: 'directory',
         parentIds: [],

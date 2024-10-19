@@ -15,6 +15,7 @@
     "dev:server": "yarn workspace @homecloud/server run dev",
     "dev:desktop": "yarn workspace @homecloud/desktop run dev",
     "start:server": "yarn workspace @homecloud/server run start",
+    "script:server:generateKeys": "yarn workspace @homecloud/server run generateKeys",
     "package:desktop": "ncc build --external sharp --external sqlite3 --external bcrypt -o ./packages/desktop/bundle && pkg --compress GZip ./pkg.config.json"
   },
   "devDependencies": {

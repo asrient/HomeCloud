@@ -6,18 +6,18 @@ import { GoogleFsDriver } from "./google";
 import { LocalFsDriver } from "./local";
 import { DropboxFsDriver } from "./dropbox";
 
-export async function getFsDriverById(
-  profile: Profile,
+export async function getFsDriverByStorageId(
   storageId: number,
 ): Promise<[Storage, FsDriver]> {
-  const storage = await profile.getStorageById(storageId);
+  const storage = await Storage.getById(storageId);
   if (!storage) {
     throw new Error(`Storage ${storageId} not found`);
   }
-  return [storage, await getFsDriver(storage)];
+  const profile = await storage.getProfile();
+  return [storage, await getFsDriver(storage, profile)];
 }
 
-export async function getFsDriver(storage: Storage) {
+export async function getFsDriver(storage: Storage, profile: Profile) {
   const storageType = storage.type as StorageType;
   if (!envConfig.isStorageTypeEnabled(storageType)) {
     throw new Error(`Storage type ${storageType} is not valid or disabled.`);
@@ -26,16 +26,16 @@ export async function getFsDriver(storage: Storage) {
   let driver: FsDriver;
   switch (storageType) {
     case StorageType.WebDav:
-      driver = new WebdavFsDriver(storage);
+      driver = new WebdavFsDriver(storage, profile);
       break;
     case StorageType.Google:
-      driver = new GoogleFsDriver(storage);
+      driver = new GoogleFsDriver(storage, profile);
       break;
     case StorageType.Local:
-      driver = new LocalFsDriver(storage);
+      driver = new LocalFsDriver(storage, profile);
       break;
     case StorageType.Dropbox:
-      driver = new DropboxFsDriver(storage);
+      driver = new DropboxFsDriver(storage, profile);
       break;
     default:
       throw new Error(`Unknown storage type: ${storageType}`);

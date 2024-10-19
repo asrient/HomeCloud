@@ -20,7 +20,7 @@ export function initSEPublisher(httpServer: http.Server) {
     let profileId: number | null = null;
     if (cookieString) {
       const cookies = cookie.parse(cookieString);
-      profileId = verifyJwt(cookies.jwt);
+      verifyJwt(cookies.jwt)?.profileId;
     }
     if (!profileId) {
       console.log("SocketIO: User not authenticated");

@@ -19,6 +19,7 @@ import CustomError from "./customError";
 import path from "path";
 import fs from "fs/promises";
 import { isUrlPrivate } from "./utils/privateUrlChecker";
+import { setupLibraryForProfile } from "./utils/libraryUtils";
 
 const saltRounds = 10;
 const DAYS_5 = 5 * 24 * 60 * 60 * 1000;
@@ -38,13 +39,26 @@ class DbModel extends Model {
   }
 }
 
+export type ProfileDetails = {
+  id: number;
+  username: string | null;
+  name: string;
+  isAdmin: boolean;
+  isPasswordProtected: boolean;
+  isDisabled: boolean;
+  accessControl?: AccessControl | null;
+}
+
+export type AccessControl = { [key: string]: string };
+
 export class Profile extends DbModel {
   declare id: number;
-  declare username: string;
+  declare username: string | null;
   declare name: string;
   declare isAdmin: boolean;
-  declare hash: string;
+  declare hash: string | null;
   declare isDisabled: boolean;
+  declare accessControl: string | null;
   declare getStorages: () => Promise<Storage[]>;
 
   static _columns: ModelAttributes = {
@@ -83,10 +97,15 @@ export class Profile extends DbModel {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    accessControl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+    },
   };
 
-  getDetails() {
-    return {
+  getDetails(full = false): ProfileDetails {
+    const details: ProfileDetails = {
       id: this.id,
       username: this.username,
       name: this.name,
@@ -94,6 +113,10 @@ export class Profile extends DbModel {
       isPasswordProtected: this.isPasswordProtected(),
       isDisabled: this.isDisabled,
     };
+    if (full) {
+      details.accessControl = this.getAccessControl();
+    }
+    return details;
   }
 
   async validatePassword(password: string) {
@@ -114,6 +137,34 @@ export class Profile extends DbModel {
     return this.destroy();
   }
 
+  getAccessControl(): AccessControl | null {
+    if (!this.accessControl) return null;
+    return Profile.parseAccessControl(this.accessControl);
+  }
+
+  static parseAccessControl(str: string): AccessControl {
+    return JSON.parse(str);
+  }
+
+  static stringifyAccessControl(accessControl: AccessControl) {
+    const data = {};
+    for (let [key, value] of Object.entries(accessControl)) {
+      if(typeof key !== 'string' || typeof value !== 'string') {
+        throw CustomError.validationSingle("accessControl", "Invalid JSON format.");
+      }
+      key = key.trim();
+      value = value.trim();
+      if(key.length === 0 || value.length === 0) {
+        throw CustomError.validationSingle("accessControl", "Illegal string found.");
+      }
+      if(value.endsWith(path.sep)) {
+        value = value.slice(0, -1);
+      }
+      data[key] = value;
+    }
+    return JSON.stringify(data);
+  }
+
   static async getProfileByUsername(username: string) {
     return Profile.findOne({ where: { username } });
   }
@@ -131,13 +182,26 @@ export class Profile extends DbModel {
   }
 
   static async createProfile(
-    username: string | null,
-    name: string,
-    password: string | null = null,
+    {
+      username,
+      name,
+      password = null,
+      accessControl = null,
+      isAdmin = false,
+    }:
+      {
+        username: string | null,
+        name: string,
+        password: string | null,
+        accessControl: AccessControl | null,
+        isAdmin: boolean,
+      },
+    referalProfile: Profile | null
   ) {
     let hash: string | null = null;
-    if (!envConfig.PROFILES_CONFIG.allowSignups) {
-      throw CustomError.security("Signups are disabled");
+    const isAdminInitiated = referalProfile === null || referalProfile.isAdmin;
+    if (!isAdminInitiated) {
+      throw CustomError.security("Only admin can create profiles");
     }
     if (
       !password &&
@@ -168,38 +232,275 @@ export class Profile extends DbModel {
       hash = await bcrypt.hash(password, saltRounds);
     }
 
-    let isAdmin =
+    isAdmin =
       envConfig.PROFILES_CONFIG.adminIsDefault ||
       (await Profile.countProfiles()) === 0;
-    return await Profile.create({ username, name, hash, isAdmin });
+
+    let accessControlStr: string | null = null;
+    if (accessControl) {
+      if (Object.keys(accessControl).length === 0) {
+        throw CustomError.validationSingle(
+          "accessControl",
+          "Access control cannot be empty",
+        );
+      }
+      accessControlStr = Profile.stringifyAccessControl(accessControl);
+    }
+
+    // Todo: add access control json validation
+    const profile = await Profile.create({ username, name, hash, isAdmin, accessControl: accessControlStr });
+
+    // Create the local storage
+    await Storage.createStorage(profile, {
+      type: StorageType.Local,
+      name: "This Device",
+      authType: StorageAuthType.None,
+      oneAuthId: null,
+      username: null,
+      secret: null,
+      url: null,
+      Agent: null,
+    });
+
+    await setupLibraryForProfile(profile.id);
+
+    return profile;
   }
 
-  async edit({
-    username,
-    name,
-    password,
-    isDisabled,
-  }: {
+  async edit(data: {
     username?: string;
     name?: string;
     password?: string;
     isDisabled?: boolean;
-  }) {
-    if (username) {
-      username = validateUsernameString(username);
+    accessControl?: AccessControl | null;
+    isAdmin?: boolean;
+  },
+    referalProfile: Profile | null
+  ) {
+    const isAdminInitiated = referalProfile === null || referalProfile.isAdmin;
+    const isSelfInitiated = referalProfile.id === this.id;
+    if (!isAdminInitiated && !isSelfInitiated) {
+      throw CustomError.security("Admin access required.");
     }
-    if (password) {
-      password = validatePasswordString(password);
-      this.hash = await bcrypt.hash(password, saltRounds);
+
+    if (data.password && envConfig.PROFILES_CONFIG.passwordPolicy !== OptionalType.Disabled) {
+      data.password = validatePasswordString(data.password);
+      this.hash = await bcrypt.hash(data.password, saltRounds);
     }
-    if (name) this.name = name;
-    if (username) this.username = username;
-    if (isDisabled !== undefined) this.isDisabled = isDisabled;
+    if (data.name) this.name = validateNameString(data.name);
+    if (data.username && isAdminInitiated) this.username = validateUsernameString(data.username);
+    if (data.isDisabled !== undefined && isAdminInitiated && !envConfig.PROFILES_CONFIG.singleProfile) this.isDisabled = data.isDisabled;
+
+    if (data.accessControl !== undefined && isAdminInitiated) {
+      if (Object.keys(data.accessControl).length === 0) {
+        throw CustomError.validationSingle("accessControl", "Access control cannot be empty");
+      }
+      this.accessControl = Profile.stringifyAccessControl(data.accessControl);
+    }
+
+    if (data.isAdmin !== undefined && isAdminInitiated && !envConfig.PROFILES_CONFIG.singleProfile) {
+      this.isAdmin = data.isAdmin;
+    }
+
     return this.save();
   }
 
-  static async deleteProfiles(ids: number[]) {
+  async getLocalStorage() {
+    return Storage.findOne({ where: { ProfileId: this.id, type: StorageType.Local } });
+  }
+
+  static async deleteProfiles(ids: number[], referalProfile: Profile | null = null) {
+    const isAdminInitiated = referalProfile === null || referalProfile.isAdmin;
+    if (!isAdminInitiated) {
+      throw CustomError.security("Only admin can delete profiles");
+    }
     return Profile.destroy({ where: { id: ids } });
+  }
+
+  static async getFirstProfile() {
+    return Profile.findOne();
+  }
+}
+
+// Used both to represent client and target agents
+export class Agent extends DbModel {
+  declare id: number;
+  declare fingerprint: string;
+  declare remoteProfileId: number;
+  declare deviceName: string;
+  declare remoteProfileName: string;
+  declare lastSeen: Date;
+  declare authority: string | null; // hostname:port
+  declare ProfileId: number;
+  declare allowClientAccess: boolean | null;
+  declare photosLastSyncOn: number; // Not in use yet.
+  declare setProfile: (profile: Profile) => Promise<void>;
+  declare getProfile: () => Promise<Profile>;
+  declare getStorage: () => Promise<Storage>;
+  declare setStorage: (storage: Storage) => Promise<void>;
+
+  static _indexes: ModelIndexesOptions[] = [
+    { unique: true, fields: ['fingerprint', 'remoteProfileId', 'ProfileId'] },
+  ];
+
+  static _columns: ModelAttributes = {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    fingerprint: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: true,
+      },
+    },
+    remoteProfileId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      validate: {
+        notEmpty: true,
+      },
+    },
+    deviceName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: true,
+      },
+    },
+    remoteProfileName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: true,
+      },
+    },
+    lastSeen: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+    authority: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        notEmpty: true,
+      },
+    },
+    allowClientAccess: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: null,
+    },
+    photosLastSyncOn: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+  };
+
+  hasClientAccess() {
+    return this.allowClientAccess === true;
+  }
+
+  // Is client access explicitly blocked by the user
+  clientAccessDisabled() {
+    return this.allowClientAccess === false;
+  }
+
+  getDetails() {
+    return {
+      id: this.id,
+      fingerprint: this.fingerprint,
+      remoteProfileId: this.remoteProfileId,
+      deviceName: this.deviceName,
+      remoteProfileName: this.remoteProfileName,
+      lastSeen: this.lastSeen,
+      authority: this.authority,
+      allowClientAccess: this.allowClientAccess,
+      profileId: this.ProfileId,
+    };
+  }
+
+  static async getAgentById(id: number) {
+    return Agent.findByPk(id);
+  }
+
+  static async getAgent(profile: Profile, fingerprint: string, remoteProfileId: number): Promise<Agent | null> {
+    return Agent.findOne({ where: { fingerprint, remoteProfileId, ProfileId: profile.id } });
+  }
+
+  static async getClientAgents(profile: Profile) {
+    return Agent.findAll({ where: { ProfileId: profile.id, allowClientAccess: true } });
+  }
+
+  static async createAgent(profile: Profile, {
+    fingerprint,
+    remoteProfileId,
+    deviceName,
+    remoteProfileName,
+    authority,
+    allowClientAccess,
+  }: {
+    fingerprint: string;
+    remoteProfileId: number;
+    deviceName: string;
+    remoteProfileName: string;
+    authority: string;
+    allowClientAccess?: boolean;
+  }) {
+    const lastSeen = new Date();
+
+    const existing = await Agent.getAgent(profile, fingerprint, remoteProfileId);
+
+    if (existing) {
+      existing.deviceName = deviceName;
+      existing.remoteProfileName = remoteProfileName;
+      existing.lastSeen = lastSeen;
+      existing.authority = authority;
+      if (allowClientAccess !== undefined) existing.allowClientAccess = allowClientAccess;
+      return existing.save();
+    }
+
+    const agent = await Agent.create({
+      fingerprint,
+      remoteProfileId,
+      deviceName,
+      remoteProfileName,
+      lastSeen,
+      authority,
+      allowClientAccess: allowClientAccess || false,
+    });
+    await agent.setProfile(profile);
+    return agent;
+  }
+
+  async updateLastSeen() {
+    this.lastSeen = new Date();
+    return this.save();
+  }
+
+  async del() {
+    return this.destroy();
+  }
+
+  async update({
+    deviceName,
+    remoteProfileName,
+    authority,
+    allowClientAccess,
+  }: {
+    deviceName?: string;
+    remoteProfileName?: string;
+    authority?: string | null;
+    allowClientAccess?: boolean;
+  }) {
+    deviceName && (this.deviceName = deviceName);
+    remoteProfileName && (this.remoteProfileName = remoteProfileName);
+    authority !== undefined && (this.authority = authority);
+    allowClientAccess !== undefined && (this.allowClientAccess = allowClientAccess);
+    return this.save();
   }
 }
 
@@ -211,6 +512,7 @@ export type CreateStorageType = {
   username: string | null;
   secret: string | null;
   url: string | null;
+  Agent?: Agent | null;
 };
 
 export type EditStorageType = {
@@ -233,8 +535,11 @@ export class Storage extends DbModel {
   declare accessTokenExpiresOn: Date | null;
   declare authType: StorageAuthType;
   declare ProfileId: number;
+  declare AgentId: number | null;
   declare setProfile: (profile: Profile) => Promise<void>;
   declare getProfile: () => Promise<Profile>;
+  declare setAgent: (agent: Agent) => Promise<void>;
+  declare getAgent: () => Promise<Agent>;
 
   static _columns: ModelAttributes = {
     id: {
@@ -310,7 +615,6 @@ export class Storage extends DbModel {
   };
 
   async getDetails() {
-    const storageMeta = await this.getStorageMeta();
     return {
       id: this.id,
       name: this.name,
@@ -319,16 +623,20 @@ export class Storage extends DbModel {
       url: this.url,
       username: this.username,
       oneAuthId: this.oneAuthId,
-      storageMeta: storageMeta?.getDetails() || null,
+      Agent: this.AgentId ? (await this.getAgent()).getDetails() : null,
     };
-  }
-
-  async delete() {
-    return this.destroy();
   }
 
   async getStorageMeta() {
     return StorageMeta.getByStorage(this);
+  }
+
+  isAgentType() {
+    return this.type === StorageType.Agent;
+  }
+
+  async delete() {
+    return this.destroy();
   }
 
   static async validateData(data: CreateStorageType) {
@@ -406,8 +714,25 @@ export class Storage extends DbModel {
         if (!data.secret)
           throw new Error("Password is required for digest auth");
         data.oneAuthId = null;
+      case StorageAuthType.Pairing:
+        if (data.type !== StorageType.Agent) throw new Error("Pairing auth is only allowed for agent storage");
+        if (!data.Agent) throw new Error("Paired agent is required for pairing auth");
+        data.oneAuthId = null;
+        data.username = null;
+        data.url = null;
+        if (!data.secret) throw new Error("Secret is required for pairing auth");
         break;
     }
+
+    if (data.type !== StorageType.Agent) {
+      data.Agent = null;
+    }
+
+    if (data.type === StorageType.Local) {
+      data.url = null;
+    }
+
+    return data;
   }
 
   async setAccessToken({
@@ -455,7 +780,22 @@ export class Storage extends DbModel {
       this.authType = authType;
     }
 
-    await Storage.validateData(this);
+    const data = await Storage.validateData({
+      type: this.type,
+      name: this.name,
+      authType: this.authType,
+      oneAuthId: this.oneAuthId,
+      username: this.username,
+      secret: this.secret,
+      url: this.url,
+      Agent: await this.getAgent(),
+    });
+
+    this.name = data.name;
+    this.username = data.username;
+    this.secret = data.secret;
+    this.url = data.url;
+    this.oneAuthId = data.oneAuthId;
 
     const existing = await Storage.getExisting({
       profile: await this.getProfile(),
@@ -463,9 +803,11 @@ export class Storage extends DbModel {
       username: this.username,
       url: this.url,
       oneAuthId: this.oneAuthId,
+      storageType: this.type,
+      Agent: await this.getAgent(),
     });
     if (existing && existing.id !== this.id) {
-      throw new Error("Storage with target already exists for this profile");
+      throw new Error("Storage with same configuration already exists for this profile");
     }
     return this.save();
   }
@@ -476,19 +818,33 @@ export class Storage extends DbModel {
     username,
     url,
     oneAuthId,
+    storageType,
+    Agent,
   }: {
     profile: Profile;
     authType: StorageAuthType;
     username: string | null;
     url: string | null;
     oneAuthId: string | null;
+    storageType: StorageType;
+    Agent?: Agent;
   }) {
     const where: any = { ProfileId: profile.id };
     if (authType === StorageAuthType.OneAuth) {
       if (!oneAuthId) throw new Error("oneAuthId is required");
       where.oneAuthId = oneAuthId;
       return await this.findOne({ where });
-    } else {
+    }
+    else if (storageType === StorageType.Local) {
+      where.type = storageType;
+      return await this.findOne({ where }); // only one local storage per profile allowed
+    }
+    else if (storageType === StorageType.Agent) {
+      if (!Agent) throw new Error("(getExisting) Agent is required for agent storage");
+      where.AgentId = Agent.id;
+      return await this.findOne({ where });
+    }
+    else {
       if (!url) throw new Error("url is required");
       where.url = url;
       where.username = username;
@@ -506,9 +862,11 @@ export class Storage extends DbModel {
       username: data.username,
       url: data.url,
       oneAuthId: data.oneAuthId,
+      Agent: data.Agent,
+      storageType: data.type,
     });
     if (existing) {
-      if (data.authType !== StorageAuthType.OneAuth) {
+      if (data.authType !== StorageAuthType.OneAuth && data.authType !== StorageAuthType.Pairing) {
         throw new Error("Storage with target already exists for this profile");
       }
       existing.secret = data.secret;
@@ -516,6 +874,9 @@ export class Storage extends DbModel {
     }
     const storage = await Storage.create(data);
     await storage.setProfile(profile);
+    if (data.Agent) {
+      await storage.setAgent(data.Agent);
+    }
     return storage;
   }
 
@@ -612,6 +973,7 @@ export class PendingAuth extends DbModel {
       secret,
       url: null,
       username: null,
+      Agent: null,
     });
     await this.destroy();
     return storage;
@@ -650,67 +1012,19 @@ export class PendingAuth extends DbModel {
   }
 }
 
+/* To be romoved post SyncEngine changes */
 export class StorageMeta extends DbModel {
   declare id: number;
-  declare hcRoot: string;
-  declare notesDir: string;
-  declare photosDir: string;
-  declare photosAssetsDir: string;
   declare photosLastSyncOn: number;
   declare photosSyncLockOn: Date | null;
-  declare isPhotosEnabled: boolean;
-  declare isNotesEnabled: boolean;
   declare setStorage: (storage: Storage) => Promise<void>;
   declare getStorage: () => Promise<Storage>;
 
   static _columns: ModelAttributes = {
-    hcRoot: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: true,
-      },
-    },
-
-    notesDir: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: true,
-      },
-    },
-
-    photosDir: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: true,
-      },
-    },
-    photosAssetsDir: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: true,
-      },
-    },
-
     photosLastSyncOn: {
       type: DataTypes.BIGINT,
       allowNull: false,
       defaultValue: 0,
-    },
-
-    isPhotosEnabled: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: true,
-    },
-
-    isNotesEnabled: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: true,
     },
 
     photosSyncLockOn: {
@@ -718,19 +1032,6 @@ export class StorageMeta extends DbModel {
       allowNull: true,
     },
   };
-
-  getDetails() {
-    return {
-      id: this.id,
-      hcRoot: this.hcRoot,
-      notesDir: this.notesDir,
-      photosDir: this.photosDir,
-      photosAssetsDir: this.photosAssetsDir,
-      photosLastSyncOn: this.photosLastSyncOn,
-      isPhotosEnabled: this.isPhotosEnabled,
-      isNotesEnabled: this.isNotesEnabled,
-    };
-  }
 
   async del() {
     return this.destroy();
@@ -760,6 +1061,49 @@ export class StorageMeta extends DbModel {
       await storageMeta.update(data);
     }
     return storageMeta;
+  }
+}
+
+// Not in use yet
+export class SyncHead extends DbModel {
+  declare id: number;
+  declare appId: string;
+  declare lastPurgeTime: number;
+  declare nextItemId: number;
+  declare setProfile: (profile: Profile) => Promise<void>;
+  declare getProfile: () => Promise<Profile>;
+
+  static _indexes: ModelIndexesOptions[] = [
+    { unique: true, fields: ['ProfileId', 'appId'] }
+  ];
+
+  static _columns: ModelAttributes = {
+    lastPurgeTime: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    nextItemId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
+    },
+    appId: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: true,
+      },
+    },
+  };
+
+  async del() {
+    return this.destroy();
+  }
+
+  static async getOrCreate(appId: string, profile: Profile): Promise<SyncHead> {
+    const [sh, _created] = await SyncHead.upsert({ ProfileId: profile.id, appId }, { returning: true });
+    return sh;
   }
 }
 
@@ -940,6 +1284,14 @@ export type createPhotoType = {
   metadata: string | null;
 };
 
+export type ThumbDetails = {
+  fileId: string;
+  updatedAt: Date;
+  image: string;
+  height: number;
+  width: number;
+}
+
 export class Thumb extends DbModel {
   declare setStorage: (storage: Storage) => Promise<void>;
   declare getStorage: () => Promise<Storage>;
@@ -990,7 +1342,7 @@ export class Thumb extends DbModel {
     },
   };
 
-  getDetails() {
+  getDetails(): ThumbDetails {
     return {
       fileId: this.fileId,
       updatedAt: this.updatedAt,
@@ -1139,6 +1491,8 @@ export function initModels(db: Sequelize) {
     Photo,
     Thumb,
     PinnedFolders,
+    Agent,
+    SyncHead,
   ];
   for (const cls of classes) {
     cls.register(db);
@@ -1150,6 +1504,25 @@ export function initModels(db: Sequelize) {
   });
   Storage.belongsTo(Profile);
 
+  Profile.hasMany(SyncHead, {
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  SyncHead.belongsTo(Storage);
+
+  Profile.hasMany(Agent, {
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  Agent.belongsTo(Profile);
+
+  Agent.hasOne(Storage, {
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  });
+  Storage.belongsTo(Agent);
+
+  /* To be removed */
   Storage.hasOne(StorageMeta, {
     onDelete: "CASCADE",
     onUpdate: "CASCADE",

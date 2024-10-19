@@ -4,6 +4,7 @@ import { FsDriver, RemoteItem } from "./interface";
 import { getAccessToken } from "./oneAuth";
 import { ApiRequestFile } from "../interface";
 import { ReadStream } from "fs";
+import { Readable } from "stream";
 
 const OAuth2 = google.auth.OAuth2;
 
@@ -46,7 +47,7 @@ export class GoogleFsDriver extends FsDriver {
   }
 
   mimeToItemType(mimeType: string): "file" | "directory" {
-    if (mimeType === this.folderMineType) {
+    if (mimeType === this.folderMineType || mimeType === this.driveMimeType) {
       return "directory";
     }
     return "file";
@@ -54,15 +55,30 @@ export class GoogleFsDriver extends FsDriver {
 
   fileAttrs = "id, name, mimeType, size, modifiedTime, createdTime, parents, thumbnailLink";
   folderMineType = "application/vnd.google-apps.folder";
+  driveMimeType = 'application/x-drive';
 
   public override async readDir(id: string) {
+
+    if(id === '') {
+      return [this.toRemoteItem({
+        id: 'root',
+        name: 'Google Drive',
+        mimeType: this.driveMimeType,
+        size: '0',
+        modifiedTime: new Date().toISOString(),
+        createdTime: new Date().toISOString(),
+        parents: null,
+        thumbnailLink: '',
+      })];
+    }
+
     id = this.normalizeRootId(id);
     try {
       const res = await this.driver!.files.list({
         q: `'${id}' in parents`,
         fields: `nextPageToken, files(${this.fileAttrs})`,
         spaces: "drive",
-        pageSize: 1000,
+        pageSize: 10000,
       });
       if (!res.data.files) {
         console.error("Error getting files", res);
@@ -204,7 +220,7 @@ export class GoogleFsDriver extends FsDriver {
     }
   }
 
-  public override async readFile(id: string): Promise<[ReadStream, string]> {
+  public override async readFile(id: string): Promise<[Readable, string]> {
     try {
       const res = await this.driver!.files.get(
         {
@@ -220,7 +236,7 @@ export class GoogleFsDriver extends FsDriver {
         throw new Error("Could not read file");
       }
       const mime = res.headers["content-type"];
-      return [res.data as ReadStream, mime];
+      return [res.data, mime];
     } catch (err) {
       // Handle error
       console.error(err);
@@ -304,10 +320,6 @@ export class GoogleFsDriver extends FsDriver {
       console.error(err);
       throw err;
     }
-  }
-
-  public override async readRootDir() {
-    return this.readDir("root");
   }
 
   public override async getStatByFilename(

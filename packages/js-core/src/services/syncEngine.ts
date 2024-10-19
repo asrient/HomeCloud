@@ -1,4 +1,4 @@
-import { Storage } from "../models";
+import { Profile, Storage } from "../models";
 import { FsDriver } from "../storageKit/interface";
 import { ApiRequestFile } from "../interface";
 import { jsonToStream, streamToJson } from "../utils";
@@ -60,6 +60,24 @@ export type ArchiveType = {
   lastUpdateTime: number;
   items: { [itemId: number]: any };
 };
+
+export abstract class SyncManager {
+  profile: Profile;
+  appId: string;
+  constructor(profile: Profile, appId: string) {
+    this.profile = profile;
+    this.appId = appId;
+  }
+
+  async addItems() {}
+  async deleteItems() {}
+  async updateItems() {}
+
+  async getUpdates(from: Date) {}
+
+  async applyUpdates(storageId: number, updates: any) {}
+  async reload(storageId: number, data: any) {}
+}
 
 export default abstract class SyncEngine {
   fsDriver: FsDriver;

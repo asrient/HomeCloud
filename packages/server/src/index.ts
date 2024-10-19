@@ -1,5 +1,4 @@
 import "dotenv/config";
-import http from "http";
 import https from "https";
 import fs from "fs";
 import {
@@ -11,7 +10,11 @@ import {
   initDb,
   ffmpegSetup,
   ServerAdaptor,
-  initSEPublisher
+  initSEPublisher,
+  ProfilesPolicy,
+  serverAgentRouter,
+  RequestOriginType,
+  cryptoUtils,
 } from "@homecloud/js-core";
 import path from "path";
 import os from "os";
@@ -28,64 +31,66 @@ const startText = `\n
 🐱 Starting HomeCloud Server...`;
 
 class AppServer {
-  port: number = 5000;
-  sslPort: number = 5001;
+  port: number = 5001;
   server: ServerAdaptor;
 
   constructor() {
     console.log(startText);
     this.setupConfig();
     ffmpegSetup();
-    this.server = new ServerAdaptor();
+    this.server = new ServerAdaptor(serverAgentRouter, RequestOriginType.Agent);
+  }
+
+  getEnvVar(name: string, required: boolean = false): string | undefined {
+    if (!process.env[name] && required) {
+      console.error(`❌ ${name} env variable not set! Exiting...`);
+      process.exit(1);
+    }
+    return process.env[name];
   }
 
   setupConfig() {
-    const isDev = process.env.NODE_ENV === "development";
+    const isDev = this.getEnvVar('NODE_ENV') === "development";
     const dataDir =
-      process.env.DATA_DIR || isDev
+      this.getEnvVar('DATA_DIR') || isDev
         ? path.resolve(__dirname, "../nodeData")
         : path.join(os.homedir(), "/.homecloud");
-    this.port = parseInt(process.env.PORT || "5000");
-    this.sslPort = parseInt(process.env.PORT || "5001");
+    fs.mkdirSync(envConfig.DATA_DIR, { recursive: true });
+    this.port = parseInt(this.getEnvVar('PORT') || "5001");
     const serverBaseUrl =
-      process.env.SERVER_BASE_URL || `http://localhost:${this.port}/`;
-    const clientBaseUrl = process.env.CLIENT_BASE_URL || serverBaseUrl;
+      this.getEnvVar('SERVER_BASE_URL') || `http://localhost:${this.port}/`; // fix this
+    const clientBaseUrl = this.getEnvVar('CLIENT_BASE_URL') || 'http://localhost:3000';
 
-    if (!isDev && !process.env.SECRET_KEY) {
+    if (!isDev && !this.getEnvVar('SECRET_KEY')) {
       console.error("❌ SECRET_KEY env variable not set on production!");
       process.exit(1);
     }
 
-    const listProfiles = process.env.LIST_PROFILES
-      ? process.env.LIST_PROFILES === "true"
+    const listProfiles = this.getEnvVar('LIST_PROFILES')
+      ? this.getEnvVar('LIST_PROFILES') === "true"
       : false;
-    const profilesPolicy = {
+    const profilesPolicy: ProfilesPolicy = {
       passwordPolicy:
-        (process.env.PASSWORD_POLICY as OptionalType) || OptionalType.Required,
-      allowSignups: process.env.ALLOW_SIGNUPS
-        ? process.env.ALLOW_SIGNUPS === "true"
+        (this.getEnvVar('PASSWORD_POLICY') as OptionalType) || OptionalType.Required,
+      allowSignups: this.getEnvVar('ALLOW_SIGNUPS')
+        ? this.getEnvVar('ALLOW_SIGNUPS') === "true"
         : true,
       listProfiles,
       syncPolicy:
-        (process.env.SYNC_POLICY as OptionalType) || OptionalType.Required,
-      adminIsDefault: process.env.ADMIN_IS_DEFAULT
-        ? process.env.ADMIN_IS_DEFAULT === "true"
+        (this.getEnvVar('SYNC_POLICY') as OptionalType) || OptionalType.Required,
+      adminIsDefault: this.getEnvVar('ADMIN_IS_DEFAULT')
+        ? this.getEnvVar('ADMIN_IS_DEFAULT') === "true"
         : false,
       // Always require username if listProfiles is false.
       requireUsername:
-        (process.env.REQUIRE_USERNAME
-          ? process.env.REQUIRE_USERNAME === "true"
+        (this.getEnvVar('REQUIRE_USERNAME')
+          ? this.getEnvVar('REQUIRE_USERNAME') === "true"
           : false) || !listProfiles,
+      singleProfile: false,
     };
 
-    const disabledStorageTypes: StorageType[] = process.env
-      .DISABLED_STORAGE_TYPES
-      ? process.env.DISABLED_STORAGE_TYPES.split(",").map(
-        (t) => t.trim() as StorageType,
-      )
-      : !isDev
-        ? [StorageType.Local] // Local is disabled by default in production for security if DISABLED_STORAGE_TYPES not specified.
-        : [];
+    const libraryDir = this.getEnvVar('LIBRARY_DIR') || path.join(os.homedir(), "Homecloud Server");
+    fs.mkdirSync(libraryDir, { recursive: true });
 
     setupEnvConfig({
       isDev,
@@ -93,51 +98,53 @@ class AppServer {
       dataDir,
       baseUrl: clientBaseUrl,
       apiBaseUrl: serverBaseUrl + "api/",
-      webBuildDir: path.join(__dirname, "../web"),
+      webBuildDir: '',
       profilesPolicy,
-      secretKey: process.env.SECRET_KEY || "secret",
-      disabledStorageTypes,
-      oneAuthServerUrl: process.env.ONEAUTH_SERVER_URL || null,
-      oneAuthAppId: process.env.ONEAUTH_APP_ID || null,
-      allowPrivateUrls: process.env.ALLOW_PRIVATE_URLS === "true",
-      version: process.env.npm_package_version,
+      secretKey: this.getEnvVar('SECRET_KEY', true),
+      disabledStorageTypes: [StorageType.Agent, StorageType.Dropbox, StorageType.Google, StorageType.WebDav], // All storage type except Local
+      oneAuthServerUrl: this.getEnvVar('ONEAUTH_SERVER_URL') || null,
+      oneAuthAppId: this.getEnvVar('ONEAUTH_APP_ID') || null,
+      allowPrivateUrls: this.getEnvVar('ALLOW_PRIVATE_URLS') === "true",
+      version: this.getEnvVar('npm_package_version'),
+      deviceName: this.getEnvVar('DEVICE_NAME') || "Homecloud Server",
+      libraryDir,
+      privateKey: this.getEnvVar('PRIVATE_KEY', true)!,
+      publicKey: this.getEnvVar('PUBLIC_KEY', true)!,
+      fingerprint: cryptoUtils.getFingerprint(this.getEnvVar('PUBLIC_KEY', true)!),
+      cert: this.getEnvVar('CERT', true)!,
     });
   }
 
   startServer() {
-    const httpServer = http.createServer(this.server.nativeHandler);
-    initSEPublisher(httpServer);
-    httpServer.listen(this.port);
-
-    console.log(`⚡️ HTTP Server started on port: ${this.port}`);
-
-    if (
-      process.env.SSL !== "true" ||
-      !process.env.SSL_KEY_PATH ||
-      !process.env.SSL_CERT_PATH
-    ) {
-      return;
-    }
     const httpsServer = https.createServer(
       {
-        key: fs.readFileSync(process.env.SSL_KEY_PATH || ""),
-        cert: fs.readFileSync(process.env.SSL_CERT_PATH || ""),
+        key: envConfig.PRIVATE_KEY,
+        cert: envConfig.CERTIFICATE,
+        rejectUnauthorized: false, // Disable automatic rejection. We are using self-signed cert
+        requestCert: true, // Request client certificate
       },
       this.server.nativeHandler,
     );
     initSEPublisher(httpsServer);
-    httpsServer.listen(this.sslPort);
+    httpsServer.listen(this.port);
 
-    console.log(`⚡️ HTTPS Server started on port: ${this.sslPort}`);
+    console.log(`⚡️ HTTPS Server started on port: ${this.port}`);
   }
 
   async start() {
+    const libraryDir = path.join(os.homedir(), "Homecloud Server", "admin")
+    const defaultProfile = {
+      name: "admin",
+      username: null,
+      password: this.getEnvVar('DEFAULT_PASSWORD') || '123456',
+      libraryDir,
+    };
     const dataDir = envConfig.DATA_DIR;
     const dbFilename = envConfig.IS_DEV ? "homecloud_dev.db" : "homecloud.db";
     const dbPath = path.join(dataDir, dbFilename);
     console.log(`🗄️ Database path: ${dbPath}`);
-    if (!(await initDb("sqlite", dbPath))) {
-      if (!process.env.DB_URL) {
+    if (!(await initDb(dbPath, defaultProfile))) {
+      if (!this.getEnvVar('DB_URL')) {
         console.error("❗️ DB_URL env variable not set!");
       }
       console.error("❌ Failed to initialize database. Exiting...");
