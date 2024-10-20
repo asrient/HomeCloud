@@ -50,10 +50,10 @@ class AppServer {
   }
 
   setupConfig() {
-    const isDev = this.getEnvVar('NODE_ENV') === "development";
+    const isDev = !(this.getEnvVar('NODE_ENV') === "production");
     const dataDir =
       this.getEnvVar('DATA_DIR') || isDev
-        ? path.resolve(__dirname, "../nodeData")
+        ? path.resolve(__dirname, "../../../DEV_SERVER_DATA")
         : path.join(os.homedir(), "/.homecloud");
     fs.mkdirSync(envConfig.DATA_DIR, { recursive: true });
     this.port = parseInt(this.getEnvVar('PORT') || "5001");
@@ -92,6 +92,9 @@ class AppServer {
     const libraryDir = this.getEnvVar('LIBRARY_DIR') || path.join(os.homedir(), "Homecloud Server");
     fs.mkdirSync(libraryDir, { recursive: true });
 
+    const publicKeyPem = this.getEnvVar('PUBLIC_KEY', true)!;
+    const fingerprint = cryptoUtils.getFingerprintFromPem(publicKeyPem);
+
     setupEnvConfig({
       isDev,
       envType: EnvType.Server,
@@ -108,18 +111,18 @@ class AppServer {
       version: this.getEnvVar('npm_package_version'),
       deviceName: this.getEnvVar('DEVICE_NAME') || "Homecloud Server",
       libraryDir,
-      privateKey: this.getEnvVar('PRIVATE_KEY', true)!,
-      publicKey: this.getEnvVar('PUBLIC_KEY', true)!,
-      fingerprint: cryptoUtils.getFingerprint(this.getEnvVar('PUBLIC_KEY', true)!),
-      cert: this.getEnvVar('CERT', true)!,
+      privateKeyPem: this.getEnvVar('PRIVATE_KEY', true)!,
+      publicKeyPem,
+      fingerprint,
+      certPem: this.getEnvVar('CERT', true)!,
     });
   }
 
   startServer() {
     const httpsServer = https.createServer(
       {
-        key: envConfig.PRIVATE_KEY,
-        cert: envConfig.CERTIFICATE,
+        key: envConfig.PRIVATE_KEY_PEM,
+        cert: envConfig.CERTIFICATE_PEM,
         rejectUnauthorized: false, // Disable automatic rejection. We are using self-signed cert
         requestCert: true, // Request client certificate
       },

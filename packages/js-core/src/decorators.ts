@@ -8,7 +8,7 @@ import { getFsDriver } from "./storageKit/storageHelper";
 import PhotosService from "./services/photos/photosService";
 import { FsDriver } from "./storageKit/interface";
 import CustomError, { ErrorCode } from "./customError";
-import { getFingerprint } from "./utils/cryptoUtils";
+import { getFingerprintFromBase64 } from "./utils/cryptoUtils";
 
 const ajv = new Ajv();
 
@@ -104,7 +104,17 @@ export function authenticate(authType: AuthType = AuthType.Required) {
     if (request.requestOrigin === RequestOriginType.Agent) {
       token = request.headers['x-access-key'];
     }
-    const { profileId, fingerprint, agentId } = verifyJwt(token);
+    const data = verifyJwt(token);
+    if (!data) {
+      if (requiredAuthTypes.includes(authType)) {
+        return ApiResponse.fromError(
+          CustomError.security("Authentication required"),
+          401,
+        );
+      }
+      return next();
+    }
+    const { profileId, fingerprint, agentId } = data;
 
     if (!!agentId && request.requestOrigin === RequestOriginType.Web) {
       return ApiResponse.fromError(
@@ -138,7 +148,7 @@ export function authenticate(authType: AuthType = AuthType.Required) {
           401,
         );
       }
-      const clientFingerprint = getFingerprint(clientPK);
+      const clientFingerprint = getFingerprintFromBase64(clientPK);
       if (fingerprint && clientFingerprint !== fingerprint) {
         return ApiResponse.fromError(
           CustomError.security('Client fingerprint mismatch.'),

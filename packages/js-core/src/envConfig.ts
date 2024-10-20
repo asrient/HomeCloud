@@ -26,10 +26,10 @@ export type SetupParams = {
   agentPort?: number;
   deviceName: string;
   libraryDir: string;
-  publicKey: string;
-  privateKey: string;
+  publicKeyPem: string;
+  privateKeyPem: string;
   fingerprint: string;
-  cert: string;
+  certPem: string;
 };
 
 export enum OptionalType {
@@ -101,12 +101,14 @@ export type DeviceInfo = {
   formFactor: DeviceFormType;
 };
 
+export type AccessControl = { [key: string]: string };
+
 export const StorageTypeMeta: {
   [key in StorageType]: {
     name: string;
     allowedAuthTypes?: StorageAuthType[];
     allowedUrlProtocols?: string[];
-    urlIsPath?: boolean;
+    urlRequired?: boolean;
   };
 } = {
   [StorageType.WebDav]: {
@@ -117,6 +119,7 @@ export const StorageTypeMeta: {
       StorageAuthType.None,
     ],
     allowedUrlProtocols: ["http", "https"],
+    urlRequired: true,
   },
   [StorageType.Google]: {
     name: "Google Drive",
@@ -140,7 +143,7 @@ export const StorageTypeMeta: {
 
 export const StorageTypes = Object.keys(StorageTypeMeta) as StorageType[];
 
-export const implementedStorageTypes = [StorageType.WebDav, StorageType.Google, StorageType.Local, StorageType.Dropbox];
+export const implementedStorageTypes = [StorageType.WebDav, StorageType.Google, StorageType.Local, StorageType.Dropbox, StorageType.Agent];
 
 class EnvConfig {
   readonly DATA_DIR: string;
@@ -162,10 +165,10 @@ class EnvConfig {
   AGENT_PORT: number | null;
   readonly DEVICE_NAME: string;
   readonly LIBRARY_DIR: string;
-  readonly PUBLIC_KEY: string;
-  readonly PRIVATE_KEY: string;
+  readonly PUBLIC_KEY_PEM: string;
+  readonly PRIVATE_KEY_PEM: string;
   readonly FINGERPRINT: string;
-  readonly CERTIFICATE: string;
+  readonly CERTIFICATE_PEM: string;
   readonly PAIRING_AUTH_TYPE: PairingAuthType;
 
   constructor(config: SetupParams) {
@@ -194,10 +197,10 @@ class EnvConfig {
     this.AGENT_PORT = config.agentPort ?? null;
     this.DEVICE_NAME = config.deviceName;
     this.LIBRARY_DIR = config.libraryDir;
-    this.PUBLIC_KEY = config.publicKey;
-    this.PRIVATE_KEY = config.privateKey;
+    this.PUBLIC_KEY_PEM = config.publicKeyPem;
+    this.PRIVATE_KEY_PEM = config.privateKeyPem;
     this.FINGERPRINT = config.fingerprint;
-    this.CERTIFICATE = config.cert;
+    this.CERTIFICATE_PEM = config.certPem;
     this.PAIRING_AUTH_TYPE = config.envType === EnvType.Desktop ? PairingAuthType.OTP : PairingAuthType.Password;
 
     console.log(`🖥️ Device Name: ${this.DEVICE_NAME}`);

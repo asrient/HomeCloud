@@ -1,7 +1,7 @@
 import CustomError, { ErrorCode } from "../customError";
 import { envConfig, PairingAuthType } from "../envConfig";
 import { Agent, Profile } from "../models";
-import { verifySignature, getFingerprint, signString, uuid, generateOTP } from "../utils/cryptoUtils";
+import { verifySignature, signString, uuid, generateOTP, getFingerprintFromBase64, generatePemFromBase64, KeyType } from "../utils/cryptoUtils";
 import { generateJwt } from "../utils/profileUtils";
 
 const QUEUE_LIMIT = 10;
@@ -45,12 +45,13 @@ export function createPairingRequest(profile: Profile, target: { profileId: numb
 
 export function createPairingRequestPacket(pairingRequest: PairingRequest): PairingRequestPacket {
     const payload = JSON.stringify(pairingRequest);
-    const signature = signString(payload, envConfig.PRIVATE_KEY);
+    const signature = signString(payload, envConfig.PRIVATE_KEY_PEM);
     return { payload, signature };
 }
 
 export function validatePairingRequest(packet: PairingRequestPacket, clientPublicKey: string) {
-    const isValid = verifySignature(packet.payload, packet.signature, clientPublicKey);
+    const clientPublicKeyPem = generatePemFromBase64(clientPublicKey, KeyType.PUBLIC_KEY);
+    const isValid = verifySignature(packet.payload, packet.signature, clientPublicKeyPem);
     if (!isValid) {
         throw CustomError.security("Invalid signature");
     }
@@ -70,7 +71,7 @@ export function validatePairingRequest(packet: PairingRequestPacket, clientPubli
         throw CustomError.security("Request expired");
     }
     // verify fingerprint
-    if (pairingRequest.clientFinerprint !== getFingerprint(clientPublicKey)) {
+    if (pairingRequest.clientFinerprint !== getFingerprintFromBase64(clientPublicKey)) {
         throw CustomError.security("Invalid client fingerprint");
     }
     return pairingRequest;
@@ -126,7 +127,7 @@ Promise<{
         }
         const { agent, canAddBack } = await createAgent(pairingRequest, clientRemoteAddress);
         if(agent.clientAccessDisabled()) {
-            throw CustomError.validationSingle("clientAccess", "Client access denied.");
+            throw CustomError.security("Client access denied.");
         }
         const accessKey = generateJwt(targetProfile.id, agent.fingerprint, agent.id);
         return { accessKey };
@@ -184,7 +185,7 @@ export async function verifyOTP(token: string, otp: string, clientPublicKey: str
         throw CustomError.validationSingle("otp", "Invalid OTP");
     }
     const pairingRequest = request.pairingRequest;
-    const currentFingerprint = getFingerprint(clientPublicKey);
+    const currentFingerprint = getFingerprintFromBase64(clientPublicKey);
     if (pairingRequest.clientFinerprint !== currentFingerprint) {
         throw CustomError.validationSingle("fingerprint", "Invalid fingerprint");
     }

@@ -7,17 +7,18 @@ import {
   StorageAuthType,
   StorageAuthTypes,
   StorageTypeMeta,
+  AccessControl,
 } from "./envConfig";
 import bcrypt from "bcrypt";
 import {
   validateUsernameString,
   validatePasswordString,
   validateNameString,
+  validateAccessControl,
 } from "./utils/profileUtils";
 import { createHash } from "./utils";
 import CustomError from "./customError";
 import path from "path";
-import fs from "fs/promises";
 import { isUrlPrivate } from "./utils/privateUrlChecker";
 import { setupLibraryForProfile } from "./utils/libraryUtils";
 
@@ -48,8 +49,6 @@ export type ProfileDetails = {
   isDisabled: boolean;
   accessControl?: AccessControl | null;
 }
-
-export type AccessControl = { [key: string]: string };
 
 export class Profile extends DbModel {
   declare id: number;
@@ -238,12 +237,7 @@ export class Profile extends DbModel {
 
     let accessControlStr: string | null = null;
     if (accessControl) {
-      if (Object.keys(accessControl).length === 0) {
-        throw CustomError.validationSingle(
-          "accessControl",
-          "Access control cannot be empty",
-        );
-      }
+      accessControl = await validateAccessControl(accessControl);
       accessControlStr = Profile.stringifyAccessControl(accessControl);
     }
 
@@ -292,9 +286,7 @@ export class Profile extends DbModel {
     if (data.isDisabled !== undefined && isAdminInitiated && !envConfig.PROFILES_CONFIG.singleProfile) this.isDisabled = data.isDisabled;
 
     if (data.accessControl !== undefined && isAdminInitiated) {
-      if (Object.keys(data.accessControl).length === 0) {
-        throw CustomError.validationSingle("accessControl", "Access control cannot be empty");
-      }
+      data.accessControl = await validateAccessControl(data.accessControl);
       this.accessControl = Profile.stringifyAccessControl(data.accessControl);
     }
 
@@ -309,7 +301,12 @@ export class Profile extends DbModel {
     return Storage.findOne({ where: { ProfileId: this.id, type: StorageType.Local } });
   }
 
-  static async deleteProfiles(ids: number[], referalProfile: Profile | null = null) {
+  static async deleteProfiles(ids: number[], referalProfile: Profile | null) {
+
+    if(envConfig.PROFILES_CONFIG.singleProfile) {
+      throw CustomError.security("Cannot delete profiles on this device.");
+    }
+
     const isAdminInitiated = referalProfile === null || referalProfile.isAdmin;
     if (!isAdminInitiated) {
       throw CustomError.security("Only admin can delete profiles");
@@ -470,7 +467,7 @@ export class Agent extends DbModel {
       remoteProfileName,
       lastSeen,
       authority,
-      allowClientAccess: allowClientAccess || false,
+      allowClientAccess: allowClientAccess || null,
     });
     await agent.setProfile(profile);
     return agent;
@@ -623,7 +620,7 @@ export class Storage extends DbModel {
       url: this.url,
       username: this.username,
       oneAuthId: this.oneAuthId,
-      Agent: this.AgentId ? (await this.getAgent()).getDetails() : null,
+      agent: this.AgentId ? (await this.getAgent()).getDetails() : null,
     };
   }
 
@@ -636,6 +633,12 @@ export class Storage extends DbModel {
   }
 
   async delete() {
+    if(this.type === StorageType.Local) {
+      const localStorageCount = await Storage.count({ where: { ProfileId: this.ProfileId, type: StorageType.Local } });
+      if(localStorageCount === 1) {
+        throw new Error("Cannot delete the only local storage for this profile");
+      }
+    }
     return this.destroy();
   }
 
@@ -654,7 +657,7 @@ export class Storage extends DbModel {
 
     if (data.name.length < 3)
       throw new Error("Name must be at least 3 characters long");
-    if (data.authType !== StorageAuthType.OneAuth && !data.url)
+    if (StorageTypeMeta[data.type].urlRequired && !data.url)
       throw new Error("Url is required");
 
     const allowedAuthTypes = StorageTypeMeta[data.type].allowedAuthTypes;
@@ -668,7 +671,7 @@ export class Storage extends DbModel {
       if (!allowedUrlProtocols.includes(protocol)) {
         throw new Error("Invalid url protocol for this storage type");
       }
-      if (data.url && !StorageTypeMeta[data.type].urlIsPath && !envConfig.ALLOW_PRIVATE_URLS) {
+      if (data.url && !envConfig.ALLOW_PRIVATE_URLS) {
         try {
           if (await isUrlPrivate(data.url)) {
             throw new Error("Url domain is private");
@@ -676,16 +679,6 @@ export class Storage extends DbModel {
         } catch (e: any) {
           throw CustomError.validationSingle("url", e.message);
         }
-      }
-    }
-
-    if (data.url && StorageTypeMeta[data.type].urlIsPath) {
-      if (!path.isAbsolute(data.url)) {
-        throw new Error(`Path must be absolute starting with: ${path.sep}`);
-      }
-      const stat = await fs.stat(data.url);
-      if (!stat.isDirectory()) {
-        throw new Error(`Path must be a directory`);
       }
     }
 
@@ -1061,49 +1054,6 @@ export class StorageMeta extends DbModel {
       await storageMeta.update(data);
     }
     return storageMeta;
-  }
-}
-
-// Not in use yet
-export class SyncHead extends DbModel {
-  declare id: number;
-  declare appId: string;
-  declare lastPurgeTime: number;
-  declare nextItemId: number;
-  declare setProfile: (profile: Profile) => Promise<void>;
-  declare getProfile: () => Promise<Profile>;
-
-  static _indexes: ModelIndexesOptions[] = [
-    { unique: true, fields: ['ProfileId', 'appId'] }
-  ];
-
-  static _columns: ModelAttributes = {
-    lastPurgeTime: {
-      type: DataTypes.BIGINT,
-      allowNull: false,
-      defaultValue: 0,
-    },
-    nextItemId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 1,
-    },
-    appId: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: true,
-      },
-    },
-  };
-
-  async del() {
-    return this.destroy();
-  }
-
-  static async getOrCreate(appId: string, profile: Profile): Promise<SyncHead> {
-    const [sh, _created] = await SyncHead.upsert({ ProfileId: profile.id, appId }, { returning: true });
-    return sh;
   }
 }
 
@@ -1492,7 +1442,6 @@ export function initModels(db: Sequelize) {
     Thumb,
     PinnedFolders,
     Agent,
-    SyncHead,
   ];
   for (const cls of classes) {
     cls.register(db);
@@ -1503,12 +1452,6 @@ export function initModels(db: Sequelize) {
     onUpdate: "CASCADE",
   });
   Storage.belongsTo(Profile);
-
-  Profile.hasMany(SyncHead, {
-    onDelete: "CASCADE",
-    onUpdate: "CASCADE",
-  });
-  SyncHead.belongsTo(Storage);
 
   Profile.hasMany(Agent, {
     onDelete: "CASCADE",

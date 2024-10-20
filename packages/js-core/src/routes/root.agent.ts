@@ -35,7 +35,7 @@ const pairSchema = {
       properties: { payload: { type: "string" }, signature: { type: "string" } },
       required: ['payload', 'signature'],
     }, // PairingRequestPacket
-    password: { type: "string" },
+    password: { type: "string", nullable: true },
   },
   required: ["packet"],
 };
@@ -87,8 +87,13 @@ api.add(
       throw CustomError.validationSingle('publicKey', 'Client Public Key not sent');
     }
 
-    const resp = await verifyOTP(data.token, data.otp, clientPublicKey);
-    return ApiResponse.json(200, resp);
+    try {
+      const resp = await verifyOTP(data.token, data.otp, clientPublicKey);
+      return ApiResponse.json(200, resp);
+    } catch (e: any) {
+      console.error(e);
+      return ApiResponse.fromError(e);
+    }
   },
 );
 

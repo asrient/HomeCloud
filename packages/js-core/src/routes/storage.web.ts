@@ -8,7 +8,7 @@ import {
   fetchFsDriver,
 } from "../decorators";
 import { Storage } from "../models";
-import { StorageTypes, StorageAuthTypes, StorageAuthType, envConfig } from "../envConfig";
+import { StorageTypes, StorageAuthTypes, StorageAuthType, envConfig, StorageType } from "../envConfig";
 import { initiate, complete } from "../storageKit/oneAuth";
 import { FsDriver } from "../storageKit/interface";
 import CustomError from "../customError";
@@ -101,13 +101,14 @@ api.add(
     const profile = request.profile!;
     try {
       const { storage, token } = await requestPairing(profile, data.host, data.fingerprint, data.targetProfileId, data.password || null);
-      const requireOTP = !storage && token;
+      const requireOTP = !!(!storage && token);
       return ApiResponse.json(201, {
         requireOTP,
         storage: await storage?.getDetails(),
         token,
       });
     } catch (e: any) {
+      console.error(e);
       return ApiResponse.fromError(e);
     }
   },
@@ -190,6 +191,10 @@ api.add(
     if(storage.authType === StorageAuthType.Pairing) {
       return ApiResponse.fromError(
         CustomError.validationSingle("storageId", "Storage of pairing type cannot be edited."), 400);
+    }
+    if(storage.type === StorageType.Local) {
+      return ApiResponse.fromError(
+        CustomError.validationSingle("storageId", "Storage of local type cannot be edited."), 400);
     }
     try {
       storage = await storage.edit(data);

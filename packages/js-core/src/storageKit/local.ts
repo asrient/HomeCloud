@@ -1,6 +1,5 @@
 import fs from "fs/promises";
 import path from "path";
-import { AccessControl, Storage } from "../models";
 import { FsDriver, RemoteItem } from "./interface";
 import { ApiRequestFile } from "../interface";
 import { ReadStream } from "fs";
@@ -9,7 +8,8 @@ import { createReadStream } from "fs";
 import { StorageType } from "../envConfig";
 import { Readable } from "stream";
 import { getNativeDrives } from "../utils/fileUtils";
-import { resolveLibraryPath } from "../utils/libraryUtils";
+import { getLibraryDirForProfile, resolveLibraryPath } from "../utils/libraryUtils";
+import { AccessControl } from "../envConfig";
 
 export class LocalFsDriver extends FsDriver {
   override storageType = StorageType.Local;
@@ -19,8 +19,9 @@ export class LocalFsDriver extends FsDriver {
   override async init() {
     const profile = this.profile;
     this.accessControl = profile.getAccessControl();
+    const libraryDir = getLibraryDirForProfile(profile.id);
     if(this.accessControl) {
-      this.allowedPaths = [];
+      this.allowedPaths = [libraryDir];
       if(profile.isAdmin) {
         // Making sure admins have access to whole file system even if custom drives are mapped.
         this.allowedPaths.push(path.sep);
@@ -44,11 +45,18 @@ export class LocalFsDriver extends FsDriver {
   }
 
   normalizePath(filePath: string) {
-    filePath = path.normalize(filePath);
-    return resolveLibraryPath(this.profile.id, filePath);
+    filePath = resolveLibraryPath(this.profile.id, filePath);
+    if(!path.isAbsolute(filePath)) {
+      throw new Error(`Relative paths not allowed: ${filePath}`);
+    }
+    return filePath;
   }
 
-  async toRemoteItem(filePath: string, name: string = null, mimeType: string = null): Promise<RemoteItem> {
+  isPathRoot(filePath: string) {
+    return path.dirname(filePath) === filePath;
+  }
+
+  async toRemoteItem(filePath: string, name: string = null, mimeType: string = null, noParent = false): Promise<RemoteItem> {
     const stat = await fs.stat(filePath);
     const isDir = stat.isDirectory();
     if(!mimeType) {
@@ -60,7 +68,7 @@ export class LocalFsDriver extends FsDriver {
       type: isDir ? "directory" : "file",
       name: name || this.pathToFilename(filePath),
       id: fileId,
-      parentIds: fileId === path.sep ? null : [parentId],
+      parentIds: (noParent || this.isPathRoot(filePath)) ? null : [parentId],
       size: stat.size,
       lastModified: new Date(stat.mtimeMs),
       createdAt: new Date(stat.ctimeMs),
@@ -83,7 +91,7 @@ export class LocalFsDriver extends FsDriver {
       drives = await getNativeDrives();
     }
     const promises = Object.entries(drives).map(([key, value]) => {
-      return this.toRemoteItem(value, key, 'application/x-drive');
+      return this.toRemoteItem(value, key, 'application/x-drive', true);
     });
     return Promise.all(promises);
   }
@@ -97,7 +105,16 @@ export class LocalFsDriver extends FsDriver {
     this.assertAccess(dirPath);
     const contents = await fs.readdir(dirPath);
     const promises = contents.map((fileName) => this.toRemoteItem(path.join(dirPath, fileName)));
-    return Promise.all(promises);
+    const results = await Promise.allSettled(promises);
+    const items: RemoteItem[] = [];
+    results.forEach((result) => {
+      if (result.status === "fulfilled") {
+        items.push(result.value);
+      } else {
+        console.error(`Error reading file: ${dirPath}`, result.reason);
+      }
+    });
+    return items;
   }
 
   public override async mkDir(name: string, baseId: string) {

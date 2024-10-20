@@ -78,15 +78,19 @@ api.add(
       );
     }
     const deletingSelf = profileIds.includes(profile.id);
-    const deleteCount = await Profile.deleteProfiles(profileIds);
-    const resp = ApiResponse.json(201, {
-      count: deleteCount,
-      logout: deletingSelf,
-    });
-    if (deletingSelf) {
-      logout(resp);
+    try {
+      const deleteCount = await Profile.deleteProfiles(profileIds, profile);
+      const resp = ApiResponse.json(201, {
+        count: deleteCount,
+        logout: deletingSelf,
+      });
+      if (deletingSelf) {
+        logout(resp);
+      }
+      return resp;
+    } catch (e: any) {
+      return ApiResponse.fromError(e);
     }
-    return resp;
   },
 );
 

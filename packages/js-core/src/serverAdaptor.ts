@@ -65,7 +65,7 @@ export default class ServerAdaptor {
     });
   }
 
-  async ServerAdaptor(
+  async handleAPI(
     url: URL,
     req: http.IncomingMessage,
     res: http.ServerResponse,
@@ -235,7 +235,7 @@ export default class ServerAdaptor {
 
     try {
       if (url.pathname.startsWith("/api/")) {
-        await this.ServerAdaptor(url, req, res);
+        await this.handleAPI(url, req, res);
       } else {
         await this.handleStatic(url, req, res);
       }

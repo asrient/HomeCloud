@@ -21,15 +21,41 @@ export const generateKeyPair = () => {
     }
 };
 
-export function getFingerprint(publicKey: string) {
-    // Generate the hash (fingerprint) of the public key using SHA-256
-    const hash = crypto.createHash('sha256');
-    hash.update(publicKey);
-    return hash.digest('hex');
+export function getKeyFromPem(pem: string) {
+    // Extract the key from the PEM string
+    const key = pem.match(/-----BEGIN (.*)-----([^-]*)-----END \1-----/)[2];
+    return key.replace(/\n/g, '');
 }
 
-export function verifyFingerprint(publicKey: string, fingerprint: string) {
-    return getFingerprint(publicKey) === fingerprint;
+export enum KeyType {
+    CERTIFICATE = 'CERTIFICATE',
+    PUBLIC_KEY = 'PUBLIC KEY',
+}
+
+/**
+ * Converts a Base64-encoded public key string to PEM format.
+ * @param {string} base64Key - The Base64-encoded public key.
+ * @returns {string} - The PEM-formatted public key.
+ */
+export function generatePemFromBase64(base64Key: string, type: KeyType): string {
+    const header = `-----BEGIN ${type}-----\n`;
+    const footer = `\n-----END ${type}-----\n`;
+
+    // Split the base64 string into chunks of 64 characters for better readability in PEM format
+    const formattedKey = base64Key.match(/.{1,64}/g).join('\n');
+    return header + formattedKey + footer;
+}
+
+export function getFingerprintFromPem(publicKeyPem: string) {
+    const publicKey = getKeyFromPem(publicKeyPem);
+    return getFingerprintFromBase64(publicKey);
+}
+
+export function getFingerprintFromBase64(base64PublicKey: string) {
+    // Generate the hash (fingerprint) of the public key using SHA-256
+    const hash = crypto.createHash('sha256');
+    hash.update(base64PublicKey, 'base64');
+    return hash.digest('hex');
 }
 
 export function generateRandomKey() {
@@ -37,31 +63,31 @@ export function generateRandomKey() {
 }
 
 export function generateOTP() {
-   return Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    return Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
 }
 
-export function encryptStringPK(data: string, publicKey: string) {
+export function encryptStringPK(data: string, publicKeyPem: string) {
     const buffer = Buffer.from(data, 'utf8');
-    const encrypted = crypto.publicEncrypt(publicKey, buffer);
+    const encrypted = crypto.publicEncrypt(publicKeyPem, buffer);
     return encrypted.toString('base64');
 }
 
-export function decryptStringPK(data: string, privateKey: string) {
+export function decryptStringPK(data: string, privateKeyPem: string) {
     const buffer = Buffer.from(data, 'base64');
-    const decrypted = crypto.privateDecrypt(privateKey, buffer);
+    const decrypted = crypto.privateDecrypt(privateKeyPem, buffer);
     return decrypted.toString('utf8');
 }
 
-export function signString(data: string, privateKey: string) {
+export function signString(data: string, privateKeyPem: string) {
     const sign = crypto.createSign('SHA256');
     sign.update(data);
-    return sign.sign(privateKey, 'base64');
+    return sign.sign(privateKeyPem, 'base64');
 }
 
-export function verifySignature(data: string, signature: string, publicKey: string) {
+export function verifySignature(data: string, signature: string, publicKeyPem: string) {
     const verify = crypto.createVerify('SHA256');
     verify.update(data);
-    return verify.verify(publicKey, signature, 'base64');
+    return verify.verify(publicKeyPem, signature, 'base64');
 }
 
 export type EncryptedData = {

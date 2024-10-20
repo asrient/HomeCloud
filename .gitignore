@@ -145,3 +145,6 @@ dist
 terraform.tfstate*
 
 .vscode/
+
+DEV_DESKTOP_DATA/
+DEV_SERVER_DATA/

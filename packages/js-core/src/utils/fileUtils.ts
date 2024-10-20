@@ -76,12 +76,21 @@ export async function getNativeDrives(): Promise<{ [key: string]: string }> {
  * Gets the available drives on Windows.
  */
 async function getWindowsDrives(): Promise<{ [key: string]: string }> {
-    const { stdout } = await execAsync('wmic logicaldisk get name');
+    const { stdout } = await execAsync('wmic logicaldisk get name,volumename');
     const lines = stdout.split('\n').filter((line) => line.trim().length > 0);
     const drives = lines.slice(1).map((line) => line.trim()); // Skip the header
     const result: { [key: string]: string } = {};
+
     drives.forEach((drive) => {
-      result[drive] = drive;
+        // Split the line by whitespace to separate the drive name and volume name
+        const [name, ...volumeArray] = drive.split(/\s+/);
+        const volumeName = volumeArray.join(' '); // Join the rest to handle multi-word volume names
+
+        // Normalize the path to use C:\ style format
+        const normalizedPath = name.endsWith(':') ? `${name}\\` : name;
+
+        // Use volume name if available, otherwise just the drive letter
+        result[volumeName ? `${volumeName} (${name})` : name] = normalizedPath;
     });
     return result;
 }

@@ -64,21 +64,21 @@ class App {
       fs.writeFileSync(publicKeyPath, publicKey);
       fs.writeFileSync(certPath, cert);
       console.log("✅ Key pair written to files:", privateKeyPath, publicKeyPath, certPath);
-      return { privateKey, publicKey, cert };
+      return { privateKeyPem: privateKey, publicKeyPem: publicKey, certPem: cert };
     }
     return {
-      privateKey: fs.readFileSync(privateKeyPath).toString(),
-      publicKey: fs.readFileSync(publicKeyPath).toString(),
-      cert: fs.readFileSync(certPath).toString(),
+      privateKeyPem: fs.readFileSync(privateKeyPath).toString(),
+      publicKeyPem: fs.readFileSync(publicKeyPath).toString(),
+      certPem: fs.readFileSync(certPath).toString(),
     };
   }
 
   setupConfig() {
-    const isDev = process.env.NODE_ENV === "development";
+    const isDev = !(process.env.NODE_ENV === "production");
     const dataDir = isDev
-        ? path.resolve(__dirname, "../nodeData")
+        ? path.resolve(__dirname, "../../../DEV_DESKTOP_DATA")
         : path.join(os.homedir(), "/.homecloud"); // change it to default app data dir for each OS
-    fs.mkdirSync(envConfig.DATA_DIR, { recursive: true });
+    fs.mkdirSync(dataDir, { recursive: true });
     const webServerBaseUrl = `http://127.0.0.1:${this.webPort}/`;
     const clientBaseUrl = process.env.CLIENT_BASE_URL || 'http://localhost:3000';
 
@@ -96,7 +96,8 @@ class App {
     const libraryDir = path.join(os.homedir(), "Homecloud Library"); // todo: make it configurable
     fs.mkdirSync(libraryDir, { recursive: true });
 
-    const { privateKey, publicKey, cert } = this.getOrGenerateKeys(dataDir);
+    const { privateKeyPem, publicKeyPem, certPem } = this.getOrGenerateKeys(dataDir);
+    const fingerprint = cryptoUtils.getFingerprintFromPem(publicKeyPem);
 
     setupEnvConfig({
       isDev,
@@ -114,10 +115,10 @@ class App {
       allowPrivateUrls: true,
       deviceName,
       libraryDir,
-      publicKey,
-      privateKey,
-      fingerprint: cryptoUtils.getFingerprint(publicKey),
-      cert,
+      publicKeyPem,
+      privateKeyPem,
+      fingerprint,
+      certPem,
     });
   }
 
@@ -132,8 +133,8 @@ class App {
   startAgentServer() {
     const httpsServer = https.createServer(
       {
-        key: envConfig.PRIVATE_KEY,
-        cert: envConfig.CERTIFICATE,
+        key: envConfig.PRIVATE_KEY_PEM,
+        cert: envConfig.CERTIFICATE_PEM,
         rejectUnauthorized: false, // Disable automatic rejection. We are using self-signed cert
         requestCert: true, // Request client certificate
       },

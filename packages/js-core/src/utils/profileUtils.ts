@@ -1,7 +1,9 @@
 import jwt from "jsonwebtoken";
-import { envConfig } from "../envConfig";
+import { AccessControl, envConfig } from "../envConfig";
 import CustomError from "../customError";
 import { ApiResponse } from "../interface";
+import path from "path";
+import fs from "fs";
 
 export function validateUsernameString(name: string): string {
   name = name.trim().toLowerCase();
@@ -53,11 +55,44 @@ export function validatePasswordString(password: string): string {
   return password;
 }
 
+export async function validateAccessControl(accessControl: AccessControl) {
+  const keys = Object.keys(accessControl);
+  if (keys.length === 0) {
+    throw CustomError.validationSingle(
+      "accessControl",
+      "Access control cannot be empty",
+    );
+  }
+  const promises = keys.map(async (key) => {
+    const pth = accessControl[key];
+    if (!path.isAbsolute(pth)) {
+      throw CustomError.validationSingle(
+        "accessControl",
+        "Paths must be absolute",
+      );
+    }
+    // check if path exists
+    // check if path is a directory
+    const stat = await fs.promises.stat(pth);
+    if (!stat.isDirectory()) {
+      throw CustomError.validationSingle(
+        "accessControl",
+        "Paths must be directories",
+      );
+    }
+    if (pth.endsWith(path.sep)) {
+      accessControl[key] = pth.slice(0, -1);
+    }
+  });
+  await Promise.all(promises);
+  return accessControl;
+}
+
 export function generateJwt(profileId: number, fingerprint: string | null = null, agentId: number | null = null) {
   return jwt.sign({ profileId, fingerprint, deviceFingerprint: envConfig.FINGERPRINT, agentId }, envConfig.SECRET_KEY, { expiresIn: "300d" });
 }
 
-export function verifyJwt(token: string) : { profileId: number, fingerprint: string | null, agentId: number | null } | null {
+export function verifyJwt(token: string): { profileId: number, fingerprint: string | null, agentId: number | null } | null {
   if (!token) return null;
   try {
     const payload = jwt.verify(token, envConfig.SECRET_KEY) as jwt.JwtPayload;

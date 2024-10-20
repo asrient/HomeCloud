@@ -1,44 +1,65 @@
 import { envConfig, StorageAuthType, StorageType } from "../envConfig";
 import https from 'https';
-import fetch, { RequestInit, HeadersInit, Response } from 'node-fetch';
+import fetch, { RequestInit, HeadersInit, Response } from 'node-fetch-commonjs';
+import tls from 'tls';
 import CustomError, { ErrorCode, ErrorResponse } from "../customError";
 import { URLSearchParams } from 'url';
 import { createPairingRequest, createPairingRequestPacket, PairingRequest, PairingRequestPacket } from "./pairing";
-import { Profile, ProfileDetails, Agent, Storage } from "../models";
+import { Profile, Agent, Storage } from "../models";
 import FormData from "form-data";
 import { Readable } from 'node:stream';
 import { AgentInfo } from "./types";
+import { getFingerprintFromBase64 } from "../utils/cryptoUtils";
 
 export type ErrorData = {
     message: string;
     errors?: { [key: string]: string[] };
 };
 
+class CustomHttpsAgent extends https.Agent {
+    public _serverFingerprint: string | null;
+    createConnection (options, callback) {
+        // Use tls.connect to manually handle server certificates
+        const socket = tls.connect(options, () => {
+            const cert = socket.getPeerCertificate();
+            const publicKey = cert.pubkey.toString('base64');
+            const fingerprint = getFingerprintFromBase64(publicKey);
+            // Custom certificate validation logic
+            if (this._serverFingerprint && fingerprint !== this._serverFingerprint) {
+                console.log('Certificate validation failed');
+                socket.destroy(CustomError.security('Server fingerprint mismatch', { fingerprint, expected: this._serverFingerprint }));
+                return;
+            }
+            this._serverFingerprint = fingerprint;
+            // Proceed if validation passed
+            callback(null, socket);
+        });
+
+        // Handle errors
+        socket.on('error', (err) => {
+            console.error('Socket error:', err);
+            callback(err, null);
+        });
+
+        return socket;
+    }
+}
+
 // Adopted from web apiClient
 export class AgentClient {
     static PORT = 5001;
-    private _httpsAgent: https.Agent;
-    private _serverFingerprint: string | null;
+    private _httpsAgent: CustomHttpsAgent;
     private _accessKey: string | null;
     private _host: string;
     constructor(host: string, serverFingerprint: string | null, accessKey: string | null) {
         this._host = host;
-        this._serverFingerprint = serverFingerprint;
         this._accessKey = accessKey;
-        this._httpsAgent = new https.Agent({
-            cert: envConfig.CERTIFICATE, // Client certificate
-            key: envConfig.PRIVATE_KEY, // Client private key
-            rejectUnauthorized: false,
-            checkServerIdentity: (host, cert) => {
-                const fingerprint = cert.fingerprint256;  // Get the SHA-256 fingerprint of the certificate
-
-                if (this._serverFingerprint && fingerprint !== this._serverFingerprint) {
-                    throw CustomError.security('Server fingerprint mismatch', { fingerprint, expected: this._serverFingerprint });
-                }
-                this._serverFingerprint = fingerprint;
-                return undefined;  // Continue connection if the fingerprint matches
-            }
+        this._httpsAgent = new CustomHttpsAgent({
+            cert: envConfig.CERTIFICATE_PEM, // Client certificate
+            key: envConfig.PRIVATE_KEY_PEM, // Client private key
+            rejectUnauthorized: false, // Disable automatic rejection of unauthorized certs
         });
+        this._httpsAgent._serverFingerprint = serverFingerprint;
     }
 
     setHost(host: string) {
@@ -50,11 +71,11 @@ export class AgentClient {
     }
 
     setServerFingerprint(fingerprint: string) {
-        this._serverFingerprint = fingerprint;
+        this._httpsAgent._serverFingerprint = fingerprint;
     }
 
     getServerFingerprint(): string | null {
-        return this._serverFingerprint;
+        return this._httpsAgent._serverFingerprint;
     }
 
     setAccessKey(accessKey: string) {
@@ -128,7 +149,7 @@ export class AgentClient {
         return this._parseResponse<T>(await this._get(path, params));
     }
 
-    async getToStream(path: string, params?: string | string[][] | Record<string, string> | URLSearchParams): Promise<{mime: string; stream: Readable }> {
+    async getToStream(path: string, params?: string | string[][] | Record<string, string> | URLSearchParams): Promise<{ mime: string; stream: Readable }> {
         const resp = await this._get(path, params);
         const mime = resp.headers.get('Content-Type') || 'application/octet-stream';
         const stream = new Readable().wrap(resp.body);
@@ -147,7 +168,7 @@ export class AgentClient {
         return this._parseResponse<T>(await this._post(path, params, body));
     }
 
-    async postToStream(path: string, params?: any, body?: any): Promise<{mime: string; stream: Readable }> {
+    async postToStream(path: string, params?: any, body?: any): Promise<{ mime: string; stream: Readable }> {
         const resp = await this._post(path, params, body);
         const mime = resp.headers.get('Content-Type') || 'application/octet-stream';
         const stream = new Readable().wrap(resp.body);

@@ -39,7 +39,7 @@ export async function initDb(path: string, defaultProfile: DefaultProfile) {
       ...defaultProfile,
       isAdmin: true,
       accessControl: null,
-    });
+    }, null);
     envConfig.setMainProfileId(profile.id);
   }
   else if (count === 1) {
