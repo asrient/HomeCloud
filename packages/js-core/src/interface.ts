@@ -6,7 +6,7 @@ import { match } from "node-match-path";
 import { envConfig } from "./envConfig";
 import { Profile } from "./models";
 import { Readable } from "stream";
-import CustomError, { ErrorCode, ErrorType, ErrorResponse } from "./customError";
+import CustomError, { ErrorType, ErrorResponse } from "./customError";
 
 export type ApiRequestFile = {
   name: string;
@@ -14,25 +14,98 @@ export type ApiRequestFile = {
   stream: Readable;
 };
 
+/**
+ * Enum representing the origin type of a request.
+ * @enum {string}
+ */
 export enum RequestOriginType {
   Web = 'Web',
   Agent = 'Agent',
 }
 
+/**
+ * Class representing an API request.
+ */
 export class ApiRequest {
+  /**
+   * Query parameters of the request.
+   * @type {Object.<string, string>}
+   */
   getParams: { [key: string]: string } = {};
+
+  /**
+   * URL of the request.
+   * @type {URL}
+   */
   url: URL;
+
+  /**
+   * URL parameters of the request.
+   * @type {Object.<string, string | string[] | ParsedQs | ParsedQs[] | undefined>}
+   */
   urlParams: {
     [key: string]: string | string[] | ParsedQs | ParsedQs[] | undefined;
   } = {};
+
+  /**
+   * Matched pattern of the request.
+   * @type {string}
+   */
   matchedPattern: string = "/api";
+
+  /**
+   * Headers of the request.
+   * @type {Object.<string, string>}
+   */
   headers: { [key: string]: string };
+
+  /**
+   * Cookies of the request.
+   * @type {Object.<string, string>}
+   */
   cookies: { [key: string]: string } = {};
+
+  /**
+   * HTTP method of the request.
+   * @type {string}
+   */
   method: string;
+
+  /**
+   * Local variables for the request.
+   * @type {any}
+   */
   local: any = {};
+
+  /**
+   * Origin type of the request.
+   * @type {RequestOriginType}
+   */
   requestOrigin: RequestOriginType;
+
+  /**
+   * Profile associated with the request.
+   * @type {Profile | null}
+   */
   profile: Profile | null = null;
+
+  /**
+   * Remote address of the request.
+   * @type {string | null}
+   */
   remoteAddress: string | null = null;
+
+  /**
+   * Creates an instance of ApiRequest.
+   * @param {string} method - HTTP method of the request.
+   * @param {string | URL} url - URL of the request.
+   * @param {Object.<string, string>} headers - Headers of the request.
+   * @param {(() => Promise<Buffer>) | null} [body=null] - Function to get the body of the request.
+   * @param {((cb: (type: "file" | "field", file: ApiRequestFile | any) => Promise<void>) => Promise<void>) | null} [fetchMultipartForm=null] - Function to fetch multipart form data.
+   * @param {RequestOriginType} requestOrigin - Origin type of the request.
+   * @param {(() => string | null)} clientPublicKey - Function to get the client public key.
+   * @param {string | null} remoteAddress - Remote address of the request.
+   */
   constructor(
     method: string,
     url: string | URL,
@@ -46,7 +119,7 @@ export class ApiRequest {
         ) => Promise<void>,
       ) => Promise<void>)
       | null = null,
-      requestOrigin: RequestOriginType,
+    requestOrigin: RequestOriginType,
     public clientPublicKey: (() => string | null),
     remoteAddress: string | null,
   ) {
@@ -124,6 +197,12 @@ export class ApiRequest {
     }
     return JSON.parse((await this.body()).toString("utf8"));
   }
+
+  /**
+   * Asynchronously retrieves the text content of the request body.
+   * @returns {Promise<string>} A promise that resolves to the text content of the request body.
+   * @throws {Error} If the body is null or the content type is not text.
+   */
   async text(): Promise<string> {
     if (!this.body) {
       throw new Error("Body is null");
@@ -135,12 +214,43 @@ export class ApiRequest {
   }
 }
 
+/**
+ * Class representing an API response.
+ */
 export class ApiResponse {
+  /**
+   * HTTP status code of the response.
+   * @type {number}
+   */
   statusCode: number = 200;
+
+  /**
+   * Headers of the response.
+   * @type {Object.<string, string>}
+   */
   headers: { [key: string]: string } = {};
+
+  /**
+   * Body of the response as a Blob.
+   * @type {Blob | null}
+   */
   body: Blob | null = null;
+
+  /**
+   * Body of the response as a readable stream.
+   * @type {Readable | null}
+   */
   bodyStream: Readable | null = null;
+
+  /**
+   * File path of the response.
+   * @type {string | null}
+   */
   file: string | null = null;
+
+  /**
+   * Creates an instance of ApiResponse.
+   */
   constructor() {
     this.setHeader("Content-Type", "text/plain");
     this.setHeader("Server", "HomeCloud API Server");
@@ -152,6 +262,11 @@ export class ApiResponse {
       this.setAccessControl(origin);
     }
   }
+
+  /**
+   * Sets the Access-Control headers for the response.
+   * @param {string} origin - The origin to set for the Access-Control-Allow-Origin header.
+   */
   setAccessControl(origin: string) {
     this.setHeader("Access-Control-Allow-Origin", origin);
     this.setHeader(
@@ -164,11 +279,18 @@ export class ApiResponse {
     );
     this.setHeader("Access-Control-Allow-Credentials", "true");
   }
+
+  /**
+   * Sets a header for the response.
+   * @param {string} name - The name of the header.
+   * @param {string} value - The value of the header.
+   */
+  setHeader(name: string, value: string) {
+    this.headers[name] = value;
+  }
+
   status(status: number) {
     this.statusCode = status;
-  }
-  setHeader(key: string, value: string) {
-    this.headers[key] = value;
   }
   setBody(body: Blob, contentType: string) {
     this.body = body;
@@ -324,7 +446,7 @@ export class RouteGroup {
         return Promise.resolve(ApiResponse.fromError(e, 500));
       }
     }
-    console.log("No match found for " + request.path, "queue:", this.queue);
+    envConfig.IS_DEV && console.log("No match found for " + request.path, "queue:", this.queue);
     const response404 = new ApiResponse();
     response404.status(404);
     response404.text("Not found: " + request.path);

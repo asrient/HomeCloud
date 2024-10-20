@@ -147,9 +147,6 @@ class AppServer {
     const dbPath = path.join(dataDir, dbFilename);
     console.log(`🗄️ Database path: ${dbPath}`);
     if (!(await initDb(dbPath, defaultProfile))) {
-      if (!this.getEnvVar('DB_URL')) {
-        console.error("❗️ DB_URL env variable not set!");
-      }
       console.error("❌ Failed to initialize database. Exiting...");
       process.exit(1);
     }

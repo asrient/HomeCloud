@@ -88,10 +88,22 @@ export async function validateAccessControl(accessControl: AccessControl) {
   return accessControl;
 }
 
+/**
+ * Generates a JWT token with the given profileId.
+ * @param profileId
+ * @param fingerprint
+ * @param agentId
+ * @returns The generated JWT token.
+*/
 export function generateJwt(profileId: number, fingerprint: string | null = null, agentId: number | null = null) {
   return jwt.sign({ profileId, fingerprint, deviceFingerprint: envConfig.FINGERPRINT, agentId }, envConfig.SECRET_KEY, { expiresIn: "300d" });
 }
 
+/**
+ * Verifies a JWT token and returns the payload if valid.
+ * @param token 
+ * @returns The payload json if the token is valid, otherwise null.
+ */
 export function verifyJwt(token: string): { profileId: number, fingerprint: string | null, agentId: number | null } | null {
   if (!token) return null;
   try {
