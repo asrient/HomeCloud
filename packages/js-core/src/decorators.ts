@@ -1,4 +1,4 @@
-import { ApiResponse, RequestOriginType } from "./interface";
+import { ApiRequest, ApiResponse, RequestOriginType } from "./interface";
 import { makeDecorator } from "./utils";
 import isType from "type-is";
 import Ajv, { ErrorObject } from "ajv";
@@ -9,6 +9,7 @@ import PhotosService from "./services/photos/photosService";
 import { FsDriver } from "./storageKit/interface";
 import CustomError, { ErrorCode } from "./customError";
 import { getFingerprintFromBase64 } from "./utils/cryptoUtils";
+import { getClientFromStorage } from "./agentKit/client";
 
 const ajv = new Ajv();
 
@@ -52,6 +53,18 @@ function parseJsonValidatorErrors(errors: ErrorObject[]) {
   return CustomError.validation(errorsMap);
 }
 
+async function loadJsonBody(request: ApiRequest) {
+  if (request.local.json || !request.isJson) {
+    return;
+  }
+  try {
+    const data = await request.json();
+    request.local.json = data;
+  } catch (e: any) {
+    throw CustomError.generic(`Could not parse json: ${e.message}`);
+  }
+}
+
 export function validateJson(schema: any) {
   const validator = ajv.compile(schema);
 
@@ -62,18 +75,14 @@ export function validateJson(schema: any) {
         406,
       );
     }
-    let data;
     try {
-      data = await request.json();
+      await loadJsonBody(request);
     } catch (e: any) {
-      return ApiResponse.fromError(
-        CustomError.generic(`Could not parse json: ${e.message}`),
-      );
+      return ApiResponse.fromError(e);
     }
-    if (!validator(data) && validator.errors) {
+    if (!validator(request.local.json) && validator.errors) {
       return ApiResponse.fromError(parseJsonValidatorErrors(validator.errors));
     }
-    request.local.json = data;
     return next();
   });
 }
@@ -174,40 +183,45 @@ export function authenticate(authType: AuthType = AuthType.Required) {
   });
 }
 
+async function getStorageFromRequest(request: ApiRequest) {
+  if (request.local.storage) {
+    return;
+  }
+  let storageId = request.headers["x-storage-id"];
+  if (!storageId && request.local.json && request.local.json.storageId) {
+    storageId = request.local.json.storageId;
+  }
+  if (!storageId && request.getParams.storageId) {
+    storageId = request.getParams.storageId;
+  }
+  if (!storageId) {
+    throw CustomError.validationSingle("storageId", "Storage id is required");
+  }
+  const storage = await request.profile!.getStorageById(parseInt(storageId));
+  if (!storage) {
+    throw CustomError.validationSingle("storageId", "Storage not found");
+  }
+  request.local.storage = storage;
+}
+
 export function fetchStorage() {
   return makeDecorator(async (request, next) => {
-    console.log("Fetch storage");
-    let storage: Storage = null;
+    // console.log("Fetch storage", request.requestOrigin);
     if (request.requestOrigin === RequestOriginType.Web) {
-      let storageId = request.headers["x-storage-id"];
-      if (!storageId && request.local.json && request.local.json.storageId) {
-        storageId = request.local.json.storageId;
+      try {
+        await getStorageFromRequest(request);
+      } catch (e: any) {
+        return ApiResponse.fromError(e);
       }
-      if (!storageId && request.getParams.storageId) {
-        storageId = request.getParams.storageId;
-      }
-      if (!storageId) {
-        return ApiResponse.fromError(
-          CustomError.validationSingle("storageId", "Storage id is required"),
-        );
-      }
-      storage = await request.profile!.getStorageById(parseInt(storageId));
     }
     else if (request.requestOrigin === RequestOriginType.Agent) {
-      storage = await request.profile?.getLocalStorage();
+      request.local.storage = await request.profile?.getLocalStorage();
     }
     else {
       return ApiResponse.fromError(
         CustomError.generic(`Request origin type: ${request.requestOrigin} not supported by fetchStorage.`),
       );
     }
-
-    if (!storage) {
-      return ApiResponse.fromError(
-        CustomError.validationSingle("storageId", "Storage not found"),
-      );
-    }
-    request.local.storage = storage;
     return next();
   });
 }
@@ -246,5 +260,38 @@ export function fetchPhotoService() {
     }
     request.local.photoService = new PhotosService(fsDriver, storageMeta);
     return next();
+  });
+}
+
+export function relayToAgent() {
+  return makeDecorator(async (request, next) => {
+    const requestOrigin = request.requestOrigin;
+    if (requestOrigin === RequestOriginType.Agent) {
+      return next();
+    }
+    try {
+      await loadJsonBody(request);
+    } catch (e: any) {
+      return ApiResponse.fromError(e);
+    }
+    try {
+      await getStorageFromRequest(request);
+    } catch (e: any) {
+      return ApiResponse.fromError(e);
+    }
+    const storage = request.local.storage;
+    if (!storage.isAgentType()) {
+      return next();
+    }
+    const agentClient = await getClientFromStorage(storage);
+    if (!agentClient) {
+      return ApiResponse.fromError(
+        CustomError.validationSingle("storageId", "Agent client not found"),
+      );
+    }
+    if (request.getParams.storageId) {
+      delete request.getParams.storageId;
+    }
+    return agentClient.relayApiRequest(request);
   });
 }

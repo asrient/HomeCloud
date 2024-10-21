@@ -11,6 +11,7 @@ import {
   fetchFsDriver,
   fetchPhotoService,
   validateJson,
+  relayToAgent,
 } from "../../decorators";
 import {
   addPinnedFolder,
@@ -26,44 +27,32 @@ const api = new RouteGroup();
 function buildMiddlewares(
   method_: string,
   schema?: any,
-  requireStorage = true,
 ) {
-  const middlewares = [method([method_])];
+  const middlewares = [relayToAgent(), method([method_])];
   if (schema) {
     middlewares.push(
       method_ === "GET" ? validateQuery(schema) : validateJson(schema),
     );
   }
-  if (requireStorage) {
-    middlewares.push(fetchStorage(), fetchFsDriver());
-  }
+  middlewares.push(fetchStorage(), fetchFsDriver());
   return middlewares;
 }
 
 const listPinsSchema = {
   type: "object",
   properties: {
-    storageIds: {
-      type: "array",
-      items: { type: "number" },
-    },
+    storageId: { type: "number" },
   },
-  required: ["storageIds"],
+  required: ["storageId"],
 };
 
 api.add(
   "/pin/list",
-  buildMiddlewares("POST", listPinsSchema, false),
+  buildMiddlewares("POST", listPinsSchema),
   async (request: ApiRequest) => {
-    const {
-      storageIds,
-    }: {
-      storageIds: number[];
-    } = request.local.json;
     const profile = request.profile as Profile;
-    console.log(storageIds, profile);
     try {
-      const pins = await listPinnedFolders(profile, storageIds);
+      const pins = await listPinnedFolders(profile, [request.local.storage.id]);
       return ApiResponse.json(200, {
         ok: true,
         pins: pins.map((pin) => pin.getDetails()),

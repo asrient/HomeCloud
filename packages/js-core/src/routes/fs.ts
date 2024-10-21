@@ -203,7 +203,7 @@ const readFileSchema = {
     storageId: { type: "string" },
     download: { type: "string", enum: ["1", "0"] },
   },
-  required: ["id", "storageId"],
+  required: ["id"],
 };
 
 api.add(
@@ -375,7 +375,7 @@ const writeFilesSchema = {
     },
     ...commonOptions,
   },
-  required: ["parentId", "filePaths", "storageId"],
+  required: ["parentId", "filePaths"],
 };
 
 api.add(

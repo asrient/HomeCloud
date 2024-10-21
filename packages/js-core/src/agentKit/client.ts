@@ -10,6 +10,7 @@ import FormData from "form-data";
 import { Readable } from 'node:stream';
 import { AgentInfo } from "./types";
 import { getFingerprintFromBase64 } from "../utils/cryptoUtils";
+import { ApiRequest, ApiResponse } from "../interface";
 
 export type ErrorData = {
     message: string;
@@ -18,7 +19,7 @@ export type ErrorData = {
 
 class CustomHttpsAgent extends https.Agent {
     public _serverFingerprint: string | null;
-    createConnection (options, callback) {
+    createConnection(options, callback) {
         // Use tls.connect to manually handle server certificates
         const socket = tls.connect(options, () => {
             const cert = socket.getPeerCertificate();
@@ -173,6 +174,38 @@ export class AgentClient {
         const mime = resp.headers.get('Content-Type') || 'application/octet-stream';
         const stream = new Readable().wrap(resp.body);
         return { mime, stream };
+    }
+
+    async relayApiRequest(req: ApiRequest): Promise<ApiResponse> {
+        let body: any;
+        if (req.mayContainFiles && req.fetchMultipartForm) {
+            const form = new FormData();
+            await req.fetchMultipartForm(async (type, data) => {
+                if (type === 'field') {
+                    form.append(data.name, data.value);
+                } else if (type === 'file') {
+                    form.append(data.name, data.stream, { filename: data.filename, contentType: data.mime });
+                }
+            });
+            body = form;
+        }
+        else if (req.isJson) {
+            if (req.local.json) {
+                body = req.local.json;
+            } else {
+                body = await req.json();
+            }
+        }
+        else {
+            body = await req.body();
+        }
+        const reqPath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
+        const response = await this._request(req.method, reqPath, req.getParams, body);
+        const apiResponse = new ApiResponse();
+        apiResponse.statusCode = response.status;
+        const stream = new Readable().wrap(response.body);
+        apiResponse.stream(stream, response.headers.get('Content-Type') || 'application/octet-stream');
+        return apiResponse;
     }
 }
 

@@ -332,9 +332,6 @@ export class ApiResponse {
       maxAge: ttl,
       path: "/",
     });
-    if (envConfig.isDesktop()) {
-      this.setHeader("X-Key", cookieStr);
-    }
     this.setHeader(
       "Set-Cookie", cookieStr);
   }
