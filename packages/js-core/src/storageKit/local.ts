@@ -213,6 +213,7 @@ export class LocalFsDriver extends FsDriver {
   }
 
   public override async getStat(id: string): Promise<RemoteItem> {
+    id = this.normalizePath(id);
     this.assertAccess(id);
     return this.toRemoteItem(id);
   }

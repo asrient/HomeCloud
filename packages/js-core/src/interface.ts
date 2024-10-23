@@ -119,6 +119,7 @@ export class ApiRequest {
         ) => Promise<void>,
       ) => Promise<void>)
       | null = null,
+    public bodyStream: Readable | null = null,
     requestOrigin: RequestOriginType,
     public clientPublicKey: (() => string | null),
     remoteAddress: string | null,

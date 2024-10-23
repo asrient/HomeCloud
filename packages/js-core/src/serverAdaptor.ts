@@ -170,7 +170,7 @@ export default class ServerAdaptor {
     };
 
     const clientPublicKey = () => {
-      return cert?.pubkey.toString("base64"); 
+      return cert?.pubkey.toString("base64");
     }
 
     const remoteAddress = req.socket.remoteAddress || null;
@@ -181,6 +181,7 @@ export default class ServerAdaptor {
       headers,
       getBody,
       fetchMultipartForm,
+      req,
       this.requestType,
       clientPublicKey,
       remoteAddress,

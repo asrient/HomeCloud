@@ -247,18 +247,8 @@ export function fetchFsDriver() {
 
 export function fetchPhotoService() {
   return makeDecorator(async (request, next) => {
-    const storage: Storage = request.local.storage;
     const fsDriver: FsDriver = request.local.fsDriver;
-    const storageMeta = await storage.getStorageMeta();
-    if (!storageMeta) {
-      return ApiResponse.fromError(
-        CustomError.code(
-          ErrorCode.STORAGE_FETCH,
-          "Storage meta not found for storage",
-        ),
-      );
-    }
-    request.local.photoService = new PhotosService(fsDriver, storageMeta);
+    request.local.photoService = new PhotosService(fsDriver);
     return next();
   });
 }

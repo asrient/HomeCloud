@@ -11,6 +11,7 @@ import {
   fetchFsDriver,
   fetchPhotoService,
   validateJson,
+  relayToAgent,
 } from "../../decorators";
 import PhotosService, {
   UploadManager,
@@ -26,7 +27,7 @@ const commonOptions = {
 };
 
 function buildMiddlewares(method_: string, schema?: any) {
-  const middlewares = [method([method_])];
+  const middlewares = [relayToAgent(), method([method_])];
   if (schema) {
     middlewares.push(
       method_ === "GET" ? validateQuery(schema) : validateJson(schema),
@@ -36,48 +37,11 @@ function buildMiddlewares(method_: string, schema?: any) {
   return middlewares;
 }
 
-const syncSchema = {
-  type: "object",
-  properties: {
-    hard: { type: "string" },
-    storageId: { type: "string" },
-    force: { type: "string" },
-  },
-  required: ["storageId"],
-};
-
-api.add(
-  "/sync",
-  buildMiddlewares("GET", syncSchema),
-  async (request: ApiRequest) => {
-    const photoService = request.local.photoService as PhotosService;
-    const hard = request.getParams.hard === "true" || false;
-    const force = request.getParams.force === "true" || false;
-    try {
-      await photoService.sync(hard, force);
-      return ApiResponse.json(200, {
-        ok: true,
-      });
-    } catch (e: any) {
-      console.error(e);
-      e.message = `Could not sync photos: ${e.message}`;
-      return ApiResponse.fromError(e);
-    }
-  },
-);
-
 api.add("/upload/", buildMiddlewares("POST"), async (request: ApiRequest) => {
   const photoService = request.local.photoService as PhotosService;
   const uploadManager = new UploadManager(photoService);
 
   if (request.mayContainFiles && request.fetchMultipartForm) {
-    try {
-      await uploadManager.start();
-    } catch (e: any) {
-      console.error(e);
-      e.message = `Could not start upload: ${e.message}`;
-      return ApiResponse.fromError(e);
-    }
     await request.fetchMultipartForm(async (type, data) => {
       if (type === "file") {
         await uploadManager.addPhoto(data as ApiRequestFile);
@@ -105,7 +69,6 @@ const uploadDesktopSchema = {
     filePaths: { type: "array", items: { type: "string" } },
     ...commonOptions,
   },
-  required: ["storageId"],
 };
 
 api.add(
@@ -114,13 +77,6 @@ api.add(
   async (request: ApiRequest) => {
     const photoService = request.local.photoService as PhotosService;
     const uploadManager = new UploadManager(photoService);
-    try {
-      await uploadManager.start();
-    } catch (e: any) {
-      console.error(e);
-      e.message = `Could not start upload: ${e.message}`;
-      return ApiResponse.fromError(e);
-    }
     const filePaths = request.local.json.filePaths as string[];
     if (!filePaths.length) {
       return ApiResponse.fromError(
@@ -192,7 +148,7 @@ const deleteSchema = {
     itemIds: { type: "array", items: { type: "number" } },
     ...commonOptions,
   },
-  required: ["itemIds", "storageId"],
+  required: ["itemIds"],
 };
 
 api.add(
@@ -219,7 +175,7 @@ const importSchema = {
     deleteSource: { type: "boolean" },
     ...commonOptions,
   },
-  required: ["fileIds", "storageId"],
+  required: ["fileIds"],
 };
 
 api.add(
@@ -240,38 +196,17 @@ api.add(
   },
 );
 
-const archiveSchema = {
-  type: "object",
-  properties: {
-    ...commonOptions,
-  },
-  required: ["storageId"],
-};
-
-api.add("/archive", buildMiddlewares("POST", archiveSchema), async (request: ApiRequest) => {
-  const photoService = request.local.photoService as PhotosService;
-  try {
-    await photoService.archive();
-    return ApiResponse.json(200, {
-      ok: true,
-    });
-  } catch (e: any) {
-    console.error(e);
-    e.message = `Could not archive photos: ${e.message}`;
-    return ApiResponse.fromError(e);
-  }
-});
 
 const listPhotosSchema = {
   type: "object",
   properties: {
-    storageIds: { type: "array", items: { type: "number" } },
     limit: { type: "number" },
     offset: { type: "number" },
     sortBy: { type: "string", enum: ["capturedOn", "itemId", "mimeType", "lastEditedOn", "addedOn", "size", "duration"] },
     ascending: { type: "boolean" },
+    ...commonOptions,
   },
-  required: ["storageIds", "limit", "offset", "sortBy"],
+  required: ["limit", "offset", "sortBy"],
 };
 
 api.add(
@@ -282,9 +217,10 @@ api.add(
   ],
   async (request: ApiRequest) => {
     const params = request.local.json as getPhotosParams;
+    const profile = request.profile!;
     try {
       const res = (
-        await Photo.getPhotos(params)
+        await Photo.getPhotos(profile, params)
       ).map((photo) => {
         return photo.getMinDetails();
       });
@@ -301,9 +237,9 @@ const getPhotoDetailsSchema = {
   type: "object",
   properties: {
     itemId: { type: "string" },
-    storageId: { type: "string" },
+    ...commonOptions,
   },
-  required: ["itemId", "storageId"],
+  required: ["itemId"],
 };
 
 api.add(

@@ -59,6 +59,7 @@ export class Profile extends DbModel {
   declare isDisabled: boolean;
   declare accessControl: string | null;
   declare getStorages: () => Promise<Storage[]>;
+  declare _photosNextId: number; // Do not use directly, use provisionPhotoIds
 
   static _columns: ModelAttributes = {
     id: {
@@ -101,6 +102,11 @@ export class Profile extends DbModel {
       allowNull: true,
       defaultValue: null,
     },
+    _photosNextId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
+    }
   };
 
   getDetails(full = false): ProfileDetails {
@@ -178,6 +184,12 @@ export class Profile extends DbModel {
 
   static async countProfiles() {
     return Profile.count();
+  }
+
+  static async provisionPhotoIds( profile: Profile, count: number = 1): Promise<number> {
+    const profileId = profile.id;
+    profile = await profile.increment("_photosNextId", { by: count, where: { id: profileId } });
+    return profile._photosNextId - count;
   }
 
   static async createProfile(
@@ -624,10 +636,6 @@ export class Storage extends DbModel {
     };
   }
 
-  async getStorageMeta() {
-    return StorageMeta.getByStorage(this);
-  }
-
   isAgentType() {
     return this.type === StorageType.Agent;
   }
@@ -1005,61 +1013,9 @@ export class PendingAuth extends DbModel {
   }
 }
 
-/* To be romoved post SyncEngine changes */
-export class StorageMeta extends DbModel {
-  declare id: number;
-  declare photosLastSyncOn: number;
-  declare photosSyncLockOn: Date | null;
-  declare setStorage: (storage: Storage) => Promise<void>;
-  declare getStorage: () => Promise<Storage>;
-
-  static _columns: ModelAttributes = {
-    photosLastSyncOn: {
-      type: DataTypes.BIGINT,
-      allowNull: false,
-      defaultValue: 0,
-    },
-
-    photosSyncLockOn: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
-  };
-
-  async del() {
-    return this.destroy();
-  }
-
-  static async getByStorage(storage: Storage) {
-    const storageMeta = await StorageMeta.findOne({
-      where: { StorageId: storage.id },
-    });
-    return storageMeta;
-  }
-
-  static async createOrUpdate(
-    storage: Storage,
-    data: {
-      hcRoot: string;
-      notesDir: string;
-      photosDir: string;
-      photosAssetsDir: string;
-    },
-  ) {
-    let storageMeta = await StorageMeta.getByStorage(storage);
-    if (!storageMeta) {
-      storageMeta = await StorageMeta.create(data);
-      await storageMeta.setStorage(storage);
-    } else {
-      await storageMeta.update(data);
-    }
-    return storageMeta;
-  }
-}
-
 export class Photo extends DbModel {
-  declare setStorage: (storage: Storage) => Promise<void>;
-  declare getStorage: () => Promise<Storage>;
+  declare setProfile: (profile: Profile) => Promise<void>;
+  declare getProfile: () => Promise<Profile>;
   declare itemId: number;
   declare folderNo: number;
   declare fileId: string;
@@ -1073,10 +1029,10 @@ export class Photo extends DbModel {
   declare width: number;
   declare originDevice: string | null;
   declare metadata: string | null;
-  declare StorageId: number;
+  declare ProfileId: number;
 
   static _indexes: ModelIndexesOptions[] = [
-    { unique: true, fields: ['itemId', 'StorageId'] }
+    { unique: true, fields: ['itemId', 'ProfileId'] }
   ];
 
   static _columns: ModelAttributes = {
@@ -1155,56 +1111,57 @@ export class Photo extends DbModel {
       duration: this.duration,
       height: this.height,
       width: this.width,
-      storageId: this.StorageId,
+      profileId: this.ProfileId,
     };
   }
 
-  static async getPhoto(itemId: number, storage: Storage) {
-    return Photo.findOne({ where: { itemId, StorageId: storage.id } });
+  static async getPhoto(itemId: number, profile: Profile) {
+    return Photo.findOne({ where: { itemId, ProfileId: profile.id } });
   }
 
-  static async getPhotosByIds(itemIds: number[], storage: Storage) {
-    return Photo.findAll({ where: { itemId: itemIds, StorageId: storage.id } });
+  static async getPhotosByIds(itemIds: number[], profile: Profile) {
+    return Photo.findAll({ where: { itemId: itemIds, ProfileId: profile.id } });
   }
 
   static async updateBulk(
     updates: { [itemId: number]: any },
-    storage: Storage,
-  ) {
-    const promises = [];
+    profile: Profile,
+  ): Promise<Photo[]> {
+    const promises: Promise<[affectedCount: number, affectedRows: Photo[]]>[] = [];
     for (const itemId of Object.keys(updates).map((id) => parseInt(id))) {
       const update = updates[itemId];
-      if (update.StorageId) delete update.StorageId;
+      if (update.ProfileId) delete update.ProfileId;
       if (update.itemId) delete update.itemId;
       if (update.folderNo) delete update.folderNo;
       if (update.addedOn) delete update.addedOn;
       promises.push(
-        Photo.update(update, { where: { itemId, StorageId: storage.id } }),
+        Photo.update(update, { where: { itemId, ProfileId: profile.id }, returning: true }),
       );
     }
-    return Promise.all(promises);
+    const resp = await Promise.all(promises);
+    return resp.map(([, photos]) => photos[0]);
   }
 
-  static async deletePhotos(itemIds: number[], storage: Storage) {
-    return Photo.destroy({ where: { itemId: itemIds, StorageId: storage.id } });
+  static async deletePhotos(itemIds: number[], profile: Profile) {
+    return Photo.destroy({ where: { itemId: itemIds, ProfileId: profile.id } });
   }
 
-  static async deleteAllPhotos(storage: Storage) {
-    return Photo.destroy({ where: { StorageId: storage.id } });
+  static async deleteAllPhotos(profile: Profile) {
+    return Photo.destroy({ where: { ProfileId: profile.id } });
   }
 
-  static async getPhotos({ offset, limit, storageIds, sortBy, ascending = true }: getPhotosParams): Promise<Photo[]> {
+  static async getPhotos(profile: Profile, { offset, limit, sortBy, ascending = true }: getPhotosParams): Promise<Photo[]> {
     return Photo.findAll({
-      where: { StorageId: storageIds },
+      where: { ProfileId: profile.id },
       offset,
       limit,
       order: [[sortBy, ascending ? "ASC" : "DESC"]],
     });
   }
 
-  static async createPhotosBulk(items: createPhotoType[], storage: Storage) {
+  static async createPhotosBulk(items: createPhotoType[], profile: Profile): Promise<Photo[]> {
     items = items.map((item) => {
-      return { ...item, StorageId: storage.id };
+      return { ...item, ProfileId: profile.id };
     });
     return Photo.bulkCreate(items);
   }
@@ -1213,7 +1170,6 @@ export class Photo extends DbModel {
 export type getPhotosParams = {
   offset: number,
   limit: number,
-  storageIds: number[],
   sortBy: string,
   ascending: boolean,
 };
@@ -1437,7 +1393,6 @@ export function initModels(db: Sequelize) {
     Profile,
     Storage,
     PendingAuth,
-    StorageMeta,
     Photo,
     Thumb,
     PinnedFolders,
@@ -1465,24 +1420,17 @@ export function initModels(db: Sequelize) {
   });
   Storage.belongsTo(Agent);
 
-  /* To be removed */
-  Storage.hasOne(StorageMeta, {
-    onDelete: "CASCADE",
-    onUpdate: "CASCADE",
-  });
-  StorageMeta.belongsTo(Storage);
-
   Profile.hasMany(PendingAuth, {
     onDelete: "CASCADE",
     onUpdate: "CASCADE",
   });
   PendingAuth.belongsTo(Profile);
 
-  Storage.hasMany(Photo, {
+  Profile.hasMany(Photo, {
     onDelete: "CASCADE",
     onUpdate: "CASCADE",
   });
-  Photo.belongsTo(Storage);
+  Photo.belongsTo(Profile);
 
   Storage.hasMany(Thumb, {
     onDelete: "CASCADE",

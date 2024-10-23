@@ -1,16 +1,17 @@
 import { envConfig, StorageAuthType, StorageType } from "../envConfig";
 import https from 'https';
-import fetch, { RequestInit, HeadersInit, Response } from 'node-fetch-commonjs';
 import tls from 'tls';
 import CustomError, { ErrorCode, ErrorResponse } from "../customError";
 import { URLSearchParams } from 'url';
 import { createPairingRequest, createPairingRequestPacket, PairingRequest, PairingRequestPacket } from "./pairing";
 import { Profile, Agent, Storage } from "../models";
-import FormData from "form-data";
 import { Readable } from 'node:stream';
 import { AgentInfo } from "./types";
 import { getFingerprintFromBase64 } from "../utils/cryptoUtils";
 import { ApiRequest, ApiResponse } from "../interface";
+import { IncomingMessage } from "http";
+import { streamToBuffer, streamToJson, streamToString } from "../utils";
+import FormData from 'form-data';
 
 export type ErrorData = {
     message: string;
@@ -87,63 +88,96 @@ export class AgentClient {
         return this._accessKey;
     }
 
-    private async _request(method: string, path: string, params?: any, body?: any): Promise<Response> {
-        if (params) {
+    private async _request({ method, path, params, body, headers }: { method: string, path: string, params?: any, body?: any, headers?: { [key: string]: string } }): Promise<IncomingMessage> {
+        if (params && typeof params === 'object' && Object.keys(params).length > 0) {
             const query = new URLSearchParams(params);
             path += '?' + query.toString();
         }
-        const fetchOptions: RequestInit = {
-            method,
-            agent: this._httpsAgent,
+
+        const bodyType = typeof body;
+        const isBodyStream = body instanceof Readable;
+        const isBodyFormData = body instanceof FormData;
+
+        if (isBodyFormData) {
+            // If the body is FormData, we need to set the content-type header here
+            headers = headers || {};
+            Object.assign(headers, body.getHeaders());
+        }
+
+        headers = headers || {
+            'Content-Type': bodyType === 'string' ? 'text/plain' : 'application/json',
         };
-        const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-        };
+
         if (this.getAccessKey()) {
             headers['x-access-key'] = this.getAccessKey();
         }
-        if (body) {
-            if (FormData.prototype.isPrototypeOf(body)) {
-                // console.log('fetch: form data');
-                fetchOptions.body = body;
-                delete headers['Content-Type'];
+
+        // Create options for the HTTPS request
+        const options: https.RequestOptions = {
+            method,
+            hostname: this._host,
+            port: AgentClient.PORT,
+            path: `/${path}`,
+            headers,
+            agent: this._httpsAgent,
+        };
+
+        return new Promise((resolve, reject) => {
+            const req = https.request(options, (res) => {
+                resolve(res);
+            });
+
+            req.on('error', (e) => {
+                reject(CustomError.code(ErrorCode.AGENT_NETWORK, e.message));
+            });
+
+            // Handle the request body
+            if (body) {
+                if (isBodyStream) {
+                    // If the body is a Readable stream, pipe it to the request
+                    body.pipe(req);
+                    // Don't call `req.end()` here because the stream will handle ending
+                    body.on('end', () => req.end());
+                } else if (body instanceof FormData) {
+                    // If the body is FormData, use FormData's stream capabilities
+                    body.pipe(req);
+                } else {
+                    // Otherwise, treat it as JSON and write it, then end the request
+                    req.write(JSON.stringify(body));
+                    req.end();
+                }
             } else {
-                fetchOptions.body = JSON.stringify(body);
+                // End the request if there's no body
+                req.end();
             }
-        }
-        fetchOptions.headers = headers;
-        try {
-            return await fetch(`https://${this._host}:${AgentClient.PORT}/${path}`, fetchOptions);
-        } catch (e) {
-            throw CustomError.code(ErrorCode.AGENT_NETWORK, e.message);
-        }
+        });
     }
 
-    async _parseResponse<T>(response: Response): Promise<T> {
-        const isJson = response.headers.get('Content-Type')?.includes('application/json');
-        if (!response.ok) {
+    async _parseResponse<T>(response: IncomingMessage): Promise<T> {
+        const isJson = response.headers["content-type"]?.includes('application/json');
+        if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
             if (isJson) {
-                const data: ErrorResponse = await response.json() as ErrorResponse;
+                const data: ErrorResponse = await streamToJson(response) as ErrorResponse;
                 throw CustomError.fromErrorResponse(data.error);
             }
-            throw CustomError.code(ErrorCode.AGENT_NETWORK, response.statusText, { status: response.status });
+            throw CustomError.code(ErrorCode.AGENT_NETWORK, response.statusMessage, { status: response.statusCode });
         }
         if (isJson) {
-            const keyHeader = response.headers.get('x-access-key');
+            const keyHeader = Array.isArray(response.headers['x-access-key']) ? response.headers['x-access-key'][0] : response.headers['x-access-key'];
             if (keyHeader) {
                 this.setAccessKey(keyHeader);
             }
-            return await response.json() as T;
+            return await streamToJson(response) as T;
         }
-        const isText = response.headers.get('Content-Type')?.includes('text/plain');
+        const isText = response.headers['content-type']?.includes('text/plain');
         if (isText) {
-            return await response.text() as T;
+            return await streamToString(response) as T;
         }
-        return await response.blob() as T;
+        return new Blob([await streamToBuffer(response)]) as T;
     }
 
-    async _get<T>(path: string, params?: string | string[][] | Record<string, string> | URLSearchParams): Promise<Response> {
-        return await this._request('GET', path, params);
+    async _get<T>(path: string, params?: string | string[][] | Record<string, string> | URLSearchParams): Promise<IncomingMessage> {
+        return await this._request({ method: 'GET', path, params });
     }
 
     async get<T>(path: string, params?: string | string[][] | Record<string, string> | URLSearchParams): Promise<T> {
@@ -152,17 +186,16 @@ export class AgentClient {
 
     async getToStream(path: string, params?: string | string[][] | Record<string, string> | URLSearchParams): Promise<{ mime: string; stream: Readable }> {
         const resp = await this._get(path, params);
-        const mime = resp.headers.get('Content-Type') || 'application/octet-stream';
-        const stream = new Readable().wrap(resp.body);
-        return { mime, stream };
+        const mime = resp.headers['content-type'] || 'application/octet-stream';
+        return { mime, stream: resp };
     }
 
-    async _post<T>(path: string, params?: any, body?: any): Promise<Response> {
+    async _post<T>(path: string, params?: any, body?: any): Promise<IncomingMessage> {
         if (!body) {
             body = params;
             params = undefined;
         }
-        return await this._request('POST', path, params, body);
+        return await this._request({ method: 'POST', path, params, body });
     }
 
     async post<T>(path: string, params?: any, body?: any): Promise<T> {
@@ -171,23 +204,14 @@ export class AgentClient {
 
     async postToStream(path: string, params?: any, body?: any): Promise<{ mime: string; stream: Readable }> {
         const resp = await this._post(path, params, body);
-        const mime = resp.headers.get('Content-Type') || 'application/octet-stream';
-        const stream = new Readable().wrap(resp.body);
-        return { mime, stream };
+        const mime = resp.headers['content-type'] || 'application/octet-stream';
+        return { mime, stream: resp };
     }
 
     async relayApiRequest(req: ApiRequest): Promise<ApiResponse> {
         let body: any;
-        if (req.mayContainFiles && req.fetchMultipartForm) {
-            const form = new FormData();
-            await req.fetchMultipartForm(async (type, data) => {
-                if (type === 'field') {
-                    form.append(data.name, data.value);
-                } else if (type === 'file') {
-                    form.append(data.name, data.stream, { filename: data.filename, contentType: data.mime });
-                }
-            });
-            body = form;
+        if (req.mayContainFiles) {
+            body = req.bodyStream;
         }
         else if (req.isJson) {
             if (req.local.json) {
@@ -196,15 +220,17 @@ export class AgentClient {
                 body = await req.json();
             }
         }
+        else if (req.isText) {
+            body = await req.text();
+        }
         else {
             body = await req.body();
         }
         const reqPath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
-        const response = await this._request(req.method, reqPath, req.getParams, body);
+        const response = await this._request({ method: req.method, path: reqPath, params: req.getParams, body, headers: req.headers });
         const apiResponse = new ApiResponse();
-        apiResponse.statusCode = response.status;
-        const stream = new Readable().wrap(response.body);
-        apiResponse.stream(stream, response.headers.get('Content-Type') || 'application/octet-stream');
+        apiResponse.statusCode = response.statusCode;
+        apiResponse.stream(response, response.headers['content-type'] || 'application/octet-stream');
         return apiResponse;
     }
 }
