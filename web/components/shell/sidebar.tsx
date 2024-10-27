@@ -35,7 +35,7 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
     }, [hideSidebar, item, onClick]);
 
     return (<Link href={item.href || ''} onContextMenu={onRightClick_} onClick={onClick_}>
-        <Button variant={isMatch ? 'secondary' : 'ghost'} className="sidebarItem w-full justify-start text-left text-ellipsis truncate font-normal">
+        <Button variant={isMatch ? 'secondary' : 'ghost'} className="rounded-md sidebarItem w-full justify-start text-left text-ellipsis truncate font-normal">
             {item.icon && <Image
                 alt={item.title}
                 src={item.icon}

@@ -10,7 +10,6 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 
 export type TextModalProps = {
@@ -108,16 +107,15 @@ export default function TextModal({ title, buttonText, children, onDone, default
                     </DialogTrigger>)
                     : (<>{children}</>)
             }
-            <DialogContent className="sm:max-w-[28rem]">
+            <DialogContent className="max-w-[20rem]">
                 <DialogHeader>
                     <DialogTitle>
                         {title}
                     </DialogTitle>
                     <DialogDescription>
-                        {error ? <span className='text-red-500'>{error}</span> : description || 'Provide a value.'}
+                        {error ? <span className='text-red-500'>{error}</span> : description}
                     </DialogDescription>
                 </DialogHeader>
-                <Separator />
                 <>
                     {!isLoading && (<>
                         <div className="grid w-full max-w-sm items-center gap-1.5">
@@ -132,8 +130,8 @@ export default function TextModal({ title, buttonText, children, onDone, default
                         <span className='ml-2'>Loading...</span>
                     </div>}
 
-                    <div className='ml-auto'>
-                        {<Button type='submit' variant='default' disabled={isLoading || !text} onClick={handleSubmit}>
+                    <div>
+                        {<Button type='submit' variant='default' size='lg' className='w-full' disabled={isLoading || !text} onClick={handleSubmit}>
                             {buttonText || 'Save'}
                         </Button>}
                     </div>

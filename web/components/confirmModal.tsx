@@ -70,7 +70,7 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
             <DialogTrigger asChild>
                 {children}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[28rem]">
+            <DialogContent className="sm:max-w-[20rem]">
                 <DialogHeader>
                     <DialogTitle>
                         {title}
@@ -85,11 +85,11 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
                         <span className='ml-2'>Loading...</span>
                     </div>}
 
-                    <div className='ml-auto space-x-2'>
-                        <Button variant='ghost' onClick={() => handleOpenChange(false)}>
+                    <div className='space-x-2 flex justify-center items-center'>
+                        <Button variant='secondary' className='w-full' size='lg' onClick={() => handleOpenChange(false)}>
                             Cancel
                         </Button>
-                        {<Button type='submit' variant={buttonVariant_} disabled={isLoading} onClick={handleSubmit}>
+                        {<Button type='submit' size='lg' className='w-full' variant={buttonVariant_} disabled={isLoading} onClick={handleSubmit}>
                             {buttonText || 'Confirm'}
                         </Button>}
                     </div>

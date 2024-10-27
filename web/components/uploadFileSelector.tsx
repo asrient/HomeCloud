@@ -10,7 +10,6 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import { FileList_ } from "@/lib/types";
 
@@ -54,7 +53,7 @@ export default function UploadFileSelector({ title, children, onUpload, accept, 
             <DialogTrigger asChild>
                 {children}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[28rem]">
+            <DialogContent className="sm:max-w-[20rem]">
                 <DialogHeader className="md:flex-row">
                     <div className="flex items-center justify-center p-1 md:pr-4">
                         <div className="h-[3rem] w-[3rem] rounded-md bg-blue-500 text-white flex items-center justify-center">
@@ -72,7 +71,6 @@ export default function UploadFileSelector({ title, children, onUpload, accept, 
                         </DialogDescription>
                     </div>
                 </DialogHeader>
-                <Separator />
                 <>
                     {
                         embedComponent && <div className='mb-4'>

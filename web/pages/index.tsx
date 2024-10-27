@@ -77,9 +77,6 @@ export default function Home() {
         <div className='container'>
           <div className={`flex min-h-[70vh] justify-center flex-col lg:flex-row lg:space-x-12 lg:items-end pt-16 ${inter.className}`}>
             <div className="flex-col pb-16 md:pb-32 text-slate-400">
-              <div className='pb-2 text-3xl pl-3 font-bold'>
-                Hey,
-              </div>
               <div className="max-w-xl text-6xl md:text-8xl font-bold">
                 {greetings}.
               </div>
