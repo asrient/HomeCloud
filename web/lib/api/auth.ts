@@ -1,43 +1,37 @@
 import { ApiClient } from './apiClient';
-import { Profile, Storage, ServerConfig } from '../types';
+import { Profile, Storage, ServerConfig, DeviceInfo } from '../types';
 
-export type LoginParams = {
-    username?: string;
-    password?: string;
-    profileId?: number;
+export type RequestSessionParams = {
+    fingerprint: string;
 };
 
-export async function login({ username, password, profileId }: LoginParams) {
-    return await ApiClient.post<{ profile: Profile }>('/profile/login', { username, password, profileId });
+export async function requestSession(params: RequestSessionParams) {
+    return await ApiClient.post<{ token: string }>('/session/request', params);
 }
 
-export type SignupParams = {
-    name: string;
-    username?: string;
-    password?: string;
+export type PollSessionParams = {
+    fingerprint: string;
+    token: string;
 };
 
-export async function signup(params: SignupParams) {
-    return await ApiClient.post<{ profile: Profile }>('/profile/create', params);
+export async function pollSession(params: PollSessionParams) {
+    return await ApiClient.post<{ status: boolean; profile?: Profile; }>('/session/pollStatus', params);
 }
 
 export type StateResponse = {
     config: ServerConfig;
-    profile: Profile;
-    storages: Storage[];
+    deviceInfo: DeviceInfo;
+    profile: Profile | null;
+    storages: Storage[] | null;
 };
 
 export async function initalialState() {
     return await ApiClient.get<StateResponse>('/state');
 }
 
-export async function listProfiles() {
-    return await ApiClient.get<{ profiles: Profile[] }>('/profile/list');
-}
-
 export async function logout() {
     return await ApiClient.post<{
         profile: Profile;
         ok: boolean;
-    }>('/profile/logout');
+    }>('/session/exit');
 }

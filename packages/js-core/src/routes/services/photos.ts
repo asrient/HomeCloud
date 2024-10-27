@@ -106,7 +106,7 @@ api.add(
   async (request: ApiRequest) => {
     const photoService = request.local.photoService as PhotosService;
     let itemId: number | null = null;
-    let updates: any = null;
+    let photo: Photo = null;
 
     if (request.mayContainFiles && request.fetchMultipartForm) {
       try {
@@ -121,13 +121,13 @@ api.add(
               data.stream.resume();
               return;
             }
-            updates = await photoService.updateAsset(
+            photo = await photoService.updateAsset(
               itemId!,
               data as ApiRequestFile,
             );
           }
         });
-        return ApiResponse.json(201, updates);
+        return ApiResponse.json(201, photo.getMinDetails());
       } catch (e: any) {
         console.error(e);
         e.message = `Could not update asset: ${e.message}`;
@@ -195,7 +195,6 @@ api.add(
     }
   },
 );
-
 
 const listPhotosSchema = {
   type: "object",

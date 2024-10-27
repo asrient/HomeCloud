@@ -21,6 +21,7 @@ async function filterNoteStats(stats: RemoteItem[]) {
 }
 
 const contentFileCache = new Map<string, RemoteItem>();
+const absoluteNoteDirs = new Map<number, string>();
 
 function contentFileCacheId(storageId: number, id: string) {
     return `${storageId}:${id}`;
@@ -40,8 +41,21 @@ async function writeNewContentFile({ storageId, parentId, content }: {
     })
 }
 
-function isRootNote(stat: RemoteItem, storage: Storage) {
-    return stat.parentIds === null || stat.parentIds[0] === storage.storageMeta?.notesDir;
+async function getAbsoluteNotesDir(storage: Storage): Promise<string> {
+    const rootStat = await getStat({
+        storageId: storage.id,
+        id: getNotesDir(),
+    })
+    return rootStat.id;
+}
+
+async function isRootNote(stat: RemoteItem, storage: Storage) {
+    let absoluteNotesDir = absoluteNoteDirs.get(storage.id);
+    if (!absoluteNotesDir) {
+        absoluteNotesDir = await getAbsoluteNotesDir(storage);
+        absoluteNoteDirs.set(storage.id, absoluteNotesDir);
+    }
+    return stat.parentIds === null || stat.parentIds[0] === absoluteNotesDir;
 }
 
 export async function createNote({ title, content, parentId, storage }: CreateNoteParams): Promise<NoteItem> {
@@ -62,7 +76,7 @@ export async function createNote({ title, content, parentId, storage }: CreateNo
         stat,
         storageId,
         childNoteStats: [],
-        isRootNote: isRootNote(stat, storage)
+        isRootNote: await isRootNote(stat, storage)
     }
 }
 
@@ -160,7 +174,7 @@ export async function getNoteByStat(storage: Storage, stat: RemoteItem): Promise
         stat,
         storageId: storage.id,
         childNoteStats,
-        isRootNote: isRootNote(stat, storage)
+        isRootNote: await isRootNote(stat, storage)
     }
 }
 
@@ -170,4 +184,12 @@ export async function getNoteById(storage: Storage, id: string): Promise<NoteIte
         id
     })
     return await getNoteByStat(storage, stat);
+}
+
+export function getNotesDir() {
+    return '<NOTES_DIR>';
+}
+
+export function joinNotesDir(...parts: string[]) {
+    return `${getNotesDir()}/${parts.join('/')}`;
 }

@@ -1,13 +1,14 @@
 import { ApiRequest, ApiResponse, RouteGroup } from "../interface";
 import { method, authenticate, AuthType, validateQuery, validateJson } from "../decorators";
-import { envConfig } from "../envConfig";
-import { Profile, Storage } from "../models";
+import { DeviceInfo, envConfig } from "../envConfig";
+import { Profile, ProfileDetails, Storage } from "../models";
 import { verifyFileAccessToken } from "../utils/fileUtils";
 import CustomError from "../customError";
 import { getFsDriverByStorageId } from "../storageKit/storageHelper";
 import { login, logout } from "../utils/profileUtils";
 import { requestSession, getApprovalStatus } from "../pendingSessions";
 import { parseUserAgent } from "../utils/userAgent";
+import { getDeviceInfoCached } from "../utils/deviceInfo";
 
 const api = new RouteGroup();
 
@@ -28,7 +29,8 @@ function getConfig() {
 
 type StateResponse = {
   config: object;
-  profile: object | null;
+  deviceInfo: DeviceInfo;
+  profile: ProfileDetails | null;
   storages: object | null;
 };
 
@@ -38,6 +40,7 @@ api.add(
   async (request: ApiRequest) => {
     const res: StateResponse = {
       config: getConfig(),
+      deviceInfo: getDeviceInfoCached(),
       profile: null,
       storages: null,
     };
@@ -111,19 +114,21 @@ api.add(
       );
     }
 
+    try {
     // check status of the session request
     const status = getApprovalStatus(token);
     let profile: Profile | null = null;
-
     if (status) {
       profile = await Profile.getProfileById(envConfig.DEFAULT_PROFILE_ID);
     }
-
     const res = ApiResponse.json(200, { status, profile: profile?.getDetails() });
     if (status && profile) {
       login(profile.id, res);
     }
     return res;
+    } catch (e: any) {
+      return ApiResponse.fromError(e);
+    }
   });
 
   api.add(

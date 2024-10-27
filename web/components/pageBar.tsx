@@ -5,7 +5,7 @@ import { ActionTypes } from '@/lib/state';
 import { useCallback } from 'react';
 
 export default function PageBar({ children, title, icon, hideSidebarButton }: {
-    children: React.ReactNode,
+    children?: React.ReactNode,
     title: string,
     icon?: string | React.ReactNode,
     hideSidebarButton?: boolean,

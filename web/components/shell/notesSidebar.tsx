@@ -2,7 +2,7 @@ import { AppName, NoteItem, RemoteItem, Storage } from "@/lib/types";
 import useFilterStorages from "../hooks/useFilterStorages";
 import { useAppDispatch, useAppState } from "../hooks/useAppState";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getNoteByStat } from "@/lib/noteUtils";
+import { getNoteByStat, getNotesDir } from "@/lib/noteUtils";
 import { readDir } from "@/lib/api/fs";
 import { ActionTypes, noteUid } from "@/lib/state";
 import NewNoteModal from "../newNoteModal";
@@ -26,7 +26,7 @@ type NoteNavItemProps = {
     depth: number;
 }
 
-const inlineButtonClass = 'p-[0.1rem] mr-1 text-muted-foreground/60 hover:bg-muted-foreground/20 rounded-sm';
+const inlineButtonClass = 'p-[0.1rem] mr-1 ml-1 text-muted-foreground/60 hover:bg-muted-foreground/20 rounded-sm';
 
 function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemProps) {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -93,7 +93,7 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
             <div style={{ paddingLeft: `${depth * 0.7}rem` }}
                 className={cn('hover:bg-muted group rounded-sm my-[0.1rem]', matched && 'bg-muted')}
             >
-                <div className={cn('flex text-sm px-2 py-1 font-medium',
+                <div className={cn('flex text-sm px-2 py-1 font-normal',
                     isError
                         ? 'text-red-500'
                         : matched
@@ -161,14 +161,10 @@ function StorageTree({ storage }: { storage: Storage }) {
     const fetchNoteStats = useCallback(async (storage: Storage) => {
         if (isRootLoading) return;
         if (isError) return;
-        if (!storage.storageMeta?.notesDir) {
-            setIsError(true);
-            return;
-        }
         setIsRootLoading(true);
         try {
             let rootNoteStats = await readDir({
-                id: storage.storageMeta.notesDir,
+                id: getNotesDir(),
                 storageId: storage.id,
             });
             rootNoteStats = rootNoteStats.filter((stat) => stat.type === 'directory');
@@ -196,7 +192,7 @@ function StorageTree({ storage }: { storage: Storage }) {
 
     useEffect(() => {
         setIsError(false);
-    }, [storage.id, storage.storageMeta?.notesDir]);
+    }, [storage.id]);
 
     const newChildNote = useCallback(async (stat: RemoteItem) => {
         setSelectedStat(stat);
@@ -248,9 +244,9 @@ function StorageTree({ storage }: { storage: Storage }) {
                 isOpen={deleteNoteModalOpen}
                 onOpenChange={setDeleteNoteModalOpen} />
             <div className='flex justify-between px-2'>
-                <div className={cn(isError && 'text-red-500')}>
+                <div className={cn(isError ? 'text-red-500' : 'text-gray-600', 'flex items-center')}>
                     <ServerIcon className='w-4 h-4 inline-block' />
-                    <span className='ml-2 text-sm font-semibold'>
+                    <span className='ml-2 text-sm font-medium text-ellipsis truncate max-w-[80%]'>
                         {storage.name}
                     </span>
                 </div>

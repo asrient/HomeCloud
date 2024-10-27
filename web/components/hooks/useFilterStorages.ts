@@ -1,18 +1,10 @@
 import { useMemo } from "react";
 import { useAppState } from "./useAppState";
 import { AppName, Storage } from "@/lib/types";
+import { isAppAllowed } from "@/lib/storageConfig";
 
 function isAppEnabled(appName: AppName, storage: Storage) {
-    switch (appName) {
-        case AppName.Photos:
-            return !!storage.storageMeta?.isPhotosEnabled;
-        case AppName.Files:
-            return true;
-        case AppName.Notes:
-            return !!storage.storageMeta?.isNotesEnabled;
-        default:
-            return false;
-    }
+    return isAppAllowed(storage.type, appName);
 }
 
 export default function useFilterStorages(appName: AppName) {

@@ -28,12 +28,14 @@ const DAYS_5 = 5 * 24 * 60 * 60 * 1000;
 class DbModel extends Model {
   static _columns: ModelAttributes;
   static _indexes?: ModelIndexesOptions[];
+  static _db: Sequelize;
 
   get json() {
     return this.toJSON();
   }
 
   static register(db: Sequelize) {
+    this._db = db;
     const opts: any = { sequelize: db };
     if (this._indexes) opts.indexes = this._indexes;
     super.init(this._columns, opts);
@@ -154,15 +156,15 @@ export class Profile extends DbModel {
   static stringifyAccessControl(accessControl: AccessControl) {
     const data = {};
     for (let [key, value] of Object.entries(accessControl)) {
-      if(typeof key !== 'string' || typeof value !== 'string') {
+      if (typeof key !== 'string' || typeof value !== 'string') {
         throw CustomError.validationSingle("accessControl", "Invalid JSON format.");
       }
       key = key.trim();
       value = value.trim();
-      if(key.length === 0 || value.length === 0) {
+      if (key.length === 0 || value.length === 0) {
         throw CustomError.validationSingle("accessControl", "Illegal string found.");
       }
-      if(value.endsWith(path.sep)) {
+      if (value.endsWith(path.sep)) {
         value = value.slice(0, -1);
       }
       data[key] = value;
@@ -186,10 +188,73 @@ export class Profile extends DbModel {
     return Profile.count();
   }
 
-  static async provisionPhotoIds( profile: Profile, count: number = 1): Promise<number> {
-    const profileId = profile.id;
-    profile = await profile.increment("_photosNextId", { by: count, where: { id: profileId } });
-    return profile._photosNextId - count;
+  static async provisionPhotoIds(profile: Profile, count: number = 1): Promise<number> {
+    const transaction = await this._db.transaction();
+    try {
+      // Reload the profile with a lock to prevent race conditions
+      profile = await Profile.findOne({ where: { id: profile.id }, lock: true, transaction });
+      const nextId = profile._photosNextId;
+      await profile.increment("_photosNextId", { by: count, transaction });
+      await transaction.commit();
+      return nextId;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  static async provisionPhotoIdsWithRetry(profile: Profile, count: number = 1, retries = 6): Promise<number> {
+    let nextId: number = 0;
+    for (let i = 0; i < retries; i++) {
+      try {
+        nextId = await Profile.provisionPhotoIds(profile, count);
+        break;
+      } catch (e) {
+        console.error("provisionPhotoIdsWithRetry error:", e);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+    if (!nextId) {
+      throw new Error("Failed to provision photo ids");
+    }
+    return nextId;
+  }
+
+  static provisionPhotoIdQueue: { [profileId: number]: { queue: { resolve: (value: number | PromiseLike<number>) => void, reject: (reason?: any) => void, count: number }[], timer: NodeJS.Timeout | null } } = {};
+
+  static async provisionPhotoIdsBatched(profile: Profile, count: number = 1): Promise<number> {
+    const q = Profile.provisionPhotoIdQueue[profile.id];
+    if (!q) {
+      Profile.provisionPhotoIdQueue[profile.id] = {
+        queue: [],
+        timer: null,
+      };
+    }
+    const queue = Profile.provisionPhotoIdQueue[profile.id].queue;
+    const timer = Profile.provisionPhotoIdQueue[profile.id].timer;
+    const promise = new Promise<number>((resolve, reject) => {
+      queue.push({ resolve, reject, count });
+    });
+    if (!timer || queue.length < 6) {
+      // Delaying the provisioning a bit longer to wait for more requests to process together.
+      timer && clearTimeout(timer);
+      Profile.provisionPhotoIdQueue[profile.id].timer = setTimeout(() => {
+        const queue = Profile.provisionPhotoIdQueue[profile.id].queue;
+        const totalCount = queue.reduce((acc, item) => acc + item.count, 0);
+        //console.log("provisionPhotoIdsBatched", profile.id, queue, totalCount);
+        Profile.provisionPhotoIdQueue[profile.id].timer = null;
+        Profile.provisionPhotoIdsWithRetry(profile, totalCount).then((nextId) => {
+          queue.forEach((item) => {
+            item.resolve(nextId);
+            nextId += item.count;
+          });
+        }).catch((e) => {
+          queue.forEach((item) => item.reject(e));
+        });
+        Profile.provisionPhotoIdQueue[profile.id].queue = [];
+      }, 100);
+    }
+    return promise;
   }
 
   static async createProfile(
@@ -315,7 +380,7 @@ export class Profile extends DbModel {
 
   static async deleteProfiles(ids: number[], referalProfile: Profile | null) {
 
-    if(envConfig.PROFILES_CONFIG.singleProfile) {
+    if (envConfig.PROFILES_CONFIG.singleProfile) {
       throw CustomError.security("Cannot delete profiles on this device.");
     }
 
@@ -329,6 +394,18 @@ export class Profile extends DbModel {
   static async getFirstProfile() {
     return Profile.findOne();
   }
+}
+
+export type AgentDetails = {
+  id: number;
+  fingerprint: string;
+  remoteProfileId: number;
+  deviceName: string;
+  remoteProfileName: string;
+  lastSeen: Date;
+  authority: string;
+  allowClientAccess: boolean;
+  profileId: number;
 }
 
 // Used both to represent client and target agents
@@ -418,7 +495,7 @@ export class Agent extends DbModel {
     return this.allowClientAccess === false;
   }
 
-  getDetails() {
+  getDetails(): AgentDetails {
     return {
       id: this.id,
       fingerprint: this.fingerprint,
@@ -641,9 +718,9 @@ export class Storage extends DbModel {
   }
 
   async delete() {
-    if(this.type === StorageType.Local) {
+    if (this.type === StorageType.Local) {
       const localStorageCount = await Storage.count({ where: { ProfileId: this.ProfileId, type: StorageType.Local } });
-      if(localStorageCount === 1) {
+      if (localStorageCount === 1) {
         throw new Error("Cannot delete the only local storage for this profile");
       }
     }
@@ -1111,7 +1188,6 @@ export class Photo extends DbModel {
       duration: this.duration,
       height: this.height,
       width: this.width,
-      profileId: this.ProfileId,
     };
   }
 
@@ -1356,7 +1432,6 @@ export class PinnedFolders extends DbModel {
       id: this.id,
       folderId: this.folderId,
       name: this.name,
-      storageId: this.StorageId,
     };
   }
 

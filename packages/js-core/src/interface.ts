@@ -1,12 +1,18 @@
 import qs, { ParsedQs } from "qs";
 import isType from "type-is";
-import cookie from "cookie";
+import * as cookie from "cookie";
 import mime from "mime";
 import { match } from "node-match-path";
 import { envConfig } from "./envConfig";
 import { Profile } from "./models";
 import { Readable } from "stream";
 import CustomError, { ErrorType, ErrorResponse } from "./customError";
+import { streamToBuffer } from "./utils";
+import fs from "fs/promises";
+
+export const WEB_TOKEN_HEADER = "x-web-token";
+export const WEB_TOKEN_HEADER_CAP = "X-Web-Token";
+export const AGENT_TOKEN_HEADER = "x-access-key";
 
 export type ApiRequestFile = {
   name: string;
@@ -183,6 +189,9 @@ export class ApiRequest {
   get cookieString() {
     return this.headers["cookie"];
   }
+  get webToken() {
+    return this.headers[WEB_TOKEN_HEADER];
+  }
   get isJson() {
     return isType.is(this.contentType, ["json"]) === "json";
   }
@@ -276,9 +285,10 @@ export class ApiResponse {
     );
     this.setHeader(
       "Access-Control-Allow-Headers",
-      "Origin, Content-Type, X-Auth-Token",
+      `Origin, Content-Type, ${WEB_TOKEN_HEADER_CAP}`,
     );
     this.setHeader("Access-Control-Allow-Credentials", "true");
+    this.setHeader("Access-Control-Expose-Headers", WEB_TOKEN_HEADER_CAP);
   }
 
   /**
@@ -288,6 +298,26 @@ export class ApiResponse {
    */
   setHeader(name: string, value: string) {
     this.headers[name] = value;
+  }
+
+  getContentType() {
+    return this.headers["Content-Type"];
+  }
+
+  isJson() {
+    return this.getContentType()?.includes("application/json");
+  }
+
+  async getBody(): Promise<Blob> {
+    if (this.bodyStream) {
+      const buffer = await streamToBuffer(this.bodyStream);
+      return new Blob([buffer]);
+    } else if (this.body) {
+      return this.body;
+    } else if (this.file) {
+      const buffer = await fs.readFile(this.file);
+      return new Blob([buffer]);
+    }
   }
 
   status(status: number) {
@@ -332,9 +362,15 @@ export class ApiResponse {
     const cookieStr = cookie.serialize(key, value, {
       maxAge: ttl,
       path: "/",
+      sameSite: 'none',
+      secure: true,
+      partitioned: true,
     });
     this.setHeader(
       "Set-Cookie", cookieStr);
+  }
+  setWebToken(jwt: string) {
+    this.setHeader(WEB_TOKEN_HEADER_CAP, jwt);
   }
 
   static error(statusCode: number, errorResponse: ErrorResponse) {

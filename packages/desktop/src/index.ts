@@ -80,7 +80,7 @@ class App {
         : path.join(os.homedir(), "/.homecloud"); // change it to default app data dir for each OS
     fs.mkdirSync(dataDir, { recursive: true });
     const webServerBaseUrl = `http://127.0.0.1:${this.webPort}/`;
-    const clientBaseUrl = process.env.CLIENT_BASE_URL || 'http://localhost:3000';
+    const clientBaseUrl = process.env.CLIENT_BASE_URL || 'http://localhost:3000/';
 
     const profilesPolicy: ProfilesPolicy = {
       passwordPolicy: OptionalType.Optional,

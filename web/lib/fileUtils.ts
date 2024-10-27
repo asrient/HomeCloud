@@ -1,6 +1,6 @@
 import { PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage } from "./types";
 import mime from 'mime';
-import { isDesktop, staticConfig } from "./staticConfig";
+import { staticConfig } from "./staticConfig";
 import { fileAccessToken } from "./api/files";
 
 export enum FileType {
@@ -234,7 +234,7 @@ export function canGenerateThumbnail(item: RemoteItem) {
     return kind === FileType.Image || kind === FileType.Video;
 }
 
-export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder): RemoteItemWithStorage {
+export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder, storage: Storage): RemoteItemWithStorage {
     return {
         id: pinnedFolder.folderId,
         name: pinnedFolder.name,
@@ -246,7 +246,7 @@ export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder): RemoteItem
         createdAt: new Date(),
         etag: '',
         thumbnail: '',
-        storageId: pinnedFolder.storageId,
+        storageId: storage.id,
     }
 }
 
@@ -267,16 +267,10 @@ export function storageToRemoteItem(storage: Storage): RemoteItemWithStorage {
 }
 
 export async function getFileUrl(storageId: number, fileId: string) {
-    if (!isDesktop()) {
-        return `${staticConfig.apiBaseUrl}/fs/readFile?storageId=${storageId}&id=${fileId}`;
-    }
-    const { token } = await fileAccessToken(storageId, fileId);
-    return `${staticConfig.apiBaseUrl}/file/${token}`;
+    return `${staticConfig.apiBaseUrl}/fs/readFile?storageId=${storageId}&id=${fileId}`;
+
 }
 
 export function downloadLinkFromFileUrl(fileUrl: string) {
-    if (!isDesktop()) {
-        return `${fileUrl}&download=1`;
-    }
-    return `${fileUrl}?download=1`;
+    return `${fileUrl}&download=1`;
 }

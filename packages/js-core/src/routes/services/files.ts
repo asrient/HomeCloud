@@ -1,6 +1,5 @@
 import {
   ApiRequest,
-  ApiRequestFile,
   ApiResponse,
   RouteGroup,
 } from "../../interface";
@@ -9,7 +8,6 @@ import {
   validateQuery,
   fetchStorage,
   fetchFsDriver,
-  fetchPhotoService,
   validateJson,
   relayToAgent,
 } from "../../decorators";

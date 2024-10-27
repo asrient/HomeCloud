@@ -1,21 +1,25 @@
 import { Dispatch, createContext } from 'react';
-import { Profile, ServerConfig, Storage, StorageMeta, PinnedFolder, SyncState, NoteItem, RemoteItem } from './types';
+import { Profile, ServerConfig, Storage, PinnedFolder, NoteItem, RemoteItem, DeviceInfo } from './types';
 
 export type AppStateType = {
     isInitalized: boolean;
     isAppLoaded: boolean;
     serverConfig: ServerConfig | null;
+    deviceInfo: DeviceInfo | null;
     appError: string | null;
     profile: Profile | null;
     storages: Storage[] | null;
     disabledStorages: number[];
     showSidebar: boolean;
-    pinnedFolders: PinnedFolder[];
-    photosSyncState: { [storageId: number]: SyncState };
+    pinnedFolders: {
+        [storageId: number]: PinnedFolder[];
+    };
+    disks: {
+        [storageId: number]: RemoteItem[];
+    };
     notes: { [id: string]: NoteItem };
     rootNoteStats: Record<number, RemoteItem[]>;
 };
-
 
 export enum ActionTypes {
     INITIALIZE = 'INITIALIZE',
@@ -28,10 +32,9 @@ export enum ActionTypes {
     UPDATE_STORAGE = 'UPDATE_STORAGE',
     TOGGLE_SIDEBAR = 'TOGGLE_SIDEBAR',
     SET_PINNED_FOLDERS = 'SET_PINNED_FOLDERS',
+    SET_DISKS = 'SET_DISKS',
     ADD_PINNED_FOLDER = 'ADD_PINNED_FOLDER',
     REMOVE_PINNED_FOLDER = 'REMOVE_PINNED_FOLDER',
-    PHOTOS_SYNC_START = 'PHOTOS_SYNC_START',
-    PHOTOS_SYNC_STOP = 'PHOTOS_SYNC_STOP',
     UPDATE_PROFILE = 'UPDATE_PROFILE',
     ADD_NOTE = 'ADD_NOTE',
     RENAME_NOTE = 'RENAME_NOTE',
@@ -54,10 +57,11 @@ export const initialAppState: AppStateType = {
     storages: null,
     disabledStorages: [],
     showSidebar: false,
-    pinnedFolders: [],
-    photosSyncState: {},
+    pinnedFolders: {},
+    disks: {},
     notes: {},
     rootNoteStats: {},
+    deviceInfo: null,
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
@@ -85,10 +89,10 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             draft.profile = payload.profile;
             draft.storages = payload.storages;
             draft.disabledStorages = [];
-            draft.pinnedFolders = [];
-            draft.photosSyncState = {};
+            draft.pinnedFolders = {};
             draft.notes = {};
             draft.rootNoteStats = {};
+            draft.deviceInfo = payload.deviceInfo;
             return draft;
         }
         case ActionTypes.ERROR: {
@@ -119,17 +123,6 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             }
             return draft;
         }
-        case ActionTypes.ADD_STORAGE_META: {
-            const { storageId: id, storageMeta }: {
-                storageId: number;
-                storageMeta: StorageMeta;
-            } = payload;
-            const storageIndex = draft.storages?.findIndex((storage) => storage.id === id);
-            if (draft.storages && storageIndex !== undefined && storageIndex !== -1) {
-                draft.storages[storageIndex].storageMeta = storageMeta;
-            }
-            return draft;
-        }
         case ActionTypes.UPDATE_STORAGE: {
             const { storageId: storageIdToUpdate, storage: storageToUpdate }: {
                 storageId: number;
@@ -156,22 +149,32 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             return draft;
         }
         case ActionTypes.SET_PINNED_FOLDERS: {
-            const { pins }: {
+            const { pins, storageId }: {
                 pins: PinnedFolder[];
+                storageId: number;
             } = payload;
-            draft.pinnedFolders = pins;
+            draft.pinnedFolders[storageId] = pins;
+            return draft;
+        }
+        case ActionTypes.SET_DISKS: {
+            const { items, storageId }: {
+                items: RemoteItem[];
+                storageId: number;
+            } = payload;
+            draft.disks[storageId] = items;
             return draft;
         }
         case ActionTypes.ADD_PINNED_FOLDER: {
-            const { pin }: {
+            const { pin, storageId }: {
                 pin: PinnedFolder;
+                storageId: number;
             } = payload;
-            const existingIndex = draft.pinnedFolders.findIndex((pinnedFolder) => pinnedFolder.id === pin.id);
+            const existingIndex = draft.pinnedFolders[storageId].findIndex((pinnedFolder) => pinnedFolder.id === pin.id);
             if (existingIndex !== undefined && existingIndex !== -1) {
-                draft.pinnedFolders[existingIndex] = pin;
+                draft.pinnedFolders[storageId][existingIndex] = pin;
                 return draft;
             }
-            draft.pinnedFolders.push(pin);
+            draft.pinnedFolders[storageId].push(pin);
             return draft;
         }
         case ActionTypes.REMOVE_PINNED_FOLDER: {
@@ -179,45 +182,7 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
                 storageId: number;
                 folderId: string;
             } = payload;
-            draft.pinnedFolders = draft.pinnedFolders.filter((pinnedFolder) => !(pinnedFolder.storageId === storageId && pinnedFolder.folderId === folderId));
-            return draft;
-        }
-        case ActionTypes.PHOTOS_SYNC_START: {
-            const { storageId, currentAction }: {
-                storageId: number;
-                currentAction: SyncState['currentAction'];
-            } = payload;
-            let oldState = draft.photosSyncState[storageId];
-            if (!oldState) {
-                oldState = {
-                    isBusy: false,
-                    error: null,
-                    hardSyncRequired: false,
-                    lastSyncedAt: null,
-                    currentAction: null,
-                }
-            }
-            draft.photosSyncState[storageId] = {
-                ...oldState,
-                isBusy: true,
-                error: null,
-                currentAction,
-            };
-            return draft;
-        }
-        case ActionTypes.PHOTOS_SYNC_STOP: {
-            const { storageId, error }: {
-                storageId: number;
-                error: string | null;
-                hardSyncRequired?: boolean;
-            } = payload;
-            draft.photosSyncState[storageId] = {
-                lastSyncedAt: new Date(),
-                isBusy: false,
-                error,
-                currentAction: null,
-                hardSyncRequired: payload.hardSyncRequired || false,
-            };
+            draft.pinnedFolders[storageId] = draft.pinnedFolders[storageId].filter((pinnedFolder) => !(pinnedFolder.folderId === folderId));
             return draft;
         }
         case ActionTypes.UPDATE_PROFILE: {

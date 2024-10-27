@@ -35,29 +35,26 @@ export class UploadManager {
   }
 
   async getNextItemId() {
-    return Profile.provisionPhotoIds(this.photoService.profile, 1);
+    return Profile.provisionPhotoIdsBatched(this.photoService.profile, 1);
   }
 
   public async addPhotoFromFile(filePath: string, mimeType: string): Promise<boolean> {
-    const itemId = await this.getNextItemId();
     let assetFile: RemoteItem | null = null;
     let detail: AssetDetailType | null = null;
+    const itemId = await this.getNextItemId();
+    console.log("Adding photo ITEM ID:", itemId);
     const getDetail = async () => {
-      console.log("Generating metadata..", itemId, mimeType);
       detail = await this.photoService.assetManager.generateDetail(
         filePath,
         mimeType,
       );
-      console.log("Generated metadata", itemId);
     };
     const getAssetFileId = async () => {
-      console.log("Creating asset..", itemId, mimeType);
       assetFile = await this.photoService.assetManager.createAsset(
         itemId,
         filePath,
         mimeType,
       );
-      console.log("Created asset", itemId, assetFile.id);
     };
     try {
       await Promise.all([getDetail(), getAssetFileId()]);
@@ -94,6 +91,7 @@ export class UploadManager {
       return {
         addCount: 0,
         errors: this.errors,
+        photos: [],
       };
     }
     const created = await this.photoService.createPhotos(this.reqs);
@@ -147,7 +145,6 @@ export default class PhotosService {
   }
 
   async createPhotos(req: createPhoto_[]) {
-    console.log("Creating photos..", req);
     const photos_: { [itemId: number]: createPhotoType } = [];
     req.forEach(({ itemId, assetFileId, detail, mime, size }) => {
       photos_[itemId] = {
@@ -180,7 +177,7 @@ export default class PhotosService {
   }
 
   public async importPhotos(fileIds: string[], deleteSource = false) {
-    const nextItemId = await Profile.provisionPhotoIds(this.profile, fileIds.length);
+    const nextItemId = await Profile.provisionPhotoIdsWithRetry(this.profile, fileIds.length);
     const req: createPhoto_[] = [];
     const errors: { [fileId: string]: string } = {};
     const promises = fileIds.map(async (fileId, index) => {
@@ -215,10 +212,12 @@ export default class PhotosService {
         }),
       ),
     );
-    if (req.length === 0) {
-      return [];
-    }
-    return await this.createPhotos(req);
+    const photos = await this.createPhotos(req);
+    return {
+      photos: photos.map((photo) => photo.getMinDetails()),
+      addCount: Object.keys(photos).length,
+      errors,
+    };
   }
 
   async deleteItemsFromDb(itemIds: number[]) {
@@ -230,7 +229,6 @@ export default class PhotosService {
   }
 
   public async updateAsset(itemId: number, file: ApiRequestFile): Promise<Photo> {
-    console.log("updateAsset", itemId, file);;
     const photo = await Photo.getPhoto(itemId, this.profile);
     if (!photo) {
       throw new Error("Photo not found");
@@ -308,6 +306,7 @@ export default class PhotosService {
     return {
       deleteCount: count,
       errors,
+      deletedIds: ids,
     };
   }
 

@@ -3,6 +3,8 @@ import { Storage, Thumb, ThumbDetails } from "../../models";
 import { generateThumbnailUrl } from "./generator";
 import mime from "mime";
 import { AgentClient, getClientFromStorage } from "../../agentKit/client";
+import { StorageType } from "../../envConfig";
+import { Readable } from "stream";
 
 export default class ThumbService {
   fsDriver: FsDriver;
@@ -25,7 +27,7 @@ export default class ThumbService {
       'api/services/thumb/getThumbnail',
       {
         fileId,
-        lastUpdated
+        lastUpdated: lastUpdated.getTime(),
       },
     );
     return thumb;
@@ -36,7 +38,7 @@ export default class ThumbService {
     lastUpdated: Date,
   ): Promise<ThumbDetails> {
 
-    if(this.storage.isAgentType()) {
+    if (this.storage.isAgentType()) {
       return this.getThumbFromAgent(fileId, lastUpdated);
     }
 
@@ -44,11 +46,17 @@ export default class ThumbService {
     if (thumb && thumb.isUpToDate(lastUpdated)) {
       return thumb.getDetails();
     }
-    let [stream, mimeType] = await this.fsDriver.readFile(fileId);
+    let file: string | Readable;
+    let mimeType: string;
+    if (this.storage.type === StorageType.Local) {
+      file = fileId;
+    } else {
+      [file, mimeType] = await this.fsDriver.readFile(fileId);
+    }
     if (!mimeType) {
       mimeType = mime.getType(fileId) || "application/octet-stream";
     }
-    const url = await generateThumbnailUrl(stream, mimeType);
+    const url = await generateThumbnailUrl(file, mimeType);
     if (thumb) {
       await thumb.updateThumb({
         image: url,

@@ -1,4 +1,4 @@
-import { StorageAuthType, StorageType } from './types';
+import { StorageAuthType, StorageType, AppName } from './types';
 
 export type OneAuthButtonConfig = {
     text: string;
@@ -13,16 +13,20 @@ export const StorageTypeConfig: {
         name: string;
         authTypes: StorageAuthType[];
         oneAuthButtonConfig?: OneAuthButtonConfig;
-        urlIsPath?: boolean;
+        urlRequired?: boolean;
+        allowedApps: AppName[];
     }
 } = {
     [StorageType.WebDav]: {
         name: 'WebDAV',
         authTypes: [StorageAuthType.Basic, StorageAuthType.Digest, StorageAuthType.None],
+        urlRequired: true,
+        allowedApps: [AppName.Files],
     },
     [StorageType.Google]: {
         name: 'Google Drive',
         authTypes: [StorageAuthType.OneAuth],
+        allowedApps: [AppName.Files],
         oneAuthButtonConfig: {
             text: 'Sign in with Google',
             icon: 'google',
@@ -35,11 +39,13 @@ export const StorageTypeConfig: {
     [StorageType.Local]: {
         name: 'Local',
         authTypes: [StorageAuthType.None],
-        urlIsPath: true,
+        urlRequired: false,
+        allowedApps: [AppName.Files, AppName.Photos, AppName.Notes],
     },
     [StorageType.Dropbox]: {
         name: 'Dropbox',
         authTypes: [StorageAuthType.OneAuth],
+        allowedApps: [AppName.Files],
         oneAuthButtonConfig: {
             text: 'Sign in to Dropbox',
             icon: 'dropbox',
@@ -49,6 +55,12 @@ export const StorageTypeConfig: {
             },
         },
     },
+    [StorageType.Agent]: {
+        name: 'Device',
+        authTypes: [StorageAuthType.Pairing],
+        urlRequired: false,
+        allowedApps: [AppName.Files, AppName.Photos, AppName.Notes],
+    }
 }
 
 export const AuthTypeNames: { [key in StorageAuthType]: string } = {
@@ -56,6 +68,7 @@ export const AuthTypeNames: { [key in StorageAuthType]: string } = {
     'digest': 'Password (digest)',
     'none': 'None',
     'oneauth': 'OneAuth',
+    'pairing': 'Pair Device'
 }
 
 export function getStorageTypeConfig(type: StorageType) {
@@ -92,4 +105,8 @@ export function getOneAuthButtonConfig(type: StorageType) {
 
 export function getAuthTypeName(authType: StorageAuthType) {
     return AuthTypeNames[authType];
+}
+
+export function isAppAllowed(type: StorageType, appName: AppName) {
+    return StorageTypeConfig[type].allowedApps.includes(appName);
 }

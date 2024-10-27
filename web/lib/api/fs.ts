@@ -1,6 +1,5 @@
 import { ApiClient } from './apiClient';
-import { FileList_, File_, RemoteItem } from '../types';
-import { isDesktop } from '../staticConfig';
+import { FileList_, RemoteItem } from '../types';
 
 export type ReadDirParams = {
     storageId: number;
@@ -94,6 +93,7 @@ export type UploadParams = {
 };
 
 export async function upload(params: UploadParams) {
+    /*
     if (isDesktop()) {
         const body = {
             storageId: params.storageId,
@@ -102,6 +102,7 @@ export async function upload(params: UploadParams) {
         }
         return await ApiClient.post<RemoteItem[]>('/fs/writeFiles/desktop', body);
     }
+    */
     const formData = new FormData();
     formData.append('parentId', params.parentId);
     for (let i = 0; i < params.files.length; i++) {

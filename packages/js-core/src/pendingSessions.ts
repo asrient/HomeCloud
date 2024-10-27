@@ -81,7 +81,7 @@ function deleteRequest(id: string): void {
 export function getApprovalStatus(id: string): boolean {
     const session = pendingSessions.get(id);
     if (!session) {
-        return false;
+        throw CustomError.generic("Session request was denied or has expired.");
     }
     const status = session.pendingSession.approved;
     // Remove the session from the map once it's approved and the status is checked by the client

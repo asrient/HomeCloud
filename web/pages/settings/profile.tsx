@@ -8,7 +8,7 @@ import { SidebarType } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
 import { DialogTrigger } from '@/components/ui/dialog'
 import Head from 'next/head'
-import { updateProfile, updateProfileProtected } from '@/lib/api/profile'
+import { updateProfile } from '@/lib/api/profile'
 import { logout } from '@/lib/api/auth'
 import { useCallback } from 'react'
 import { ActionTypes } from '@/lib/state'
@@ -23,6 +23,7 @@ function Page() {
     if (!profile) return;
     const { profile: profile_ } = await updateProfile({
       name,
+      profileId: profile.id,
     });
     dispatch(ActionTypes.UPDATE_PROFILE, { profile: profile_ })
   }, [dispatch, profile]);
@@ -31,24 +32,6 @@ function Page() {
     await logout();
     window.location.href = '/';
   }, []);
-
-  const performPasswordUpdate = useCallback(async (newPassword: string, oldPassword: string) => {
-    if (!profile) return;
-    const { profile: profile_ } = await updateProfileProtected({
-      newPassword,
-      password: oldPassword,
-    });
-    dispatch(ActionTypes.UPDATE_PROFILE, { profile: profile_ })
-  }, [dispatch, profile]);
-
-  const performUsernameUpdate = useCallback(async (username: string, password: string) => {
-    if (!profile) return;
-    const { profile: profile_ } = await updateProfileProtected({
-      password,
-      username,
-    });
-    dispatch(ActionTypes.UPDATE_PROFILE, { profile: profile_ })
-  }, [dispatch, profile]);
 
   return (
     <>
@@ -79,45 +62,6 @@ function Page() {
                       <LineLink text={profile.name} />
                     </DialogTrigger>
                   </TextModal>
-                </Line>
-              </Section>
-              <Section>
-                {serverConfig?.requireUsername && <Line title='Username'>
-
-                  <TextModalProtected
-                    title='Update Username'
-                    description='No spaces or special characters allowed.'
-                    onDone={performUsernameUpdate}
-                    buttonText='Save'
-                    textType='text'
-                    fieldName='New Username'
-                    noTrigger>
-                    <DialogTrigger>
-                      <LineLink text={profile.username} />
-                    </DialogTrigger>
-                  </TextModalProtected>
-                </Line>}
-                <Line title='Password'>
-                  <TextModalProtected
-                    title={
-                      profile.isPasswordProtected ?
-                        'Update Password'
-                        : 'Set Password'
-                    }
-                    description='Password must be at least 6 characters long.'
-                    onDone={performPasswordUpdate}
-                    buttonText='Save'
-                    textType='password'
-                    fieldName='New Password'
-                    noTrigger>
-                    <DialogTrigger>
-                      <LineLink text={
-                        profile.isPasswordProtected ?
-                          'Change'
-                          : 'Set password'
-                      } color='blue' />
-                    </DialogTrigger>
-                  </TextModalProtected>
                 </Line>
               </Section>
               <Section>

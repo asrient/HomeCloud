@@ -323,7 +323,7 @@ const Page: NextPageWithConfig = () => {
         storageId: storage?.id,
         folderId: item.id,
       })
-      dispatch(ActionTypes.ADD_PINNED_FOLDER, { pin });
+      dispatch(ActionTypes.ADD_PINNED_FOLDER, { pin, storageId: storage?.id });
     } catch (e) {
       console.error(e);
       toast({

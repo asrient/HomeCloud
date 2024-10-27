@@ -13,7 +13,7 @@ import { useRouter } from 'next/router'
 import { useCallback, useMemo, useState } from 'react'
 import AddStorageModal from '@/components/addStorageModal'
 import { DialogTrigger } from '@/components/ui/dialog'
-import { serviceScan, deleteStorage, editStorage } from '@/lib/api/storage'
+import { deleteStorage, editStorage } from '@/lib/api/storage'
 import { useToast } from '@/components/ui/use-toast'
 import LoadingIcon from '@/components/ui/loadingIcon'
 import ConfirmModal from '@/components/confirmModal'
@@ -40,31 +40,6 @@ function Page() {
       disabled: !checked,
     });
   }
-
-  const [isStorageMetaLoading, setIsStorageMetaLoading] = useState(false);
-  const { toast } = useToast();
-
-  const onScanButtonClick = useCallback(async () => {
-    if (!storage) return;
-    if (isStorageMetaLoading) return;
-    setIsStorageMetaLoading(true);
-    try {
-      const { storageMeta } = await serviceScan({
-        storageId: storage.id,
-        force: true,
-      });
-      dispatch(ActionTypes.ADD_STORAGE_META, { storageId: storage.id, storageMeta });
-    } catch (e: any) {
-      console.error(e);
-      toast({
-        variant: "destructive",
-        title: storage.storageMeta ? `Could not re-scan "${storage.name}"` : 'Could not enable HomeCloud services',
-        description: e.message,
-      });
-    } finally {
-      setIsStorageMetaLoading(false);
-    }
-  }, [dispatch, isStorageMetaLoading, storage, toast]);
 
   const performDelete = useCallback(async () => {
     if (!storage) return;
@@ -140,23 +115,6 @@ function Page() {
                   </Line>
                 </Section>
               </AddStorageModal>
-
-              <Section>
-                <Line title='HomeCloud services'>
-                  <Button
-                    onClick={onScanButtonClick}
-                    disabled={isStorageMetaLoading}
-                    variant={storage.storageMeta ? 'outline' : 'default'}
-                    size='sm'>
-                    {
-                      isStorageMetaLoading
-                        ? <LoadingIcon />
-                        : storage.storageMeta
-                          ? 'Scan'
-                          : 'Enable'}
-                  </Button>
-                </Line>
-              </Section>
 
               <Section>
                 <Line>

@@ -25,7 +25,7 @@ export async function removePin(params: RemovePinParams) {
 }
 
 export type ListPinsParams = {
-    storageIds: number[];
+    storageId: number;
 };
 
 export async function listPins(params: ListPinsParams) {

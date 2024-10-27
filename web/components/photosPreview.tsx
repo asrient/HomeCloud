@@ -69,7 +69,7 @@ export default function PhotosPreview({
 
   const index = useMemo(() => {
     if (images) {
-      return images.findIndex((img: Photo) => img.itemId === currentPhoto.itemId && img.storageId === currentPhoto.storageId)
+      return images.findIndex((img: PhotoView) => img.itemId === currentPhoto.itemId && img.storageId === currentPhoto.storageId)
     }
     return 0
   }, [currentPhoto.itemId, currentPhoto.storageId, images])

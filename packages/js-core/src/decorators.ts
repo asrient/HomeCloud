@@ -1,4 +1,4 @@
-import { ApiRequest, ApiResponse, RequestOriginType } from "./interface";
+import { AGENT_TOKEN_HEADER, ApiRequest, ApiResponse, RequestOriginType, WEB_TOKEN_HEADER } from "./interface";
 import { makeDecorator } from "./utils";
 import isType from "type-is";
 import Ajv, { ErrorObject } from "ajv";
@@ -10,6 +10,7 @@ import { FsDriver } from "./storageKit/interface";
 import CustomError, { ErrorCode } from "./customError";
 import { getFingerprintFromBase64 } from "./utils/cryptoUtils";
 import { getClientFromStorage } from "./agentKit/client";
+import { envConfig } from "./envConfig";
 
 const ajv = new Ajv();
 
@@ -109,9 +110,12 @@ const requiredAuthTypes = [AuthType.Admin, AuthType.Required];
 
 export function authenticate(authType: AuthType = AuthType.Required) {
   return makeDecorator(async (request, next) => {
-    let token = request.cookies.jwt;
-    if (request.requestOrigin === RequestOriginType.Agent) {
-      token = request.headers['x-access-key'];
+    let token = request.headers[
+      request.requestOrigin === RequestOriginType.Web ? WEB_TOKEN_HEADER : AGENT_TOKEN_HEADER
+    ];
+    if (envConfig.IS_DEV && !token && request.cookies.jwt) {
+      // console.warn("DEV feature: Fetching jwt from cookie.");
+      token = request.cookies.jwt;
     }
     const data = verifyJwt(token);
     if (!data) {
@@ -253,7 +257,19 @@ export function fetchPhotoService() {
   });
 }
 
-export function relayToAgent() {
+/**
+ * Sample usage of the callbacks:
+ * const fixResponse = async (resp: ApiResponse) => {
+    if (resp.isJson()) {
+      const blob = await resp.getBody();
+      const text = await blob.text();
+      let json = JSON.parse(text);
+      // Do something with the json
+      resp.json(json);
+    }
+  };
+*/
+export function relayToAgent(reqCb?: (request: ApiRequest) => Promise<void>, respCb?: (resp: ApiResponse) => Promise<void>) {
   return makeDecorator(async (request, next) => {
     const requestOrigin = request.requestOrigin;
     if (requestOrigin === RequestOriginType.Agent) {
@@ -282,6 +298,23 @@ export function relayToAgent() {
     if (request.getParams.storageId) {
       delete request.getParams.storageId;
     }
-    return agentClient.relayApiRequest(request);
+    if (reqCb) {
+      try {
+        await reqCb(request);
+      } catch (e: any) {
+        console.error(e);
+        return ApiResponse.fromError(e);
+      }
+    }
+    const resp = await agentClient.relayApiRequest(request);
+    if (respCb) {
+      try {
+        await respCb(resp);
+      } catch (e: any) {
+        console.error(e);
+        return ApiResponse.fromError(e);
+      }
+    }
+    return resp;
   });
 }

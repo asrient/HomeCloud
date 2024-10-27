@@ -1,17 +1,25 @@
 import { ApiClient } from './apiClient';
 import { FileList_, Photo } from '../types';
-import { isDesktop } from '../staticConfig';
 
 export type ListPhotosParams = {
     offset: number,
     limit: number,
-    storageIds: number[],
     sortBy: string,
     ascending: boolean,
+    storageId: number,
 };
 
+function normalizePhoto(photo: Photo): Photo {
+    return {
+        ...photo,
+        capturedOn: new Date(photo.capturedOn),
+        addedOn: new Date(photo.addedOn),
+    };
+}
+
 export async function listPhotos(params: ListPhotosParams) {
-    return await ApiClient.post<Photo[]>('/services/photos/list', params);
+    const photos = await ApiClient.post<Photo[]>('/services/photos/list', params);
+    return photos.map(normalizePhoto);
 }
 
 export type DeletePhotosParams = {
@@ -25,30 +33,8 @@ export async function deletePhotos(params: DeletePhotosParams) {
         errors: {
             [itemId: number]: string;
         },
+        deletedIds: number[],
     }>('/services/photos/delete', params);
-}
-
-export type SyncParams = {
-    storageId: number;
-    hard?: boolean;
-    force?: boolean;
-};
-
-export async function syncPhotos(params: SyncParams) {
-    const params_ = {
-        storageId: params.storageId.toString(),
-        hard: params.hard ? 'true' : 'false',
-        force: params.force ? 'true' : 'false',
-    };
-    return await ApiClient.get<{
-        ok: boolean,
-    }>('/services/photos/sync', params_);
-}
-
-export async function archivePhotos(storageId: number) {
-    return await ApiClient.post<{
-        ok: boolean,
-    }>('/services/photos/archive', { storageId });
 }
 
 export type ImportPhotosParams = {
@@ -62,23 +48,28 @@ export type AddSuccessType = {
     errors: {
         [fileId: string]: string,
     },
+    photos: Photo[],
 };
 
 export async function importPhotos(params: ImportPhotosParams) {
-    return await ApiClient.post<AddSuccessType>('/services/photos/import', params);
+    const res = await ApiClient.post<AddSuccessType>('/services/photos/import', params);
+    res.photos = res.photos.map(normalizePhoto);
+    return res;
 }
 
 export async function uploadPhotos(storageId: number, files: FileList_) {
-    if (isDesktop()) {
-        const filePaths = [];
-        for (let i = 0; i < files.length; i++) {
-            filePaths.push(files[i].path);
-        }
-        return await ApiClient.post<AddSuccessType>('/services/photos/upload/desktop', { storageId, filePaths });
-    }
+    // if (isDesktop()) {
+    //     const filePaths = [];
+    //     for (let i = 0; i < files.length; i++) {
+    //         filePaths.push(files[i].path);
+    //     }
+    //     return await ApiClient.post<AddSuccessType>('/services/photos/upload/desktop', { storageId, filePaths });
+    // }
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
         formData.append('files', files[i], files[i].name);
     }
-    return await ApiClient.post<AddSuccessType>('/services/photos/upload', { storageId }, formData);
+    const res = await ApiClient.post<AddSuccessType>('/services/photos/upload', { storageId }, formData);
+    res.photos = res.photos.map(normalizePhoto);
+    return res;
 }

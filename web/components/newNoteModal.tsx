@@ -4,6 +4,7 @@ import { useNewNote } from "./hooks/useNotes";
 import { useCallback } from "react";
 import { noteUrl } from "@/lib/urls";
 import { useRouter } from "next/router";
+import { getNotesDir } from "@/lib/noteUtils";
 
 export type NewNoteModalProps = {
     storage: Storage;
@@ -15,7 +16,7 @@ export default function NewNoteModal({ storage, parentId, ...props }: NewNoteMod
     const router = useRouter();
 
     const handleDone = useCallback(async (name: string) => {
-        const parentId_ = parentId || storage.storageMeta?.notesDir;
+        const parentId_ = parentId || getNotesDir();
         if (!parentId_) return;
         const newNote = await createNote({
             title: name,

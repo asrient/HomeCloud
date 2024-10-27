@@ -1,4 +1,4 @@
-import { AppName, SidebarList } from "@/lib/types";
+import { AppName, PinnedFolder, SidebarItem, SidebarList } from "@/lib/types";
 import useFilterStorages from "./useFilterStorages";
 import { useAppState } from "./useAppState";
 import { folderViewUrl, buildNextUrl, photosByStorageUrl } from "@/lib/urls";
@@ -11,7 +11,7 @@ export type FilesSidebarData = {
 
 export function useFilesBar(): SidebarList {
     const storages = useFilterStorages(AppName.Files);
-    const { pinnedFolders } = useAppState();
+    const { pinnedFolders, disks } = useAppState();
     const list: SidebarList = [
         {
             items: [
@@ -24,34 +24,41 @@ export function useFilesBar(): SidebarList {
             ]
         },
     ]
-    if (pinnedFolders?.length > 0) {
-        list.push({
-            title: 'Favorites',
-            items: pinnedFolders?.map((pinnedFolder) => ({
-                title: pinnedFolder.name,
+
+    storages?.forEach((storage) => {
+        const pins: PinnedFolder[] = pinnedFolders ? (pinnedFolders[storage.id] || []) : [];
+        const disks_ = disks ? (disks[storage.id] || []) : [];
+        const items: SidebarItem[] = [];
+        pins.forEach((pin) => {
+            items.push({
+                title: pin.name,
                 icon: iconUrl(FileType.Folder),
-                href: folderViewUrl(pinnedFolder.storageId, pinnedFolder.folderId),
-                key: pinnedFolder.folderId + pinnedFolder.storageId,
+                href: folderViewUrl(storage.id, pin.folderId),
+                key: pin.id.toString(),
                 rightClickable: true,
                 data: {
-                    folderId: pinnedFolder.folderId,
-                    storageId: pinnedFolder.storageId,
+                    folderId: pin.folderId,
+                    storageId: storage.id,
                 } as FilesSidebarData,
-            })) || []
-        })
-    }
-    list.push({
-        title: 'Locations',
-        items: storages?.map((storage) => ({
+            });
+        });
+        disks_.forEach((disk) => {
+            items.push({
+                title: disk.name,
+                icon: iconUrl(FileType.Drive),
+                href: folderViewUrl(storage.id, disk.id),
+                key: disk.id,
+                data: {
+                    folderId: disk.id,
+                    storageId: storage.id,
+                } as FilesSidebarData,
+            });
+        });
+        list.push({
             title: storage.name,
-            icon: iconUrl(FileType.Drive),
-            href: folderViewUrl(storage.id),
-            key: storage.id.toString(),
-            data: {
-                storageId: storage.id,
-            } as FilesSidebarData,
-        })) || []
-    })
+            items,
+        });
+    });
     return list;
 }
 

@@ -8,7 +8,7 @@ export function buildNextUrl(path: string, params?: { [key: string]: any }): Nex
     }
 }
 
-export function folderViewUrl(storageId: number, folderId: string = '/') {
+export function folderViewUrl(storageId: number, folderId: string = '') {
     return buildNextUrl('/files/folder', { s: storageId, id: folderId });
 }
 

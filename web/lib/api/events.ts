@@ -1,10 +1,9 @@
 import { io, Socket } from "socket.io-client";
-import { isDesktop, staticConfig } from "../staticConfig";
+import { staticConfig } from "../staticConfig";
 
 let socket: Socket | null = null;
 
 function setup() {
-    if (isDesktop()) return;
     let url = staticConfig.apiBaseUrl;
     if (url.endsWith('/api')) {
         url = url.slice(0, -4);
@@ -16,7 +15,6 @@ function setup() {
 }
 
 function connect() {
-    if (isDesktop()) return;
     if (!socket) {
         throw new Error('Socket not setup');
     }
@@ -25,12 +23,6 @@ function connect() {
 }
 
 export function onEvent(eventName: string, callback: (data: any) => void): () => void {
-    if (isDesktop()) {
-        if (!window.appEvent) {
-            throw new Error('appEvent not setup');
-        }
-        return window.appEvent.listen(eventName, callback);
-    }
     if (!socket) {
         setup();
     }

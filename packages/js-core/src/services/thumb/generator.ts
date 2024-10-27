@@ -3,13 +3,17 @@ import ffmpeg from "fluent-ffmpeg";
 import { streamToBuffer } from "../../utils";
 import { Readable } from "stream";
 import fs from "fs";
+import os from "os";
+import path from "path";
+
+const tempDir = os.tmpdir();
 
 type ThumbBuffer = {
   buffer: Buffer;
   mime: string;
 };
 
-export async function generateThumbnailBuffer(stream: Readable, mime: string) {
+export async function generateThumbnailBuffer(stream: Readable | string, mime: string) {
   if (mime.startsWith("image/")) {
     return await generateThumbnailImage(stream);
   } else if (mime.startsWith("video/")) {
@@ -18,15 +22,20 @@ export async function generateThumbnailBuffer(stream: Readable, mime: string) {
   throw new Error(`Unsupported mime type: ${mime}`);
 }
 
-export async function generateThumbnailUrl(stream: Readable, mime: string) {
+export async function generateThumbnailUrl(stream: Readable | string, mime: string) {
   const thumbBuffer = await generateThumbnailBuffer(stream, mime);
   const base64 = thumbBuffer.buffer.toString("base64");
   return `data:${thumbBuffer.mime};base64,${base64}`;
 }
 
-async function generateThumbnailImage(stream: Readable): Promise<ThumbBuffer> {
-  const buffer = await streamToBuffer(stream);
-  const thumbBuffer = await sharp(buffer)
+async function generateThumbnailImage(stream: Readable | string): Promise<ThumbBuffer> {
+  let data: Buffer | string;
+  if (typeof stream === "string") {
+    data = stream;
+  } else {
+    data = await streamToBuffer(stream);
+  }
+  const thumbBuffer = await sharp(data)
     .resize(200, 200, { fit: "inside" })
     .jpeg({ quality: 80 })
     .toBuffer();
@@ -36,18 +45,19 @@ async function generateThumbnailImage(stream: Readable): Promise<ThumbBuffer> {
   };
 }
 
-async function generateThumbnailVideo(stream: Readable): Promise<ThumbBuffer> {
+async function generateThumbnailVideo(stream: Readable | string): Promise<ThumbBuffer> {
   const thumbBuffer = await new Promise<ThumbBuffer>((resolve, reject) => {
     const tmpFilename = `hc-thumb-${Date.now()}.png`;
-    const filePath = `/tmp/${tmpFilename}`;
+    const filePath = path.join(tempDir, tmpFilename);
     ffmpeg(stream)
-      .on("error", (err) => {
-        console.log("ffmpeg error:", err);
-        reject(err);
-      })
-      .on("end", () => {
+    // .on('start', (cmd) => {
+    //   console.log('ffmpeg command:', cmd);
+    // })
+      .on("end", (_stdout, _stderr) => {
+        // console.debug("ffmpeg end", _stdout, _stderr);
         fs.readFile(filePath, (err, data) => {
           if (err) {
+            console.error('err read file', err);
             reject(err);
             return;
           }
@@ -59,13 +69,11 @@ async function generateThumbnailVideo(stream: Readable): Promise<ThumbBuffer> {
           resolve({ buffer: data, mime: "image/png" });
         });
       })
-      .screenshots({
-        count: 1,
-        folder: "/tmp",
-        filename: tmpFilename,
-        size: "200x200",
-        timemarks: ["1"],
-      });
+      .on("error", (err) => {
+        console.log("ffmpeg error:", err);
+        reject(err);
+      })
+      .takeScreenshots({ count: 1, timemarks: [ '1' ], filename: tmpFilename }, tempDir);
   });
   return thumbBuffer;
 }

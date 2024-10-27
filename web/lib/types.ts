@@ -29,18 +29,16 @@ export enum OptionalType {
     Disabled = 'disabled',
 }
 
-export enum EnvType {
-    Server = 'server',
-    Desktop = 'desktop'
-}
+export type AccessControl = { [key: string]: string };
 
 export type Profile = {
     id: number;
-    username: string;
+    username: string | null;
     name: string;
     isAdmin: boolean;
     isPasswordProtected: boolean;
     isDisabled: boolean;
+    accessControl?: AccessControl | null;
 }
 
 export enum StorageAuthType {
@@ -48,6 +46,7 @@ export enum StorageAuthType {
     None = 'none',
     Digest = 'digest',
     OneAuth = 'oneauth',
+    Pairing = 'pairing',
 }
 
 export const StorageAuthTypes = [
@@ -55,6 +54,7 @@ export const StorageAuthTypes = [
     StorageAuthType.None,
     StorageAuthType.Digest,
     StorageAuthType.OneAuth,
+    StorageAuthType.Pairing,
 ]
 
 export enum StorageType {
@@ -62,17 +62,48 @@ export enum StorageType {
     Google = 'google',
     Local = 'local',
     Dropbox = 'dropbox',
+    Agent = "agent",
 }
 
-export type StorageMeta = {
+export enum PairingAuthType {
+    Password = "password",
+    OTP = "otp",
+}
+
+export enum OSType {
+    Windows = "windows",
+    MacOS = "macos",
+    Linux = "linux",
+    Android = "android",
+    iOS = "ios",
+    Unknown = "unknown",
+}
+
+export enum DeviceFormType {
+    Desktop = "desktop",
+    Laptop = "laptop",
+    Mobile = "mobile",
+    Tablet = "tablet",
+    Unknown = "unknown",
+    Server = "server",
+}
+
+export type DeviceInfo = {
+    os: OSType;
+    osFlavour: string | null;
+    formFactor: DeviceFormType;
+};
+
+export type AgentDetails = {
     id: number;
-    hcRoot: string;
-    photosDir: string;
-    photosAssetsDir: string;
-    photosLastSyncOn: Date;
-    isPhotosEnabled: boolean;
-    notesDir: string;
-    isNotesEnabled: boolean;
+    fingerprint: string;
+    remoteProfileId: number;
+    deviceName: string;
+    remoteProfileName: string;
+    lastSeen: Date;
+    authority: string;
+    allowClientAccess: boolean;
+    profileId: number;
 }
 
 export type Storage = {
@@ -83,7 +114,7 @@ export type Storage = {
     url: string | null;
     username: string | null;
     oneAuthId: string | null;
-    storageMeta: StorageMeta | null;
+    agent: AgentDetails | null;
 }
 
 export type ServerConfig = {
@@ -95,6 +126,8 @@ export type ServerConfig = {
     storageTypes: StorageType[];
     isDev: boolean;
     version?: string;
+    deviceName: string;
+    fingerprint: string;
 }
 
 export enum AppName {
@@ -145,7 +178,6 @@ export type PinnedFolder = {
     id: number;
     folderId: string;
     name: string;
-    storageId: number;
 }
 
 export interface RemoteItem {
@@ -175,27 +207,24 @@ export type Photo = {
     duration: number | null;
     height: number;
     width: number;
-    storageId: number;
 }
 
 export type PhotoView = {
     isSelected: boolean;
     thumbnail?: string;
     assetUrl?: string;
+    storageId: number;
 } & Photo;
 
-export type PhotosFetchOptions = {
-    sortBy: 'capturedOn' | 'addedOn';
-    ascending?: boolean;
-    storageIds: number[];
+export enum PhotosSortOption {
+    CapturedOn = 'capturedOn',
+    AddedOn = 'addedOn',
 }
 
-export type SyncState = {
-    isBusy: boolean
-    error: string | null
-    hardSyncRequired: boolean
-    lastSyncedAt: Date | null
-    currentAction: 'softSync' | 'hardSync' | 'archive' | null
+export type PhotosFetchOptions = {
+    sortBy: PhotosSortOption;
+    ascending?: boolean;
+    storageIds: number[];
 }
 
 export type NoteItem = {

@@ -121,8 +121,10 @@ export function verifyJwt(token: string): { profileId: number, fingerprint: stri
 
 export function login(profileId: number, res: ApiResponse) {
   res.setCookie("jwt", generateJwt(profileId));
+  // res.setWebToken(generateJwt(profileId));
 }
 
 export function logout(res: ApiResponse) {
   res.setCookie("jwt", "", 0);
+  // res.setWebToken("");
 }

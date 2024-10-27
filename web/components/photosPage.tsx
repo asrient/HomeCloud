@@ -3,7 +3,7 @@ import Head from "next/head";
 import PageBar from "./pageBar";
 import UploadFileSelector from "./uploadFileSelector";
 import { Button } from "./ui/button";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listPhotos, uploadPhotos, deletePhotos } from "@/lib/api/photos";
 import {
     Select,
@@ -17,9 +17,8 @@ import Loading from "./ui/loading";
 import LazyImage from "./lazyImage";
 import { getThumbnail } from "@/lib/api/files";
 import { cn, isMobile } from "@/lib/utils";
-import { dateToTitle } from "@/lib/photoUtils";
+import { dateToTitle, mergePhotosList } from "@/lib/photoUtils";
 import Image from "next/image";
-import usePhotosEvents from "./hooks/usePhotosEvents";
 import {
     ContextMenu,
     ContextMenuContent,
@@ -27,8 +26,9 @@ import {
     ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import ConfirmModal from "./confirmModal";
-import PhotosSyncSheet from "./photosSyncSheet";
 import PhotosPreviewModal from "./photosPreviewModal";
+import { useToast } from "./ui/use-toast";
+import usePhotosUpdates from "./hooks/usePhotosUpdates";
 
 
 export type PhotosPageProps = {
@@ -37,7 +37,7 @@ export type PhotosPageProps = {
     fetchOptions: PhotosFetchOptions;
 }
 
-const FETCH_LIMIT = 1000;
+const FETCH_LIMIT = 200;
 
 type ClickProps = {
     onClick: (item: PhotoView, e: React.MouseEvent) => void;
@@ -83,9 +83,9 @@ function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick 
         onContextMenu={handleRightClick}
         width="0"
         height="0"
-        className={cn("photoThumbnail h-full w-full object-cover transform dark:brightness-90 brightness-105 transition will-change-auto dark:hover:brightness-110 hover:brightness-75", 
-        className, 
-        item.isSelected && 'ring-4 ring-blue-600 opacity-80')}
+        className={cn("photoThumbnail h-full w-full object-cover transform dark:brightness-90 brightness-105 transition will-change-auto dark:hover:brightness-110 hover:brightness-75",
+            className,
+            item.isSelected && 'ring-4 ring-blue-600 opacity-80')}
     />)
 }
 
@@ -156,10 +156,14 @@ function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridPr
     )
 }
 
+const THROTTLE_DELAY = 1000;
+
 export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: PhotosPageProps) {
     const [photos, setPhotos] = useState<PhotoView[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [hasMore, setHasMore] = useState(true);
+    const isLoadingRef = useRef(false);
+    const [hasMore, setHasMore] = useState<{
+        [key: number]: boolean;
+    }>({});
     const [error, setError] = useState(null);
     const [selectedStorageId, setSelectedStorageId] = useState<number | null>(null);
     const activeStorages = useFilterStorages(AppName.Photos);
@@ -170,42 +174,103 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const selectedPhotos = useMemo(() => photos.filter(item => item.isSelected), [photos]);
     const selectedCount = useMemo(() => selectedPhotos.length, [selectedPhotos]);
     const [photoForPreview, setPhotoForPreview] = useState<PhotoView | null>(null);
-
-    usePhotosEvents({
+    const { toast } = useToast();
+    const { applyUpdates } = usePhotosUpdates({
         setPhotos,
-        setHasMore,
         fetchOptions,
+        setHasMore
     });
 
     const enabledStorages = useMemo(() => {
         return activeStorages.filter((storage) => fetchOptions.storageIds.includes(storage.id));
     }, [activeStorages, fetchOptions.storageIds]);
 
-    const loadPhotos = useCallback(async () => {
-        if (isLoading || !hasMore) return;
-        setIsLoading(true);
-        setError(null);
-        try {
-            const photos_ = await listPhotos({
-                offset: photos.length,
-                limit: FETCH_LIMIT,
-                sortBy: fetchOptions.sortBy,
-                storageIds: fetchOptions.storageIds,
-                ascending: fetchOptions.ascending ?? true,
-            });
-            const photoViews = photos_.map((p) => ({
-                ...p,
-                isSelected: false,
-            }));
-            setPhotos((prevPhotos) => [...prevPhotos, ...photoViews]);
-            setHasMore(photos.length === FETCH_LIMIT);
-            return photoViews;
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setIsLoading(false);
+    const throttleTimerRef = useRef<number | null>(null);
+    const [toBeMerged, setToBeMerged] = useState<{ [storageId: number]: PhotoView[] }>([]);
+
+    useEffect(() => {
+        if (!Object.keys(toBeMerged).length) return;
+        if (throttleTimerRef.current) {
+            clearTimeout(throttleTimerRef.current);
         }
-    }, [fetchOptions.ascending, fetchOptions.sortBy, fetchOptions.storageIds, hasMore, isLoading, photos.length]);
+        throttleTimerRef.current = window.setTimeout(() => {
+            setPhotos((prevPhotos) => {
+                const list = Object.values(toBeMerged);
+                const { merged, discarded } = mergePhotosList([prevPhotos, ...list], fetchOptions.sortBy, fetchOptions.ascending ?? true);
+                setHasMore((prev) => {
+                    const newHasMore = { ...prev };
+                    let changed = false;
+                    discarded.forEach((list) => {
+                        if (!list.length) return;
+                        const first = list[0];
+                        newHasMore[first.storageId] = true;
+                        changed = true;
+                    });
+                    if (changed) return newHasMore;
+                    return prev;
+                });
+                return merged;
+            });
+            setToBeMerged({});
+        }, THROTTLE_DELAY);
+        return () => {
+            if (throttleTimerRef.current) {
+                clearTimeout(throttleTimerRef.current);
+            }
+        }
+    }, [toBeMerged, fetchOptions.ascending, fetchOptions.sortBy]);
+
+    const showSpinner = useMemo(() => {
+        const canLoadMore = !!(fetchOptions.storageIds.find((id) => hasMore[id] === undefined || hasMore[id]));
+        const pendingMerges = !!Object.keys(toBeMerged).length;
+        return canLoadMore || pendingMerges;
+    }, [fetchOptions.storageIds, hasMore, toBeMerged]);
+
+    const loadPhotos = useCallback(async () => {
+        if (isLoadingRef.current) return;
+        const storageIds_ = fetchOptions.storageIds.filter((id) => (hasMore[id] === undefined || hasMore[id]) && (toBeMerged[id] === undefined));
+        if (!storageIds_.length) return;
+        isLoadingRef.current = true;
+        setError(null);
+        const counts: { [storageId: number]: number } = {};
+        photos.forEach((p) => {
+            counts[p.storageId] = (counts[p.storageId] + 1) || 1;
+        });
+        console.log('loading photos', storageIds_, counts, hasMore);
+        const promises = storageIds_.map(async (id) => {
+            try {
+                const storagePhotos = await listPhotos({
+                    offset: counts[id] || 0,
+                    limit: FETCH_LIMIT,
+                    sortBy: fetchOptions.sortBy,
+                    storageId: id,
+                    ascending: fetchOptions.ascending ?? true,
+                });
+                if (!isLoadingRef.current) return;
+                const storagePhotoViews: PhotoView[] = storagePhotos.map((p) => ({
+                    ...p,
+                    isSelected: false,
+                    storageId: id,
+                }));
+                if (storagePhotoViews.length) {
+                    setToBeMerged((prev) => ({ ...prev, [id]: storagePhotoViews }));
+                }
+                setHasMore((prev) => ({ ...prev, [id]: storagePhotos.length === FETCH_LIMIT }));
+            } catch (err: any) {
+                //setError(err.message);
+                if (!isLoadingRef.current) return;
+                console.error(err);
+                toast({
+                    type: 'foreground',
+                    title: `Could not get photos for storage ${id}`,
+                    description: err.message,
+                    color: 'red',
+                });
+            }
+        });
+        await Promise.allSettled(promises);
+        isLoadingRef.current = false;
+    }, [fetchOptions.ascending, fetchOptions.sortBy, fetchOptions.storageIds, hasMore, photos, toBeMerged, toast]);
 
     const [currentFetchOptions, setCurrentFetchOptions] = useState<PhotosFetchOptions>(fetchOptions);
     useEffect(() => {
@@ -215,12 +280,14 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             currentFetchOptions.storageIds.length !== fetchOptions.storageIds.length ||
             currentFetchOptions.storageIds.some((id) => !fetchOptions.storageIds.includes(id))
         );
-        if (hasChanged && !isLoading) {
+        if (hasChanged) {
+            console.log('Fetch options changed, resetting photos..');
+            isLoadingRef.current = false;
             setPhotos([]);
-            setHasMore(true);
+            setHasMore({});
             setCurrentFetchOptions(fetchOptions);
         }
-    }, [currentFetchOptions.ascending, currentFetchOptions.sortBy, currentFetchOptions.storageIds, fetchOptions, isLoading]);
+    }, [currentFetchOptions.ascending, currentFetchOptions.sortBy, currentFetchOptions.storageIds, fetchOptions, isLoadingRef]);
 
     const fetchNew = useCallback(async () => {
         console.log('fetchNew')
@@ -229,8 +296,25 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const onUpload = useCallback(async (files: FileList_) => {
         if (!selectedStorageId) throw new Error('Please select a storage.');
-        await uploadPhotos(selectedStorageId, files);
-    }, [selectedStorageId])
+        try {
+            const storageId = selectedStorageId;
+            const { addCount, photos } = await uploadPhotos(storageId, files);
+            if (addCount === 0) return;
+            applyUpdates({
+                add: photos,
+                update: {},
+                delete: [],
+            }, storageId);
+        } catch (err: any) {
+            console.error(err);
+            toast({
+                type: 'foreground',
+                title: 'Upload failed',
+                description: err.message,
+                color: 'red',
+            });
+        }
+    }, [applyUpdates, selectedStorageId, toast])
 
     const handleStorageSelect = useCallback((storageId: string | null) => {
         setSelectedStorageId(storageId ? parseInt(storageId) : null);
@@ -319,7 +403,11 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             promises.push((async () => {
                 try {
                     const res = await deletePhotos({ storageId, itemIds });
-                    console.log(res);
+                    applyUpdates({
+                        add: [],
+                        update: {},
+                        delete: res.deletedIds,
+                    }, storageId);
                     Object.keys(res.errors).forEach((itemId) => {
                         errors.push(`#${itemId}: ${res.errors[parseInt(itemId)]}`);
                     });
@@ -328,12 +416,12 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 }
             })());
         });
-        await Promise.all(promises);
+        await Promise.allSettled(promises);
         if (errors.length) {
             console.error('photos delete errors:', errors);
             throw new Error(errors.join('\n'));
         }
-    }, [selectedCount, selectedPhotos]);
+    }, [applyUpdates, selectedCount, selectedPhotos]);
 
     const openDeleteDialog = useCallback(() => {
         setDeleteDialogOpen(true);
@@ -356,13 +444,12 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 <title>{`${pageTitle} - Photos`}</title>
             </Head>
             <main>
-                <PhotosPreviewModal 
-                photos={photos}
-                photo={photoForPreview}
-                changePhoto={(photo) => setPhotoForPreview(photo)}
-                 />
+                <PhotosPreviewModal
+                    photos={photos}
+                    photo={photoForPreview}
+                    changePhoto={(photo) => setPhotoForPreview(photo)}
+                />
                 <PageBar title={pageTitle} icon={pageIcon}>
-                    <PhotosSyncSheet />
                     <Button title='Toggle select mode' onClick={toggleSelectMode} variant={selectMode ? 'secondary' : 'ghost'} size='icon'>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -425,22 +512,22 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                                 onRightClick={onRightClick}
                             />
                             {
-                                !error && !isLoading && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
+                                !error && !showSpinner && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
                                     <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' priority width={0} height={0} />
                                     <div className='text-lg font-semibold'>Nothing to see here, except for the cat.</div>
                                 </div>
                             }
-                            {error && <div className='p-5 py-10 flex justify-center items-center text-red-500'>
+                            {error && !showSpinner && <div className='p-5 py-10 flex justify-center items-center text-red-500'>
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                                 </svg>
                                 <span className='ml-2 text-sm'>{error}</span>
                             </div>}
-                            {!error && !isLoading && hasMore && <div className='p-5 py-10 flex justify-center items-center'>
+                            {!error && showSpinner && <div className='p-5 py-10 flex justify-center items-center'>
                                 <Loading onVisible={fetchNew} />
                             </div>}
                             {
-                                !error && !isLoading && !hasMore && photos.length > 0 && <div className='p-5 py-10 flex justify-center items-center text-gray-500'>
+                                !error && !showSpinner && photos.length > 0 && <div className='p-5 py-10 flex justify-center items-center text-gray-500'>
                                     <span className='text-sm font-medium'>{photos.length} photo(s).</span>
                                 </div>
                             }

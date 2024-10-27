@@ -4,6 +4,7 @@ import {
   validateJson,
   authenticate,
   AuthType,
+  relayToAgent,
 } from "../decorators";
 import { Profile } from "../models";
 import { logout } from "../utils/profileUtils";
@@ -22,12 +23,11 @@ const createProfileSchema = {
     accessControl: { type: "object", additionalProperties: { type: "string" } },
   },
   required: ["name"],
-  additionalProperties: false,
 };
 
 api.add(
   "/create",
-  [method(["POST"]), authenticate(AuthType.Admin), validateJson(createProfileSchema)],
+  [relayToAgent(), method(["POST"]), authenticate(AuthType.Admin), validateJson(createProfileSchema)],
   async (request: ApiRequest) => {
 
     if(envConfig.PROFILES_CONFIG.singleProfile) {
@@ -63,12 +63,11 @@ const deleteProfileSchema = {
     profileIds: { type: "array", items: { type: "number" } },
   },
   required: ["profileIds"],
-  additionalProperties: false,
 };
 
 api.add(
   "/delete",
-  [method(["POST"]), authenticate(AuthType.Admin), validateJson(deleteProfileSchema)],
+  [relayToAgent(), method(["POST"]), authenticate(AuthType.Admin), validateJson(deleteProfileSchema)],
   async (request: ApiRequest) => {
     const profile = request.profile! as Profile;
     const { password, profileIds } = request.local.json;
@@ -101,17 +100,16 @@ const updateProfileProtectedSchema = {
     username: { type: "string" },
     isDisabled: { type: "boolean" },
     isAdmin: { type: "boolean" },
-    accessControl: { type: "object", additionalProperties: { type: "string" } },
+    accessControl: { type: "object", additionalProperties: { type: "string" }, nullable: true },
     name: { type: "string" },
     profileId: { type: "number" },
   },
   required: ["profileId"],
-  additionalProperties: false,
 };
 
 api.add(
   "/update",
-  [method(["POST"]), authenticate(), validateJson(updateProfileProtectedSchema)],
+  [relayToAgent(), method(["POST"]), authenticate(), validateJson(updateProfileProtectedSchema)],
   async (request: ApiRequest) => {
     const refererProfile = request.profile! as Profile;
     const data = request.local.json;
@@ -137,7 +135,7 @@ api.add(
 
 api.add(
   "/list",
-  [method(["GET"]), authenticate(AuthType.Admin)],
+  [relayToAgent(), method(["GET"]), authenticate(AuthType.Admin)],
   async (request: ApiRequest) => {
     const offset = parseInt(request.getParams.offset) || 0;
     const limit = parseInt(request.getParams.limit) || 20;

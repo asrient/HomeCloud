@@ -1,4 +1,4 @@
-import { staticConfig, isDesktop } from '@/lib/staticConfig';
+import { staticConfig } from '@/lib/staticConfig';
 import { ErrorType, ErrorResponse } from '../types';
 import CustomError from '../customError';
 
@@ -7,17 +7,19 @@ export type ErrorData = {
     errors?: { [key: string]: string[] };
 };
 
+export const WEB_TOKEN_HEADER = "X-Web-Token";
+
 export class ApiClient {
 
     private constructor() {
     }
 
-    private static setKey(cookieStr: string) {
-        localStorage.setItem('key', cookieStr);
+    static getWebToken(): string | null {
+        return localStorage.getItem('webToken');
     }
 
-    private static getKey(): string | null {
-        return localStorage.getItem('key');
+    static setWebToken(token: string): void {
+        localStorage.setItem('webToken', token);
     }
 
     private static async _call(method: string, path: string, params?: any, body?: any): Promise<any> {
@@ -39,8 +41,9 @@ export class ApiClient {
         const headers: { [key: string]: string } = {
             'Content-Type': 'application/json',
         };
-        if (isDesktop()) {
-            headers['X-Key'] = this.getKey() || '';
+        const webToken = this.getWebToken();
+        if(!!webToken) {
+            headers[WEB_TOKEN_HEADER] = webToken;
         }
         if (body) {
             if (FormData.prototype.isPrototypeOf(body)) {
@@ -58,6 +61,10 @@ export class ApiClient {
         } catch (e: any) {
             throw new CustomError(ErrorType.Network, `Network error: ${e.message}`);
         }
+        const webTokenResp = response.headers.get(WEB_TOKEN_HEADER);
+        if (webTokenResp) {
+            this.setWebToken(webTokenResp);
+        }
         const isJson = response.headers.get('Content-Type')?.includes('application/json');
         if (!response.ok) {
             if (isJson) {
@@ -67,10 +74,6 @@ export class ApiClient {
             throw new CustomError(ErrorType.Generic, `Request failed with status ${response.status}`);
         }
         if (isJson) {
-            const keyHeader = response.headers.get('X-Key');
-            if (isDesktop() && keyHeader) {
-                this.setKey(keyHeader);
-            }
             return await response.json();
         }
         const isText = response.headers.get('Content-Type')?.includes('text/plain');

@@ -8,7 +8,7 @@ import { Profile, Agent, Storage } from "../models";
 import { Readable } from 'node:stream';
 import { AgentInfo } from "./types";
 import { getFingerprintFromBase64 } from "../utils/cryptoUtils";
-import { ApiRequest, ApiResponse } from "../interface";
+import { AGENT_TOKEN_HEADER, ApiRequest, ApiResponse, WEB_TOKEN_HEADER } from "../interface";
 import { IncomingMessage } from "http";
 import { streamToBuffer, streamToJson, streamToString } from "../utils";
 import FormData from 'form-data';
@@ -109,7 +109,7 @@ export class AgentClient {
         };
 
         if (this.getAccessKey()) {
-            headers['x-access-key'] = this.getAccessKey();
+            headers[AGENT_TOKEN_HEADER] = this.getAccessKey();
         }
 
         // Create options for the HTTPS request
@@ -227,6 +227,9 @@ export class AgentClient {
             body = await req.body();
         }
         const reqPath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
+        const headers = Object.assign({}, req.headers);
+        delete headers[WEB_TOKEN_HEADER];
+        delete headers['cookie'];
         const response = await this._request({ method: req.method, path: reqPath, params: req.getParams, body, headers: req.headers });
         const apiResponse = new ApiResponse();
         apiResponse.statusCode = response.statusCode;

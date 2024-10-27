@@ -5,7 +5,7 @@ import { buildPageConfig } from '@/lib/utils'
 import Head from 'next/head'
 import Image from 'next/image'
 import React from 'react'
-import { staticConfig, isDesktop } from '@/lib/staticConfig'
+import { staticConfig } from '@/lib/staticConfig'
 import { useAppState } from '@/components/hooks/useAppState'
 
 function Page() {
@@ -24,7 +24,7 @@ function Page() {
           <div className='mt-6 mb-10 flex flex-col items-center justify-center font-light text-foreground/40'>
             <Image src='/icons/icon.png' priority alt='HomeCloud' width={80} height={80} />
             <div className='pt-4 text-lg'>
-              {`HomeCloud ${isDesktop() ? 'Desktop' : 'Server'}`}
+              HomeCloud Desktop
             </div>
             <div className='text-xs font-semibold'>
               {staticConfig.webVersion}
@@ -41,9 +41,6 @@ function Page() {
                 </Line>
               )
             }
-            <Line title='Platform'>
-              {staticConfig.envType}
-            </Line>
             {
               staticConfig.isDev && (
                 <Line title='Web Mode'>

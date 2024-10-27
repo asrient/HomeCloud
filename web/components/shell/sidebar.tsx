@@ -35,7 +35,7 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
     }, [hideSidebar, item, onClick]);
 
     return (<Link href={item.href || ''} onContextMenu={onRightClick_} onClick={onClick_}>
-        <Button variant={isMatch ? 'secondary' : 'ghost'} className="sidebarItem w-full justify-start">
+        <Button variant={isMatch ? 'secondary' : 'ghost'} className="sidebarItem w-full justify-start text-left text-ellipsis truncate font-normal">
             {item.icon && <Image
                 alt={item.title}
                 src={item.icon}
@@ -72,7 +72,7 @@ export function Sidebar({ className, list, onRightClick, onClick }: {
                     list?.map((item, index) => (
                         <div className="px-3 py-2" key={index}>
                             {
-                                item.title && (<h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
+                                item.title && (<h2 className="mb-2 px-4 text-base font-medium tracking-tight">
                                     {item.title}
                                 </h2>)
                             }
