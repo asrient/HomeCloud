@@ -269,7 +269,7 @@ export function fetchPhotoService() {
     }
   };
 */
-export function relayToAgent(reqCb?: (request: ApiRequest) => Promise<void>, respCb?: (resp: ApiResponse) => Promise<void>) {
+export function relayToAgent(allowNoStorage = false, reqCb?: (request: ApiRequest) => Promise<void>, respCb?: (resp: ApiResponse) => Promise<void>) {
   return makeDecorator(async (request, next) => {
     const requestOrigin = request.requestOrigin;
     if (requestOrigin === RequestOriginType.Agent) {
@@ -280,10 +280,16 @@ export function relayToAgent(reqCb?: (request: ApiRequest) => Promise<void>, res
     } catch (e: any) {
       return ApiResponse.fromError(e);
     }
+    let storageFound = false;
     try {
       await getStorageFromRequest(request);
+      storageFound = true;
     } catch (e: any) {
-      return ApiResponse.fromError(e);
+      storageFound = false;
+    }
+    // We are considering no storageId sent as intended for local.
+    if (!storageFound && allowNoStorage) {
+      return next();
     }
     const storage = request.local.storage;
     if (!storage.isAgentType()) {

@@ -27,7 +27,7 @@ const createProfileSchema = {
 
 api.add(
   "/create",
-  [relayToAgent(), method(["POST"]), authenticate(AuthType.Admin), validateJson(createProfileSchema)],
+  [relayToAgent(true), method(["POST"]), authenticate(AuthType.Admin), validateJson(createProfileSchema)],
   async (request: ApiRequest) => {
 
     if(envConfig.PROFILES_CONFIG.singleProfile) {
@@ -67,7 +67,7 @@ const deleteProfileSchema = {
 
 api.add(
   "/delete",
-  [relayToAgent(), method(["POST"]), authenticate(AuthType.Admin), validateJson(deleteProfileSchema)],
+  [relayToAgent(true), method(["POST"]), authenticate(AuthType.Admin), validateJson(deleteProfileSchema)],
   async (request: ApiRequest) => {
     const profile = request.profile! as Profile;
     const { password, profileIds } = request.local.json;
@@ -109,7 +109,7 @@ const updateProfileProtectedSchema = {
 
 api.add(
   "/update",
-  [relayToAgent(), method(["POST"]), authenticate(), validateJson(updateProfileProtectedSchema)],
+  [relayToAgent(true), method(["POST"]), authenticate(), validateJson(updateProfileProtectedSchema)],
   async (request: ApiRequest) => {
     const refererProfile = request.profile! as Profile;
     const data = request.local.json;
@@ -135,7 +135,7 @@ api.add(
 
 api.add(
   "/list",
-  [relayToAgent(), method(["GET"]), authenticate(AuthType.Admin)],
+  [relayToAgent(true), method(["GET"]), authenticate(AuthType.Admin)],
   async (request: ApiRequest) => {
     const offset = parseInt(request.getParams.offset) || 0;
     const limit = parseInt(request.getParams.limit) || 20;

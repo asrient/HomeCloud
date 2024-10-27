@@ -13,7 +13,6 @@ import { logout } from '@/lib/api/auth'
 import { useCallback } from 'react'
 import { ActionTypes } from '@/lib/state'
 import ConfirmModal from '@/components/confirmModal'
-import TextModalProtected from '@/components/textModalProtected'
 
 function Page() {
   const { profile, serverConfig } = useAppState();
