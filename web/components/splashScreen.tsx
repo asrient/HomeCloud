@@ -96,7 +96,7 @@ const SplashScreen = () => {
                     </div>
                     <div className='text-slate-400 font-mono text-xs'>{appError}</div>
                     <div className='mt-3'>
-                        <Button size='sm' variant='outline' onClick={() => window.location.reload()}>Reload page</Button>
+                        <Button size='lg' variant='default' onClick={() => window.location.reload()}>Reload page</Button>
                     </div>
                 </div>) :
                     isWaitingForConsent && (<div>
