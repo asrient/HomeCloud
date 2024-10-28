@@ -67,7 +67,7 @@ function Page() {
                 <Line>
                   <ConfirmModal
                     title='Logout'
-                    description='Are you sure you want to logout from this device?'
+                    description='Are you sure you want to logout from this browser?'
                     onConfirm={performLogout}
                     buttonVariant='destructive'
                     buttonText='Logout'

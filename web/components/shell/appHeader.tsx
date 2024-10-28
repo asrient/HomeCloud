@@ -19,10 +19,11 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { deviceIdFromFingerprint, getName, getStorageIconUrl } from "@/lib/storageConfig";
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { settingsUrl } from "@/lib/urls";
 import Image from "next/image";
+import AddAgentModal from "../addAgentModal";
 
 function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: boolean }) {
     const dispatch = useAppDispatch();
@@ -80,10 +81,20 @@ const addIcon = (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 
 function DevicesPopover() {
     const { profile, storages, disabledStorages, serverConfig } = useAppState();
     const [settingsUrl_, setSettingsUrl_] = useState<NextUrl | null>(null);
+    const [addAgentModalOpen, setAddAgentModalOpen] = useState(false);
 
     useEffect(() => {
         setSettingsUrl_(settingsUrl());
     }, []);
+
+    const firstAddShownRef = useRef(false);
+    useEffect(() => {
+        if (!Array.isArray(storages)) return;
+        if (storages.length <= 1 && !firstAddShownRef.current) {
+            setAddAgentModalOpen(true);
+        }
+        firstAddShownRef.current = true;
+    }, [storages]);
 
     const nonLocalActiveStorageCount = useMemo(() => {
         let count = storages?.length || 0;
@@ -109,68 +120,72 @@ function DevicesPopover() {
     if (!profile) return null;
 
     return (
-        <AddStorageModal>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant='secondary' title="My Devices" size='sm' className={cn(nonLocalActiveStorageCount === 0 && 'border-2 border-red-400')}>
-                        <Image src="/icons/devices.png" alt="Devices" height={20} width={20} />
-                        {nonLocalActiveStorageCount > 0 && (<span className="ml-2 text-slate-500 text-xs">{nonLocalActiveStorageCount}</span>)}
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-[20rem]" align="end" forceMount>
-                            <div className="flex p-2 pt-4 pb-4 items-center justify-center">
-                                <div className="flex pr-3">
+        <>
+            <AddStorageModal>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant='secondary' title="My Devices" size='sm' className={cn(nonLocalActiveStorageCount === 0 && 'border-2 border-red-400')}>
+                            <Image src="/icons/devices.png" alt="Devices" height={20} width={20} />
+                            {nonLocalActiveStorageCount > 0 && (<span className="ml-2 text-slate-500 text-xs">{nonLocalActiveStorageCount}</span>)}
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[20rem]" align="end" forceMount>
+                        <div className="flex p-2 pt-4 pb-4 items-center justify-center">
+                            <div className="flex pr-3">
                                 <Image src={getStorageIconUrl(StorageType.Local)} alt="This device" className="pr-2" height={80} width={80} />
-                                </div>
-                                <div className="font-medium">
+                            </div>
+                            <div className="font-medium">
                                 <div className="text-[0.6rem] leading-tight text-slate-500">THIS DEVICE</div>
-                                    <div className="text-[0.9rem]">{serverConfig?.deviceName}</div>
-                                    <div className="text-[0.7rem] leading-tight text-slate-500">
-                                        {profile.name}
-                                        <span className="p-1">•</span>
-                                        {deviceIdFromFingerprint(serverConfig?.fingerprint || '')}
-                                    </div>
+                                <div className="text-[0.9rem]">{serverConfig?.deviceName}</div>
+                                <div className="text-[0.7rem] leading-tight text-slate-500">
+                                    {profile.name}
+                                    <span className="p-1">•</span>
+                                    {deviceIdFromFingerprint(serverConfig?.fingerprint || '')}
                                 </div>
                             </div>
-                            <DropdownMenuSeparator />
-                    <DropdownMenuLabel>My Devices</DropdownMenuLabel>
-                    {
-                        devices?.map((storage) => (
-                            <DropdownMenuItem key={storage.id}>
-                                <StorageItem storage={storage} isDisabled={disabledStorages.includes(storage.id)} />
-                            </DropdownMenuItem>
-                        ))
-                    }
-                    <DialogTrigger asChild>
+                        </div>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>My Devices</DropdownMenuLabel>
+                        {
+                            devices?.map((storage) => (
+                                <DropdownMenuItem key={storage.id}>
+                                    <StorageItem storage={storage} isDisabled={disabledStorages.includes(storage.id)} />
+                                </DropdownMenuItem>
+                            ))
+                        }
                         <DropdownMenuItem asChild>
-                            <Button variant='outline' size='sm' className='w-full mt-1 mb-1'>
+                            <Button onClick={() => setAddAgentModalOpen(true)}
+                                variant='outline' size='sm' className='w-full mt-1 mb-1'>
                                 {addIcon}
                                 Add device
                             </Button>
                         </DropdownMenuItem>
-                    </DialogTrigger>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Cloud Storages</DropdownMenuLabel>
-                    {
-                        cloudStorages?.map((storage) => (
-                            <DropdownMenuItem key={storage.id}>
-                                <StorageItem storage={storage} isDisabled={disabledStorages.includes(storage.id)} />
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Cloud Storages</DropdownMenuLabel>
+                        {
+                            cloudStorages?.map((storage) => (
+                                <DropdownMenuItem key={storage.id}>
+                                    <StorageItem storage={storage} isDisabled={disabledStorages.includes(storage.id)} />
+                                </DropdownMenuItem>
+                            ))
+                        }
+
+                        <DialogTrigger asChild>
+                            <DropdownMenuItem asChild>
+                                <Button variant='outline' size='sm' className='w-full mt-1'>
+                                    {addIcon}
+                                    Add storage
+                                </Button>
                             </DropdownMenuItem>
-                        ))
-                    }
+                        </DialogTrigger>
 
-                    <DialogTrigger asChild>
-                        <DropdownMenuItem asChild>
-                            <Button variant='outline' size='sm' className='w-full mt-1'>
-                                {addIcon}
-                                Add storage
-                            </Button>
-                        </DropdownMenuItem>
-                    </DialogTrigger>
-
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </AddStorageModal>);
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </AddStorageModal>
+            <AddAgentModal
+                isOpen={addAgentModalOpen}
+                setOpenChange={setAddAgentModalOpen} />
+        </>);
 }
 
 const tabClass = "data-[state=active]:bg-muted data-[state=active]:shadow-none";

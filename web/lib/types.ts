@@ -233,3 +233,21 @@ export type NoteItem = {
     childNoteStats: RemoteItem[];
     isRootNote: boolean;
 }
+
+export type AgentCandidate = {
+    fingerprint?: string;
+    deviceName?: string;
+    iconKey?: string;
+    host: string;
+}
+
+export type AgentInfo = {
+    deviceName: string;
+    fingerprint: string;
+    version: string;
+    deviceInfo: DeviceInfo;
+    pairingAuthType: PairingAuthType;
+    profile?: Profile;
+    availableProfiles: Profile[];
+    iconKey?: string;
+}
