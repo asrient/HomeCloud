@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRouter } from "next/router";
-import ProfilePicture from "../profilePicture";
 import { useAppDispatch, useAppState } from "../hooks/useAppState";
 import {
     DropdownMenu,
@@ -12,17 +11,18 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link";
-import { NextUrl, Storage } from "@/lib/types";
+import { NextUrl, Storage, StorageType } from "@/lib/types";
 import { Switch } from "@/components/ui/switch"
 import { ActionTypes } from "@/lib/state";
 import AddStorageModal from "../addStorageModal";
 import {
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { getName } from "@/lib/storageConfig";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { deviceIdFromFingerprint, getName, getStorageIconUrl } from "@/lib/storageConfig";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { settingsUrl } from "@/lib/urls";
+import Image from "next/image";
 
 function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: boolean }) {
     const dispatch = useAppDispatch();
@@ -38,19 +38,30 @@ function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: bo
         e.stopPropagation();
     }
 
+    const iconUrl = useMemo(() => {
+        return getStorageIconUrl(storage.type); // fix: (storage.type, storage.agent?.deviceInfo)
+    }, [storage]);
+
     return (
         <div className="flex w-full">
             <Link href={`/settings/storage?id=${storage.id}`} className="flex grow cursor-default">
-                <div className="flex items-center pr-4">
-                    <div className="h-[2rem] w-[2rem] rounded-md bg-slate-500 text-white flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 17.25v-.228a4.5 4.5 0 00-.12-1.03l-2.268-9.64a3.375 3.375 0 00-3.285-2.602H7.923a3.375 3.375 0 00-3.285 2.602l-2.268 9.64a4.5 4.5 0 00-.12 1.03v.228m19.5 0a3 3 0 01-3 3H5.25a3 3 0 01-3-3m19.5 0a3 3 0 00-3-3H5.25a3 3 0 00-3 3m16.5 0h.008v.008h-.008v-.008zm-3 0h.008v.008h-.008v-.008z" />
-                        </svg>
-                    </div>
-                </div>
+                <Image src={iconUrl} alt="Storage" className="pr-2" height={60} width={60} />
+
                 <div className="grow my-auto font-medium">
-                    <div className="text-[0.9rem]">{storage.name}</div>
-                    <div className="text-[0.7rem] text-slate-500">{getName(storage.type)}</div>
+                    <div className="text-[0.8rem] text-slate-600 truncate text-ellipsis max-w-[16rem]">{storage.name}</div>
+                    <div className="text-xs text-slate-500 font-normal">
+                        {
+                            storage.type === StorageType.Agent ?
+                                (<span>
+                                    {storage.agent?.remoteProfileName}
+                                    <span className="p-1">•</span>
+                                    {deviceIdFromFingerprint(storage.agent!.fingerprint)}
+                                </span>) :
+                                getName(storage.type)
+                        }
+                    </div>
+
+
                 </div>
             </Link>
             <Switch
@@ -62,54 +73,101 @@ function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: bo
     );
 }
 
-function AccountPopover() {
-    const { profile, storages, disabledStorages } = useAppState();
+const addIcon = (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-1">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+</svg>);
+
+function DevicesPopover() {
+    const { profile, storages, disabledStorages, serverConfig } = useAppState();
     const [settingsUrl_, setSettingsUrl_] = useState<NextUrl | null>(null);
 
     useEffect(() => {
         setSettingsUrl_(settingsUrl());
     }, []);
 
+    const nonLocalActiveStorageCount = useMemo(() => {
+        let count = storages?.length || 0;
+        if (storages) {
+            count--; // Exclude the local storage
+            count -= disabledStorages.length;
+            const local = storages.find(s => s.type === StorageType.Local);
+            if (local && disabledStorages.includes(local.id)) {
+                count++;
+            }
+        }
+        return count;
+    }, [disabledStorages, storages]);
+
+    const devices = useMemo(() => {
+        return storages?.filter(s => s.type === StorageType.Agent) || [];
+    }, [storages]);
+
+    const cloudStorages = useMemo(() => {
+        return storages?.filter(s => s.type !== StorageType.Agent && s.type !== StorageType.Local) || [];
+    }, [storages]);
+
     if (!profile) return null;
 
     return (
         <AddStorageModal>
             <DropdownMenu>
-                <DropdownMenuTrigger>
-                    <ProfilePicture profile={profile} size="sm" />
+                <DropdownMenuTrigger asChild>
+                    <Button variant='secondary' title="My Devices" size='sm' className={cn(nonLocalActiveStorageCount === 0 && 'border-2 border-red-400')}>
+                        <Image src="/icons/devices.png" alt="Devices" height={20} width={20} />
+                        {nonLocalActiveStorageCount > 0 && (<span className="ml-2 text-slate-500 text-xs">{nonLocalActiveStorageCount}</span>)}
+                    </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-[16rem]" align="end" forceMount>
-                    <Link href="/settings/profile">
-                        <DropdownMenuItem>
-                            <div className="flex">
-                                <div className="flex items-center pr-3">
-                                    <ProfilePicture profile={profile} size="sm" />
+                <DropdownMenuContent className="w-[20rem]" align="end" forceMount>
+                            <div className="flex p-2 pt-4 pb-4 items-center justify-center">
+                                <div className="flex pr-3">
+                                <Image src={getStorageIconUrl(StorageType.Local)} alt="This device" className="pr-2" height={80} width={80} />
                                 </div>
-                                <div className="grow my-auto font-medium">
-                                    <div className="text-[0.9rem]">{profile.username || profile.name}</div>
-                                    <div className="text-[0.7rem] leading-tight text-slate-500">Profile Settings</div>
+                                <div className="font-medium">
+                                <div className="text-[0.6rem] leading-tight text-slate-500">THIS DEVICE</div>
+                                    <div className="text-[0.9rem]">{serverConfig?.deviceName}</div>
+                                    <div className="text-[0.7rem] leading-tight text-slate-500">
+                                        {profile.name}
+                                        <span className="p-1">•</span>
+                                        {deviceIdFromFingerprint(serverConfig?.fingerprint || '')}
+                                    </div>
                                 </div>
                             </div>
-                        </DropdownMenuItem>
-                    </Link>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Storages</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                    <DropdownMenuLabel>My Devices</DropdownMenuLabel>
                     {
-                        storages?.map((storage) => (
+                        devices?.map((storage) => (
                             <DropdownMenuItem key={storage.id}>
                                 <StorageItem storage={storage} isDisabled={disabledStorages.includes(storage.id)} />
                             </DropdownMenuItem>
                         ))
                     }
-                    <DropdownMenuSeparator />
                     <DialogTrigger asChild>
-                        <DropdownMenuItem>
-                            Add storage..
+                        <DropdownMenuItem asChild>
+                            <Button variant='outline' size='sm' className='w-full mt-1 mb-1'>
+                                {addIcon}
+                                Add device
+                            </Button>
                         </DropdownMenuItem>
                     </DialogTrigger>
-                    <Link href={settingsUrl_ || '/'}>
-                        <DropdownMenuItem>Settings</DropdownMenuItem>
-                    </Link>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Cloud Storages</DropdownMenuLabel>
+                    {
+                        cloudStorages?.map((storage) => (
+                            <DropdownMenuItem key={storage.id}>
+                                <StorageItem storage={storage} isDisabled={disabledStorages.includes(storage.id)} />
+                            </DropdownMenuItem>
+                        ))
+                    }
+
+                    <DialogTrigger asChild>
+                        <DropdownMenuItem asChild>
+                            <Button variant='outline' size='sm' className='w-full mt-1'>
+                                {addIcon}
+                                Add storage
+                            </Button>
+                        </DropdownMenuItem>
+                    </DialogTrigger>
+
                 </DropdownMenuContent>
             </DropdownMenu>
         </AddStorageModal>);
@@ -170,7 +228,7 @@ export default function AppHeader() {
                 </Tabs>
             </div>
             <div className="ml-auto md:mr-1">
-                <AccountPopover />
+                <DevicesPopover />
             </div>
         </div>
         <div className="md:h-[2.6rem]"></div>

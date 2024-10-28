@@ -10,7 +10,6 @@ import {
   initDb,
   ffmpegSetup,
   ServerAdaptor,
-  initSEPublisher,
   ProfilesPolicy,
   desktopAgentRouter,
   webRouter,
@@ -124,7 +123,7 @@ class App {
 
   startWebServer() {
     const httpServer = http.createServer(this.webServer.nativeHandler);
-    initSEPublisher(httpServer);
+    // initSEPublisher(httpServer);
     httpServer.listen(this.webPort, '127.0.0.1');
 
     console.log(`⚡️ HTTP Web Server started on port: ${this.webPort}`);

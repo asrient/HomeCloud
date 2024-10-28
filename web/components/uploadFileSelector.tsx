@@ -87,8 +87,8 @@ export default function UploadFileSelector({ title, children, onUpload, accept, 
                         <span className='ml-2'>Uploading...</span>
                     </div>}
 
-                    <div className='ml-auto'>
-                        {<Button variant='default' disabled={isUploading || !files || !files.length} onClick={handleUpload}>Upload</Button>}
+                    <div className="flex justify-center items-center">
+                        {<Button variant='default' size='lg' disabled={isUploading || !files || !files.length} onClick={handleUpload}>Upload</Button>}
                     </div>
                 </>
             </DialogContent>

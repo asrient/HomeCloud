@@ -86,12 +86,12 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
                     </div>}
 
                     <div className='space-x-2 flex justify-center items-center'>
-                        <Button variant='secondary' className='w-full' size='lg' onClick={() => handleOpenChange(false)}>
+                        <Button variant='secondary' size='lg' onClick={() => handleOpenChange(false)}>
                             Cancel
                         </Button>
-                        {<Button type='submit' size='lg' className='w-full' variant={buttonVariant_} disabled={isLoading} onClick={handleSubmit}>
+                        <Button type='submit' size='lg' variant={buttonVariant_} disabled={isLoading} onClick={handleSubmit}>
                             {buttonText || 'Confirm'}
-                        </Button>}
+                        </Button>
                     </div>
                 </>
             </DialogContent>

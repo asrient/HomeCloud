@@ -1,4 +1,4 @@
-import { StorageAuthType, StorageType, AppName } from './types';
+import { StorageAuthType, StorageType, AppName, Storage, DeviceInfo } from './types';
 
 export type OneAuthButtonConfig = {
     text: string;
@@ -63,6 +63,8 @@ export const StorageTypeConfig: {
     }
 }
 
+export const cloudStorageTypes = [StorageType.Google, StorageType.Dropbox, StorageType.WebDav];
+
 export const AuthTypeNames: { [key in StorageAuthType]: string } = {
     'basic': 'Password',
     'digest': 'Password (digest)',
@@ -109,4 +111,23 @@ export function getAuthTypeName(authType: StorageAuthType) {
 
 export function isAppAllowed(type: StorageType, appName: AppName) {
     return StorageTypeConfig[type].allowedApps.includes(appName);
+}
+
+export function getStorageIconUrl(type: StorageType, deviceInfo?: DeviceInfo) {
+    switch (type) {
+        case StorageType.Local: // use the deviceInfo and generate a device icon
+            return '/icons/computer2.png';
+        case StorageType.Agent: // use storage.agent.deviceInfo and generate a device icon
+            return '/icons/computer.png';
+        case StorageType.Google:
+            return '/icons/google-drive.png';
+        case StorageType.Dropbox:
+            return '/icons/dropbox.png';
+        default:
+            return '/icons/ssd.png';
+    }
+}
+
+export function deviceIdFromFingerprint(fingerprint: string) {
+    return fingerprint.slice(0, 5);
 }

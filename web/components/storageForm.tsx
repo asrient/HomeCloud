@@ -41,13 +41,13 @@ function OneAuthButton({
     const buttonConfig = getOneAuthButtonConfig(storageType);
     const styles = buttonConfig.styles || {};
 
-    return (<button disabled={!!isLoading} className='p-2 px-4 bg-slate-100 text-sm border-none rounded-sm' style={styles} onClick={onClick}>
+    return (<Button disabled={!!isLoading} size='lg' style={styles} onClick={onClick}>
         {
             isLoading 
             ? (<LoadingIcon className='w-4 h-4' />)
             : buttonConfig.text
         }
-    </button>)
+    </Button>)
 }
 
 function useSuggestedName(storageType: StorageType) {
@@ -167,17 +167,17 @@ function OneAuthForm({
                 <Input placeholder='Enter code' value={manualCode} onChange={(e) => setManualCode(e.target.value)} />
             }
         </div>
-        <div className='flex justify-end pt-3'>
+        <div  className='flex justify-center items-center space-x-2 pt-3'>
             {
                 redirect
                     ? (
                         !manualCode
-                            ? <Button variant='outline' className='ml-2' onClick={() => openExternalLink(redirect.redirectUrl)}>Open in browser</Button>
-                            : <Button disabled={isLoading} variant='default' className='ml-2' onClick={onManualCodeSubmit}>Continue</Button>
+                            ? <Button variant='outline' size='lg' onClick={() => openExternalLink(redirect.redirectUrl)}>Open in browser</Button>
+                            : <Button disabled={isLoading} variant='default' size='lg' onClick={onManualCodeSubmit}>Continue</Button>
                     )
                     : <OneAuthButton storageType={storageType} isLoading={isLoading} onClick={onContinue} />
             }
-            <Button variant='outline' className='ml-2' onClick={onCancel}>Cancel</Button>
+            <Button variant='secondary' size='lg' onClick={onCancel}>Cancel</Button>
         </div>
     </div>)
 }
@@ -320,30 +320,26 @@ function StorageFormManual({
                     </FormItem>
                 )}
             />
-            <FormField
-                control={form.control}
-                name="url"
-                render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>{
-                            StorageTypeConfig[storageType].urlIsPath
-                                ? 'Folder Path'
-                                : 'Server URL'
-                        }</FormLabel>
-                        <FormControl>
-                            <Input placeholder={
-                                StorageTypeConfig[storageType].urlIsPath
-                                    ? '/path/to/folder'
-                                    : "https://example.com"
-                            } {...field} />
-                        </FormControl>
-                        <FormDescription>
-                            The URL of the {getName(storageType)} server.
-                        </FormDescription>
-                        <FormMessage />
-                    </FormItem>
-                )}
-            />
+            {
+                StorageTypeConfig[storageType].urlRequired && (
+                    <FormField
+                    control={form.control}
+                    name="url"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Server URL</FormLabel>
+                            <FormControl>
+                                <Input placeholder="https://example.com" {...field} />
+                            </FormControl>
+                            <FormDescription>
+                                The URL of the {getName(storageType)} server.
+                            </FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                )
+            }
             <FormField
                 control={form.control}
                 name="authType"
@@ -406,11 +402,11 @@ function StorageFormManual({
                     </FormItem>
                 )}
             />}
-            <div className='flex justify-end space-x-2'>
-                <Button type="submit">{
-                    existingStorage ? 'Save changes' : 'Add storage'
+            <div className='flex justify-center items-center space-x-2'>
+            {!existingStorage && <Button variant="secondary" size='lg' onClick={onCancel}>Cancel</Button>}
+                <Button size='lg' type="submit">{
+                    existingStorage ? 'Save changes' : 'Add'
                 }</Button>
-                {!existingStorage && <Button variant="outline" onClick={onCancel}>Cancel</Button>}
             </div>
         </form>
     </Form>)

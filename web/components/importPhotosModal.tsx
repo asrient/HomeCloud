@@ -79,7 +79,7 @@ export default function ImportPhotosModal({ isOpen, onOpenChange, files }: {
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange} >
-            <DialogContent className="sm:max-w-[28rem]">
+            <DialogContent className="sm:max-w-[20rem]">
                 <DialogHeader>
                     <div className='flex items-center justify-start'>
                         <Image src='/icons/photos.png' alt='Photos Icon' width={40} height={40} className='mr-2' />
@@ -107,11 +107,11 @@ export default function ImportPhotosModal({ isOpen, onOpenChange, files }: {
                         <label htmlFor='delSourceCheckBox'>Delete files after import</label>
                     </div>}
 
-                    <div className='ml-auto space-x-2'>
-                        <Button variant='ghost' onClick={() => onOpenChange(false)}>
+                    <div className='flex justify-center items-center space-x-2'>
+                        <Button variant='secondary' size='lg' onClick={() => onOpenChange(false)}>
                             Cancel
                         </Button>
-                        {<Button type='submit' variant='default' disabled={isLoading} onClick={handleSubmit}>
+                        {<Button type='submit' size='lg' variant='default' disabled={isLoading} onClick={handleSubmit}>
                             Import
                         </Button>}
                     </div>

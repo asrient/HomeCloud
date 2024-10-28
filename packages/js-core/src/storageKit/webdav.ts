@@ -15,6 +15,8 @@ import { Readable } from "stream";
 let createClient: null | ((remoteURL: string, options?: WebDAVClientOptions) => WebDAVClient) = null;
 let WebdavAuthType: any | null = null; // enum to imported from webdav
 
+const dynamicImport = new Function('specifier', 'return import(specifier)');
+
 function mapAuthType(authType: StorageAuthType) {
   switch (authType) {
     case StorageAuthType.Basic:
@@ -34,7 +36,7 @@ export class WebdavFsDriver extends FsDriver {
   async init() {
     const storage: Storage = this.storage;
     if(!createClient) {
-      const { createClient: createClientFn, AuthType: WebdavAuthTypeEnum } = await import("webdav");
+      const { createClient: createClientFn, AuthType: WebdavAuthTypeEnum } = await dynamicImport("webdav");
       createClient = createClientFn;
       WebdavAuthType = WebdavAuthTypeEnum;
     }

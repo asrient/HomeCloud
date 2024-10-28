@@ -3,7 +3,6 @@ import { Storage, createPhotoType, Photo, getPhotosParams, Profile } from "../..
 import { ApiRequestFile } from "../../interface";
 import AssetManager from "./assetManager";
 import { AssetDetailType } from "./metadata";
-import { pushServerEvent, ServerEvent } from "../../serverEvent";
 import { apiFileToTempFile, removeTempFile } from "../../utils/fileUtils";
 import { StorageType } from "../../envConfig";
 
@@ -119,20 +118,20 @@ export default class PhotosService {
     this.assetManager = new AssetManager(fsDriver);
   }
 
-  private async pushServerEvent(type: "delta" | "purge", data: any) {
-    const e: ServerEvent = {
-      type: `photos.${type}`,
-      data,
-      profileId: this.storage.ProfileId,
-    };
-    await pushServerEvent(e);
-  }
+  // private async pushServerEvent(type: "delta" | "purge", data: any) {
+  //   const e: ServerEvent = {
+  //     type: `photos.${type}`,
+  //     data,
+  //     profileId: this.storage.ProfileId,
+  //   };
+  //   await pushServerEvent(e);
+  // }
 
-  async pushDeltaEvent(simpleActions: SimpleActionSetType) {
-    await this.pushServerEvent("delta", {
-      updates: simpleActions,
-    });
-  }
+  // async pushDeltaEvent(simpleActions: SimpleActionSetType) {
+  //   await this.pushServerEvent("delta", {
+  //     updates: simpleActions,
+  //   });
+  // }
 
   async addItemsToDb(items: { [itemId: number]: createPhotoType }) {
     const photos: createPhotoType[] = Object.keys(items).map((itemId) => {
@@ -168,11 +167,11 @@ export default class PhotosService {
     photos.forEach((photo) => {
       added[photo.itemId] = photo.getMinDetails();
     });
-    await this.pushDeltaEvent({
-      add: added,
-      update: {},
-      delete: [],
-    });
+    // await this.pushDeltaEvent({
+    //   add: added,
+    //   update: {},
+    //   delete: [],
+    // });
     return photos;
   }
 
@@ -273,13 +272,13 @@ export default class PhotosService {
     const updatedPhotos = await this.updateItemsInDb({
       [itemId]: update,
     });
-    await this.pushDeltaEvent({
-      add: {},
-      update: {
-        [itemId]: updatedPhotos[0]?.getMinDetails(),
-      },
-      delete: [],
-    });
+    // await this.pushDeltaEvent({
+    //   add: {},
+    //   update: {
+    //     [itemId]: updatedPhotos[0]?.getMinDetails(),
+    //   },
+    //   delete: [],
+    // });
     removeTempFile(filePath);
     return updatedPhotos[0];
   }
@@ -298,11 +297,11 @@ export default class PhotosService {
     });
     await Promise.all(promises);
     const count = await this.deleteItemsFromDb(ids);
-    await this.pushDeltaEvent({
-      add: {},
-      update: {},
-      delete: ids,
-    });
+    // await this.pushDeltaEvent({
+    //   add: {},
+    //   update: {},
+    //   delete: ids,
+    // });
     return {
       deleteCount: count,
       errors,
