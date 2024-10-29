@@ -10,7 +10,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppState } from "./hooks/useAppState";
 import { Separator } from "@/components/ui/separator";
-import { cloudStorageTypes, getName, getStorageIconUrl } from "@/lib/storageConfig";
+import { cloudStorageTypes, getIconUrlFromType, getName } from "@/lib/storageConfig";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { ActionTypes } from "@/lib/state";
@@ -41,7 +41,7 @@ function StorageTypeSelector({
             } onClick={() => onSelect(storageType)}>
                 <div className="w-[2rem]">
                 </div>
-                <Image src={getStorageIconUrl(storageType)} className="mr-2" alt={getName(storageType)} width={40} height={40} />
+                <Image src={getIconUrlFromType(storageType)} className="mr-2" alt={getName(storageType)} width={40} height={40} />
                 {getName(storageType)}
 
             </Button>)
@@ -132,7 +132,7 @@ export default function AddStorageModal({
                 <DialogHeader className="md:flex-row">
                     <div className="flex items-center justify-center p-1 md:pr-4">
                         {selectedStorageType ?
-                            <Image src={getStorageIconUrl(selectedStorageType)} alt={getName(selectedStorageType)} width={48} height={48} /> :
+                            <Image src={getIconUrlFromType(selectedStorageType)} alt={getName(selectedStorageType)} width={48} height={48} /> :
                             <div className="h-[3rem] w-[3rem] rounded-md bg-purple-500 text-white flex items-center justify-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 17.25v-.228a4.5 4.5 0 00-.12-1.03l-2.268-9.64a3.375 3.375 0 00-3.285-2.602H7.923a3.375 3.375 0 00-3.285 2.602l-2.268 9.64a4.5 4.5 0 00-.12 1.03v.228m19.5 0a3 3 0 01-3 3H5.25a3 3 0 01-3-3m19.5 0a3 3 0 00-3-3H5.25a3 3 0 00-3 3m16.5 0h.008v.008h-.008v-.008zm-3 0h.008v.008h-.008v-.008z" />

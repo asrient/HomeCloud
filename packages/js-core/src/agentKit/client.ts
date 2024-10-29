@@ -264,6 +264,7 @@ async function createStorage(profile: Profile, client: AgentClient, accessKey: s
         deviceName: targetInfo.deviceName,
         remoteProfileId: targetInfo.profile.id,
         remoteProfileName: targetInfo.profile.name,
+        iconKey: targetInfo.iconKey,
         authority: client.getHost(),
     });
     const storage = await Storage.createStorage(profile, {

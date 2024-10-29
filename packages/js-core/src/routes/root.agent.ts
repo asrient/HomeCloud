@@ -6,6 +6,7 @@ import CustomError from "../customError";
 import { PairingRequestPacket, registerPairingRequest, verifyOTP } from "../agentKit/pairing";
 import { AgentInfo } from "../agentKit/types";
 import { getDeviceInfoCached } from "../utils/deviceInfo";
+import { getIconKey } from "../utils";
 
 const api = new RouteGroup();
 
@@ -15,12 +16,14 @@ api.add(
   async (request: ApiRequest) => {
     const profile = request.profile;
     const availableProfiles = await Profile.getProfiles(0, 100); // TODO: Implement hard limit across the app
+    const deviceInfo = getDeviceInfoCached();
     return ApiResponse.json(200, {
       version: envConfig.VERSION,
       deviceName: envConfig.DEVICE_NAME,
       fingerprint: envConfig.FINGERPRINT,
       pairingAuthType: envConfig.PAIRING_AUTH_TYPE,
-      deviceInfo: getDeviceInfoCached(),
+      deviceInfo,
+      iconKey: getIconKey(deviceInfo),
       profile: profile && profile.getDetails(true),
       availableProfiles: availableProfiles.map((p) => p.getDetails()),
     } as AgentInfo);

@@ -19,6 +19,7 @@ export type AppStateType = {
     };
     notes: { [id: string]: NoteItem };
     rootNoteStats: Record<number, RemoteItem[]>;
+    iconKey: string | null;
 };
 
 export enum ActionTypes {
@@ -62,6 +63,7 @@ export const initialAppState: AppStateType = {
     notes: {},
     rootNoteStats: {},
     deviceInfo: null,
+    iconKey: null,
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
@@ -93,6 +95,7 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             draft.notes = {};
             draft.rootNoteStats = {};
             draft.deviceInfo = payload.deviceInfo;
+            draft.iconKey = payload.iconKey;
             return draft;
         }
         case ActionTypes.ERROR: {

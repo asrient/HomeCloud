@@ -9,4 +9,5 @@ export type AgentInfo = {
     pairingAuthType: PairingAuthType;
     profile?: ProfileDetails;
     availableProfiles: ProfileDetails[];
+    iconKey: string | null;
 }

@@ -406,6 +406,7 @@ export type AgentDetails = {
   authority: string;
   allowClientAccess: boolean;
   profileId: number;
+  iconKey: string | null;
 }
 
 // Used both to represent client and target agents
@@ -419,7 +420,7 @@ export class Agent extends DbModel {
   declare authority: string | null; // hostname:port
   declare ProfileId: number;
   declare allowClientAccess: boolean | null;
-  declare photosLastSyncOn: number; // Not in use yet.
+  declare iconKey: string | null;
   declare setProfile: (profile: Profile) => Promise<void>;
   declare getProfile: () => Promise<Profile>;
   declare getStorage: () => Promise<Storage>;
@@ -479,10 +480,9 @@ export class Agent extends DbModel {
       allowNull: true,
       defaultValue: null,
     },
-    photosLastSyncOn: {
-      type: DataTypes.BIGINT,
-      allowNull: false,
-      defaultValue: 0,
+    iconKey: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   };
 
@@ -506,6 +506,7 @@ export class Agent extends DbModel {
       authority: this.authority,
       allowClientAccess: this.allowClientAccess,
       profileId: this.ProfileId,
+      iconKey: this.iconKey,
     };
   }
 
@@ -528,6 +529,7 @@ export class Agent extends DbModel {
     remoteProfileName,
     authority,
     allowClientAccess,
+    iconKey,
   }: {
     fingerprint: string;
     remoteProfileId: number;
@@ -535,6 +537,7 @@ export class Agent extends DbModel {
     remoteProfileName: string;
     authority: string;
     allowClientAccess?: boolean;
+    iconKey?: string;
   }) {
     const lastSeen = new Date();
 
@@ -545,6 +548,7 @@ export class Agent extends DbModel {
       existing.remoteProfileName = remoteProfileName;
       existing.lastSeen = lastSeen;
       existing.authority = authority;
+      existing.iconKey = iconKey || null;
       if (allowClientAccess !== undefined) existing.allowClientAccess = allowClientAccess;
       return existing.save();
     }
@@ -556,6 +560,7 @@ export class Agent extends DbModel {
       remoteProfileName,
       lastSeen,
       authority,
+      iconKey: iconKey || null,
       allowClientAccess: allowClientAccess || null,
     });
     await agent.setProfile(profile);

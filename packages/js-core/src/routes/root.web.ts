@@ -9,6 +9,7 @@ import { login, logout } from "../utils/profileUtils";
 import { requestSession, getApprovalStatus } from "../pendingSessions";
 import { parseUserAgent } from "../utils/userAgent";
 import { getDeviceInfoCached } from "../utils/deviceInfo";
+import { getIconKey } from "../utils";
 
 const api = new RouteGroup();
 
@@ -32,15 +33,18 @@ type StateResponse = {
   deviceInfo: DeviceInfo;
   profile: ProfileDetails | null;
   storages: object | null;
+  iconKey: string;
 };
 
 api.add(
   "/state",
   [method(["GET"]), authenticate(AuthType.Optional)],
   async (request: ApiRequest) => {
+    const deviceInfo = getDeviceInfoCached();
     const res: StateResponse = {
       config: getConfig(),
-      deviceInfo: getDeviceInfoCached(),
+      deviceInfo,
+      iconKey: getIconKey(deviceInfo),
       profile: null,
       storages: null,
     };

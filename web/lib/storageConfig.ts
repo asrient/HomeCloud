@@ -113,12 +113,8 @@ export function isAppAllowed(type: StorageType, appName: AppName) {
     return StorageTypeConfig[type].allowedApps.includes(appName);
 }
 
-export function getStorageIconUrl(type: StorageType, deviceInfo?: DeviceInfo) {
+export function getIconUrlFromType(type: StorageType) {
     switch (type) {
-        case StorageType.Local: // use the deviceInfo and generate a device icon
-            return '/icons/computer2.png';
-        case StorageType.Agent: // use storage.agent.deviceInfo and generate a device icon
-            return '/icons/computer.png';
         case StorageType.Google:
             return '/icons/google-drive.png';
         case StorageType.Dropbox:
@@ -128,6 +124,21 @@ export function getStorageIconUrl(type: StorageType, deviceInfo?: DeviceInfo) {
     }
 }
 
+export function getUrlFromIconKey(iconKey?: string | null) {
+    iconKey = iconKey || 'pc';
+    return `/icons/d/${iconKey}.png`;
+}
+
 export function deviceIdFromFingerprint(fingerprint: string) {
     return fingerprint.slice(0, 5);
+}
+
+export function getIconForStorage(storage: Storage, thisDeviceIconKey: string | null = null) {
+    if (storage.type === StorageType.Agent) {
+        return getUrlFromIconKey(storage.agent?.iconKey);
+    }
+    if (storage.type === StorageType.Local) {
+        return getUrlFromIconKey(thisDeviceIconKey);
+    }
+    return getIconUrlFromType(storage.type);
 }

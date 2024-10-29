@@ -233,6 +233,11 @@ export function fetchStorage() {
 export function fetchFsDriver() {
   return makeDecorator(async (request, next) => {
     const storage = request.local.storage;
+    if(!storage) {
+      return ApiResponse.fromError(
+        CustomError.validationSingle("storageId", "Storage not found"),
+      );
+    }
     try {
       const fsDriver = await getFsDriver(storage, request.profile);
       request.local.fsDriver = fsDriver;

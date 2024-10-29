@@ -1,4 +1,4 @@
-import { DeviceFormType, DeviceInfo, OSType } from "./../envConfig";
+import { DeviceFormType, DeviceInfo, envConfig, OSType } from "./../envConfig";
 import os from "os";
 import { execSync } from "child_process";
 
@@ -97,6 +97,9 @@ function getLinuxDistro() {
 // Form factor
 
 function getFormFactor(): DeviceFormType {
+    if(envConfig.isServer()) {
+        return DeviceFormType.Server;
+    }
     switch (process.platform) {
         case 'win32':
             return getWindowsFormFactor();

@@ -18,7 +18,7 @@ import AddStorageModal from "../addStorageModal";
 import {
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { deviceIdFromFingerprint, getName, getStorageIconUrl } from "@/lib/storageConfig";
+import { deviceIdFromFingerprint, getName, getIconUrlFromType, getUrlFromIconKey } from "@/lib/storageConfig";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { settingsUrl } from "@/lib/urls";
@@ -40,7 +40,10 @@ function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: bo
     }
 
     const iconUrl = useMemo(() => {
-        return getStorageIconUrl(storage.type); // fix: (storage.type, storage.agent?.deviceInfo)
+        if(storage.type === StorageType.Agent) {
+            return getUrlFromIconKey(storage.agent?.iconKey);
+        }
+        return getIconUrlFromType(storage.type);
     }, [storage]);
 
     return (
@@ -79,7 +82,7 @@ const addIcon = (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 
 </svg>);
 
 function DevicesPopover() {
-    const { profile, storages, disabledStorages, serverConfig } = useAppState();
+    const { profile, storages, disabledStorages, serverConfig, iconKey } = useAppState();
     const [settingsUrl_, setSettingsUrl_] = useState<NextUrl | null>(null);
     const [addAgentModalOpen, setAddAgentModalOpen] = useState(false);
 
@@ -117,6 +120,10 @@ function DevicesPopover() {
         return storages?.filter(s => s.type !== StorageType.Agent && s.type !== StorageType.Local) || [];
     }, [storages]);
 
+    const deviceIconUrl = useMemo(() => {
+        return getUrlFromIconKey(iconKey);
+    }, [iconKey]);
+
     if (!profile) return null;
 
     return (
@@ -124,15 +131,15 @@ function DevicesPopover() {
             <AddStorageModal>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant='secondary' title="My Devices" size='sm' className={cn(nonLocalActiveStorageCount === 0 && 'border-2 border-red-400')}>
+                        <Button variant='secondary' title="My Devices" size='sm' className={cn(nonLocalActiveStorageCount === 0 && 'border-2 border-red-400', 'bg-white')}>
                             <Image src="/icons/devices.png" alt="Devices" height={20} width={20} />
                             {nonLocalActiveStorageCount > 0 && (<span className="ml-2 text-slate-500 text-xs">{nonLocalActiveStorageCount}</span>)}
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-[20rem]" align="end" forceMount>
                         <div className="flex p-2 pt-4 pb-4 items-center justify-center">
-                            <div className="flex pr-3">
-                                <Image src={getStorageIconUrl(StorageType.Local)} alt="This device" className="pr-2" height={80} width={80} />
+                            <div className="flex pr-2">
+                                <Image src={deviceIconUrl} alt="This device" className="pr-2" height={85} width={85} />
                             </div>
                             <div className="font-medium">
                                 <div className="text-[0.6rem] leading-tight text-slate-500">THIS DEVICE</div>
@@ -188,7 +195,7 @@ function DevicesPopover() {
         </>);
 }
 
-const tabClass = "data-[state=active]:bg-muted data-[state=active]:shadow-none";
+const tabClass = "data-[state=active]:bg-white";
 
 export default function AppHeader() {
     const router = useRouter();
@@ -212,9 +219,9 @@ export default function AppHeader() {
     }, [router, isRouterBusy]);
 
     return (<>
-        <div className="bg-background flex items-center px-2 py-1 h-[2.6rem] text-sm top-0 z-20 relative md:fixed w-full border-b-[1px] border-solid">
+        <div className="bg-secondary flex items-center px-2 py-1 h-[2.6rem] text-sm top-0 z-20 relative md:fixed w-full border-b-[1px] border-solid">
             <div className="grow max-w-[8rem] md:flex items-center justify-center hidden">
-                <Button size='sm' variant='ghost' onClick={onBack}>
+                <Button size='sm' variant='ghost' className="text-blue-600" onClick={onBack}>
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
                     </svg>
@@ -223,7 +230,7 @@ export default function AppHeader() {
             </div>
             <div className="flex items-center md:pl-3">
                 <Tabs value={activeTab} onValueChange={onTabChange} className="h-full space-y-6">
-                    <TabsList className="bg-background">
+                    <TabsList className="bg-transparent">
                         <TabsTrigger className={tabClass} value="home">
                             Home
                         </TabsTrigger>

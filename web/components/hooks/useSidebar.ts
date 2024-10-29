@@ -3,6 +3,7 @@ import useFilterStorages from "./useFilterStorages";
 import { useAppState } from "./useAppState";
 import { folderViewUrl, buildNextUrl, photosByStorageUrl } from "@/lib/urls";
 import { iconUrl, FileType } from "@/lib/fileUtils";
+import { getIconForStorage, getUrlFromIconKey } from "@/lib/storageConfig";
 
 export type FilesSidebarData = {
     folderId?: string;
@@ -64,6 +65,7 @@ export function useFilesBar(): SidebarList {
 
 export function usePhotosBar(): SidebarList {
     const storages = useFilterStorages(AppName.Photos);
+    const { iconKey } = useAppState();
     return [
         {
             title: 'Library',
@@ -83,10 +85,10 @@ export function usePhotosBar(): SidebarList {
             ]
         },
         {
-            title: 'Locations',
+            title: 'Devices',
             items: storages?.map((storage) => ({
                 title: storage.name,
-                icon: iconUrl(FileType.Drive),
+                icon: getIconForStorage(storage, iconKey),
                 href: photosByStorageUrl(storage.id),
                 key: storage.id.toString(),
             })) || []
@@ -95,7 +97,7 @@ export function usePhotosBar(): SidebarList {
 }
 
 export function useSettingsBar(): SidebarList {
-    const { storages } = useAppState();
+    const { storages, iconKey } = useAppState();
     return [
         {
             items: [
@@ -117,7 +119,7 @@ export function useSettingsBar(): SidebarList {
             title: 'Storages',
             items: [...(storages?.map((storage) => ({
                 title: storage.name,
-                icon: iconUrl(FileType.Drive),
+                icon: getIconForStorage(storage, iconKey),
                 href: buildNextUrl('/settings/storage', { id: storage.id.toString() }),
                 key: storage.id.toString(),
             })) || []),

@@ -104,6 +104,7 @@ export type AgentDetails = {
     authority: string;
     allowClientAccess: boolean;
     profileId: number;
+    iconKey?: string;
 }
 
 export type Storage = {

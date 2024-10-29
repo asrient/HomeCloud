@@ -7,10 +7,10 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAppDispatch, useAppState } from "./hooks/useAppState";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useAppDispatch } from "./hooks/useAppState";
 import { Separator } from "@/components/ui/separator";
-import { cloudStorageTypes, deviceIdFromFingerprint, getName, getStorageIconUrl } from "@/lib/storageConfig";
+import { deviceIdFromFingerprint, getUrlFromIconKey } from "@/lib/storageConfig";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { ActionTypes } from "@/lib/state";
@@ -19,13 +19,11 @@ import SuccessScreen from "./storageAddSuccess";
 import { Input } from "./ui/input";
 import { getAgentInfo } from "@/lib/api/discovery";
 import LoadingIcon from "./ui/loadingIcon";
-import { Label } from "./ui/label";
 import { pairStorage, sendOTP } from "@/lib/api/storage";
 import ProfilePicture from "./profilePicture";
 import {
     InputOTP,
     InputOTPGroup,
-    InputOTPSeparator,
     InputOTPSlot,
 } from "@/components/ui/input-otp"
 
@@ -116,7 +114,7 @@ function SearchAgentScreen({
     )
 }
 
-const labelClass = "text-lg text-slate-800 font-thin";
+const labelClass = "text-md text-slate-800 font-normal";
 
 function ProfileSelector({
     profiles,
@@ -185,8 +183,7 @@ function AgentFormScreen({
     }, [agentInfo, candidate.deviceName, candidate.host, error]);
 
     const iconUrl = useMemo(() => {
-        if (agentInfo && agentInfo.iconKey) return `/icons/${agentInfo.iconKey}.png`;
-        if (agentInfo && agentInfo.deviceInfo) return getStorageIconUrl(StorageType.Agent, agentInfo.deviceInfo);
+        if (agentInfo) return getUrlFromIconKey(agentInfo.iconKey);
         return candidate.iconKey ? `/icons/${candidate.iconKey}.png` : null;
     }, [agentInfo, candidate.iconKey]);
 
@@ -194,7 +191,7 @@ function AgentFormScreen({
         if (error) return `Target: ${candidate.deviceName || candidate.host}`;
         if (agentInfo) return deviceIdFromFingerprint(agentInfo.fingerprint);
         return candidate.fingerprint ? deviceIdFromFingerprint(candidate.fingerprint) : 'Connecting..';
-    }, [agentInfo, candidate.fingerprint, error]);
+    }, [agentInfo, candidate.deviceName, candidate.fingerprint, candidate.host, error]);
 
     const resetForm = useCallback(() => {
         setKey('');
@@ -297,7 +294,7 @@ function AgentFormScreen({
                         )
                             :
                             iconUrl ?
-                                <Image src={iconUrl} width={48} height={48} alt='device' />
+                                <Image src={iconUrl} width={55} height={55} alt='device' />
                                 :
                                 (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-8 w-8">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />

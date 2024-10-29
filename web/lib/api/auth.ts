@@ -21,6 +21,7 @@ export async function pollSession(params: PollSessionParams) {
 export type StateResponse = {
     config: ServerConfig;
     deviceInfo: DeviceInfo;
+    iconKey: string | null;
     profile: Profile | null;
     storages: Storage[] | null;
 };
