@@ -275,7 +275,7 @@ function StorageTree({ storage }: { storage: Storage }) {
                     <ContextMenuItem className='text-red-500' onClick={deleteSelected}>Delete</ContextMenuItem>
                 </ContextMenuContent>
             </ContextMenu>
-            <Separator/>
+            <Separator />
         </div>
     );
 }

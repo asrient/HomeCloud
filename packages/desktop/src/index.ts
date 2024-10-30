@@ -15,10 +15,11 @@ import {
   webRouter,
   RequestOriginType,
   cryptoUtils,
+  DiscoveryService,
 } from "@homecloud/js-core";
 import path from "path";
 import os from "os";
-import {randomBytes} from "crypto";
+import { randomBytes } from "crypto";
 
 const startText = `
 ------------------------------
@@ -28,9 +29,9 @@ const startText = `
 
 class App {
   webPort: number = 5000;
-  agentPort: number = 5001;
   webServer: ServerAdaptor;
   agentServer: ServerAdaptor;
+  discoveryService: DiscoveryService;
 
   constructor() {
     console.log(startText);
@@ -38,6 +39,7 @@ class App {
     ffmpegSetup();
     this.webServer = new ServerAdaptor(webRouter, RequestOriginType.Web);
     this.agentServer = new ServerAdaptor(desktopAgentRouter, RequestOriginType.Agent);
+    this.discoveryService = DiscoveryService.setup();
   }
 
   createOrGetSecretKey(dataDir: string) {
@@ -75,8 +77,8 @@ class App {
   setupConfig() {
     const isDev = !(process.env.NODE_ENV === "production");
     const dataDir = isDev
-        ? path.resolve(__dirname, "../../../DEV_DESKTOP_DATA")
-        : path.join(os.homedir(), "/.homecloud"); // change it to default app data dir for each OS
+      ? path.resolve(__dirname, "../../../DEV_DESKTOP_DATA")
+      : path.join(os.homedir(), "/.homecloud"); // change it to default app data dir for each OS
     fs.mkdirSync(dataDir, { recursive: true });
     const webServerBaseUrl = `http://127.0.0.1:${this.webPort}/`;
     const clientBaseUrl = process.env.CLIENT_BASE_URL || 'http://localhost:3000/';
@@ -118,6 +120,7 @@ class App {
       privateKeyPem,
       fingerprint,
       certPem,
+      advertiseService: true,
     });
   }
 
@@ -139,9 +142,9 @@ class App {
       },
       this.agentServer.nativeHandler,
     );
-    httpsServer.listen(this.agentPort);
+    httpsServer.listen(envConfig.AGENT_PORT);
 
-    console.log(`⚡️ HTTPS Agent Server started on port: ${this.agentPort}`);
+    console.log(`⚡️ HTTPS Agent Server started on port: ${envConfig.AGENT_PORT}`);
   }
 
   async start() {
@@ -166,6 +169,8 @@ class App {
     }
     this.startWebServer();
     this.startAgentServer();
+    this.discoveryService.hello();
+    this.discoveryService.listen();
     console.log(`🌎 Go ahead, visit ${envConfig.BASE_URL}`);
   }
 }

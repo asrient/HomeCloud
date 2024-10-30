@@ -10,14 +10,15 @@ import {
   initDb,
   ffmpegSetup,
   ServerAdaptor,
-  initSEPublisher,
   ProfilesPolicy,
   serverAgentRouter,
   RequestOriginType,
   cryptoUtils,
+  DiscoveryService,
 } from "@homecloud/js-core";
 import path from "path";
 import os from "os";
+import { DEFAULT_AGENT_PORT } from "packages/js-core/src/envConfig";
 
 const startText = `\n
 ██╗░░██╗░█████╗░███╗░░░███╗███████╗░█████╗░██╗░░░░░░█████╗░██╗░░░██╗██████╗░
@@ -31,14 +32,15 @@ const startText = `\n
 🐱 Starting HomeCloud Server...`;
 
 class AppServer {
-  port: number = 5001;
   server: ServerAdaptor;
+  discoveryService: DiscoveryService;
 
   constructor() {
     console.log(startText);
     this.setupConfig();
     ffmpegSetup();
     this.server = new ServerAdaptor(serverAgentRouter, RequestOriginType.Agent);
+    this.discoveryService = DiscoveryService.setup();
   }
 
   getEnvVar(name: string, required: boolean = false): string | undefined {
@@ -56,9 +58,8 @@ class AppServer {
         ? path.resolve(__dirname, "../../../DEV_SERVER_DATA")
         : path.join(os.homedir(), "/.homecloud");
     fs.mkdirSync(envConfig.DATA_DIR, { recursive: true });
-    this.port = parseInt(this.getEnvVar('PORT') || "5001");
     const serverBaseUrl =
-      this.getEnvVar('SERVER_BASE_URL') || `http://localhost:${this.port}/`; // fix this
+      this.getEnvVar('SERVER_BASE_URL') || `http://localhost:${DEFAULT_AGENT_PORT}/`; // fix this
     const clientBaseUrl = this.getEnvVar('CLIENT_BASE_URL') || 'http://localhost:3000';
 
     if (!isDev && !this.getEnvVar('SECRET_KEY')) {
@@ -115,6 +116,7 @@ class AppServer {
       publicKeyPem,
       fingerprint,
       certPem: this.getEnvVar('CERT', true)!,
+      advertiseService: !(this.getEnvVar('ADVERTISE_SERVICE') === "false"),
     });
   }
 
@@ -128,10 +130,10 @@ class AppServer {
       },
       this.server.nativeHandler,
     );
-    initSEPublisher(httpsServer);
-    httpsServer.listen(this.port);
+    httpsServer.listen(envConfig.AGENT_PORT);
 
-    console.log(`⚡️ HTTPS Server started on port: ${this.port}`);
+    console.log(`⚡️ HTTPS Server started on port: ${envConfig.AGENT_PORT}`);
+    this.discoveryService.hello();
   }
 
   async start() {

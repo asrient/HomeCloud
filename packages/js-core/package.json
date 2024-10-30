@@ -9,6 +9,7 @@
   "dependencies": {
     "ajv": "^8.12.0",
     "bcrypt": "^5.1.1",
+    "bonjour-service": "^1.2.1",
     "busboy": "^1.6.0",
     "cloneable-readable": "^3.0.0",
     "cookie": "^1.0.1",

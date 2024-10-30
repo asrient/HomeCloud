@@ -1,4 +1,4 @@
-import { StorageType, Storage, AgentCandidate, AgentInfo, Profile, PairingAuthType } from "@/lib/types";
+import { Storage, AgentCandidate, AgentInfo, Profile, PairingAuthType } from "@/lib/types";
 import {
     Dialog,
     DialogContent,
@@ -8,7 +8,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useAppDispatch } from "./hooks/useAppState";
+import { useAppDispatch, useAppState } from "./hooks/useAppState";
 import { Separator } from "@/components/ui/separator";
 import { deviceIdFromFingerprint, getUrlFromIconKey } from "@/lib/storageConfig";
 import { Button } from "./ui/button";
@@ -17,7 +17,7 @@ import { ActionTypes } from "@/lib/state";
 import Image from "next/image";
 import SuccessScreen from "./storageAddSuccess";
 import { Input } from "./ui/input";
-import { getAgentInfo } from "@/lib/api/discovery";
+import { getAgentInfo, scan } from "@/lib/api/discovery";
 import LoadingIcon from "./ui/loadingIcon";
 import { pairStorage, sendOTP } from "@/lib/api/storage";
 import ProfilePicture from "./profilePicture";
@@ -39,6 +39,7 @@ function SearchAgentScreen({
 }) {
 
     const [searchText, setSearchText] = useState<string>('');
+    const { serverConfig, iconKey } = useAppState();
 
     const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchText(e.target.value.trim());
@@ -61,6 +62,54 @@ function SearchAgentScreen({
         return DESC_LIST[descInd];
     }, [descInd]);
 
+    const [candidates, setCandidates] = useState<AgentCandidate[] | null>(null);
+    const fetchTimerRef = React.useRef<number | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const loadingRef = React.useRef<boolean>(false);
+    const firstScanRef = React.useRef<boolean>(true);
+
+    const fetchCandidates = useCallback(async () => {
+        if (loadingRef.current) {
+            return;
+        }
+        try {
+            loadingRef.current = true;
+            setError(null);
+            const force = firstScanRef.current;
+            firstScanRef.current = false;
+            const candidates_ = await scan(force);
+            setCandidates(candidates_);
+        } finally {
+            loadingRef.current = false;
+        }
+    }, []);
+
+    const pollScan = useCallback(async () => {
+        if (fetchTimerRef.current) {
+            clearTimeout(fetchTimerRef.current);
+        }
+        let delay = 4000;
+        try {
+            await fetchCandidates();
+        } catch (e: any) {
+            setError(e.message);
+            delay = 8000;
+        }
+        if (fetchTimerRef.current) {
+            clearTimeout(fetchTimerRef.current);
+        }
+        fetchTimerRef.current = window.setTimeout(pollScan, delay);
+    }, [fetchCandidates]);
+
+    useEffect(() => {
+        pollScan();
+        return () => {
+            if (fetchTimerRef.current) {
+                clearTimeout(fetchTimerRef.current);
+            }
+        };
+    }, [fetchCandidates, pollScan]);
+
     return (
         <>
             <DialogHeader className="md:flex-row">
@@ -77,7 +126,12 @@ function SearchAgentScreen({
                         Connect Device
                     </DialogTitle>
                     <DialogDescription className="leading-4 min-h-[2rem]">
-                        {desc}
+                        {
+                            error ? (<span className="text-red-500">
+                                {error}
+                            </span>)
+                                : desc
+                        }
                     </DialogDescription>
                 </div>
             </DialogHeader>
@@ -106,10 +160,41 @@ function SearchAgentScreen({
                 }
             </div>
             <ScrollArea className="md:max-h-[50vh] min-h-[8rem]">
-                <div className='flex items-center justify-center'>
-                    Looking for devices..
+                <div className=" flex items-center justify-center h-full flex-wrap">
+                    {
+                        candidates === null ?
+                            'Looking for devices..'
+                            :
+                            candidates.length === 0 ?
+                                'No devices found.'
+                                :
+                                candidates.map((candidate) => (
+                                    <Button title={candidate.host} key={`${candidate.fingerprint}-${candidate.host}`}
+                                        variant='ghost' className="h-max flex flex-col items-center justify-center rounded-none p-2 w-[8rem]"
+                                        onClick={() => setSelectedCandidate(candidate)}>
+                                        <Image src={getUrlFromIconKey(candidate.iconKey)} width={60} height={60} alt="This device" className="mb-1" />
+                                        <div className="max-w-[6rem] text-sm text-foreground/70 text-ellipsis truncate">{candidate.deviceName || 'Anonymous device'}</div>
+                                        <div className="max-w-[6rem] text-xs text-foreground/40 text-ellipsis truncate">
+                                            {candidate.fingerprint ? deviceIdFromFingerprint(candidate.fingerprint) : candidate.host}
+                                        </div>
+                                    </Button>
+                                ))
+                    }
                 </div>
             </ScrollArea>
+            <Separator />
+            <DialogFooter>
+                <div className="flex justify-center items-center w-full flex-col text-sm text-foreground/60 mt-2">
+                    <div className="text-xs text-foreground/40">
+                        You are discoverable as:
+                    </div>
+                    <div className="flex justify-center items-center">
+                        <Image src={getUrlFromIconKey(iconKey)} width={28} height={28} alt="This device" className="mr-2" />
+                        {serverConfig?.deviceName}
+                    </div>
+
+                </div>
+            </DialogFooter>
         </>
     )
 }

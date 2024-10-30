@@ -3,7 +3,8 @@
   "packageManager": "yarn@4.4.1",
   "scripts": {
     "dev": "nodemon --watch 'src/**/*.ts' --watch '../js-core/src/**/*.ts' --exec 'ts-node' src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "test-bonjour": "ts-node src/test/bonjour.ts"
   },
   "dependencies": {
     "@homecloud/js-core": "workspace:^"

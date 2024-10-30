@@ -49,7 +49,6 @@ class CustomHttpsAgent extends https.Agent {
 
 // Adopted from web apiClient
 export class AgentClient {
-    static PORT = 5001;
     private _httpsAgent: CustomHttpsAgent;
     private _accessKey: string | null;
     private _host: string;
@@ -116,7 +115,7 @@ export class AgentClient {
         const options: https.RequestOptions = {
             method,
             hostname: this._host,
-            port: AgentClient.PORT,
+            port: envConfig.AGENT_PORT,
             path: `/${path}`,
             headers,
             agent: this._httpsAgent,

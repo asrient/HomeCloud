@@ -13,3 +13,4 @@ export { webRouter, agentRouter as desktopAgentRouter } from "./apiRouter.deskto
 export { default as serverAgentRouter } from "./apiRouter.server";
 export { RequestOriginType } from "./interface";
 export * as cryptoUtils from "./utils/cryptoUtils";
+export { default as DiscoveryService } from "./agentKit/discovery";

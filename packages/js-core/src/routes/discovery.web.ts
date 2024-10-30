@@ -6,6 +6,7 @@ import {
     validateQuery,
 } from "../decorators";
 import { AgentClient, getAgentInfo } from "../agentKit/client";
+import DiscoveryService from "../agentKit/discovery";
 
 const api = new RouteGroup();
 
@@ -26,8 +27,13 @@ api.add(
     async (request: ApiRequest) => {
         const { force } = request.getParams as { force: string };
         const forceScan = force === 'true';
-        // todo: implement scan
-        return ApiResponse.json(200, {});
+        try {
+            const discoveryService = DiscoveryService.getInstace();
+            const candidates = discoveryService.getCandidates(forceScan);
+            return ApiResponse.json(200, candidates);
+        } catch (e) {
+            return ApiResponse.fromError(e);
+        }
     },
 );
 
@@ -51,9 +57,12 @@ api.add(
         const { host, fingerprint } = request.local.json as { host: string; fingerprint: string };
 
         const agentClient = new AgentClient(host, fingerprint || null, null);
-        const agentInfo = await getAgentInfo(agentClient);
-
-        return ApiResponse.json(200, agentInfo);
+        try {
+            const agentInfo = await getAgentInfo(agentClient);
+            return ApiResponse.json(200, agentInfo);
+        } catch (e) {
+            return ApiResponse.fromError(e);
+        }
     },
 );
 

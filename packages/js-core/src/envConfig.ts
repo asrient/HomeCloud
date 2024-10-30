@@ -1,6 +1,8 @@
 import { Secret } from "jsonwebtoken";
 import { joinUrlPath } from "./utils";
 
+export const DEFAULT_AGENT_PORT = 7736;
+
 export enum EnvType {
   Server = "server",
   Desktop = "desktop",
@@ -23,13 +25,14 @@ export type SetupParams = {
   desktopIsPackaged?: boolean;
   version?: string;
   defaultProfileId?: number;
-  agentPort?: number;
   deviceName: string;
   libraryDir: string;
   publicKeyPem: string;
   privateKeyPem: string;
   fingerprint: string;
   certPem: string;
+  advertiseService: boolean;
+  agentPort?: number;
 };
 
 export enum OptionalType {
@@ -162,7 +165,7 @@ class EnvConfig {
   readonly DESKTOP_IS_PACKAGED: boolean;
   readonly VERSION: string;
   DEFAULT_PROFILE_ID: number | null;
-  AGENT_PORT: number | null;
+  readonly AGENT_PORT: number;
   readonly DEVICE_NAME: string;
   readonly LIBRARY_DIR: string;
   readonly PUBLIC_KEY_PEM: string;
@@ -170,6 +173,7 @@ class EnvConfig {
   readonly FINGERPRINT: string;
   readonly CERTIFICATE_PEM: string;
   readonly PAIRING_AUTH_TYPE: PairingAuthType;
+  readonly ADVERTISE_SERVICE: boolean;
 
   constructor(config: SetupParams) {
     this.DATA_DIR = config.dataDir || "";
@@ -194,7 +198,6 @@ class EnvConfig {
     this.DESKTOP_IS_PACKAGED = config.desktopIsPackaged ?? false;
     this.VERSION = config.version ?? null;
     this.DEFAULT_PROFILE_ID = config.defaultProfileId ?? null;
-    this.AGENT_PORT = config.agentPort ?? null;
     this.DEVICE_NAME = config.deviceName;
     this.LIBRARY_DIR = config.libraryDir;
     this.PUBLIC_KEY_PEM = config.publicKeyPem;
@@ -202,6 +205,8 @@ class EnvConfig {
     this.FINGERPRINT = config.fingerprint;
     this.CERTIFICATE_PEM = config.certPem;
     this.PAIRING_AUTH_TYPE = config.envType === EnvType.Desktop ? PairingAuthType.OTP : PairingAuthType.Password;
+    this.ADVERTISE_SERVICE = config.advertiseService;
+    this.AGENT_PORT = config.agentPort || DEFAULT_AGENT_PORT;
 
     console.log(`🖥️ Device Name: ${this.DEVICE_NAME}`);
     console.log(`📂 Data Directory: ${this.DATA_DIR}`);
@@ -230,10 +235,6 @@ class EnvConfig {
 
   setMainProfileId(profileId: number) {
     this.DEFAULT_PROFILE_ID = profileId;
-  }
-
-  setAgentPort(port: number) {
-    this.AGENT_PORT = port;
   }
 }
 

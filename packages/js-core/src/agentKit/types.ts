@@ -11,3 +11,17 @@ export type AgentInfo = {
     availableProfiles: ProfileDetails[];
     iconKey: string | null;
 }
+
+export type BonjourTxt = {
+    version: string;
+    iconKey: string;
+    deviceName: string;
+    fingerprint: string;
+}
+
+export type AgentCandidate = {
+    fingerprint?: string;
+    deviceName?: string;
+    iconKey?: string;
+    host: string;
+}
