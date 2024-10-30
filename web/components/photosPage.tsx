@@ -474,7 +474,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                                 onValueChange={handleStorageSelect}
                                 value={selectedStorageId?.toString()}
                             >
-                                <SelectTrigger className="w-[10rem]">
+                                <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Select storage" />
                                 </SelectTrigger>
                                 <SelectContent>
