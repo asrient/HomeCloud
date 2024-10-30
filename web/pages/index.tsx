@@ -73,7 +73,7 @@ export default function Home() {
       <Head>
         <title>HomeCloud</title>
       </Head>
-      <main className='bg-slate-50 home-bg min-h-screen pb-10'>
+      <main className='pb-10'>
         <div className='container'>
           <div className={`flex min-h-[70vh] justify-center flex-col lg:flex-row lg:space-x-12 lg:items-end pt-16 ${inter.className}`}>
             <div className="flex-col pb-16 md:pb-32 text-slate-400">

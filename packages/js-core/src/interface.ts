@@ -289,6 +289,7 @@ export class ApiResponse {
     );
     this.setHeader("Access-Control-Allow-Credentials", "true");
     this.setHeader("Access-Control-Expose-Headers", WEB_TOKEN_HEADER_CAP);
+    this.setHeader("Access-Control-Allow-Private-Network", "true");
   }
 
   /**

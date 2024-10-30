@@ -421,11 +421,6 @@ const Page: NextPageWithConfig = () => {
             </Button>
           </TextModal>
         </PageBar>
-        {folderStat && storage && folderStat.parentIds && folderStat.parentIds.length > 0 &&
-          <div className='p-2 pt-3 md:py-1 md:fixed md:bottom-0 w-full bg-background z-10'>
-            <FolderPath storage={storage} folder={folderStat} />
-          </div>
-        }
         <ContextMenu>
           <ContextMenuTrigger>
             <div onClick={onClickOutside} className='min-h-[90vh]' onContextMenu={onRightClickOutside}>
@@ -505,6 +500,11 @@ const Page: NextPageWithConfig = () => {
           previewLoading && <div className='fixed top-0 left-0 w-screen h-screen bg-background/80 z-50 flex flex-col justify-center items-center'>
             <LoadingIcon />
             <span className='text-xs pt-2'>Loading Preview</span>
+          </div>
+        }
+        {folderStat && storage && folderStat.parentIds && folderStat.parentIds.length > 0 &&
+          <div className='p-2 pt-3 md:py-1 md:sticky md:bottom-0 w-full bg-background z-10'>
+            <FolderPath storage={storage} folder={folderStat} />
           </div>
         }
       </main>

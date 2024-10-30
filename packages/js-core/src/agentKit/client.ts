@@ -269,7 +269,7 @@ async function createStorage(profile: Profile, client: AgentClient, accessKey: s
     });
     const storage = await Storage.createStorage(profile, {
         type: StorageType.Agent,
-        name: `${targetInfo.deviceName} (${targetInfo.profile.name})`,
+        name: `${targetInfo.deviceName}`,
         authType: StorageAuthType.Pairing,
         oneAuthId: null,
         username: null,
