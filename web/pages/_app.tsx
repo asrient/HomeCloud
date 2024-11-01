@@ -45,12 +45,12 @@ function App({ Component, pageProps }: AppPropsWithConfig) {
       }
       <AppErrorModal />
       <Toaster />
-      </>
+    </>
   );
 }
 
 export default function MyApp(props: AppPropsWithConfig) {
   return (<AppStateProvider>
-  <App {...props} />
-    </AppStateProvider>)
+    <App {...props} />
+  </AppStateProvider>)
 }

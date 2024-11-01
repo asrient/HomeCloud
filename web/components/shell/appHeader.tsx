@@ -40,7 +40,7 @@ function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: bo
     }
 
     const iconUrl = useMemo(() => {
-        if(storage.type === StorageType.Agent) {
+        if (storage.type === StorageType.Agent) {
             return getUrlFromIconKey(storage.agent?.iconKey);
         }
         return getIconUrlFromType(storage.type);
@@ -80,6 +80,21 @@ function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: bo
 const addIcon = (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-1">
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 </svg>);
+
+function EmptyPlaceholder({
+    iconUrl,
+    text,
+}: {
+    iconUrl: string;
+    text: string;
+}) {
+    return (<div className="flex space-y-1 p-2 flex-col w-full justify-center items-center text-foreground/60 text-xs">
+        <div>
+            <Image src={iconUrl} alt="Empty" height={55} width={55} />
+        </div>
+        <div>{text}</div>
+    </div>)
+}
 
 function DevicesPopover() {
     const { profile, storages, disabledStorages, serverConfig, iconKey } = useAppState();
@@ -160,6 +175,10 @@ function DevicesPopover() {
                                 </DropdownMenuItem>
                             ))
                         }
+                        {
+                            devices?.length === 0 &&
+                            <EmptyPlaceholder iconUrl="/icons/connect-devices.png" text="Connect all your Mac, Windows and more." />
+                        }
                         <DropdownMenuItem asChild>
                             <Button onClick={() => setAddAgentModalOpen(true)}
                                 variant='outline' size='sm' className='w-full mt-1 mb-1'>
@@ -176,7 +195,10 @@ function DevicesPopover() {
                                 </DropdownMenuItem>
                             ))
                         }
-
+                        {
+                            cloudStorages?.length === 0 &&
+                            <EmptyPlaceholder iconUrl="/icons/cloud-gray.png" text="Connect your Google Drive, OneDrive and more." />
+                        }
                         <DialogTrigger asChild>
                             <DropdownMenuItem asChild>
                                 <Button variant='outline' size='sm' className='w-full mt-1'>

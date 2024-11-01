@@ -74,6 +74,12 @@ export function validatePairingRequest(packet: PairingRequestPacket, clientPubli
     if (pairingRequest.clientFinerprint !== getFingerprintFromBase64(clientPublicKey)) {
         throw CustomError.security("Invalid client fingerprint");
     }
+    if(pairingRequest.targetFingerprint !== envConfig.FINGERPRINT) {
+        throw CustomError.security("Invalid target fingerprint");
+    }
+    if (!envConfig.IS_DEV && envConfig.FINGERPRINT === pairingRequest.clientFinerprint) {
+        throw CustomError.security("Attempted to pair with self.");
+    }
     return pairingRequest;
 }
 
@@ -88,6 +94,9 @@ async function createAgent(pairingRequest: PairingRequest, authority: string) {
     const targetProfile = await Profile.getProfileById(pairingRequest.targetProfileId);
     if (!targetProfile) {
         throw CustomError.validationSingle("targetProfileId", "Invalid target profile id");
+    }
+    if(!envConfig.IS_DEV && envConfig.FINGERPRINT === pairingRequest.clientFinerprint) {
+        throw CustomError.security("Attempted to pair with self.");
     }
     const agent = await Agent.createAgent(targetProfile, {
         fingerprint: pairingRequest.clientFinerprint,

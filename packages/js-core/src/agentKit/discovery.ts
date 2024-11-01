@@ -3,8 +3,8 @@ import { envConfig } from '../envConfig';
 import { getIconKey } from '../utils';
 import { getDeviceInfo } from '../utils/deviceInfo';
 import { AgentCandidate, BonjourTxt } from './types';
+import { ProfileDetails } from '../models';
 
-const SERVICE_PREFIX = 'Homecloud_Agent';
 const SERVICE_TYPE = 'hc-agent';
 
 export default class DiscoveryService {
@@ -46,6 +46,26 @@ export default class DiscoveryService {
         this.browser.start();
     }
 
+    onUp(cb: (s: Service) => void) {
+        this.browser.on('up', cb);
+    }
+
+    static isServiceVaild(service: Service): boolean {
+        const txt = service.txt as BonjourTxt;
+        if (service.port !== envConfig.AGENT_PORT || !txt.fingerprint || !txt.deviceName || !txt.iconKey) {
+            console.warn('DEBUG: Bonjour Browser returned an unexpected service:', service);
+            return false;
+        }
+        if (service.addresses.length === 0) {
+            return false;
+        }
+        const fingerprint = service.txt.fingerprint;
+        if (!envConfig.IS_DEV && fingerprint === envConfig.FINGERPRINT) {
+            return false;
+        }
+        return true;
+    }
+
     getCandidates(silent = true): AgentCandidate[] {
         if (!this.browser) {
             throw new Error('Discovery service is not listening.');
@@ -55,14 +75,10 @@ export default class DiscoveryService {
         }
         const candidates: AgentCandidate[] = [];
         this.browser.services.forEach((service: Service) => {
+            if (!DiscoveryService.isServiceVaild(service)) {
+                return;
+            }
             const txt = service.txt as BonjourTxt;
-            if (service.port !== envConfig.AGENT_PORT || !txt.fingerprint || !txt.deviceName || !txt.iconKey) {
-                console.warn('DEBUG: Bonjour Browser returned an unexpected service:', service);
-                return;
-            }
-            if (service.addresses.length === 0) {
-                return;
-            }
             candidates.push({
                 host: service.addresses[0],
                 fingerprint: txt.fingerprint,
@@ -75,7 +91,7 @@ export default class DiscoveryService {
 
     hello() {
         const deviceInfo = getDeviceInfo();
-        const name = `${SERVICE_PREFIX}_${envConfig.FINGERPRINT}`;
+        const name = envConfig.FINGERPRINT.slice(0, 8);
         this.bonjour.publish({
             name: name,
             type: SERVICE_TYPE,
@@ -103,3 +119,28 @@ export default class DiscoveryService {
         });
     }
 }
+
+/*
+// Todo: Finish the implementation of the AgentUpdateService class and initialize it post the DiscoveryService setup.
+
+export class AgentUpdateService {
+
+    updateRecords: Record<string, {
+        lastPushToDb: number;
+        profiles: ProfileDetails[];
+        iconKey: string | null;
+        deviceName: string;
+        updateTimer: NodeJS.Timeout;
+    }> = {};
+
+    private serviceDiscovered(service: Service) {
+        if(!DiscoveryService.isServiceVaild(service)) return;
+        console.log('New service discovered:', service);
+    }
+
+    start() {
+        const discoveryService = DiscoveryService.getInstace();
+        discoveryService.onUp(this.serviceDiscovered);
+    }
+}
+*/

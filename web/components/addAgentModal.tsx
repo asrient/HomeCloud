@@ -34,8 +34,10 @@ const DESC_LIST = [
 
 function SearchAgentScreen({
     setSelectedCandidate,
+    isOpen,
 }: {
     setSelectedCandidate: (candidate: AgentCandidate | null) => void;
+    isOpen: boolean;
 }) {
 
     const [searchText, setSearchText] = useState<string>('');
@@ -98,17 +100,23 @@ function SearchAgentScreen({
         if (fetchTimerRef.current) {
             clearTimeout(fetchTimerRef.current);
         }
-        fetchTimerRef.current = window.setTimeout(pollScan, delay);
-    }, [fetchCandidates]);
+        if (isOpen) {
+            fetchTimerRef.current = window.setTimeout(pollScan, delay);
+        }
+    }, [fetchCandidates, isOpen]);
 
     useEffect(() => {
+        if (!isOpen) {
+            fetchTimerRef.current && clearTimeout(fetchTimerRef.current);
+            return;
+        }
         pollScan();
         return () => {
             if (fetchTimerRef.current) {
                 clearTimeout(fetchTimerRef.current);
             }
         };
-    }, [fetchCandidates, pollScan]);
+    }, [fetchCandidates, isOpen, pollScan]);
 
     return (
         <>
@@ -598,7 +606,7 @@ export default function AddAgentModal({
             <DialogContent className="sm:max-w-[28rem]">
                 {
                     screen === 'select' ?
-                        <SearchAgentScreen setSelectedCandidate={setCandidate} />
+                        <SearchAgentScreen setSelectedCandidate={setCandidate} isOpen={dialogOpen} />
                         : screen === 'form' ?
                             candidate && <AgentFormScreen candidate={candidate} onDone={storageAdded} onBack={existingStorage ? closeDialog : backToBegining} />
                             : screen === 'success' ?
