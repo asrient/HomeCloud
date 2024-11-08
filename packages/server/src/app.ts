@@ -15,32 +15,19 @@ import {
   RequestOriginType,
   cryptoUtils,
   DiscoveryService,
+  setupDbData,
 } from "@homecloud/js-core";
 import path from "path";
 import os from "os";
 import { DEFAULT_AGENT_PORT } from "packages/js-core/src/envConfig";
 
-const startText = `\n
-██╗░░██╗░█████╗░███╗░░░███╗███████╗░█████╗░██╗░░░░░░█████╗░██╗░░░██╗██████╗░
-██║░░██║██╔══██╗████╗░████║██╔════╝██╔══██╗██║░░░░░██╔══██╗██║░░░██║██╔══██╗
-███████║██║░░██║██╔████╔██║█████╗░░██║░░╚═╝██║░░░░░██║░░██║██║░░░██║██║░░██║
-██╔══██║██║░░██║██║╚██╔╝██║██╔══╝░░██║░░██╗██║░░░░░██║░░██║██║░░░██║██║░░██║
-██║░░██║╚█████╔╝██║░╚═╝░██║███████╗╚█████╔╝███████╗╚█████╔╝╚██████╔╝██████╔╝
-╚═╝░░╚═╝░╚════╝░╚═╝░░░░░╚═╝╚══════╝░╚════╝░╚══════╝░╚════╝░░╚═════╝░╚═════╝░
-\n
-🎨 Art credit: https://fsymbols.com/generators/carty/
-🐱 Starting HomeCloud Server...`;
-
-class AppServer {
-  server: ServerAdaptor;
-  discoveryService: DiscoveryService;
+export default class App {
+  server: ServerAdaptor | null = null;
+  discoveryService: DiscoveryService | null = null;
 
   constructor() {
-    console.log(startText);
     this.setupConfig();
     ffmpegSetup();
-    this.server = new ServerAdaptor(serverAgentRouter, RequestOriginType.Agent);
-    this.discoveryService = DiscoveryService.setup();
   }
 
   getEnvVar(name: string, required: boolean = false): string | undefined {
@@ -121,6 +108,7 @@ class AppServer {
   }
 
   startServer() {
+    this.server = new ServerAdaptor(serverAgentRouter, RequestOriginType.Agent);
     const httpsServer = https.createServer(
       {
         key: envConfig.PRIVATE_KEY_PEM,
@@ -133,29 +121,36 @@ class AppServer {
     httpsServer.listen(envConfig.AGENT_PORT);
 
     console.log(`⚡️ HTTPS Server started on port: ${envConfig.AGENT_PORT}`);
+    console.log(`🌎 Go ahead, visit ${envConfig.BASE_URL}`);
+  }
+
+  startWorkerHead() {
+    this.discoveryService = DiscoveryService.setup();
     this.discoveryService.hello();
   }
 
-  async start() {
-    const libraryDir = path.join(os.homedir(), "Homecloud Server", "admin")
+  async setupDevice() {
+    console.log('---SETTING UP HOMECLOUD SERVER ON THIS DEVICE---');
+    const libraryDir = path.join(os.homedir(), "Homecloud Server", "admin");
     const defaultProfile = {
       name: "admin",
       username: null,
       password: this.getEnvVar('DEFAULT_PASSWORD') || '123456',
       libraryDir,
     };
+    await setupDbData(defaultProfile);
+  }
+
+  static async init() {
+    const app = new App();
     const dataDir = envConfig.DATA_DIR;
     const dbFilename = envConfig.IS_DEV ? "homecloud_dev.db" : "homecloud.db";
     const dbPath = path.join(dataDir, dbFilename);
     console.log(`🗄️ Database path: ${dbPath}`);
-    if (!(await initDb(dbPath, defaultProfile))) {
+    if (!(await initDb(dbPath))) {
       console.error("❌ Failed to initialize database. Exiting...");
       process.exit(1);
     }
-    this.startServer();
-    console.log(`🌎 Go ahead, visit ${envConfig.BASE_URL}`);
+    return app;
   }
 }
-
-const appServer = new AppServer();
-appServer.start();

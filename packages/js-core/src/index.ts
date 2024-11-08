@@ -6,7 +6,7 @@ export {
     StorageType,
     ProfilesPolicy,
 } from "./envConfig";
-export { initDb } from "./db";
+export { initDb, setupDbData } from "./db";
 export { ffmpegSetup } from "./ffmpeg";
 export { default as ServerAdaptor } from "./serverAdaptor";
 export { webRouter, agentRouter as desktopAgentRouter } from "./apiRouter.desktop";

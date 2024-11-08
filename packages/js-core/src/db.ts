@@ -11,7 +11,24 @@ export type DefaultProfile = {
   password: string | null;
 }
 
-export async function initDb(path: string, defaultProfile: DefaultProfile) {
+export async function setupDbData(defaultProfile: DefaultProfile) {
+  const count = await Profile.countProfiles();
+  if (count === 0) {
+    console.log("🔑 Creating default profile...");
+    const profile = await Profile.createProfile({
+      ...defaultProfile,
+      isAdmin: true,
+      accessControl: null,
+    }, null);
+    envConfig.setMainProfileId(profile.id);
+  }
+  else if (count === 1) {
+    const profile = await Profile.getFirstProfile();
+    envConfig.setMainProfileId(profile.id);
+  }
+}
+
+export async function initDb(path: string) {
   console.log("💽 Connecting to database:", path);
     db = new Sequelize({
       dialect: "sqlite",
@@ -31,21 +48,5 @@ export async function initDb(path: string, defaultProfile: DefaultProfile) {
     //await db.sync({ alter: true });
   }
   await db.sync();
-
-  const count = await Profile.countProfiles();
-  if (count === 0) {
-    console.log("🔑 Creating default profile...");
-    const profile = await Profile.createProfile({
-      ...defaultProfile,
-      isAdmin: true,
-      accessControl: null,
-    }, null);
-    envConfig.setMainProfileId(profile.id);
-  }
-  else if (count === 1) {
-    const profile = await Profile.getFirstProfile();
-    envConfig.setMainProfileId(profile.id);
-  }
-
   return true;
 }

@@ -16,6 +16,7 @@ import {
   RequestOriginType,
   cryptoUtils,
   DiscoveryService,
+  setupDbData,
 } from "@homecloud/js-core";
 import path from "path";
 import os from "os";
@@ -148,6 +149,14 @@ class App {
   }
 
   async start() {
+    const dataDir = envConfig.DATA_DIR;
+    const dbFilename = envConfig.IS_DEV ? "homecloud_dev.db" : "homecloud.db";
+    const dbPath = path.join(dataDir, dbFilename);
+    console.log(`🗄️ Database path: ${dbPath}`);
+    if (!(await initDb(dbPath))) {
+      console.error("❌ Failed to initialize database. Exiting...");
+      process.exit(1);
+    }
     let profileName = 'Homecloud User';
     try {
       profileName = os.userInfo().username;
@@ -159,14 +168,7 @@ class App {
       username: null,
       password: null,
     };
-    const dataDir = envConfig.DATA_DIR;
-    const dbFilename = envConfig.IS_DEV ? "homecloud_dev.db" : "homecloud.db";
-    const dbPath = path.join(dataDir, dbFilename);
-    console.log(`🗄️ Database path: ${dbPath}`);
-    if (!(await initDb(dbPath, defaultProfile))) {
-      console.error("❌ Failed to initialize database. Exiting...");
-      process.exit(1);
-    }
+    await setupDbData(defaultProfile);
     this.startWebServer();
     this.startAgentServer();
     this.discoveryService.hello();
