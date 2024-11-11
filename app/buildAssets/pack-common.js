@@ -69,7 +69,7 @@ function postpack() {
     console.log('Setting the codebase back to normal...');
     // package.json
     fs.copyFileSync(TMP_PACKAGE_JSON, 'package.json');
-    //fs.unlinkSync(TMP_PACKAGE_JSON);
+    fs.unlinkSync(TMP_PACKAGE_JSON);
 
     // check if desktop tmp file exists and restore it
     if (fs.existsSync(TMP_DESKTOP_ENV_FILE)) {

@@ -263,14 +263,9 @@ export class ApiResponse {
    */
   constructor() {
     this.setHeader("Content-Type", "text/plain");
-    this.setHeader("Server", "HomeCloud API Server");
-    if (envConfig.IS_DEV) {
-      const origin = envConfig.BASE_URL.substring(
-        0,
-        envConfig.BASE_URL.length - 1,
-      );
-      this.setAccessControl(origin);
-    }
+    this.setHeader("Server", "HomeCloud API");
+    const origin = envConfig.BASE_URL.substring(0, envConfig.BASE_URL.length - 1);
+    this.setAccessControl(origin);
   }
 
   /**

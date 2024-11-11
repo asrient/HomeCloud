@@ -1,12 +1,10 @@
-import { google, drive_v3 } from "googleapis";
+import { drive_v3, drive } from "@googleapis/drive";
 import { StorageType } from "../envConfig";
 import { FsDriver, RemoteItem } from "./interface";
 import { getAccessToken } from "./oneAuth";
 import { ApiRequestFile } from "../interface";
-import { ReadStream } from "fs";
+import { OAuth2Client } from 'google-auth-library';
 import { Readable } from "stream";
-
-const OAuth2 = google.auth.OAuth2;
 
 export class GoogleFsDriver extends FsDriver {
   override storageType = StorageType.Google;
@@ -14,13 +12,13 @@ export class GoogleFsDriver extends FsDriver {
   driver?: drive_v3.Drive;
 
   override async init() {
-    const client = new OAuth2();
+    const client = new OAuth2Client();
     const accessToken = await getAccessToken(this.storage);
     if (!accessToken) {
       throw new Error("Could not get access token");
     }
     client.setCredentials({ access_token: accessToken });
-    this.driver = google.drive({ version: "v3", auth: client });
+    this.driver = drive({ version: "v3", auth: client });
   }
 
   // reference: https://developers.google.com/drive/api/reference/rest/v3/files
@@ -59,7 +57,7 @@ export class GoogleFsDriver extends FsDriver {
 
   public override async readDir(id: string) {
 
-    if(id === '') {
+    if (id === '') {
       return [this.toRemoteItem({
         id: 'root',
         name: 'Google Drive',

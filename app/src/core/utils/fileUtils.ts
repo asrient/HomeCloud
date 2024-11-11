@@ -72,11 +72,30 @@ export async function getNativeDrives(): Promise<{ [key: string]: string }> {
     }
 }
 
+async function getWindowsDrivesManually(): Promise<{ [key: string]: string }> {
+    const drives = 'ABCDEFGHIJKLMNO'.split(''); // only considering A to O drives to reduce system calls.
+    const result: { [key: string]: string } = {};
+    await Promise.all(drives.map(async (drive) => {
+        const drivePath = `${drive}:\\`;
+        try {
+            await fsPromises.access(drivePath);
+            result[`${drive}:`] = drivePath;
+        } catch (error) {
+            // Ignore drives that are not accessible
+        }
+    }));
+    return result;
+}
+
 /**
  * Gets the available drives on Windows.
  */
 async function getWindowsDrives(): Promise<{ [key: string]: string }> {
-    const { stdout } = await execAsync('wmic logicaldisk get name,volumename');
+    const { stdout, stderr } = await execAsync('wmic logicaldisk get name,volumename');
+    if (stderr || !stdout) {
+        stderr && console.error('Error executing wmic command:', stderr);
+        return getWindowsDrivesManually();
+    }
     const lines = stdout.split('\n').filter((line) => line.trim().length > 0);
     const drives = lines.slice(1).map((line) => line.trim()); // Skip the header
     const result: { [key: string]: string } = {};

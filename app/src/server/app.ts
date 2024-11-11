@@ -42,7 +42,7 @@ export default class App {
     const isDev = !(this.getEnvVar('NODE_ENV') === "production");
     const dataDir =
       this.getEnvVar('DATA_DIR') || isDev
-        ? path.resolve(__dirname, "../../../DEV_SERVER_DATA")
+        ? path.resolve(__dirname, "../../Debug/Server")
         : path.join(os.homedir(), "/.homecloud");
     fs.mkdirSync(envConfig.DATA_DIR, { recursive: true });
     const serverBaseUrl =

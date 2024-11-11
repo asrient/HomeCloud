@@ -14,3 +14,7 @@ yarn-error.log
 yode
 .package.tmp.json
 src/desktop/.env.tmp.js
+
+# Debug generated data
+Debug/
+Debug.log

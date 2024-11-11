@@ -113,7 +113,7 @@ export function authenticate(authType: AuthType = AuthType.Required) {
     let token = request.headers[
       request.requestOrigin === RequestOriginType.Web ? WEB_TOKEN_HEADER : AGENT_TOKEN_HEADER
     ];
-    if (envConfig.IS_DEV && !token && request.cookies.jwt) {
+    if (!token && request.cookies.jwt) {
       // console.warn("DEV feature: Fetching jwt from cookie.");
       token = request.cookies.jwt;
     }
@@ -233,7 +233,7 @@ export function fetchStorage() {
 export function fetchFsDriver() {
   return makeDecorator(async (request, next) => {
     const storage = request.local.storage;
-    if(!storage) {
+    if (!storage) {
       return ApiResponse.fromError(
         CustomError.validationSingle("storageId", "Storage not found"),
       );

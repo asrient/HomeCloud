@@ -19,3 +19,7 @@ npm-debug.log
 .env
 .env.*
 src/desktop/.env.tmp.js
+
+# Debug generated data
+Debug/
+Debug.log

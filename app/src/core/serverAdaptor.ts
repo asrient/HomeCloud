@@ -229,10 +229,8 @@ export default class ServerAdaptor {
     }
     const url = this.getUrl(req)!;
 
-    if (envConfig.IS_DEV) {
-      const date = new Date().toUTCString();
-      console.log(`${date}: [${req.method}] ${url.pathname}`);
-    }
+    const date = new Date().toUTCString();
+    console.log(`${date}: [${req.method}] ${url.pathname}`);
 
     try {
       if (url.pathname.startsWith("/api/")) {

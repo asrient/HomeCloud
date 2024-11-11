@@ -37,7 +37,7 @@ import { setupLogger, stopLogger } from "./logger";
   if (!env.DESKTOP_IS_PACKAGED) {
     logDir = path.resolve(__dirname, "../../");
   }
-  let filename = "AppRun.log";
+  let filename = "Run.log";
   if (env.NODE_ENV !== "production") {
     filename = "Debug.log";
   }
@@ -121,7 +121,7 @@ class App {
     const isDev = !(env.NODE_ENV === "production");
     const dataDir = env.DESKTOP_IS_PACKAGED
       ? getDataDir(env.APP_NAME)
-      : path.resolve(__dirname, "../../../DEV_DESKTOP_DATA");
+      : path.resolve(__dirname, "../../Debug/Desktop");
 
     fs.mkdirSync(dataDir, { recursive: true });
     const webServerBaseUrl = `http://127.0.0.1:${this.webPort}/`;
