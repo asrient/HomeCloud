@@ -110,3 +110,7 @@ export function getIconKey(deviceInfo: DeviceInfo) {
 }
 
 export const dynamicImport = new Function('specifier', 'return import(specifier)');
+
+export function deviceIdFromFingerprint(fingerprint: string) {
+  return fingerprint.slice(0, 5);
+}

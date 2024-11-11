@@ -28,6 +28,7 @@ import NativeImplDesktop from "./nativeImpl";
 import { getDataDir, getUserLogDirectory } from "./utils";
 import Tray from "./views/sysTray";
 import { setupLogger, stopLogger } from "./logger";
+import { setupNative } from "../core/native";
 
 (function () {
   if (!env.APP_NAME) {
@@ -67,6 +68,7 @@ class App {
     this.agentServer = new ServerAdaptor(desktopAgentRouter, RequestOriginType.Agent);
     this.discoveryService = DiscoveryService.setup();
     this.nativeImpl = new NativeImplDesktop(this.quit.bind(this));
+    setupNative(this.nativeImpl);
     this.tray = new Tray(this.quit.bind(this));
   }
 

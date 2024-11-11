@@ -1,9 +1,11 @@
 import { PairingRequest } from "./agentKit/types";
+import { deviceIdFromFingerprint } from "./utils";
 
 export type NativeButtonConfig = {
     text: string;
     type?: "primary" | "default" | "danger";
     isDefault?: boolean;
+    isHighlighted?: boolean;
     onPress: () => void;
 }
 
@@ -32,6 +34,7 @@ export abstract class NativeImpl {
             buttons: [{
                 text: "Okay",
                 isDefault: true,
+                isHighlighted: true,
                 onPress: () => {
                     this._alerts = this._alerts.filter(a => a !== ask);
                 }
@@ -43,20 +46,22 @@ export abstract class NativeImpl {
     otpFlow(pairingReq: PairingRequest, otp: string, onDeny: () => void): NativeAsk {
         let ask = this.ask({
             title: `Allow "${pairingReq.clientDeviceName}" to connect?`,
-            description: `Please verify the fingerprint before continuing.\nFingerprint: ${pairingReq.clientFinerprint}`,
+            description: `Please verify the fingerprint before continuing: ${deviceIdFromFingerprint(pairingReq.clientFinerprint)}`,
             buttons: [{
                 text: "Allow",
+                isHighlighted: true,
                 onPress: () => {
                     ask = this.ask({
                         title: otp,
-                        description: `Enter the OTP on the ${pairingReq.clientDeviceName} to complete pairing.`,
+                        description: `Enter the Code on "${pairingReq.clientDeviceName}" to complete pairing.`,
                         buttons: [{
                             text: "Done",
                             type: "primary",
+                            isHighlighted: true,
                             isDefault: true,
-                            onPress: () => {}
+                            onPress: () => { }
                         }, {
-                            text: "Deny",
+                            text: "Cancel",
                             onPress: onDeny
                         }]
                     });
@@ -73,10 +78,9 @@ export abstract class NativeImpl {
     }
 }
 
-let native: NativeImpl | null = null;
+export let native: NativeImpl | null = null;
 
 export function setupNative(n: NativeImpl) {
-  native = n;
+    console.log("🔌 Setting up native module..");
+    native = n;
 }
-
-export default native;

@@ -1,5 +1,6 @@
 
 import CustomError, { ErrorCode } from "./customError";
+import { NativeAsk, native } from "./native";
 import { uuid } from "./utils/cryptoUtils";
 
 const EXPIRY_TIME = 600000; // 10 minutes
@@ -13,13 +14,18 @@ interface PendingSession {
     browserName: string;
 }
 
-const pendingSessions = new Map<string, { pendingSession: PendingSession, expireTimer: NodeJS.Timeout | null }>();
+const pendingSessions = new Map<string, { pendingSession: PendingSession, expireTimer: NodeJS.Timeout | null, ask: NativeAsk }>();
 let counter = 0;
 
 export function requestSession({ userAgent, browserName }: { userAgent: string, browserName: string }): string {
     if (counter >= QUEUE_LIMIT) {
         throw CustomError.code(ErrorCode.LIMIT_REACHED, "Please try again later");
     }
+
+    if (!native) {
+        throw CustomError.generic("Native dialog not available");
+    }
+
     const id = uuid();
     pendingSessions.set(id, {
         pendingSession:
@@ -31,19 +37,34 @@ export function requestSession({ userAgent, browserName }: { userAgent: string, 
             browserName,
         },
         expireTimer: setTimeout(() => {
-            rejectSession(id);
+            rejectSession(id, true);
         }, EXPIRY_TIME),
+        ask: native.ask({
+            title: `Allow "${browserName}" to access HomeCloud?`,
+            buttons: [
+                {
+                    text: "Deny",
+                    isDefault: true,
+                    onPress: () => {
+                        rejectSession(id);
+                    },
+                },
+                {
+                    text: "Allow",
+                    isHighlighted: true,
+                    onPress: () => {
+                        approveSession(id);
+                    },
+                },
+            ],
+        }),
     });
     counter++;
-    // Todo: setup the gui code to show the dialog here
-    // For now we are auto approving the session after 10 seconds
-    setTimeout(() => {
-        approveSession(id);
-    }, 10000);
     return id;
 }
 
 export function approveSession(id: string): void {
+    console.log("Approving session request:", id);
     const session = pendingSessions.get(id);
     if (!session) {
         return;
@@ -58,23 +79,28 @@ export function approveSession(id: string): void {
     session.expireTimer = setTimeout(() => {
         deleteRequest(id);
     }, EXPIRY_TIME);
-    // todo: gui code to remove the dialog
 }
 
-export function rejectSession(id: string): void {
-    // todo: gui code to remove the dialog
+export function rejectSession(id: string, closeDialog = false): void {
+    console.log("Rejecting session request:", id);
+    if (closeDialog) {
+        const session = pendingSessions.get(id);
+        if (session) {
+            session.ask.close();
+        }
+    }
     deleteRequest(id);
 }
 
 function deleteRequest(id: string): void {
     const session = pendingSessions.get(id);
-    counter--;
     if (!session) {
         return;
     }
     if (session.expireTimer) {
         clearTimeout(session.expireTimer);
     }
+    counter--;
     pendingSessions.delete(id);
 }
 
