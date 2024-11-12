@@ -36,8 +36,17 @@ module.exports = env;
 
 function prepack(type) {
     console.log(`Fixing the codebase for ${type}...`);
+
     const originalPackageJson = fs.readFileSync('package.json', 'utf8');
     const packageJson = JSON.parse(originalPackageJson);
+
+    if (type === 'desktop') {
+        const envFileContent = getEnvFileContent(packageJson);
+        // Copy the original env file to a temporary location
+        fs.copyFileSync(DESKTOP_ENV_FILE, TMP_DESKTOP_ENV_FILE);
+        // Write the new content to the env file
+        fs.writeFileSync(DESKTOP_ENV_FILE, envFileContent);
+    }
 
     // copy the file to a temporary location
     fs.copyFileSync('package.json', TMP_PACKAGE_JSON);
@@ -55,14 +64,6 @@ function prepack(type) {
     packageJson.devDependencies = {};
 
     fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2));
-
-    if (type === 'desktop') {
-        const envFileContent = getEnvFileContent(packageJson);
-        // Copy the original env file to a temporary location
-        fs.copyFileSync(DESKTOP_ENV_FILE, TMP_DESKTOP_ENV_FILE);
-        // Write the new content to the env file
-        fs.writeFileSync(DESKTOP_ENV_FILE, envFileContent);
-    }
 }
 
 function postpack() {
