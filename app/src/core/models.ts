@@ -20,7 +20,8 @@ import { createHash } from "./utils";
 import CustomError from "./customError";
 import path from "path";
 import { isUrlPrivate } from "./utils/privateUrlChecker";
-import { setupLibraryForProfile } from "./utils/libraryUtils";
+import { getLibraryDirForProfile, setupLibraryForProfile } from "./utils/libraryUtils";
+import { getDefaultDirectoriesCached } from "./utils/deviceInfo";
 
 const saltRounds = 10;
 const DAYS_5 = 5 * 24 * 60 * 60 * 1000;
@@ -322,7 +323,7 @@ export class Profile extends DbModel {
     const profile = await Profile.create({ username, name, hash, isAdmin, accessControl: accessControlStr });
 
     // Create the local storage
-    await Storage.createStorage(profile, {
+    const localStorage_ = await Storage.createStorage(profile, {
       type: StorageType.Local,
       name: "This Device",
       authType: StorageAuthType.None,
@@ -334,7 +335,8 @@ export class Profile extends DbModel {
     });
 
     await setupLibraryForProfile(profile.id);
-
+    // Not awaiting this as it can be done in the background
+    PinnedFolders.createDefaultPins(localStorage_);
     return profile;
   }
 
@@ -1465,6 +1467,21 @@ export class PinnedFolders extends DbModel {
     return PinnedFolders.destroy({
       where: { folderId, StorageId: storage.id },
     });
+  }
+
+  static async createDefaultPins(storage: Storage) {
+    if (storage.type !== StorageType.Local) return;
+    if (envConfig.isServer()) {
+      const libPath = getLibraryDirForProfile(storage.ProfileId);
+      await PinnedFolders.addPinnedFolder(storage, libPath, "Library");
+    } else {
+      const defaultFolders = getDefaultDirectoriesCached();
+      const promises = Object.keys(defaultFolders).map(async (folderName) => {
+        if (!defaultFolders[folderName]) return;
+        await PinnedFolders.addPinnedFolder(storage, defaultFolders[folderName], folderName);
+      });
+      await Promise.all(promises);
+    }
   }
 }
 

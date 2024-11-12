@@ -11,7 +11,7 @@ export async function downloadFile(fsDriver: FsDriver, fileId: string) {
     const stat = await fsDriver.getStat(fileId);
     const fileName = stat.name;
     const [stream, mimeType] = await fsDriver.readFile(fileId);
-    const downloadsDir = getDefaultDirectoriesCached().downloads;
+    const downloadsDir = getDefaultDirectoriesCached().Downloads;
     let filePath = path.join(downloadsDir, fileName);
     let counter = 1;
 

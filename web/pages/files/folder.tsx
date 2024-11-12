@@ -3,7 +3,7 @@ import { buildPageConfig, isMobile } from '@/lib/utils'
 import { FileList_, RemoteItem, SidebarType, Storage, StorageType } from "@/lib/types"
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
-import { use, useCallback, useEffect, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getStat, readDir, upload, mkDir, rename, unlinkMultiple } from '@/lib/api/fs'
 import { addPin, downloadFile, openFileLocal } from '@/lib/api/files'
 import Head from 'next/head'
@@ -11,7 +11,7 @@ import { useAppDispatch, useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
 import Image from 'next/image'
 import PageBar from '@/components/pageBar'
-import { canPreview, getDefaultIcon, getNativeFilesAppIcon, getNativeFilesAppName } from '@/lib/fileUtils'
+import { canPreview, getDefaultIcon, getNativeFilesAppIcon, getNativeFilesAppName, hasItemsToCopy, performCopyItems, setItemsToCopy } from '@/lib/fileUtils'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -43,7 +43,7 @@ const Page: NextPageWithConfig = () => {
   const { toast } = useToast();
   const { s, id } = router.query as { s: string, id: string };
   const storageId = s ? parseInt(s) : null;
-  const folderId = id || '/';
+  const folderId = useMemo(() => id || '/', [id]);
   const [items, setItems] = useState<FileRemoteItem[]>([])
   const [folderStat, setFolderStat] = useState<RemoteItem | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -170,7 +170,7 @@ const Page: NextPageWithConfig = () => {
     })
     const item = {
       ...newFolder,
-      isSelected: false,
+      isSelected: true,
       storageId,
     }
     setItems((prevItems) => [...prevItems, item]);
@@ -298,7 +298,7 @@ const Page: NextPageWithConfig = () => {
       if (prevItem.id === item.id) {
         return {
           ...newItem,
-          isSelected: false,
+          isSelected: true,
           storageId,
         }
       }
@@ -322,6 +322,50 @@ const Page: NextPageWithConfig = () => {
   const openDeleteDialog = useCallback(() => {
     setDeleteDialogOpen(true);
   }, []);
+
+  const cutCopy = useCallback((cut = false) => {
+    if (!storageId) return;
+    const selectedIds = selectedItems.map(item => item.id);
+    setItemsToCopy(storageId, selectedIds, cut);
+  }, [selectedItems, storageId]);
+
+  const isPastingRef = useRef(false);
+  const paste = useCallback(async (e: any) => {
+    if (isPastingRef.current) return;
+    if (!storageId) return;
+    isPastingRef.current = true;
+    toast({
+      title: 'Pasting items here..',
+    });
+    try {
+      const data = await performCopyItems(storageId, folderId);
+      if (!data) return;
+      const { items, errors } = data;
+      console.log('new items added', items);
+      if (errors.length > 0) {
+        toast({
+          variant: "destructive",
+          title: `Could not copy ${errors.length} item(s)`,
+        });
+        console.error('Copy errors', errors);
+      }
+      const fileItems: FileRemoteItem[] = items.map(item => ({
+        ...item,
+        isSelected: true,
+        storageId,
+      }));
+      setItems((prevItems) => [...prevItems, ...fileItems]);
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        variant: "destructive",
+        title: 'Could not copy files',
+        description: e.message,
+      });
+    } finally {
+      isPastingRef.current = false;
+    }
+  }, [folderId, storageId, toast]);
 
   const pinFolder = useCallback(async () => {
     const item = selectedItems[0];
@@ -499,15 +543,15 @@ const Page: NextPageWithConfig = () => {
                     </ContextMenuItem>
                   )
                 }
-                <ContextMenuItem disabled>Copy</ContextMenuItem>
-                <ContextMenuItem disabled>Cut</ContextMenuItem>
+                <ContextMenuItem disabled={!storageId} onClick={() => cutCopy()}>Copy</ContextMenuItem>
+                <ContextMenuItem disabled={!storageId} onClick={() => cutCopy(true)}>Cut</ContextMenuItem>
                 <ContextMenuItem className='text-red-500' onClick={openDeleteDialog}>
                   Delete
                 </ContextMenuItem>
               </>)
                 : (<>
                   <ContextMenuItem>Get info</ContextMenuItem>
-                  <ContextMenuItem disabled>Paste</ContextMenuItem>
+                  <ContextMenuItem onClick={paste} disabled={!hasItemsToCopy()}>Paste</ContextMenuItem>
                   <ContextMenuItem onClick={openNewFolderDialog}>New Folder</ContextMenuItem>
                 </>)
             }

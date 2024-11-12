@@ -30,11 +30,12 @@ export async function setupDbData(defaultProfile: DefaultProfile) {
 
 export async function initDb(path: string) {
   console.log("💽 Connecting to database:", path);
-    db = new Sequelize({
-      dialect: "sqlite",
-      storage: path,
-      dialectModule: verbose(),
-    });
+  db = new Sequelize({
+    dialect: "sqlite",
+    storage: path,
+    dialectModule: verbose(),
+    logging: envConfig.IS_DEV,
+  });
   try {
     await db.authenticate();
     console.log("💽 Database Connection established.");

@@ -187,11 +187,13 @@ export function getDeviceInfoCached(): DeviceInfo {
 }
 
 export type DefaultDirectories = {
-    pictures: string | null;
-    documents: string | null;
-    downloads: string | null;
-    videos: string | null;
-    movies: string | null;
+    Pictures: string | null;
+    Documents: string | null;
+    Downloads: string | null;
+    Videos: string | null;
+    Movies: string | null;
+    Music: string | null;
+    Desktop: string | null;
 };
 
 export function getDefaultDirectories(): DefaultDirectories {
@@ -199,31 +201,39 @@ export function getDefaultDirectories(): DefaultDirectories {
     const platform = os.platform();
 
     const directories = {
-        pictures: null,
-        documents: null,
-        downloads: null,
-        videos: null,
-        movies: null,
+        Pictures: null,
+        Documents: null,
+        Downloads: null,
+        Videos: null,
+        Movies: null,
+        Music: null,
+        Desktop: null,
     };
 
     if (platform === 'win32') {
         // Windows default user directories
-        directories.pictures = path.join(homeDir, 'Pictures');
-        directories.documents = path.join(homeDir, 'Documents');
-        directories.downloads = path.join(homeDir, 'Downloads');
-        directories.videos = path.join(homeDir, 'Videos');
+        directories.Pictures = path.join(homeDir, 'Pictures');
+        directories.Documents = path.join(homeDir, 'Documents');
+        directories.Downloads = path.join(homeDir, 'Downloads');
+        directories.Videos = path.join(homeDir, 'Videos');
+        directories.Music = path.join(homeDir, 'Music');
+        directories.Desktop = path.join(homeDir, 'Desktop');
     } else if (platform === 'darwin') {
         // macOS default user directories
-        directories.pictures = path.join(homeDir, 'Pictures');
-        directories.documents = path.join(homeDir, 'Documents');
-        directories.downloads = path.join(homeDir, 'Downloads');
-        directories.movies = path.join(homeDir, 'Movies');
+        directories.Pictures = path.join(homeDir, 'Pictures');
+        directories.Documents = path.join(homeDir, 'Documents');
+        directories.Downloads = path.join(homeDir, 'Downloads');
+        directories.Movies = path.join(homeDir, 'Movies');
+        directories.Music = path.join(homeDir, 'Music');
+        directories.Desktop = path.join(homeDir, 'Desktop');
     } else if (platform === 'linux') {
         // Linux default user directories (may vary depending on the distro and DE)
-        directories.pictures = path.join(homeDir, 'Pictures');
-        directories.documents = path.join(homeDir, 'Documents');
-        directories.downloads = path.join(homeDir, 'Downloads');
-        directories.videos = path.join(homeDir, 'Videos');
+        directories.Pictures = path.join(homeDir, 'Pictures');
+        directories.Documents = path.join(homeDir, 'Documents');
+        directories.Downloads = path.join(homeDir, 'Downloads');
+        directories.Videos = path.join(homeDir, 'Videos');
+        directories.Music = path.join(homeDir, 'Music');
+        directories.Desktop = path.join(homeDir, 'Desktop');
     }
     return directories;
 }

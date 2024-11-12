@@ -1,7 +1,7 @@
 import { DeviceInfo, OSType, PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage } from "./types";
 import mime from 'mime';
 import { staticConfig } from "./staticConfig";
-import { fileAccessToken } from "./api/files";
+import { move, MoveParams } from "./api/files";
 
 export enum FileType {
     File = 'File',
@@ -298,4 +298,43 @@ export function getNativeFilesAppIcon(deviceInfo: DeviceInfo | null) {
         return '/icons/file-explorer.png';
     }
     return '/icons/folder.png';
+}
+
+const CLIPBOARD_KEY = 'files-clipboard';
+
+export function setItemsToCopy(storageId: number, itemIds: string[], cut = false) {
+    const clipboardJson = {
+        storageId,
+        itemIds,
+        cut,
+    }
+    localStorage.setItem(CLIPBOARD_KEY, JSON.stringify(clipboardJson));
+}
+
+export function getItemsToCopy(): { storageId: number, itemIds: string[], cut: boolean } | null {
+    const clipboardJson = localStorage.getItem(CLIPBOARD_KEY);
+    if (!clipboardJson) return null;
+    return JSON.parse(clipboardJson);
+}
+
+export function clearItemsToCopy() {
+    localStorage.removeItem(CLIPBOARD_KEY);
+}
+
+export function hasItemsToCopy() {
+    return !!localStorage.getItem(CLIPBOARD_KEY);
+}
+
+export async function performCopyItems(destStorageId: number, destFolderId: string) {
+    const clipboard = getItemsToCopy();
+    if (!clipboard) return;
+    const { storageId, itemIds, cut } = clipboard;
+    const moveParams: MoveParams = {
+        sourceStorageId: storageId,
+        destStorageId,
+        destDir: destFolderId,
+        sourceFileIds: itemIds,
+        deleteSource: cut,
+    }
+    return move(moveParams);
 }
