@@ -3,9 +3,9 @@ import { buildPageConfig, isMobile } from '@/lib/utils'
 import { FileList_, RemoteItem, SidebarType, Storage, StorageType } from "@/lib/types"
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getStat, readDir, upload, mkDir, rename, unlinkMultiple } from '@/lib/api/fs'
-import { addPin, downloadFile, openFileLocal } from '@/lib/api/files'
+import { addPin, downloadFile, openFileLocal, openFileRemote } from '@/lib/api/files'
 import Head from 'next/head'
 import { useAppDispatch, useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
@@ -32,10 +32,52 @@ import {
 } from "@/components/ui/context-menu";
 import ConfirmModal from '@/components/confirmModal'
 import { ActionTypes } from '@/lib/state'
-import { useToast } from '@/components/ui/use-toast'
+import { toast, useToast } from '@/components/ui/use-toast'
 import mime from 'mime'
 import ImportPhotosModal from '@/components/importPhotosModal'
 import PreviewModal from '@/components/preview'
+import DeviceSelectorModal, { Device } from '@/components/deviceSelectorModal'
+
+function OpenInDevice({ file, reset }: {
+  file: FileRemoteItem | null,
+  reset: () => void,
+}) {
+
+  const { toast } = useToast();
+
+  const onSelect = useCallback(async (device: Device) => {
+    if (!file || !file.storageId) return;
+    console.log('Selected Device to open file', device);
+    toast({
+      title: `Opening "${file.name}" in ${device.name}`,
+    });
+    try {
+      await openFileRemote({
+        storageId: file.storageId,
+        fileId: file.id,
+        targetDeviceFingerprint: device.fingerprint,
+        targetProfileId: device.profileId,
+      });
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        variant: "destructive",
+        title: `Failed to open file in ${device.name}`,
+        description: e.message,
+      });
+    } finally {
+      reset();
+    }
+  }, [file, reset, toast]);
+
+  const setModal = useCallback((open: boolean) => {
+    if (!open) {
+      reset();
+    }
+  }, [reset]);
+
+  return (<DeviceSelectorModal isOpen={!!file} setModal={setModal} showNearbyDevices={false} onSelect={onSelect} />)
+}
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -60,6 +102,7 @@ const Page: NextPageWithConfig = () => {
   const [importPhotosDialogOpen, setImportPhotosDialogOpen] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewItem, setPreviewItem] = useState<FileRemoteItem | null>(null);
+  const [remoteOpenFile, setRemoteOpenFile] = useState<FileRemoteItem | null>(null);
 
   const selectedItems = useMemo(() => items.filter(item => item.isSelected), [items]);
 
@@ -409,6 +452,12 @@ const Page: NextPageWithConfig = () => {
     return storage?.type === StorageType.Local;
   }, [selectedItems, storages]);
 
+  const openFileRemote = useCallback(() => {
+    const item = selectedItems[0];
+    if (!item) return;
+    setRemoteOpenFile(item);
+  }, [selectedItems]);
+
   if (isLoading || error || !storageId) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
@@ -516,7 +565,7 @@ const Page: NextPageWithConfig = () => {
                     }
                     {
                       !isFolderSelected && <ContextMenuItem disabled={previewLoading} onClick={openSelectedItemNative}>
-                        Open in another app
+                        Open in app..
                       </ContextMenuItem>
                     }
                     {
@@ -533,6 +582,11 @@ const Page: NextPageWithConfig = () => {
                     <ContextMenuItem onClick={openRenameDialog}>
                       Rename..
                     </ContextMenuItem>
+                    {
+                      !isFolderSelected && <ContextMenuItem onClick={openFileRemote}>
+                        Open in another device..
+                      </ContextMenuItem>
+                    }
                   </>)
                 }
                 {
@@ -572,6 +626,7 @@ const Page: NextPageWithConfig = () => {
           </ConfirmModal>
         }
         <ImportPhotosModal files={selectedItems} isOpen={importPhotosDialogOpen} onOpenChange={setImportPhotosDialogOpen} />
+        <OpenInDevice file={remoteOpenFile} reset={() => setRemoteOpenFile(null)} />
         <PreviewModal item={previewItem} close={() => setPreviewItem(null)} />
         {
           previewLoading && <div className='fixed top-0 left-0 w-screen h-screen bg-background/80 z-50 flex flex-col justify-center items-center'>

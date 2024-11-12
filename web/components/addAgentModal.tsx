@@ -17,7 +17,7 @@ import { ActionTypes } from "@/lib/state";
 import Image from "next/image";
 import SuccessScreen from "./storageAddSuccess";
 import { Input } from "./ui/input";
-import { getAgentInfo, scan } from "@/lib/api/discovery";
+import { getAgentInfo } from "@/lib/api/discovery";
 import LoadingIcon from "./ui/loadingIcon";
 import { pairStorage, sendOTP } from "@/lib/api/storage";
 import ProfilePicture from "./profilePicture";
@@ -26,6 +26,7 @@ import {
     InputOTPGroup,
     InputOTPSlot,
 } from "@/components/ui/input-otp"
+import useAgentCandidates from "./hooks/useAgentCandidates";
 
 const DESC_LIST = [
     'Make sure device is on the same network.',
@@ -64,59 +65,7 @@ function SearchAgentScreen({
         return DESC_LIST[descInd];
     }, [descInd]);
 
-    const [candidates, setCandidates] = useState<AgentCandidate[] | null>(null);
-    const fetchTimerRef = React.useRef<number | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const loadingRef = React.useRef<boolean>(false);
-    const firstScanRef = React.useRef<boolean>(true);
-
-    const fetchCandidates = useCallback(async () => {
-        if (loadingRef.current) {
-            return;
-        }
-        try {
-            loadingRef.current = true;
-            setError(null);
-            const force = firstScanRef.current;
-            firstScanRef.current = false;
-            const candidates_ = await scan(force);
-            setCandidates(candidates_);
-        } finally {
-            loadingRef.current = false;
-        }
-    }, []);
-
-    const pollScan = useCallback(async () => {
-        if (fetchTimerRef.current) {
-            clearTimeout(fetchTimerRef.current);
-        }
-        let delay = 4000;
-        try {
-            await fetchCandidates();
-        } catch (e: any) {
-            setError(e.message);
-            delay = 8000;
-        }
-        if (fetchTimerRef.current) {
-            clearTimeout(fetchTimerRef.current);
-        }
-        if (isOpen) {
-            fetchTimerRef.current = window.setTimeout(pollScan, delay);
-        }
-    }, [fetchCandidates, isOpen]);
-
-    useEffect(() => {
-        if (!isOpen) {
-            fetchTimerRef.current && clearTimeout(fetchTimerRef.current);
-            return;
-        }
-        pollScan();
-        return () => {
-            if (fetchTimerRef.current) {
-                clearTimeout(fetchTimerRef.current);
-            }
-        };
-    }, [fetchCandidates, isOpen, pollScan]);
+    const { candidates, error } = useAgentCandidates(isOpen);
 
     return (
         <>
@@ -209,16 +158,18 @@ function SearchAgentScreen({
 
 const labelClass = "text-md text-slate-800 font-normal";
 
-function ProfileSelector({
+export function ProfileSelector({
     profiles,
     onSelect,
+    showTitle = true,
 }: {
     profiles: Profile[];
     onSelect: (profile: Profile) => void;
+    showTitle?: boolean;
 }) {
     return (
         <div className="min-h-[10rem]">
-            <div className={labelClass}>Select a profile to continue</div>
+            {showTitle && <div className={labelClass}>Select a profile to continue</div>}
             <div className="grid grid-cols-1 gap-1 mt-2">
                 {
                     profiles.map((profile, ind) => (

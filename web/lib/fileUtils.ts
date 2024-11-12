@@ -308,21 +308,21 @@ export function setItemsToCopy(storageId: number, itemIds: string[], cut = false
         itemIds,
         cut,
     }
-    localStorage.setItem(CLIPBOARD_KEY, JSON.stringify(clipboardJson));
+    sessionStorage.setItem(CLIPBOARD_KEY, JSON.stringify(clipboardJson));
 }
 
 export function getItemsToCopy(): { storageId: number, itemIds: string[], cut: boolean } | null {
-    const clipboardJson = localStorage.getItem(CLIPBOARD_KEY);
+    const clipboardJson = sessionStorage.getItem(CLIPBOARD_KEY);
     if (!clipboardJson) return null;
     return JSON.parse(clipboardJson);
 }
 
 export function clearItemsToCopy() {
-    localStorage.removeItem(CLIPBOARD_KEY);
+    sessionStorage.removeItem(CLIPBOARD_KEY);
 }
 
 export function hasItemsToCopy() {
-    return !!localStorage.getItem(CLIPBOARD_KEY);
+    return !!sessionStorage.getItem(CLIPBOARD_KEY);
 }
 
 export async function performCopyItems(destStorageId: number, destFolderId: string) {
@@ -336,5 +336,9 @@ export async function performCopyItems(destStorageId: number, destFolderId: stri
         sourceFileIds: itemIds,
         deleteSource: cut,
     }
-    return move(moveParams);
+    const res = move(moveParams);
+    if (cut) {
+        clearItemsToCopy();
+    }
+    return res;
 }

@@ -44,7 +44,7 @@ function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }
                             :
                             <ArrowUpOnSquareIcon className='h-5 w-5 mr-1' />
                     }
-                    Open in app
+                    Open
                 </Button>}
                 <Button variant='secondary' size='icon' className='rounded-full p-1' onClick={close}>
                     <XMarkIcon className="h-5 w-5" />
