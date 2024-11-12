@@ -12,10 +12,11 @@ import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSwipeable } from 'react-swipeable'
 import { variants } from '@/lib/animationVariants'
-import type { Photo, PhotoView } from '@/lib/types'
-import { getThumbnail } from '@/lib/api/files'
+import type { PhotoView } from '@/lib/types'
+import { downloadFile, getThumbnail } from '@/lib/api/files'
 import LazyImage from './lazyImage'
-import { getFileUrl, downloadLinkFromFileUrl } from '@/lib/fileUtils'
+import { getFileUrl } from '@/lib/fileUtils'
+import { toast } from './ui/use-toast'
 
 type ThumbnailPhotoProps = {
   item: PhotoView;
@@ -74,10 +75,26 @@ export default function PhotosPreview({
     return 0
   }, [currentPhoto.itemId, currentPhoto.storageId, images])
 
-  const downloadLink = useMemo(() => {
-    if (!assetUrl) return null;
-    return downloadLinkFromFileUrl(assetUrl);
-  }, [assetUrl]);
+  const downloadPhoto = useCallback(async () => {
+    const storageId = currentPhoto.storageId;
+    const fileId = currentPhoto.fileId;
+    toast({
+      title: 'Download started',
+    });
+    try {
+      await downloadFile(storageId, fileId);
+      toast({
+        title: 'Photo downloaded',
+      });
+    } catch (e) {
+      console.error(e);
+      toast({
+        variant: "destructive",
+        title: 'Could not download photo',
+        description: fileId,
+      });
+    }
+  }, [currentPhoto.fileId, currentPhoto.storageId]);
 
   useEffect(() => {
     if (currentPhotoRef.current === currentPhoto) return;
@@ -215,13 +232,12 @@ export default function PhotosPreview({
                 </>
               )}
               <div className="absolute z-50 top-0 right-0 flex items-center gap-2 p-6 text-white">
-                {downloadLink && <a
-                  href={downloadLink}
-                  download
+                {<button
+                  onClick={downloadPhoto}
                   className="rounded-full bg-black/50 p-2 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white"
                   title="Download fullsize version">
                   <ArrowDownTrayIcon className="h-5 w-5" />
-                </a>}
+                </button>}
                 {filteredImages && filteredImages.length > 0 && <button
                   onClick={thumbsButtonClick}
                   className="rounded-full bg-black/50 p-2 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white"

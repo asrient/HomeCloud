@@ -11,6 +11,30 @@ export function getLibraryDirForProfile(profileId: number) {
 
 const PHOTOS_DIR_NAME = "Photos";
 const NOTES_DIR_NAME = "Notes";
+const TMP_DIR_NAME = "Tmp";
+
+export function getDesktopTmpDir() {
+    if (!envConfig.isDesktop()) {
+        throw new Error("Cache dir is only available on desktop");
+    }
+    return path.join(envConfig.LIBRARY_DIR, TMP_DIR_NAME);
+}
+
+export async function cleanDesktopTmpDir() {
+    if (!envConfig.isDesktop()) {
+        return;
+    }
+    // list all directories in the tmp dir and remove them
+    const tmpDir = getDesktopTmpDir();
+    const files = await fs.promises.readdir(tmpDir, { withFileTypes: true });
+    const promises = [];
+    for (const file of files) {
+        if (file.isDirectory()) {
+            promises.push(fs.promises.rmdir(path.join(tmpDir, file.name), { recursive: true }));
+        }
+    }
+    await Promise.allSettled(promises);
+}
 
 export async function setupLibraryForProfile(profileId: number) {
     const libraryDir = getLibraryDirForProfile(profileId);

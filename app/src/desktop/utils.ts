@@ -2,6 +2,7 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 import { dynamicImport } from "../core/utils";
+import { envConfig } from '../core/envConfig';
 
 let _open: ((target: string, options?: any) => Promise<any>) | null = null;
 
@@ -35,6 +36,11 @@ export function getDataDir(name: string) {
 export async function openApp(url: string) {
     const open = await getOpen();
     await open(url);
+}
+
+export function openWebApp() {
+    const webUrl = envConfig.BASE_URL;
+    openApp(webUrl);
 }
 
 export function getAssetPath() {

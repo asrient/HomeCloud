@@ -1,17 +1,17 @@
 import { useRouter } from 'next/router'
 import { buildPageConfig, isMobile } from '@/lib/utils'
-import { FileList_, RemoteItem, SidebarType, Storage } from "@/lib/types"
+import { FileList_, RemoteItem, SidebarType, Storage, StorageType } from "@/lib/types"
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import { getStat, readDir, upload, mkDir, rename, unlinkMultiple } from '@/lib/api/fs'
-import { addPin } from '@/lib/api/files'
+import { addPin, downloadFile, openFileLocal } from '@/lib/api/files'
 import Head from 'next/head'
 import { useAppDispatch, useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
 import Image from 'next/image'
 import PageBar from '@/components/pageBar'
-import { downloadLinkFromFileUrl, getDefaultIcon, getFileUrl } from '@/lib/fileUtils'
+import { canPreview, getDefaultIcon, getNativeFilesAppIcon, getNativeFilesAppName } from '@/lib/fileUtils'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -35,6 +35,7 @@ import { ActionTypes } from '@/lib/state'
 import { useToast } from '@/components/ui/use-toast'
 import mime from 'mime'
 import ImportPhotosModal from '@/components/importPhotosModal'
+import PreviewModal from '@/components/preview'
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -49,7 +50,7 @@ const Page: NextPageWithConfig = () => {
   const [error, setError] = useState<string | null>(null)
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [currentStorageId, setCurrentStorageId] = useState<number | null>(null)
-  const { storages } = useAppState()
+  const { storages, deviceInfo } = useAppState()
   const [storage, setStorage] = useState<Storage | null>(null)
   const [view, setView] = useState<'list' | 'grid'>('grid')
   const [selectMode, setSelectMode] = useState(false)
@@ -58,6 +59,7 @@ const Page: NextPageWithConfig = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [importPhotosDialogOpen, setImportPhotosDialogOpen] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewItem, setPreviewItem] = useState<FileRemoteItem | null>(null);
 
   const selectedItems = useMemo(() => items.filter(item => item.isSelected), [items]);
 
@@ -187,52 +189,58 @@ const Page: NextPageWithConfig = () => {
     }))
   }, [selectMode])
 
-  const fetchAssetUrl = useCallback(async (item: FileRemoteItem) => {
-    if (item.type === 'directory') throw new Error('Cannot fetch asset url for a directory');
-    if (item.assetUrl) return;
-    if (!storageId) throw new Error('Storage not set');
-    const url = await getFileUrl(storageId, item.id);
-    item.assetUrl = url;
-  }, [storageId])
-
-  const openItem = useCallback(async (item: FileRemoteItem) => {
-    if (item.type === 'directory') {
-      router.push(folderViewUrl(storageId as number, item.id))
-    } else {
-      if (previewLoading) return;
-      setPreviewLoading(true);
-      try {
-        await fetchAssetUrl(item);
-        window.open(item.assetUrl, '_blank');
-      } catch (e) {
-        console.error(e);
-        toast({
-          variant: "destructive",
-          title: 'Uh oh! Something went wrong.',
-          description: `Could not open "${item.name}".`,
-        });
-      } finally {
-        setPreviewLoading(false);
-      }
-    }
-  }, [fetchAssetUrl, previewLoading, router, storageId, toast])
-
-  const downloadSelected = useCallback(async () => {
-    const item = selectedItems[0];
-    if (!item) return;
+  const openItemNative = useCallback(async (item: FileRemoteItem) => {
+    if (previewLoading) return;
+    setPreviewLoading(true);
     try {
-      await fetchAssetUrl(item);
-      const downloadLink = downloadLinkFromFileUrl(item.assetUrl!);
-      window.open(downloadLink, '_blank');
+      await openFileLocal(storageId as number, item.id);
     } catch (e) {
       console.error(e);
       toast({
         variant: "destructive",
         title: 'Uh oh! Something went wrong.',
-        description: `Could not download "${item.name}".`,
+        description: `Could not open "${item.name}".`,
+      });
+    } finally {
+      setPreviewLoading(false);
+    }
+
+  }, [previewLoading, storageId, toast]);
+
+  const openItem = useCallback(async (item: FileRemoteItem) => {
+    if (item.type === 'directory') {
+      router.push(folderViewUrl(storageId as number, item.id))
+    } else {
+      if (item.mimeType && canPreview(item.mimeType)) {
+        setPreviewItem(item);
+        return;
+      }
+      return openItemNative(item);
+    }
+  }, [openItemNative, router, storageId])
+
+  const downloadSelected = useCallback(async () => {
+    const item = selectedItems[0];
+    if (!item || !item.storageId) return;
+    toast({
+      title: 'Download started',
+      description: item.name,
+    });
+    try {
+      await downloadFile(item.storageId, item.id);
+      toast({
+        title: 'File downloaded',
+        description: item.name,
+      });
+    } catch (e) {
+      console.error(e);
+      toast({
+        variant: "destructive",
+        title: 'Could not download file',
+        description: item.name,
       });
     }
-  }, [selectedItems, fetchAssetUrl, toast])
+  }, [selectedItems, toast])
 
   const onItemClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
     const isShift = e.shiftKey;
@@ -344,6 +352,19 @@ const Page: NextPageWithConfig = () => {
     openItem(item);
   }, [selectedItems, openItem]);
 
+  const openSelectedItemNative = useCallback(() => {
+    const item = selectedItems[0];
+    if (!item) return;
+    openItemNative(item);
+  }, [selectedItems, openItemNative]);
+
+  const isSingleLocalItemSelected = useMemo(() => {
+    if (selectedItems.length !== 1) return false;
+    const item = selectedItems[0];
+    const storage = storages?.find(s => s.id === item.storageId);
+    return storage?.type === StorageType.Local;
+  }, [selectedItems, storages]);
+
   if (isLoading || error || !storageId) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
@@ -441,8 +462,19 @@ const Page: NextPageWithConfig = () => {
                     <ContextMenuItem
                       disabled={previewLoading}
                       onClick={openSelectedItem}>
-                      Open
+                      Preview
                     </ContextMenuItem>
+                    {
+                      isFolderSelected && isSingleLocalItemSelected && <ContextMenuItem disabled={previewLoading} onClick={openSelectedItemNative}>
+                        <Image src={getNativeFilesAppIcon(deviceInfo)} alt='Folder Icon' width={16} height={16} className='mr-[0.2rem]' />
+                        Open in {getNativeFilesAppName(deviceInfo)}
+                      </ContextMenuItem>
+                    }
+                    {
+                      !isFolderSelected && <ContextMenuItem disabled={previewLoading} onClick={openSelectedItemNative}>
+                        Open in another app
+                      </ContextMenuItem>
+                    }
                     {
                       !isFolderSelected && <ContextMenuItem onClick={downloadSelected}>
                         Download
@@ -496,10 +528,11 @@ const Page: NextPageWithConfig = () => {
           </ConfirmModal>
         }
         <ImportPhotosModal files={selectedItems} isOpen={importPhotosDialogOpen} onOpenChange={setImportPhotosDialogOpen} />
+        <PreviewModal item={previewItem} close={() => setPreviewItem(null)} />
         {
           previewLoading && <div className='fixed top-0 left-0 w-screen h-screen bg-background/80 z-50 flex flex-col justify-center items-center'>
             <LoadingIcon />
-            <span className='text-xs pt-2'>Loading Preview</span>
+            <span className='text-xs pt-2'>Opening Item</span>
           </div>
         }
         {folderStat && storage && folderStat.parentIds && folderStat.parentIds.length > 0 &&

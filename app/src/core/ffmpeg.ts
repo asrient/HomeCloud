@@ -1,15 +1,12 @@
 import ffmpeg from "fluent-ffmpeg";
-import { envConfig } from "./envConfig";
-import path from "path";
-import os from "os";
-import native from "./native";
+import { native } from "./native";
 
 //tell the ffmpeg package where it can find the needed binaries.
 
 function stats() {
   ffmpeg.getAvailableFormats(function (err, formats) {
     if (err) {
-      console.error("❌ Ffmpeg error:", err);
+      console.error("❌ FFmpeg error:", err);
       native?.alert("FFMPEG is not installed on this device", err.message);
       return;
     }
@@ -26,11 +23,11 @@ export function ffmpegSetup() {
   // const ffprobeFilename = os.platform() !== "win32" ? "ffprobe" : "ffprobe.exe";
 
   // if (envConfig.isDesktop() && envConfig.DESKTOP_IS_PACKAGED) {
-    //Get the paths to the packaged versions of the binaries we want to use
-    // console.log("Desktop mode resource path:", process.resourcesPath);
-    // const binPath = process.resourcesPath;
-    // ffmpegPath = path.join(binPath, ffmpegFilename);
-    // ffprobePath = path.join(binPath, ffprobeFilename);
+  //Get the paths to the packaged versions of the binaries we want to use
+  // console.log("Desktop mode resource path:", process.resourcesPath);
+  // const binPath = process.resourcesPath;
+  // ffmpegPath = path.join(binPath, ffmpegFilename);
+  // ffprobePath = path.join(binPath, ffprobeFilename);
   // } else {
   //   const nodeModulesPath = path.join(__dirname, "..", "..", "..", "node_modules");
   //   ffmpegPath = path.join(nodeModulesPath, "ffmpeg-static", ffmpegFilename);

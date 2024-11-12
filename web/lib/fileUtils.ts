@@ -1,4 +1,4 @@
-import { PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage } from "./types";
+import { DeviceInfo, OSType, PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage } from "./types";
 import mime from 'mime';
 import { staticConfig } from "./staticConfig";
 import { fileAccessToken } from "./api/files";
@@ -266,11 +266,36 @@ export function storageToRemoteItem(storage: Storage): RemoteItemWithStorage {
     }
 }
 
-export async function getFileUrl(storageId: number, fileId: string) {
+export function getFileUrl(storageId: number, fileId: string) {
     return `${staticConfig.apiBaseUrl}/fs/readFile?storageId=${storageId}&id=${fileId}`;
-
 }
 
-export function downloadLinkFromFileUrl(fileUrl: string) {
-    return `${fileUrl}&download=1`;
+export function canPreview(mimeType: string) {
+    return mimeType.startsWith('image/') ||
+        mimeType.startsWith('video/') ||
+        mimeType.startsWith('audio/') ||
+        mimeType === 'application/pdf' ||
+        mimeType === 'application/epub+zip' ||
+        mimeType.startsWith('text/') ||
+        mimeType === 'application/json';
+}
+
+export function getNativeFilesAppName(deviceInfo: DeviceInfo | null) {
+    if (deviceInfo?.os === OSType.MacOS) {
+        return 'Finder';
+    }
+    if (deviceInfo?.os === OSType.Windows) {
+        return 'File Explorer';
+    }
+    return 'File Manager';
+}
+
+export function getNativeFilesAppIcon(deviceInfo: DeviceInfo | null) {
+    if (deviceInfo?.os === OSType.MacOS) {
+        return '/icons/finder.png';
+    }
+    if (deviceInfo?.os === OSType.Windows) {
+        return '/icons/file-explorer.png';
+    }
+    return '/icons/folder.png';
 }

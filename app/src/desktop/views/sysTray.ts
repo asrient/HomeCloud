@@ -1,7 +1,7 @@
 import path from 'path'
 import gui from 'gui'
 import { envConfig } from '../../core/index'
-import { getAssetPath, openApp } from '../utils'
+import { getAssetPath, openApp, openWebApp } from '../utils'
 
 export default class Tray {
     trayIcon: gui.Image;
@@ -24,10 +24,7 @@ export default class Tray {
         const menu = gui.Menu.create([
             {
                 label: 'Show App',
-                onClick: () => {
-                    const webUrl = envConfig.BASE_URL;
-                    openApp(webUrl);
-                }
+                onClick: openWebApp
             },
             { type: 'separator' },
             {
@@ -41,10 +38,7 @@ export default class Tray {
 
         // on windows, menu shows on right click only, open app on left click.
         if (process.platform == 'win32') {
-            this.tray.onClick = () => {
-                const webUrl = envConfig.BASE_URL;
-                openApp(webUrl);
-            }
+            this.tray.onClick = openWebApp;
         }
     }
 

@@ -49,3 +49,15 @@ export async function getThumbnail(storageId: number, fileId: string) {
 export async function fileAccessToken(storageId: number, fileId: string) {
     return await ApiClient.post<{ token: string }>('/services/files/fileToken', { storageId, fileId });
 }
+
+export async function downloadFile(storageId: number, fileId: string) {
+    return await ApiClient.post<{ id: string }>('/services/files/download', { storageId, fileId });
+}
+
+export async function openFileLocal(storageId: number, fileId: string) {
+    return await ApiClient.post<{ id: string }>('/services/files/open/local', { storageId, fileId });
+}
+
+export async function openFileRemote(storageId: number, fileId: string) {
+    return await ApiClient.post<{ id: string }>('/services/files/open/remote', { storageId, fileId });
+}

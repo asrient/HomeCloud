@@ -10,7 +10,7 @@ import { FsDriver } from "./storageKit/interface";
 import CustomError, { ErrorCode } from "./customError";
 import { getFingerprintFromBase64 } from "./utils/cryptoUtils";
 import { getClientFromStorage } from "./agentKit/client";
-import { envConfig } from "./envConfig";
+import { envConfig, EnvType } from "./envConfig";
 
 const ajv = new Ajv();
 
@@ -19,6 +19,18 @@ export function method(args: any[]) {
     if (!args.includes(request.method)) {
       return ApiResponse.fromError(
         CustomError.security("Method not allowed"),
+        405,
+      );
+    }
+    return next();
+  });
+}
+
+export function envType(envTypes: EnvType[]) {
+  return makeDecorator(async (request, next) => {
+    if (!envTypes.includes(envConfig.ENV_TYPE)) {
+      return ApiResponse.fromError(
+        CustomError.security("Not available."),
         405,
       );
     }

@@ -1,6 +1,7 @@
 import { DeviceFormType, DeviceInfo, envConfig, OSType } from "./../envConfig";
 import os from "os";
 import { execSync } from "child_process";
+import path from "path";
 
 function getOSType(): OSType {
     switch (process.platform) {
@@ -97,7 +98,7 @@ function getLinuxDistro() {
 // Form factor
 
 function getFormFactor(): DeviceFormType {
-    if(envConfig.isServer()) {
+    if (envConfig.isServer()) {
         return DeviceFormType.Server;
     }
     switch (process.platform) {
@@ -183,4 +184,54 @@ export function getDeviceInfoCached(): DeviceInfo {
         _deviceInfo = getDeviceInfo();
     }
     return _deviceInfo;
+}
+
+export type DefaultDirectories = {
+    pictures: string | null;
+    documents: string | null;
+    downloads: string | null;
+    videos: string | null;
+    movies: string | null;
+};
+
+export function getDefaultDirectories(): DefaultDirectories {
+    const homeDir = os.homedir();
+    const platform = os.platform();
+
+    const directories = {
+        pictures: null,
+        documents: null,
+        downloads: null,
+        videos: null,
+        movies: null,
+    };
+
+    if (platform === 'win32') {
+        // Windows default user directories
+        directories.pictures = path.join(homeDir, 'Pictures');
+        directories.documents = path.join(homeDir, 'Documents');
+        directories.downloads = path.join(homeDir, 'Downloads');
+        directories.videos = path.join(homeDir, 'Videos');
+    } else if (platform === 'darwin') {
+        // macOS default user directories
+        directories.pictures = path.join(homeDir, 'Pictures');
+        directories.documents = path.join(homeDir, 'Documents');
+        directories.downloads = path.join(homeDir, 'Downloads');
+        directories.movies = path.join(homeDir, 'Movies');
+    } else if (platform === 'linux') {
+        // Linux default user directories (may vary depending on the distro and DE)
+        directories.pictures = path.join(homeDir, 'Pictures');
+        directories.documents = path.join(homeDir, 'Documents');
+        directories.downloads = path.join(homeDir, 'Downloads');
+        directories.videos = path.join(homeDir, 'Videos');
+    }
+    return directories;
+}
+
+let _defaultDirectories: DefaultDirectories | null = null;
+export function getDefaultDirectoriesCached(): DefaultDirectories {
+    if (!_defaultDirectories) {
+        _defaultDirectories = getDefaultDirectories();
+    }
+    return _defaultDirectories;
 }

@@ -25,10 +25,11 @@ import path from "path";
 import os from "os";
 import { randomBytes } from "crypto";
 import NativeImplDesktop from "./nativeImpl";
-import { getDataDir, getUserLogDirectory } from "./utils";
+import { getDataDir, getUserLogDirectory, openWebApp } from "./utils";
 import Tray from "./views/sysTray";
 import { setupLogger, stopLogger } from "./logger";
 import { setupNative } from "../core/native";
+import { cleanDesktopTmpDir } from "../core/utils/libraryUtils";
 
 (function () {
   if (!env.APP_NAME) {
@@ -194,6 +195,14 @@ class App {
     console.log(`⚡️ HTTPS Agent Server started on port: ${envConfig.AGENT_PORT}`);
   }
 
+  async cleanFromLastRun() {
+    try {
+      await cleanDesktopTmpDir();
+    } catch (e) {
+      console.error("Error cleaning tmp dir:", e);
+    }
+  }
+
   async start() {
     const dataDir = envConfig.DATA_DIR;
     const dbFilename = envConfig.IS_DEV ? "homecloud_dev.db" : "homecloud.db";
@@ -220,7 +229,9 @@ class App {
     this.tray.setStatus("running");
     this.discoveryService.hello();
     this.discoveryService.listen();
+    this.cleanFromLastRun();
     console.log(`🌎 Go ahead, visit ${envConfig.BASE_URL}`);
+    openWebApp();
   }
 }
 
