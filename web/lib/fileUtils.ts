@@ -251,7 +251,7 @@ function iconFilename(kind: FileType) {
         case FileType.Deb:
             return 'deb.png';
         case FileType.DMG:
-            return 'installer.png';
+            return 'dmg.png';
         case FileType.RPM:
             return 'installer.png';
         default:
