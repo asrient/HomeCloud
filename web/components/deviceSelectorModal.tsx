@@ -89,7 +89,7 @@ export default function DeviceSelectorModal({ setModal, onSelect, isOpen, showNe
 
     return (
         <Dialog open={isOpen} onOpenChange={setModal} >
-            <DialogContent className="sm:max-w-[26rem] min-h-[15rem]">
+            <DialogContent className="sm:max-w-[26rem]">
                 <DialogHeader>
                     <div className='flex items-center justify-start'>
                         <Image src='/icons/devices.png' alt='Devices Icon' width={40} height={40} className='mr-2' />
@@ -98,7 +98,7 @@ export default function DeviceSelectorModal({ setModal, onSelect, isOpen, showNe
                         </DialogTitle>
                     </div>
                 </DialogHeader>
-                <>
+                <div className="min-h-[10rem]">
                     {
                         screen === 'profile-select' ?
                             (
@@ -148,10 +148,16 @@ export default function DeviceSelectorModal({ setModal, onSelect, isOpen, showNe
                                         {device.name}
                                     </Button>
                                 ))}
-
+                                {
+                                    myDevices.length === 0 && (
+                                        <DialogDescription className="text-center">
+                                            No devices found.
+                                        </DialogDescription>
+                                    )
+                                }
                             </ScrollArea>
                     }
-                </>
+                </div>
             </DialogContent>
         </Dialog>
     );

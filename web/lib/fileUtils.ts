@@ -37,11 +37,34 @@ export enum FileType {
     Cpp = 'C++',
     Go = 'Go',
     Swift = 'Swift',
-    Drive = "Drive"
+    Drive = 'Drive',
+    App = 'App',
+    Exe = 'Application',
+    MSI = 'Windows Installer',
+    AppImage = 'AppImage',
+    Deb = 'Debian Package',
+    DMG = 'Apple Disk Image',
+    RPM = 'RPM Package',
 }
 
 export function mimeToKind(mimeType: string): FileType {
     switch (mimeType) {
+        case 'application/x-folder':
+            return FileType.Folder;
+        case 'application/x-apple-app':
+            return FileType.App;
+        case 'application/vnd.microsoft.portable-executable':
+            return FileType.Exe;
+        case 'application/x-msi':
+            return FileType.MSI;
+        case 'application/x-executable':
+            return FileType.AppImage;
+        case 'application/vnd.debian.binary-package':
+            return FileType.Deb;
+        case 'application/x-rpm':
+            return FileType.RPM;
+        case 'application/x-apple-diskimage':
+            return FileType.DMG;
         case 'application/x-drive':
             return FileType.Drive;
         case 'application/epub+zip':
@@ -144,6 +167,7 @@ export function getKind(item: RemoteItem) {
         if (!item.parentIds || item.parentIds.length === 0) {
             return FileType.Drive;
         }
+        if (!!item.mimeType) return mimeToKind(item.mimeType);
         return FileType.Folder;
     }
     const mimeType = !!item.mimeType ? item.mimeType : mime.getType(item.name);
@@ -216,6 +240,20 @@ function iconFilename(kind: FileType) {
             return 'go.png';
         case FileType.Swift:
             return 'code.png';
+        case FileType.App:
+            return 'app.png';
+        case FileType.Exe:
+            return 'program.png';
+        case FileType.MSI:
+            return 'installer.png';
+        case FileType.AppImage:
+            return 'installer.png';
+        case FileType.Deb:
+            return 'deb.png';
+        case FileType.DMG:
+            return 'installer.png';
+        case FileType.RPM:
+            return 'installer.png';
         default:
             return 'file.png';
     }

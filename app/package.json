@@ -5,7 +5,7 @@
     "appId": "org.asrient.homecloud",
     "productName": "HomeCloud",
     "copyright": "Copyright © 2024 Asrient.",
-    "unpackDir": "{assets,node_modules/validator,node_modules/sqlite3,node_modules/sharp,node_modules/bcrypt,node_modules/open}",
+    "unpackDir": "{assets,node_modules/validator,node_modules/sqlite3,node_modules/sharp,node_modules/@img,node_modules/bcrypt,node_modules/open}",
     "ignore": [
       "buildAssets",
       "dist/server"
@@ -62,7 +62,7 @@
     "qs": "^6.11.2",
     "selfsigned": "^2.4.1",
     "sequelize": "^6.32.1",
-    "sharp": "^0.32.6",
+    "sharp": "0.33.5",
     "sqlite3": "^5.1.6",
     "type-is": "^1.6.18",
     "uuid": "^9.0.1",

@@ -1,16 +1,16 @@
 import { StorageAuthType } from "../envConfig";
 import { Storage } from "../models";
 import { FsDriver, RemoteItem } from "./interface";
-import  {
- FileStat,
- WebDAVClient,
+import {
+  FileStat,
+  WebDAVClient,
   WebDAVClientOptions,
 } from "webdav";
 import { ApiRequestFile } from "../interface";
 import { ReadStream } from "fs";
 import { dynamicImport, streamToBuffer } from "../utils";
-import mime from "mime";
 import { Readable } from "stream";
+import { getMimeType } from "../utils/fileUtils";
 
 let createClient: null | ((remoteURL: string, options?: WebDAVClientOptions) => WebDAVClient) = null;
 let WebdavAuthType: any | null = null; // enum to imported from webdav
@@ -33,7 +33,7 @@ export class WebdavFsDriver extends FsDriver {
 
   async init() {
     const storage: Storage = this.storage;
-    if(!createClient) {
+    if (!createClient) {
       const { createClient: createClientFn, AuthType: WebdavAuthTypeEnum } = await dynamicImport("webdav");
       createClient = createClientFn;
       WebdavAuthType = WebdavAuthTypeEnum;
@@ -52,18 +52,18 @@ export class WebdavFsDriver extends FsDriver {
 
   toRemoteItem(item: any): RemoteItem {
     let parentId: string = item.filename.split("/").slice(0, -1).join("/");
-    if(parentId === "") {
+    if (parentId === "") {
       parentId = "/";
     }
     let mimeType = item.mime;
-    if(!mimeType) {
-      mimeType = mime.getType(item.filename) || "application/octet-stream";
+    if (!mimeType) {
+      mimeType = getMimeType(item.filename, item.type === "directory");
     }
     return {
       type: item.type,
       name: item.basename,
       id: item.filename,
-      parentIds: item.filename === '/' ? null: [parentId],
+      parentIds: item.filename === '/' ? null : [parentId],
       size: item.size,
       lastModified: new Date(item.lastmod),
       createdAt: new Date(item.created),
@@ -140,7 +140,7 @@ export class WebdavFsDriver extends FsDriver {
   }
 
   public override async readFile(id: string): Promise<[Readable, string]> {
-    const  mimeType = mime.getType(id) || "application/octet-stream";
+    const mimeType = getMimeType(id);
     const stream = this.client.createReadStream(id);
     return [stream, mimeType];
   }

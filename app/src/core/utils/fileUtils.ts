@@ -7,6 +7,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import mime from "mime";
+
 const execAsync = promisify(exec);
 const fsPromises = fs.promises;
 
@@ -170,4 +172,36 @@ async function getLinuxDrives(): Promise<{ [key: string]: string }> {
     }
 
     return result;
+}
+
+export function getMimeType(filePath: string, isDirectory = false): string {
+
+    const ext = path.extname(filePath);
+
+    if (isDirectory) {
+        if (ext === '.app') {
+            return 'application/x-apple-app';
+        }
+        return 'application/x-folder';
+    }
+
+    if (ext === '.exe') {
+        return 'application/vnd.microsoft.portable-executable';
+    }
+    if (ext === '.msi') {
+        return 'application/x-msi';
+    }
+    if (ext === '.appimage') {
+        return 'application/x-executable';
+    }
+    if (ext === '.deb') {
+        return 'application/vnd.debian.binary-package';
+    }
+    if (ext === '.rpm') {
+        return 'application/x-rpm';
+    }
+    if (ext === '.dmg') {
+        return 'application/x-apple-diskimage';
+    }
+    return mime.getType(filePath) || 'application/octet-stream';
 }

@@ -3,11 +3,10 @@ import path from "path";
 import { FsDriver, RemoteItem } from "./interface";
 import { ApiRequestFile } from "../interface";
 import { ReadStream } from "fs";
-import mime from "mime";
 import { createReadStream } from "fs";
 import { StorageType } from "../envConfig";
 import { Readable } from "stream";
-import { getNativeDrives } from "../utils/fileUtils";
+import { getMimeType, getNativeDrives } from "../utils/fileUtils";
 import { getLibraryDirForProfile, resolveLibraryPath } from "../utils/libraryUtils";
 import { AccessControl } from "../envConfig";
 
@@ -20,33 +19,33 @@ export class LocalFsDriver extends FsDriver {
     const profile = this.profile;
     this.accessControl = profile.getAccessControl();
     const libraryDir = getLibraryDirForProfile(profile.id);
-    if(this.accessControl) {
+    if (this.accessControl) {
       this.allowedPaths = [libraryDir];
-      if(profile.isAdmin) {
+      if (profile.isAdmin) {
         // Making sure admins have access to whole file system even if custom drives are mapped.
         this.allowedPaths.push(path.sep);
       }
-      for(const [_key, value] of Object.entries(this.accessControl)) {
+      for (const [_key, value] of Object.entries(this.accessControl)) {
         value && this.allowedPaths.push(`${value}${path.sep}`);
       }
     }
   }
 
   hasAccess(filePath: string) {
-    if(!this.allowedPaths) return true;
+    if (!this.allowedPaths) return true;
     filePath = `${filePath}${path.sep}`;
     return this.allowedPaths.some((allowedPath) => filePath.startsWith(allowedPath));
   }
 
   assertAccess(filePath: string) {
-    if(!this.hasAccess(filePath)) {
+    if (!this.hasAccess(filePath)) {
       throw new Error(`Access denied: ${filePath}`);
     }
   }
 
   normalizePath(filePath: string) {
     filePath = resolveLibraryPath(this.profile.id, filePath);
-    if(!path.isAbsolute(filePath)) {
+    if (!path.isAbsolute(filePath)) {
       throw new Error(`Relative paths not allowed: ${filePath}`);
     }
     return filePath;
@@ -59,8 +58,8 @@ export class LocalFsDriver extends FsDriver {
   async toRemoteItem(filePath: string, name: string = null, mimeType: string = null, noParent = false): Promise<RemoteItem> {
     const stat = await fs.stat(filePath);
     const isDir = stat.isDirectory();
-    if(!mimeType) {
-    mimeType = isDir ? null : mime.getType(filePath) || "application/octet-stream";
+    if (!mimeType) {
+      mimeType = getMimeType(filePath, isDir);
     }
     const fileId = filePath;
     const parentId = this.pathToParentFolder(fileId);
@@ -87,7 +86,7 @@ export class LocalFsDriver extends FsDriver {
 
   async listDrives(): Promise<RemoteItem[]> {
     let drives = this.accessControl;
-    if(!this.accessControl) {
+    if (!this.accessControl) {
       drives = await getNativeDrives();
     }
     const promises = Object.entries(drives).map(([key, value]) => {
@@ -156,7 +155,7 @@ export class LocalFsDriver extends FsDriver {
   public override async readFile(id: string): Promise<[Readable, string]> {
     id = this.normalizePath(id);
     this.assertAccess(id);
-    const mimeType = mime.getType(id) || "application/octet-stream";
+    const mimeType = getMimeType(id);
     const stream = createReadStream(id);
     return [stream, mimeType];
   }
