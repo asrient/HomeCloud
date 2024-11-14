@@ -5,18 +5,30 @@
     "appId": "org.asrient.homecloud",
     "productName": "HomeCloud",
     "copyright": "Copyright © 2024 Asrient.",
-    "unpackDir": "{assets,node_modules/validator,node_modules/sqlite3,node_modules/sharp,node_modules/@img,node_modules/bcrypt,node_modules/open}",
     "ignore": [
       "buildAssets",
       "dist/server"
     ],
-    "minify": false,
+    "minify": true,
     "entitlements": "buildAssets/entitlements.plist",
     "icons": {
       "mac": "assets/appIcons/icon.icns",
       "win": "assets/appIcons/icon.ico"
     }
   },
+  "desktopUnpackDirs": [
+    "assets",
+    "node_modules/@img",
+    "node_modules/detect-libc",
+    "node_modules/semver",
+    "node_modules/sharp",
+    "node_modules/validator"
+  ],
+  "desktopUnpackModules": [
+    "open",
+    "bindings",
+    "color"
+  ],
   "scripts": {
     "watch": "tsc --watch",
     "tsc": "tsc",
@@ -27,9 +39,9 @@
     "start:desktop": "yode dist/desktop/index.js",
     "start:server": "node dist/server/index.js",
     "start:worker": "node dist/server/workerHead.js",
-    "build:desktop": "node buildAssets/prepack-desktop.js && yackage build out",
+    "build:desktop": "node buildAssets/prepack-desktop.js && yackage build ../out",
     "build:server": "node buildAssets/prepack-server.js && npm pack",
-    "dist:desktop": "node buildAssets/prepack-desktop.js && yackage dist out",
+    "dist:desktop": "node buildAssets/prepack-desktop.js && yackage dist ../out",
     "test:bonjour": "ts-node test/bonjour.ts",
     "script:generateKeys": "node dist/server/scripts/generateKeys.js"
   },
@@ -49,14 +61,17 @@
     "dropbox": "^10.34.0",
     "dropbox-stream": "^1.0.5",
     "exifreader": "^4.13.0",
+    "fast-xml-parser": "^4.5.0",
     "fetch-yode": "^1.1.1",
     "fluent-ffmpeg": "^2.1.3",
     "form-data": "^4.0.1",
     "google-auth-library": "^9.14.2",
     "gui": "^0.15.3",
+    "he": "^1.2.0",
     "ip": "^2.0.0",
     "jsonwebtoken": "^9.0.1",
     "mime": "^3.0.0",
+    "minimatch": "^10.0.1",
     "node-match-path": "^0.6.3",
     "open": "^10.1.0",
     "qs": "^6.11.2",
@@ -65,8 +80,7 @@
     "sharp": "0.33.5",
     "sqlite3": "^5.1.6",
     "type-is": "^1.6.18",
-    "uuid": "^9.0.1",
-    "webdav": "^5.2.3"
+    "uuid": "^9.0.1"
   },
   "desktopOnlyDeps": [
     "gui",

@@ -5,15 +5,14 @@ import {
   FileStat,
   WebDAVClient,
   WebDAVClientOptions,
-} from "webdav";
+  createClient,
+  AuthType as WebdavAuthType,
+} from "../webdav";
 import { ApiRequestFile } from "../interface";
 import { ReadStream } from "fs";
-import { dynamicImport, streamToBuffer } from "../utils";
+import { streamToBuffer } from "../utils";
 import { Readable } from "stream";
 import { getMimeType } from "../utils/fileUtils";
-
-let createClient: null | ((remoteURL: string, options?: WebDAVClientOptions) => WebDAVClient) = null;
-let WebdavAuthType: any | null = null; // enum to imported from webdav
 
 function mapAuthType(authType: StorageAuthType) {
   switch (authType) {
@@ -33,11 +32,6 @@ export class WebdavFsDriver extends FsDriver {
 
   async init() {
     const storage: Storage = this.storage;
-    if (!createClient) {
-      const { createClient: createClientFn, AuthType: WebdavAuthTypeEnum } = await dynamicImport("webdav");
-      createClient = createClientFn;
-      WebdavAuthType = WebdavAuthTypeEnum;
-    }
     const options: WebDAVClientOptions = {
       authType: mapAuthType(storage.authType),
     };

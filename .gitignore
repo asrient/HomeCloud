@@ -145,3 +145,6 @@ dist
 terraform.tfstate*
 
 .vscode/
+
+# Debug generated data
+out/
