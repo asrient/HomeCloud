@@ -211,6 +211,7 @@ const listPhotosSchema = {
 api.add(
   "/list",
   [
+    relayToAgent(),
     method(['POST']),
     validateJson(listPhotosSchema),
   ],
