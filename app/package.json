@@ -71,7 +71,7 @@
     "ip": "^2.0.0",
     "jsonwebtoken": "^9.0.1",
     "mime": "^3.0.0",
-    "minimatch": "^10.0.1",
+    "minimatch": "^9.0.5",
     "node-match-path": "^0.6.3",
     "open": "^10.1.0",
     "qs": "^6.11.2",
