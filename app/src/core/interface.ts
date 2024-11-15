@@ -1,5 +1,4 @@
 import qs, { ParsedQs } from "qs";
-import isType from "type-is";
 import * as cookie from "cookie";
 import mime from "mime";
 import { match } from "node-match-path";
@@ -193,10 +192,10 @@ export class ApiRequest {
     return this.headers[WEB_TOKEN_HEADER];
   }
   get isJson() {
-    return isType.is(this.contentType, ["json"]) === "json";
+    return this.contentType?.includes("application/json");
   }
   get isText() {
-    return isType.is(this.contentType, ["text"]) === "text";
+    return this.contentType?.includes("text/plain");
   }
   async json(): Promise<any> {
     if (!this.body) {

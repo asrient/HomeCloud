@@ -1,6 +1,5 @@
 import { AGENT_TOKEN_HEADER, ApiRequest, ApiResponse, RequestOriginType, WEB_TOKEN_HEADER } from "./interface";
 import { makeDecorator } from "./utils";
-import isType from "type-is";
 import Ajv, { ErrorObject } from "ajv";
 import { verifyJwt } from "./utils/profileUtils";
 import { Profile, Storage, Agent } from "./models";
@@ -32,22 +31,6 @@ export function envType(envTypes: EnvType[]) {
       return ApiResponse.fromError(
         CustomError.security("Not available."),
         405,
-      );
-    }
-    return next();
-  });
-}
-
-export function accept(args: any[]) {
-  return makeDecorator(async (request, next) => {
-    if (!isType.is(request.contentType, args)) {
-      return ApiResponse.fromError(
-        CustomError.security(
-          `Content type is not accepted. Allowed: ${args.join(
-            ", ",
-          )}. Received: ${request.contentType}`,
-        ),
-        406,
       );
     }
     return next();

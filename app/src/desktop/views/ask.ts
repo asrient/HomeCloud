@@ -19,8 +19,7 @@ export default class Ask {
         mainContent.setStyle({ flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' });
 
         const attributedText = gui.AttributedText.create(text, {
-            font: gui.Font.create('Arial', 16, "medium", "normal"),
-            color: '#000000'
+            font: gui.Font.create('Arial', 16, "medium", "normal")
         });
         const title = gui.Label.createWithAttributedText(attributedText);
         title.setStyle({ margin: 10 });

@@ -19,7 +19,6 @@ import {
 import { createHash } from "./utils";
 import CustomError from "./customError";
 import path from "path";
-import { isUrlPrivate } from "./utils/privateUrlChecker";
 import { getLibraryDirForProfile, setupLibraryForProfile } from "./utils/libraryUtils";
 import { getDefaultDirectoriesCached } from "./utils/deviceInfo";
 
@@ -762,15 +761,6 @@ export class Storage extends DbModel {
       const protocol = data.url.split("://")[0];
       if (!allowedUrlProtocols.includes(protocol)) {
         throw new Error("Invalid url protocol for this storage type");
-      }
-      if (data.url && !envConfig.ALLOW_PRIVATE_URLS) {
-        try {
-          if (await isUrlPrivate(data.url)) {
-            throw new Error("Url domain is private");
-          }
-        } catch (e: any) {
-          throw CustomError.validationSingle("url", e.message);
-        }
       }
     }
 
