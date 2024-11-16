@@ -21,7 +21,7 @@ export default function PageBar({ children, title, icon, hideSidebarButton }: {
     }, [dispatch, showSidebar]);
 
     return (
-        <div className='sticky top-0 md:top-[2.6rem] w-full h-[2.8rem] flex justify-between items-center p-1 border-muted bg-background/90 border-b backdrop-blur-lg z-10'>
+        <div className='sticky top-0 w-full h-[2.8rem] flex justify-between items-center p-1 border-muted bg-background/90 border-b backdrop-blur-lg z-10 shadow-sm'>
             <div className='flex justify-center items-center pl-3 md:pl-4'>
                 {
                     !hideSidebarButton && !showSidebar && (
@@ -42,11 +42,11 @@ export default function PageBar({ children, title, icon, hideSidebarButton }: {
                             width={0}
                             className="mr-2 h-6 w-6"
                         />
-                    ) : (<span className='mr-2 text-blue-500'>{icon}</span>)
+                    ) : (<span className='mr-2 text-primary/90'>{icon}</span>)
                 }
                 <span className='font-semibold truncate'>{title}</span>
             </div>
-            <div className='flex justify-center items-center md:space-x-1 pl-3 pr-2 text-blue-600'>
+            <div className='flex justify-center items-center md:space-x-1 pl-3 pr-2 text-primary/90'>
                 {children}
             </div>
         </div>

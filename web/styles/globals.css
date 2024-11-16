@@ -59,7 +59,8 @@
   }
 
   .home-bg {
-    background-image: radial-gradient(at 33% 44%, rgb(252, 231, 243) 0, transparent 27%), radial-gradient(at 53% 93%, rgb(255, 237, 213) 0, transparent 26%), radial-gradient(at 78% 74%, rgb(224, 242, 254) 0, transparent 48%), radial-gradient(at 19% 100%, rgb(241, 245, 249) 0, transparent 28%);
+    background-image: radial-gradient(at 37% 41%, rgb(236, 252, 203) 0, transparent 49%), radial-gradient(at 43% 72%, rgb(186, 230, 253) 0, transparent 44%), radial-gradient(at 7% 77%, rgb(233, 213, 255) 0, transparent 21%), radial-gradient(at 69% 48%, rgb(224, 242, 254) 0, transparent 44%), radial-gradient(at 56% 36%, rgb(244, 244, 245) 0, transparent 13%), radial-gradient(at 17% 17%, rgb(254, 205, 211) 0, transparent 42%);
+  
   }
 }
 

@@ -1,0 +1,29 @@
+Notes on package.json
+------------------------------
+"build" property is used by yackage during desktop builds.
+The package.json file is updated automatically at build time to make the following changes:
+- Remove serverOnly dependencies for desktop build and vice-versa.
+- Remove devDependencies.
+- Add "main" property to the file based on the build type, eg: "dist/desktop/index.js" for desktop.
+- Use "desktopUnpackDirs" and "desktopUnpackModules" properties to generate "build.unpackDir" property which accepts a string.
+- Any dependencies mentioned in "desktopUnpackModules" will be traversed recursively and all it's dependencies will be added to the list as well.
+- It seems if you decide to unpack a module with furthur dependencies, those dependencies should be unpacked too, else the module is not able to find them.
+
+Explaination of unpacked modules and directories:
+- "asset": custom asset directory.
+
+Sharp
+- "node_modules/@img": was added manually here since it would make the string very big (many deps mentioned as @img/<dep>).
+- "node_modules/detect-libc": no furthur deps.
+- "node_modules/semver": no furthur deps.
+- "node_modules/sharp": if not unpacked, gave errors related to readFile.
+- "color" module: has a few dependencies.
+
+Sequalize
+- "node_modules/validator": error 'readFile only works on file', possibly caused by a custom impl of require.
+
+Open
+- "open" module: dynamic import hack was not working after package.
+
+Sqlite3
+- "bindings" module: gave 'cannot read indexOf of undefined' error when packed.

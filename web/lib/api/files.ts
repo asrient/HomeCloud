@@ -1,5 +1,5 @@
 import { ApiClient } from './apiClient';
-import { PinnedFolder } from '../types';
+import { PinnedFolder, RemoteItem } from '../types';
 
 export type AddPinParams = {
     storageId: number;
@@ -48,4 +48,35 @@ export async function getThumbnail(storageId: number, fileId: string) {
 
 export async function fileAccessToken(storageId: number, fileId: string) {
     return await ApiClient.post<{ token: string }>('/services/files/fileToken', { storageId, fileId });
+}
+
+export async function downloadFile(storageId: number, fileId: string) {
+    return await ApiClient.post<{ id: string }>('/services/files/download', { storageId, fileId });
+}
+
+export async function openFileLocal(storageId: number, fileId: string) {
+    return await ApiClient.post<{ id: string }>('/services/files/open/local', { storageId, fileId });
+}
+
+export type OpenFileRemoteParams = {
+    storageId: number;
+    fileId: string;
+    targetDeviceFingerprint: string;
+    targetProfileId: number;
+}
+
+export async function openFileRemote(params: OpenFileRemoteParams) {
+    return await ApiClient.post<{ id: string }>('/services/files/open/remote', params);
+}
+
+export type MoveParams = {
+    sourceStorageId: number,
+    destStorageId: number,
+    sourceFileIds: string[],
+    destDir: string,
+    deleteSource: boolean,
+}
+
+export async function move(params: MoveParams) {
+    return await ApiClient.post<{ errors: string[], items: RemoteItem[] }>('/services/files/move', params);
 }

@@ -1,11 +1,10 @@
 import Image from 'next/image'
-import { Inter } from 'next/font/google'
 import Head from 'next/head'
 import { useEffect, useState } from 'react'
 import { getGreetings } from '@/lib/utils'
 import Link from 'next/link'
-
-const inter = Inter({ subsets: ['latin'] })
+import { useAppState } from '@/components/hooks/useAppState'
+import { AnimatePresence, motion } from 'framer-motion';
 
 type AppProps = { name: string, icon: string, description: string, href: string };
 
@@ -33,7 +32,7 @@ function AppCard({ name, icon, href, description }: AppProps) {
           </svg>
         </span>
       </h2>
-      <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
+      <p className={`m-0 max-w-[80%] text-sm opacity-50`}>
         {description}
       </p>
     </div>
@@ -62,41 +61,78 @@ const apps: AppProps[] = [
 ]
 
 export default function Home() {
-  const [greetings, setGreetings] = useState('Good day');
+  const [greetings, setGreetings] = useState('Hi');
+  const { profile } = useAppState();
 
   useEffect(() => {
-    setGreetings(getGreetings());
-  }, []);
+    setGreetings(`Hi, ${getGreetings()} ${profile?.name || 'human'}.`);
+
+    // Change the greeting text after 6 seconds
+    const timer = setTimeout(() => {
+      setGreetings('What do you wanna do today?');
+    }, 6000);
+
+    return () => clearTimeout(timer); // Clean up the timer on unmount
+  }, [profile?.name]);
+
+  const greetingArray = greetings.split(''); // Split the greeting text into an array of characters
 
   return (
     <>
       <Head>
         <title>HomeCloud</title>
       </Head>
-      <main className='bg-slate-50 home-bg min-h-screen pb-10'>
-        <div className='container'>
-          <div className={`flex min-h-[70vh] justify-center flex-col lg:flex-row lg:space-x-12 lg:items-end pt-16 ${inter.className}`}>
-            <div className="flex-col pb-16 md:pb-32 text-slate-400">
-              <div className="max-w-xl text-6xl md:text-8xl font-bold">
-                {greetings}.
-              </div>
-            </div>
-
-            <div className="mb-32 flex items-baseline flex-col md:grid w-full md:grid-cols-2 xl:grid-cols-3 text-left">
-              {
-                apps.map((app) => (
-                  <AppCard key={app.name} {...app} />
-                ))
-              }
-            </div>
+      <main className='container'>
+        <div className={`flex min-h-[70vh] justify-center flex-col pt-16 md:pt-32`}>
+          <div className="flex justify-start">
+            <motion.div
+              animate={{
+                scale: [1, 1.2, 1],
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              className="inline-block"
+            >
+              <Image
+                alt="HomeCloud Logo"
+                src="/icons/circle.png"
+                height={80}
+                width={80}
+                className="md:h-24 md:w-24"
+              />
+            </motion.div>
           </div>
-          <hr />
-          <div className='p-2 pt-4 text-sm opacity-50'>
-            <div className='max-w-[45rem]'>
-              <b className='text-orange-600'>HomeCloud</b> is a personal media management solution that puts you in control of your data.
-              With HomeClould you no longer need to rely on a single cloud storage provider for things like photos, notes, files.
-              You can keep or move your data into whichever service you want (even external drives) and still get the same seemless experience.
-            </div>
+          <div className="flex-col pt-10 pb-16 text-foreground/50 text-4xl lg:text-6xl font-thin">
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={greetings} // Changing key to trigger animation on text change
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                {greetingArray.map((char, index) => (
+                  <motion.span
+                    key={`${greetings}-${index}`} // Unique key to re-render each character
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    {char}
+                  </motion.span>
+                ))}
+              </motion.span>
+            </AnimatePresence>
+          </div>
+          <div className="mb-32 flex items-baseline flex-col md:grid w-full md:grid-cols-2 xl:grid-cols-3 text-left">
+            {
+              apps.map((app) => (
+                <AppCard key={app.name} {...app} />
+              ))
+            }
           </div>
         </div>
       </main>

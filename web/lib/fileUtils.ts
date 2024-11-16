@@ -1,7 +1,7 @@
-import { PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage } from "./types";
+import { DeviceInfo, OSType, PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage } from "./types";
 import mime from 'mime';
 import { staticConfig } from "./staticConfig";
-import { fileAccessToken } from "./api/files";
+import { move, MoveParams } from "./api/files";
 
 export enum FileType {
     File = 'File',
@@ -37,11 +37,34 @@ export enum FileType {
     Cpp = 'C++',
     Go = 'Go',
     Swift = 'Swift',
-    Drive = "Drive"
+    Drive = 'Drive',
+    App = 'App',
+    Exe = 'Application',
+    MSI = 'Windows Installer',
+    AppImage = 'AppImage',
+    Deb = 'Debian Package',
+    DMG = 'Apple Disk Image',
+    RPM = 'RPM Package',
 }
 
 export function mimeToKind(mimeType: string): FileType {
     switch (mimeType) {
+        case 'application/x-folder':
+            return FileType.Folder;
+        case 'application/x-apple-app':
+            return FileType.App;
+        case 'application/vnd.microsoft.portable-executable':
+            return FileType.Exe;
+        case 'application/x-msi':
+            return FileType.MSI;
+        case 'application/x-executable':
+            return FileType.AppImage;
+        case 'application/vnd.debian.binary-package':
+            return FileType.Deb;
+        case 'application/x-rpm':
+            return FileType.RPM;
+        case 'application/x-apple-diskimage':
+            return FileType.DMG;
         case 'application/x-drive':
             return FileType.Drive;
         case 'application/epub+zip':
@@ -144,6 +167,7 @@ export function getKind(item: RemoteItem) {
         if (!item.parentIds || item.parentIds.length === 0) {
             return FileType.Drive;
         }
+        if (!!item.mimeType) return mimeToKind(item.mimeType);
         return FileType.Folder;
     }
     const mimeType = !!item.mimeType ? item.mimeType : mime.getType(item.name);
@@ -216,6 +240,20 @@ function iconFilename(kind: FileType) {
             return 'go.png';
         case FileType.Swift:
             return 'code.png';
+        case FileType.App:
+            return 'app.png';
+        case FileType.Exe:
+            return 'program.png';
+        case FileType.MSI:
+            return 'installer.png';
+        case FileType.AppImage:
+            return 'installer.png';
+        case FileType.Deb:
+            return 'deb.png';
+        case FileType.DMG:
+            return 'dmg.png';
+        case FileType.RPM:
+            return 'installer.png';
         default:
             return 'file.png';
     }
@@ -266,11 +304,79 @@ export function storageToRemoteItem(storage: Storage): RemoteItemWithStorage {
     }
 }
 
-export async function getFileUrl(storageId: number, fileId: string) {
+export function getFileUrl(storageId: number, fileId: string) {
     return `${staticConfig.apiBaseUrl}/fs/readFile?storageId=${storageId}&id=${fileId}`;
-
 }
 
-export function downloadLinkFromFileUrl(fileUrl: string) {
-    return `${fileUrl}&download=1`;
+export function canPreview(mimeType: string) {
+    return mimeType.startsWith('image/') ||
+        mimeType.startsWith('video/') ||
+        mimeType.startsWith('audio/') ||
+        mimeType === 'application/pdf' ||
+        mimeType === 'application/epub+zip' ||
+        mimeType.startsWith('text/') ||
+        mimeType === 'application/json';
+}
+
+export function getNativeFilesAppName(deviceInfo: DeviceInfo | null) {
+    if (deviceInfo?.os === OSType.MacOS) {
+        return 'Finder';
+    }
+    if (deviceInfo?.os === OSType.Windows) {
+        return 'File Explorer';
+    }
+    return 'File Manager';
+}
+
+export function getNativeFilesAppIcon(deviceInfo: DeviceInfo | null) {
+    if (deviceInfo?.os === OSType.MacOS) {
+        return '/icons/finder.png';
+    }
+    if (deviceInfo?.os === OSType.Windows) {
+        return '/icons/file-explorer.png';
+    }
+    return '/icons/folder.png';
+}
+
+const CLIPBOARD_KEY = 'files-clipboard';
+
+export function setItemsToCopy(storageId: number, itemIds: string[], cut = false) {
+    const clipboardJson = {
+        storageId,
+        itemIds,
+        cut,
+    }
+    sessionStorage.setItem(CLIPBOARD_KEY, JSON.stringify(clipboardJson));
+}
+
+export function getItemsToCopy(): { storageId: number, itemIds: string[], cut: boolean } | null {
+    const clipboardJson = sessionStorage.getItem(CLIPBOARD_KEY);
+    if (!clipboardJson) return null;
+    return JSON.parse(clipboardJson);
+}
+
+export function clearItemsToCopy() {
+    sessionStorage.removeItem(CLIPBOARD_KEY);
+}
+
+export function hasItemsToCopy() {
+    return !!sessionStorage.getItem(CLIPBOARD_KEY);
+}
+
+export async function performCopyItems(destStorageId: number, destFolderId: string) {
+    const clipboard = getItemsToCopy();
+    if (!clipboard) return;
+    const { storageId, itemIds, cut } = clipboard;
+    const moveParams: MoveParams = {
+        sourceStorageId: storageId,
+        destStorageId,
+        destDir: destFolderId,
+        sourceFileIds: itemIds,
+        deleteSource: cut,
+    }
+    const res = move(moveParams);
+    if (cut) {
+        clearItemsToCopy();
+    }
+    return res;
 }

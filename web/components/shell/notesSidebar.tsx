@@ -17,6 +17,7 @@ import { cn, isMobile } from "@/lib/utils";
 import { useUrlMatch } from "../hooks/useUrlMatch";
 import { useToast } from "../ui/use-toast";
 import useHideSidebar from "../hooks/useHideSidebar";
+import { Separator } from "../ui/separator";
 
 type NoteNavItemProps = {
     stat: RemoteItem;
@@ -91,9 +92,9 @@ function NoteNavItem({ stat, storage, onNewNote, onMenu, depth }: NoteNavItemPro
     return (
         <>
             <div style={{ paddingLeft: `${depth * 0.7}rem` }}
-                className={cn('hover:bg-muted group rounded-sm my-[0.1rem]', matched && 'bg-muted')}
+                className={cn('hover:bg-muted group rounded-sm my-[0.1rem]', matched && 'bg-foreground/10')}
             >
-                <div className={cn('flex text-sm px-2 py-1 font-normal',
+                <div className={cn('flex text-sm px-2 md:pr-0 py-1 font-normal',
                     isError
                         ? 'text-red-500'
                         : matched
@@ -232,7 +233,7 @@ function StorageTree({ storage }: { storage: Storage }) {
     }, [selectedStat]);
 
     return (
-        <div className='my-2 py-1 px-1 border-b border-muted'>
+        <div className='my-2 py-1 px-1'>
             <NewNoteModal
                 storage={storage}
                 parentId={selectedStat?.id}
@@ -243,10 +244,10 @@ function StorageTree({ storage }: { storage: Storage }) {
                 stat={selectedStat || null}
                 isOpen={deleteNoteModalOpen}
                 onOpenChange={setDeleteNoteModalOpen} />
-            <div className='flex justify-between px-2'>
-                <div className={cn(isError ? 'text-red-500' : 'text-gray-600', 'flex items-center')}>
-                    <ServerIcon className='w-4 h-4 inline-block' />
-                    <span className='ml-2 text-sm font-medium text-ellipsis truncate max-w-[80%]'>
+            <div className='flex justify-between px-2 md:pr-0'>
+                <div className={cn(isError ? 'text-red-500' : 'text-muted-foreground/90', 'flex items-center')}>
+                    <ServerIcon className='w-5 h-5 inline-block text-primary' />
+                    <span className='ml-2 text-xs font-medium text-ellipsis truncate max-w-[80%]'>
                         {storage.name}
                     </span>
                 </div>
@@ -274,6 +275,7 @@ function StorageTree({ storage }: { storage: Storage }) {
                     <ContextMenuItem className='text-red-500' onClick={deleteSelected}>Delete</ContextMenuItem>
                 </ContextMenuContent>
             </ContextMenu>
+            <Separator />
         </div>
     );
 }
@@ -282,9 +284,6 @@ export function NotesSidebar() {
     const storages = useFilterStorages(AppName.Notes);
     return (
         <div className='mb-2 mt-6'>
-            <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
-                Collections
-            </h2>
             {
                 storages.map((storage) => <StorageTree key={storage.id} storage={storage} />)
             }

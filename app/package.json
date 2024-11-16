@@ -1,0 +1,106 @@
+{
+  "name": "homecloud",
+  "version": "0.0.2",
+  "build": {
+    "appId": "org.asrient.homecloud",
+    "productName": "HomeCloud",
+    "copyright": "Copyright © 2024 Asrient.",
+    "ignore": [
+      "buildAssets",
+      "dist/server"
+    ],
+    "minify": true,
+    "entitlements": "buildAssets/entitlements.plist",
+    "icons": {
+      "mac": "assets/appIcons/icon.icns",
+      "win": "assets/appIcons/icon.ico"
+    }
+  },
+  "desktopUnpackDirs": [
+    "assets",
+    "node_modules/@img",
+    "node_modules/detect-libc",
+    "node_modules/semver",
+    "node_modules/sharp",
+    "node_modules/validator"
+  ],
+  "desktopUnpackModules": [
+    "open",
+    "bindings",
+    "color"
+  ],
+  "scripts": {
+    "watch": "tsc --watch",
+    "tsc": "tsc",
+    "dev:desktop": "nodemon --watch 'dist/**/*.js' --exec 'yode' dist/desktop/index.js",
+    "dev:server": "nodemon --watch 'dist/**/*.js' --exec 'node' dist/server/index.js",
+    "prepack": "tsc",
+    "postpack": "node buildAssets/postpack.js",
+    "start:desktop": "yode dist/desktop/index.js",
+    "start:server": "node dist/server/index.js",
+    "start:worker": "node dist/server/workerHead.js",
+    "build:desktop": "node buildAssets/prepack-desktop.js && yackage build ../out",
+    "build:server": "node buildAssets/prepack-server.js && npm pack",
+    "dist:desktop": "node buildAssets/prepack-desktop.js && yackage dist ../out",
+    "test:bonjour": "ts-node test/bonjour.ts",
+    "script:generateKeys": "node dist/server/scripts/generateKeys.js"
+  },
+  "author": "ASRIENT",
+  "license": "ISC",
+  "description": "Work seemlessly accross all your devices.",
+  "dependencies": {
+    "@googleapis/drive": "^8.14.0",
+    "ajv": "^8.12.0",
+    "bcrypt": "^5.1.1",
+    "bonjour-service": "^1.2.1",
+    "busboy": "^1.6.0",
+    "chokidar": "^4.0.1",
+    "cloneable-readable": "^3.0.0",
+    "cookie": "^1.0.1",
+    "dotenv": "^16.3.1",
+    "dropbox": "^10.34.0",
+    "dropbox-stream": "^1.0.5",
+    "exifreader": "^4.13.0",
+    "fast-xml-parser": "^4.5.0",
+    "fetch-yode": "^1.1.1",
+    "fluent-ffmpeg": "^2.1.3",
+    "form-data": "^4.0.1",
+    "google-auth-library": "^9.14.2",
+    "gui": "^0.15.3",
+    "he": "^1.2.0",
+    "jsonwebtoken": "^9.0.1",
+    "mime": "^3.0.0",
+    "minimatch": "9.0.5",
+    "node-match-path": "^0.6.3",
+    "open": "^10.1.0",
+    "qs": "^6.11.2",
+    "selfsigned": "^2.4.1",
+    "sequelize": "^6.32.1",
+    "sharp": "0.33.5",
+    "sqlite3": "^5.1.6",
+    "uuid": "^9.0.1"
+  },
+  "desktopOnlyDeps": [
+    "gui",
+    "fetch-yode",
+    "open"
+  ],
+  "serverOnlyDeps": [
+    "dotenv"
+  ],
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.0",
+    "@types/busboy": "^1.5.0",
+    "@types/cloneable-readable": "^2.0.1",
+    "@types/fluent-ffmpeg": "^2.1.21",
+    "@types/jsonwebtoken": "^9.0.2",
+    "@types/mime": "^3.0.1",
+    "@types/node": "^22.9.0",
+    "@types/qs": "^6.9.7",
+    "@types/uuid": "^9.0.5",
+    "nodemon": "^3.1.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3",
+    "yackage": "^0.9.2"
+  }
+}
