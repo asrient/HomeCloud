@@ -26,7 +26,11 @@ export function setupLogger(logFile: string) {
 
     // Delete the log file if it exists
     if (fs.existsSync(logFile)) {
-        fs.unlinkSync(logFile);
+        try {
+            fs.unlinkSync(logFile);
+        } catch (e) {
+            // ignored, will be written to the existing file.
+        }
     }
     logStream = fs.createWriteStream(logFile, { flags: 'a' });
     logStream.write(`\n---------- New Instance Date: ${new Date().toISOString()} ---------------\n`);

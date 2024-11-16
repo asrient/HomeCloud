@@ -33,6 +33,7 @@ export type SetupParams = {
   certPem: string;
   advertiseService: boolean;
   agentPort?: number;
+  appName?: string;
 };
 
 export enum OptionalType {
@@ -174,8 +175,10 @@ class EnvConfig {
   readonly CERTIFICATE_PEM: string;
   readonly PAIRING_AUTH_TYPE: PairingAuthType;
   readonly ADVERTISE_SERVICE: boolean;
+  readonly APP_NAME: string;
 
   constructor(config: SetupParams) {
+    this.APP_NAME = config.appName || "HomeCloud";
     this.DATA_DIR = config.dataDir || "";
     this.ENV_TYPE = config.envType;
     this.IS_DEV = config.isDev;

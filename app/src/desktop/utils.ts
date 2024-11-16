@@ -74,3 +74,7 @@ export function getUserLogDirectory(appName: string) {
     }
     return logDir;
 }
+
+export function getAppIntent() {
+    return process.argv[2] || 'activate';
+}

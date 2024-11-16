@@ -1,6 +1,7 @@
 import { catchUnhandledErrors, crash } from "./crashHandler";
 catchUnhandledErrors();
 
+import gui from "gui";
 import env from "./env";
 import http from "http";
 import https from "https";
@@ -25,16 +26,20 @@ import path from "path";
 import os from "os";
 import { randomBytes } from "crypto";
 import NativeImplDesktop from "./nativeImpl";
-import { getDataDir, getUserLogDirectory, openWebApp } from "./utils";
+import { getAppIntent, getDataDir, getUserLogDirectory, openWebApp } from "./utils";
 import Tray from "./views/sysTray";
 import { setupLogger, stopLogger } from "./logger";
 import { setupNative } from "../core/native";
 import { cleanDesktopTmpDir } from "../core/utils/libraryUtils";
+import * as singleInstance from "./singleInstance";
 
-(function () {
-  if (!env.APP_NAME) {
-    throw new Error("APP_NAME not set.");
-  }
+const startText = `
+------------------------------
+|   ***HomeCloud Desktop***  |
+------------------------------
+`;
+
+function startLogger() {
   let logDir = getUserLogDirectory(env.APP_NAME);
   if (!env.DESKTOP_IS_PACKAGED) {
     logDir = path.resolve(__dirname, "../../");
@@ -45,13 +50,7 @@ import { cleanDesktopTmpDir } from "../core/utils/libraryUtils";
   }
   const logFile = path.join(logDir, filename);
   setupLogger(logFile);
-})();
-
-const startText = `
-------------------------------
-|   ***HomeCloud Desktop***  |
-------------------------------
-`;
+}
 
 class App {
   webPort: number = 5000;
@@ -62,6 +61,7 @@ class App {
   tray: Tray;
 
   constructor() {
+    startLogger();
     console.log(startText);
     this.setupConfig();
     ffmpegSetup();
@@ -83,6 +83,7 @@ class App {
     console.log("👋 Quitting app gracefully..");
     await this.discoveryService.goodbye();
     this.tray.remove();
+    singleInstance.clear();
     console.log("👋 Goodbye!");
     await stopLogger();
     process.exit(0);
@@ -148,6 +149,7 @@ class App {
     const fingerprint = cryptoUtils.getFingerprintFromPem(publicKeyPem);
 
     setupEnvConfig({
+      appName: env.APP_NAME,
       isDev,
       desktopIsPackaged: env.DESKTOP_IS_PACKAGED,
       envType: EnvType.Desktop,
@@ -176,7 +178,12 @@ class App {
     const httpServer = http.createServer(this.webServer.nativeHandler);
     // initSEPublisher(httpServer);
     httpServer.listen(this.webPort, '127.0.0.1');
-
+    httpServer.listen({
+      host: '127.0.0.1',
+      port: this.webPort,
+      reusePort: false,
+      exclusive: true,
+    });
     console.log(`⚡️ HTTP Web Server started on port: ${this.webPort}`);
   }
 
@@ -190,7 +197,11 @@ class App {
       },
       this.agentServer.nativeHandler,
     );
-    httpsServer.listen(envConfig.AGENT_PORT);
+    httpsServer.listen({
+      port: envConfig.AGENT_PORT,
+      reusePort: false,
+      exclusive: true,
+    });
 
     console.log(`⚡️ HTTPS Agent Server started on port: ${envConfig.AGENT_PORT}`);
   }
@@ -203,7 +214,21 @@ class App {
     }
   }
 
+  appIntent(action: string) {
+    console.log("🔥 App intent:", action);
+    if (this._isStarting) {
+      console.log("🔥 App is sill starting, ignoring the app intent..");
+      return;
+    }
+    if (action === 'activate') {
+      openWebApp();
+    }
+  }
+
+  private _isStarting = false;
   async start() {
+    this._isStarting = true;
+    singleInstance.listen(this.appIntent.bind(this));
     const dataDir = envConfig.DATA_DIR;
     const dbFilename = envConfig.IS_DEV ? "homecloud_dev.db" : "homecloud.db";
     const dbPath = path.join(dataDir, dbFilename);
@@ -230,10 +255,47 @@ class App {
     this.discoveryService.hello();
     this.discoveryService.listen();
     this.cleanFromLastRun();
+    this._isStarting = false;
+    console.log("App params:", process.argv);
     console.log(`🌎 Go ahead, visit ${envConfig.BASE_URL}`);
-    openWebApp();
+    this.appIntent(getAppIntent());
   }
 }
 
-global.app = new App();
-global.app.start();
+let _mainCalled = false;
+// Main should be called only once.
+function main() {
+  if (_mainCalled) {
+    throw new Error("Main called twice");
+  }
+  global.app = new App();
+  global.app.start();
+}
+
+async function checkSingleInstanceAndStart() {
+  if (await singleInstance.check(getAppIntent())) {
+    gui.MessageLoop.quit();
+    process.exit(0);
+  }
+  main();
+}
+
+// Basic checks and single instance setup.
+(function () {
+  if (!env.APP_NAME) {
+    throw new Error("APP_NAME not set.");
+  }
+  if (!env.VERSION) {
+    throw new Error("VERSION not set.");
+  }
+  singleInstance.setupSocketPath(env.APP_NAME);
+
+  if (process.platform == 'darwin') {
+    gui.lifetime.onReady = main;
+  } else {
+    if (singleInstance.quickCheckSync())
+      checkSingleInstanceAndStart();
+    else
+      main();
+  }
+})();
