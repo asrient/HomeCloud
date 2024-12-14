@@ -2,10 +2,8 @@ import http from "http";
 import tls from "tls";
 import { envConfig } from "./envConfig";
 import { ApiRequest, ApiRequestFile, RequestOriginType, RouteGroup } from "./interface";
-import path from "path";
 import fs from "fs";
 import busboy from "busboy";
-import mime from "mime";
 
 export default class ServerAdaptor {
   router: RouteGroup;
@@ -22,47 +20,6 @@ export default class ServerAdaptor {
       req.url = req.url.substring(0, req.url.length - 1);
     }
     return new URL(req.url!, `http://${req.headers.host}`);
-  }
-
-  async handleStatic(
-    url: URL,
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-  ) {
-    let pathname = url.pathname;
-    if (pathname === "/") {
-      pathname = "/index";
-    }
-    let filePath = path.join(envConfig.WEB_BUILD_DIR, pathname);
-
-    const ext = path.extname(filePath);
-    if (!ext) {
-      filePath = `${filePath}.html`;
-    }
-
-    fs.stat(filePath, (err, stats) => {
-      let status = 200;
-
-      if (err || !stats.isFile()) {
-        status = 404;
-        filePath = path.join(envConfig.WEB_BUILD_DIR, "404.html");
-      }
-
-      res.writeHead(status, {
-        "Content-Type": mime.getType(filePath) || "application/octet-stream",
-      });
-
-      const fileStream = fs.createReadStream(filePath);
-      fileStream.pipe(res);
-
-      fileStream.on("end", () => {
-        res.end();
-      });
-      fileStream.on("error", (err) => {
-        console.error("[handleStatic] fileStream error:", err);
-        res.end();
-      });
-    });
   }
 
   async handleAPI(
@@ -236,7 +193,8 @@ export default class ServerAdaptor {
       if (url.pathname.startsWith("/api/")) {
         await this.handleAPI(url, req, res);
       } else {
-        await this.handleStatic(url, req, res);
+        res.writeHead(404);
+        res.end();
       }
     } catch (err: any) {
       console.error("❗️ Internal Server Error:", err);

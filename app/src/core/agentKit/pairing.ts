@@ -98,7 +98,7 @@ async function createAgent(pairingRequest: PairingRequest, authority: string) {
         remoteProfileName: pairingRequest.clientprofileName,
         authority,
     });
-    const canAddBack = envConfig.isDesktop() && !agent.clientAccessDisabled();
+    const canAddBack = !agent.clientAccessDisabled();
     if (canAddBack && !agent.hasClientAccess()) {
         agent.allowClientAccess = true;
         await agent.save();

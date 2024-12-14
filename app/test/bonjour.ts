@@ -1,6 +1,5 @@
 import {
     setupEnvConfig,
-    EnvType,
     OptionalType,
     ProfilesPolicy,
     DiscoveryService,
@@ -25,7 +24,6 @@ function setupConfig() {
     setupEnvConfig({
         isDev,
         desktopIsPackaged: false,
-        envType: EnvType.Desktop,
         dataDir,
         baseUrl: clientBaseUrl,
         apiBaseUrl: webServerBaseUrl + "api/",

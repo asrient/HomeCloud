@@ -11,7 +11,6 @@ import {
   fetchFsDriver,
   validateJson,
   relayToAgent,
-  envType,
 } from "../../decorators";
 import {
   addPinnedFolder,
@@ -22,7 +21,7 @@ import { Agent, Profile, Storage } from "../../models";
 import { FsDriver, RemoteItem } from "../../storageKit/interface";
 import { generateFileAccessToken } from "../../utils/fileUtils";
 import { downloadFile, WatchedFile } from "../../services/files/operations";
-import { envConfig, EnvType, StorageType } from "../../envConfig";
+import { envConfig, StorageType } from "../../envConfig";
 import CustomError from "../../customError";
 import { getFsDriver, getFsDriverByStorageId } from "../../storageKit/storageHelper";
 import fs from "fs";
@@ -199,7 +198,6 @@ const downloadSchema = {
 api.add(
   '/download',
   [
-    envType([EnvType.Desktop]),
     ...buildMiddlewares('POST', downloadSchema, false)
   ],
   async (request: ApiRequest) => {
@@ -262,7 +260,6 @@ const openFileHandler = async (request: ApiRequest) => {
 api.add(
   '/open/local',
   [
-    envType([EnvType.Desktop]),
     ...buildMiddlewares('POST', openFileSchema, false)
   ],
   openFileHandler,
@@ -284,7 +281,6 @@ const openFileRemoteSchema = {
 api.add(
   '/open/remote',
   [
-    envType([EnvType.Desktop]),
     ...buildMiddlewares('POST', openFileRemoteSchema)
   ],
   async (request: ApiRequest) => {
@@ -318,7 +314,6 @@ const moveSchema = {
 api.add(
   '/move',
   [
-    envType([EnvType.Desktop]),
     method(['POST']),
     validateJson(moveSchema),
   ],

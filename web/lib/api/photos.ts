@@ -58,13 +58,6 @@ export async function importPhotos(params: ImportPhotosParams) {
 }
 
 export async function uploadPhotos(storageId: number, files: FileList_) {
-    // if (isDesktop()) {
-    //     const filePaths = [];
-    //     for (let i = 0; i < files.length; i++) {
-    //         filePaths.push(files[i].path);
-    //     }
-    //     return await ApiClient.post<AddSuccessType>('/services/photos/upload/desktop', { storageId, filePaths });
-    // }
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
         formData.append('files', files[i], files[i].name);

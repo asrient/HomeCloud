@@ -390,12 +390,6 @@ api.add(
   async (request: ApiRequest) => {
     const fsDriver = request.local.fsDriver as FsDriver;
 
-    if (!envConfig.isDesktop()) {
-      return ApiResponse.fromError(
-        CustomError.security("Only available in desktop"),
-      );
-    }
-
     const parentId = request.local.json.parentId;
     const filePaths = request.local.json.filePaths as string[];
 

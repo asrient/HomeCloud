@@ -3,14 +3,8 @@ import { joinUrlPath } from "./utils";
 
 export const DEFAULT_AGENT_PORT = 7736;
 
-export enum EnvType {
-  Server = "server",
-  Desktop = "desktop",
-}
-
 export type SetupParams = {
   isDev: boolean;
-  envType: EnvType;
   dataDir?: string;
   baseUrl: string;
   apiBaseUrl?: string;
@@ -151,7 +145,6 @@ export const implementedStorageTypes = [StorageType.WebDav, StorageType.Google, 
 
 class EnvConfig {
   readonly DATA_DIR: string;
-  readonly ENV_TYPE: EnvType;
   readonly IS_DEV: boolean;
   readonly BASE_URL: string;
   readonly API_BASE_URL: string;
@@ -180,7 +173,6 @@ class EnvConfig {
   constructor(config: SetupParams) {
     this.APP_NAME = config.appName || "HomeCloud";
     this.DATA_DIR = config.dataDir || "";
-    this.ENV_TYPE = config.envType;
     this.IS_DEV = config.isDev;
     this.BASE_URL = config.baseUrl;
     this.API_BASE_URL =
@@ -207,7 +199,7 @@ class EnvConfig {
     this.PRIVATE_KEY_PEM = config.privateKeyPem;
     this.FINGERPRINT = config.fingerprint;
     this.CERTIFICATE_PEM = config.certPem;
-    this.PAIRING_AUTH_TYPE = config.envType === EnvType.Desktop ? PairingAuthType.OTP : PairingAuthType.Password;
+    this.PAIRING_AUTH_TYPE = PairingAuthType.OTP;
     this.ADVERTISE_SERVICE = config.advertiseService;
     this.AGENT_PORT = config.agentPort || DEFAULT_AGENT_PORT;
 
@@ -222,14 +214,6 @@ class EnvConfig {
 
   isStorageTypeEnabled(type: StorageType) {
     return this.ENABLED_STORAGE_TYPES.includes(type);
-  }
-
-  isDesktop() {
-    return this.ENV_TYPE === EnvType.Desktop;
-  }
-
-  isServer() {
-    return this.ENV_TYPE === EnvType.Server;
   }
 
   isOneAuthEnabled() {

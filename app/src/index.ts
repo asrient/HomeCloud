@@ -8,7 +8,6 @@ import https from "https";
 import fs from "fs";
 import {
   setupEnvConfig,
-  EnvType,
   envConfig,
   OptionalType,
   initDb,
@@ -42,7 +41,7 @@ const startText = `
 function startLogger() {
   let logDir = getUserLogDirectory(env.APP_NAME);
   if (!env.DESKTOP_IS_PACKAGED) {
-    logDir = path.resolve(__dirname, "../../");
+    logDir = path.resolve(__dirname, "../");
   }
   let filename = "Run.log";
   if (env.NODE_ENV !== "production") {
@@ -125,7 +124,7 @@ class App {
     const isDev = !(env.NODE_ENV === "production");
     const dataDir = env.DESKTOP_IS_PACKAGED
       ? getDataDir(env.APP_NAME)
-      : path.resolve(__dirname, "../../Debug/Desktop");
+      : path.resolve(__dirname, "../Debug");
 
     fs.mkdirSync(dataDir, { recursive: true });
     const webServerBaseUrl = `http://127.0.0.1:${this.webPort}/`;
@@ -152,7 +151,6 @@ class App {
       appName: env.APP_NAME,
       isDev,
       desktopIsPackaged: env.DESKTOP_IS_PACKAGED,
-      envType: EnvType.Desktop,
       dataDir,
       baseUrl: clientBaseUrl,
       apiBaseUrl: webServerBaseUrl + "api/",

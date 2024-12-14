@@ -3,10 +3,7 @@ import { envConfig } from '../envConfig';
 import path from 'path';
 
 export function getLibraryDirForProfile(profileId: number) {
-    if (envConfig.isDesktop()) {
-        return envConfig.LIBRARY_DIR;
-    }
-    return path.join(envConfig.LIBRARY_DIR, profileId.toString());
+    return envConfig.LIBRARY_DIR;
 }
 
 const PHOTOS_DIR_NAME = "Photos";
@@ -14,16 +11,10 @@ const NOTES_DIR_NAME = "Notes";
 const TMP_DIR_NAME = "Tmp";
 
 export function getDesktopTmpDir() {
-    if (!envConfig.isDesktop()) {
-        throw new Error("Cache dir is only available on desktop");
-    }
     return path.join(envConfig.LIBRARY_DIR, TMP_DIR_NAME);
 }
 
 export async function cleanDesktopTmpDir() {
-    if (!envConfig.isDesktop()) {
-        return;
-    }
     // list all directories in the tmp dir and remove them
     const tmpDir = getDesktopTmpDir();
     const files = await fs.promises.readdir(tmpDir, { withFileTypes: true });

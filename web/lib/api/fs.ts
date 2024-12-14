@@ -93,16 +93,6 @@ export type UploadParams = {
 };
 
 export async function upload(params: UploadParams) {
-    /*
-    if (isDesktop()) {
-        const body = {
-            storageId: params.storageId,
-            parentId: params.parentId,
-            filePaths: Array.from(params.files).map((f) => (f as File_).path)
-        }
-        return await ApiClient.post<RemoteItem[]>('/fs/writeFiles/desktop', body);
-    }
-    */
     const formData = new FormData();
     formData.append('parentId', params.parentId);
     for (let i = 0; i < params.files.length; i++) {
