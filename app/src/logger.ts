@@ -1,4 +1,4 @@
-import { envConfig } from "../core/index";
+import { envConfig } from "./core/index";
 import fs from "fs";
 
 function handleLog(type: 'info' | 'error' | 'warn', data: any[]) {

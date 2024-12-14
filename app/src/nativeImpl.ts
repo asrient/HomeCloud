@@ -1,4 +1,4 @@
-import { NativeImpl, NativeAskConfig, NativeAsk } from "../core/native";
+import { NativeImpl, NativeAskConfig, NativeAsk } from "./core/native";
 import { crash } from "./crashHandler";
 import Ask from "./views/ask";
 import { openApp } from "./utils";

@@ -1,6 +1,6 @@
 import path from 'path'
 import gui from 'gui'
-import { envConfig } from '../../core/index'
+import { envConfig } from '../core/index'
 import { getAssetPath, openApp, openWebApp } from '../utils'
 
 export default class Tray {

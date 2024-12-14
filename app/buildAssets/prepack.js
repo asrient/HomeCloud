@@ -1,4 +1,4 @@
 const { prepack } = require('./pack-common');
 
-prepack('desktop');
+prepack();
 console.log('Prepack script executed successfully.');

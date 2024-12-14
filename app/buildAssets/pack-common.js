@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 
 const TMP_PACKAGE_JSON = '.package.tmp.json';
-const TMP_DESKTOP_ENV_FILE = 'src/desktop/.env.tmp.js';
-const DESKTOP_ENV_FILE = 'src/desktop/env.js';
+const TMP_DESKTOP_ENV_FILE = 'src/.env.tmp.js';
+const DESKTOP_ENV_FILE = 'src/env.js';
 
 function getEnvFileContent(packageJson) {
     if (!process.env.CLIENT_BASE_URL) {
@@ -52,60 +52,48 @@ function getAllDeps(nodeModulesPath, moduleName) {
     return allDeps.concat(childrenDeps);
 }
 
-function prepack(type) {
-    console.log(`Fixing the codebase for ${type}...`);
+function prepack() {
+    console.log(`Fixing the codebase for Desktop...`);
 
     const originalPackageJson = fs.readFileSync('package.json', 'utf8');
     const packageJson = JSON.parse(originalPackageJson);
 
-    if (type === 'desktop') {
-        const envFileContent = getEnvFileContent(packageJson);
-        // Copy the original env file to a temporary location
-        fs.copyFileSync(DESKTOP_ENV_FILE, TMP_DESKTOP_ENV_FILE);
-        // Write the new content to the env file
-        fs.writeFileSync(DESKTOP_ENV_FILE, envFileContent);
-    }
+
+    const envFileContent = getEnvFileContent(packageJson);
+    // Copy the original env file to a temporary location
+    fs.copyFileSync(DESKTOP_ENV_FILE, TMP_DESKTOP_ENV_FILE);
+    // Write the new content to the env file
+    fs.writeFileSync(DESKTOP_ENV_FILE, envFileContent);
+
 
     // copy the file to a temporary location
     fs.copyFileSync('package.json', TMP_PACKAGE_JSON);
 
-    // update the package.json file
-    packageJson.main = `dist/${type}/index.js`;
-    let deps = Object.keys(packageJson.dependencies);
-    const key = `${type === 'desktop' ? 'server' : 'desktop'}OnlyDeps`;
-    const othersOnlyDeps = packageJson[key] || [];
-    deps = deps.filter(dep => !othersOnlyDeps.includes(dep));
-    packageJson.dependencies = deps.reduce((acc, dep) => {
-        acc[dep] = packageJson.dependencies[dep];
-        return acc;
-    }, {});
     packageJson.devDependencies = {};
-    if (type === 'desktop') {
-        packageJson.description = 'HomeCloud Desktop';
 
-        const unpackDirs = packageJson.desktopUnpackDirs || [];
-        let unpackModules = packageJson.desktopUnpackModules || [];
-        const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
+    const unpackDirs = packageJson.unpackDirs || [];
+    let unpackModules = packageJson.unpackModules || [];
+    const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
 
-        const moduleSet = new Set([]);
-        unpackModules.forEach(dir => {
-            moduleSet.add(dir);
-            const deps = getAllDeps(nodeModulesPath, dir);
-            deps.forEach(dep => moduleSet.add(dep));
-        });
-        unpackModules = Array.from(moduleSet.values());
-        let patternStr = '{';
-        patternStr += unpackDirs.join(',');
-        if(unpackDirs.length > 0 && unpackModules.length > 0) {
-            patternStr += ',';
-        }
-        if(unpackModules.length > 0) {
-            patternStr += `node_modules/{${unpackModules.join(',')}}`;
-        }
-        patternStr += '}';
-        packageJson.build.unpackDir = patternStr;
-        console.log('Unpack dirs:', packageJson.build.unpackDir);
+    const moduleSet = new Set([]);
+    unpackModules.forEach(dir => {
+        moduleSet.add(dir);
+        const deps = getAllDeps(nodeModulesPath, dir);
+        deps.forEach(dep => moduleSet.add(dep));
+    });
+    unpackModules = Array.from(moduleSet.values());
+    let patternStr = '{';
+    patternStr += unpackDirs.join(',');
+    if (unpackDirs.length > 0 && unpackModules.length > 0) {
+        patternStr += ',';
     }
+    if (unpackModules.length > 0) {
+        patternStr += `node_modules/{${unpackModules.join(',')}}`;
+    }
+    patternStr += '}';
+    packageJson.build.unpackDir = patternStr;
+    console.log('Unpack dirs:', packageJson.build.unpackDir);
+
     fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2));
 }
 

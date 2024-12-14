@@ -1,13 +1,13 @@
 {
   "name": "homecloud",
   "version": "0.0.2",
+  "main": "dist/index.js",
   "build": {
     "appId": "org.asrient.homecloud",
     "productName": "HomeCloud",
     "copyright": "Copyright © 2024 Asrient.",
     "ignore": [
-      "buildAssets",
-      "dist/server"
+      "buildAssets"
     ],
     "minify": true,
     "entitlements": "buildAssets/entitlements.plist",
@@ -16,7 +16,7 @@
       "win": "assets/appIcons/icon.ico"
     }
   },
-  "desktopUnpackDirs": [
+  "unpackDirs": [
     "assets",
     "node_modules/@img",
     "node_modules/detect-libc",
@@ -24,7 +24,7 @@
     "node_modules/sharp",
     "node_modules/validator"
   ],
-  "desktopUnpackModules": [
+  "unpackModules": [
     "open",
     "bindings",
     "color"
@@ -32,22 +32,17 @@
   "scripts": {
     "watch": "tsc --watch",
     "tsc": "tsc",
-    "dev:desktop": "nodemon --watch 'dist/**/*.js' --exec 'yode' dist/desktop/index.js",
-    "dev:server": "nodemon --watch 'dist/**/*.js' --exec 'node' dist/server/index.js",
+    "dev": "nodemon --watch 'dist/**/*.js' --exec 'yode' dist/index.js",
     "prepack": "tsc",
     "postpack": "node buildAssets/postpack.js",
-    "start:desktop": "yode dist/desktop/index.js",
-    "start:server": "node dist/server/index.js",
-    "start:worker": "node dist/server/workerHead.js",
-    "build:desktop": "node buildAssets/prepack-desktop.js && yackage build ../out",
-    "build:server": "node buildAssets/prepack-server.js && npm pack",
-    "dist:desktop": "node buildAssets/prepack-desktop.js && yackage dist ../out",
-    "test:bonjour": "ts-node test/bonjour.ts",
-    "script:generateKeys": "node dist/server/scripts/generateKeys.js"
+    "start": "yode dist/index.js",
+    "build": "node buildAssets/prepack.js && yackage build ../out",
+    "dist": "node buildAssets/prepack.js && yackage dist ../out",
+    "test:bonjour": "ts-node test/bonjour.ts"
   },
   "author": "ASRIENT",
   "license": "ISC",
-  "description": "Work seemlessly accross all your devices.",
+  "description": "HomeCloud Desktop",
   "dependencies": {
     "@googleapis/drive": "^8.14.0",
     "ajv": "^8.12.0",
@@ -57,7 +52,6 @@
     "chokidar": "^4.0.1",
     "cloneable-readable": "^3.0.0",
     "cookie": "^1.0.1",
-    "dotenv": "^16.3.1",
     "dropbox": "^10.34.0",
     "dropbox-stream": "^1.0.5",
     "exifreader": "^4.13.0",
@@ -80,14 +74,6 @@
     "sqlite3": "^5.1.6",
     "uuid": "^9.0.1"
   },
-  "desktopOnlyDeps": [
-    "gui",
-    "fetch-yode",
-    "open"
-  ],
-  "serverOnlyDeps": [
-    "dotenv"
-  ],
   "devDependencies": {
     "@types/bcrypt": "^5.0.0",
     "@types/busboy": "^1.5.0",

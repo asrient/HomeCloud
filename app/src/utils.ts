@@ -1,8 +1,8 @@
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
-import { dynamicImport } from "../core/utils";
-import { envConfig } from '../core/envConfig';
+import { dynamicImport } from "./core/utils";
+import { envConfig } from './core/envConfig';
 
 let _open: ((target: string, options?: any) => Promise<any>) | null = null;
 

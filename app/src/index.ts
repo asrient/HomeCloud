@@ -21,7 +21,7 @@ import {
   cryptoUtils,
   DiscoveryService,
   setupDbData,
-} from "../core/index";
+} from "./core/index";
 import path from "path";
 import os from "os";
 import { randomBytes } from "crypto";
@@ -29,8 +29,8 @@ import NativeImplDesktop from "./nativeImpl";
 import { getAppIntent, getDataDir, getUserLogDirectory, openWebApp } from "./utils";
 import Tray from "./views/sysTray";
 import { setupLogger, stopLogger } from "./logger";
-import { setupNative } from "../core/native";
-import { cleanDesktopTmpDir } from "../core/utils/libraryUtils";
+import { setupNative } from "./core/native";
+import { cleanDesktopTmpDir } from "./core/utils/libraryUtils";
 import * as singleInstance from "./singleInstance";
 
 const startText = `
