@@ -1461,17 +1461,13 @@ export class PinnedFolders extends DbModel {
 
   static async createDefaultPins(storage: Storage) {
     if (storage.type !== StorageType.Local) return;
-    if (envConfig.isServer()) {
-      const libPath = getLibraryDirForProfile(storage.ProfileId);
-      await PinnedFolders.addPinnedFolder(storage, libPath, "Library");
-    } else {
-      const defaultFolders = getDefaultDirectoriesCached();
-      const promises = Object.keys(defaultFolders).map(async (folderName) => {
-        if (!defaultFolders[folderName]) return;
-        await PinnedFolders.addPinnedFolder(storage, defaultFolders[folderName], folderName);
-      });
-      await Promise.all(promises);
-    }
+
+    const defaultFolders = getDefaultDirectoriesCached();
+    const promises = Object.keys(defaultFolders).map(async (folderName) => {
+      if (!defaultFolders[folderName]) return;
+      await PinnedFolders.addPinnedFolder(storage, defaultFolders[folderName], folderName);
+    });
+    await Promise.all(promises);
   }
 }
 

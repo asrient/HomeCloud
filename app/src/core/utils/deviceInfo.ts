@@ -98,9 +98,6 @@ function getLinuxDistro() {
 // Form factor
 
 function getFormFactor(): DeviceFormType {
-    if (envConfig.isServer()) {
-        return DeviceFormType.Server;
-    }
     switch (process.platform) {
         case 'win32':
             return getWindowsFormFactor();
