@@ -46,14 +46,13 @@ api.add(
   [method(["POST"]), authenticate(), validateJson(addStorageSchema)],
   async (request: ApiRequest) => {
     const data = request.local.json;
-    const profile = request.profile!;
     if(data.authType === StorageAuthType.Pairing) {
       return ApiResponse.fromError(
         CustomError.validationSingle("authType", "Pairing is not supported"), 400);
     }
     if (data.authType === StorageAuthType.OneAuth) {
       try {
-        const { pendingAuth, authUrl } = await initiate(profile, data.type);
+        const { pendingAuth, authUrl } = await initiate(data.type);
         return ApiResponse.json(201, {
           pendingAuth: pendingAuth.getDetails(),
           authUrl,
@@ -65,7 +64,7 @@ api.add(
       }
     }
     try {
-      const storage = await Storage.createStorage(profile, data);
+      const storage = await Storage.createStorage(data);
       return ApiResponse.json(201, {
         storage: await storage.getDetails(),
       });
@@ -81,10 +80,9 @@ const addPairingStorageSchema = {
   properties: {
     host: { type: "string" },
     fingerprint: { type: "string" },
-    targetProfileId: { type: "number" },
     password: { type: "string" },
   },
-  required: ["host", "fingerprint", "targetProfileId"],
+  required: ["host", "fingerprint"],
   additionalProperties: false,
 };
 
@@ -95,12 +93,10 @@ api.add(
     const data = request.local.json as {
       host: string;
       fingerprint: string;
-      targetProfileId: number;
       password: string;
     };
-    const profile = request.profile!;
     try {
-      const { storage, token } = await requestPairing(profile, data.host, data.fingerprint, data.targetProfileId, data.password || null);
+      const { storage, token } = await requestPairing( data.host, data.fingerprint, data.password || null);
       const requireOTP = !!(!storage && token);
       return ApiResponse.json(201, {
         requireOTP,
@@ -131,9 +127,8 @@ api.add(
   [method(["POST"]), authenticate(), validateJson(otpSchema)],
   async (request: ApiRequest) => {
     const data = request.local.json as { token: string; otp: string, host: string, fingerprint: string };
-    const profile = request.profile!;
     try {
-      const storage = await sendOTP(profile, data.host, data.fingerprint, data.token, data.otp);
+      const storage = await sendOTP(data.host, data.fingerprint, data.token, data.otp);
       return ApiResponse.json(201, { storage: await storage.getDetails() });
     } catch (e: any) {
       return ApiResponse.fromError(e);
@@ -181,8 +176,7 @@ api.add(
   [method(["POST"]), authenticate(), validateJson(editStorageSchema)],
   async (request: ApiRequest) => {
     const data = request.local.json;
-    const profile = request.profile!;
-    let storage = await profile.getStorageById(data.storageId);
+    let storage = await Storage.getById(data.storageId);
     if (!storage) {
       return ApiResponse.fromError(
         CustomError.validationSingle("storageId", "Storage not found"),
@@ -222,8 +216,7 @@ api.add(
   [method(["POST"]), authenticate(), validateJson(deleteStorageSchema)],
   async (request: ApiRequest) => {
     const data = request.local.json;
-    const profile = request.profile!;
-    const storage = await profile.getStorageById(data.storageId);
+    const storage = await Storage.getById(data.storageId);
     if (!storage) {
       return ApiResponse.fromError(
         CustomError.validationSingle("storageId", "Storage not found"),

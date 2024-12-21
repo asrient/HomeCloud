@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { AccessControl, envConfig } from "../envConfig";
+import { envConfig, RequestOriginType } from "../envConfig";
 import CustomError from "../customError";
 import { ApiResponse } from "../interface";
 import path from "path";
@@ -55,48 +55,14 @@ export function validatePasswordString(password: string): string {
   return password;
 }
 
-export async function validateAccessControl(accessControl: AccessControl) {
-  const keys = Object.keys(accessControl);
-  if (keys.length === 0) {
-    throw CustomError.validationSingle(
-      "accessControl",
-      "Access control cannot be empty",
-    );
-  }
-  const promises = keys.map(async (key) => {
-    const pth = accessControl[key];
-    if (!path.isAbsolute(pth)) {
-      throw CustomError.validationSingle(
-        "accessControl",
-        "Paths must be absolute",
-      );
-    }
-    // check if path exists
-    // check if path is a directory
-    const stat = await fs.promises.stat(pth);
-    if (!stat.isDirectory()) {
-      throw CustomError.validationSingle(
-        "accessControl",
-        "Paths must be directories",
-      );
-    }
-    if (pth.endsWith(path.sep)) {
-      accessControl[key] = pth.slice(0, -1);
-    }
-  });
-  await Promise.all(promises);
-  return accessControl;
-}
-
 /**
- * Generates a JWT token with the given profileId.
- * @param profileId
+ * @param type
  * @param fingerprint
  * @param agentId
  * @returns The generated JWT token.
 */
-export function generateJwt(profileId: number, fingerprint: string | null = null, agentId: number | null = null) {
-  return jwt.sign({ profileId, fingerprint, deviceFingerprint: envConfig.FINGERPRINT, agentId }, envConfig.SECRET_KEY, { expiresIn: "300d" });
+export function generateJwt(type: RequestOriginType, fingerprint: string | null = null, agentId: number | null = null) {
+  return jwt.sign({ type, fingerprint, deviceFingerprint: envConfig.FINGERPRINT, agentId }, envConfig.SECRET_KEY, { expiresIn: "300d" });
 }
 
 /**
@@ -104,13 +70,13 @@ export function generateJwt(profileId: number, fingerprint: string | null = null
  * @param token 
  * @returns The payload json if the token is valid, otherwise null.
  */
-export function verifyJwt(token: string): { profileId: number, fingerprint: string | null, agentId: number | null } | null {
+export function verifyJwt(token: string): { type: RequestOriginType, fingerprint: string | null, agentId: number | null } | null {
   if (!token) return null;
   try {
     const payload = jwt.verify(token, envConfig.SECRET_KEY) as jwt.JwtPayload;
     if (payload.deviceFingerprint !== envConfig.FINGERPRINT) return null;
     return {
-      profileId: payload.profileId,
+      type: payload.type,
       fingerprint: payload.fingerprint,
       agentId: payload.agentId,
     }
@@ -119,9 +85,8 @@ export function verifyJwt(token: string): { profileId: number, fingerprint: stri
   }
 }
 
-export function login(profileId: number, res: ApiResponse) {
-  res.setCookie("jwt", generateJwt(profileId));
-  // res.setWebToken(generateJwt(profileId));
+export function login(res: ApiResponse) {
+  res.setCookie("jwt", generateJwt(RequestOriginType.Web));
 }
 
 export function logout(res: ApiResponse) {

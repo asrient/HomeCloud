@@ -1,7 +1,6 @@
-import { Storage, Profile, PinnedFolders } from "../../models";
+import { Storage, PinnedFolders } from "../../models";
 
 export async function listPinnedFolders(
-  profile: Profile,
   storageIds: number[],
 ) {
   return await PinnedFolders.findAll({
@@ -10,9 +9,6 @@ export async function listPinnedFolders(
     },
     include: {
       model: Storage,
-      where: {
-        profileId: profile.id,
-      },
     },
   });
 }

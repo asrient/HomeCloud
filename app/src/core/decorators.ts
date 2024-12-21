@@ -1,15 +1,15 @@
-import { AGENT_TOKEN_HEADER, ApiRequest, ApiResponse, RequestOriginType, WEB_TOKEN_HEADER } from "./interface";
+import { AGENT_TOKEN_HEADER, ApiRequest, ApiResponse, WEB_TOKEN_HEADER } from "./interface";
+import { RequestOriginType } from "./envConfig";
 import { makeDecorator } from "./utils";
 import Ajv, { ErrorObject } from "ajv";
 import { verifyJwt } from "./utils/profileUtils";
-import { Profile, Storage, Agent } from "./models";
+import { Storage, Agent } from "./models";
 import { getFsDriver } from "./storageKit/storageHelper";
 import PhotosService from "./services/photos/photosService";
 import { FsDriver } from "./storageKit/interface";
 import CustomError, { ErrorCode } from "./customError";
 import { getFingerprintFromBase64 } from "./utils/cryptoUtils";
 import { getClientFromStorage } from "./agentKit/client";
-import { envConfig } from "./envConfig";
 
 const ajv = new Ajv();
 
@@ -93,6 +93,7 @@ const requiredAuthTypes = [AuthType.Admin, AuthType.Required];
 
 export function authenticate(authType: AuthType = AuthType.Required) {
   return makeDecorator(async (request, next) => {
+    request.local.isAuthenticated = false;
     let token = request.headers[
       request.requestOrigin === RequestOriginType.Web ? WEB_TOKEN_HEADER : AGENT_TOKEN_HEADER
     ];
@@ -110,30 +111,14 @@ export function authenticate(authType: AuthType = AuthType.Required) {
       }
       return next();
     }
-    const { profileId, fingerprint, agentId } = data;
+    const { fingerprint, agentId, type } = data;
 
-    if (!!agentId && request.requestOrigin === RequestOriginType.Web) {
+    if (type !== request.requestOrigin) {
       return ApiResponse.fromError(
-        CustomError.security('Invalid access key.'),
+        CustomError.security('Invalid token type.'),
         401,
       );
     }
-
-    const profile = await Profile.getProfileById(profileId);
-    if (!profile && requiredAuthTypes.includes(authType)) {
-      return ApiResponse.fromError(
-        CustomError.security("Authentication required"),
-        401,
-      );
-    }
-
-    if (authType === AuthType.Admin && !profile?.isAdmin) {
-      return ApiResponse.fromError(
-        CustomError.security("Admin access required"),
-        403,
-      );
-    }
-    request.profile = profile;
 
     if (request.requestOrigin === RequestOriginType.Agent) {
       // Vaildate fingerprint in socket with fingerprint in jwt.
@@ -166,6 +151,8 @@ export function authenticate(authType: AuthType = AuthType.Required) {
       }
       request.local.clientAgent = agent;
     }
+
+    request.local.isAuthenticated = true;
     return next();
   });
 }
@@ -184,7 +171,7 @@ async function getStorageFromRequest(request: ApiRequest) {
   if (!storageId) {
     throw CustomError.validationSingle("storageId", "Storage id is required");
   }
-  const storage = await request.profile!.getStorageById(parseInt(storageId));
+  const storage = await Storage.getById(parseInt(storageId));
   if (!storage) {
     throw CustomError.validationSingle("storageId", "Storage not found");
   }
@@ -202,7 +189,7 @@ export function fetchStorage() {
       }
     }
     else if (request.requestOrigin === RequestOriginType.Agent) {
-      request.local.storage = await request.profile?.getLocalStorage();
+      request.local.storage = await Storage.getLocalStorage();
     }
     else {
       return ApiResponse.fromError(
@@ -222,7 +209,7 @@ export function fetchFsDriver() {
       );
     }
     try {
-      const fsDriver = await getFsDriver(storage, request.profile);
+      const fsDriver = await getFsDriver(storage);
       request.local.fsDriver = fsDriver;
     } catch (e: any) {
       console.error(e);
@@ -233,14 +220,6 @@ export function fetchFsDriver() {
         ),
       );
     }
-    return next();
-  });
-}
-
-export function fetchPhotoService() {
-  return makeDecorator(async (request, next) => {
-    const fsDriver: FsDriver = request.local.fsDriver;
-    request.local.photoService = new PhotosService(fsDriver);
     return next();
   });
 }

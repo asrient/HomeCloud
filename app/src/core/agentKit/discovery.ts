@@ -3,7 +3,6 @@ import { envConfig } from '../envConfig';
 import { getIconKey } from '../utils';
 import { getDeviceInfo } from '../utils/deviceInfo';
 import { AgentCandidate, BonjourTxt } from './types';
-import { ProfileDetails } from '../models';
 
 const SERVICE_TYPE = 'hc-agent';
 

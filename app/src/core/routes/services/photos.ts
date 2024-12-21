@@ -1,24 +1,16 @@
 import {
   ApiRequest,
-  ApiRequestFile,
   ApiResponse,
   RouteGroup,
 } from "../../interface";
 import {
   method,
   validateQuery,
-  fetchStorage,
-  fetchFsDriver,
-  fetchPhotoService,
   validateJson,
   relayToAgent,
 } from "../../decorators";
-import PhotosService, {
-  UploadManager,
-} from "../../services/photos/photosService";
-import CustomError from "../../customError";
-import { Photo, getPhotosParams } from "../../models";
-import mime from "mime";
+import PhotosService from "../../services/photos/photosService";
+import { getPhotosParams } from "../../services/photos/types";
 
 const api = new RouteGroup();
 
@@ -33,164 +25,33 @@ function buildMiddlewares(method_: string, schema?: any) {
       method_ === "GET" ? validateQuery(schema) : validateJson(schema),
     );
   }
-  middlewares.push(fetchStorage(), fetchFsDriver(), fetchPhotoService());
   return middlewares;
 }
-
-api.add("/upload/", buildMiddlewares("POST"), async (request: ApiRequest) => {
-  const photoService = request.local.photoService as PhotosService;
-  const uploadManager = new UploadManager(photoService);
-
-  if (request.mayContainFiles && request.fetchMultipartForm) {
-    await request.fetchMultipartForm(async (type, data) => {
-      if (type === "file") {
-        await uploadManager.addPhoto(data as ApiRequestFile);
-      }
-    });
-    try {
-      const updates = await uploadManager.end();
-      return ApiResponse.json(201, updates);
-    } catch (e: any) {
-      console.error(e);
-      e.message = `Could update change log: ${e.message}`;
-      return ApiResponse.fromError(e);
-    }
-  } else {
-    console.log(request.mayContainFiles, request.fetchMultipartForm);
-    return ApiResponse.fromError(
-      CustomError.validationSingle("files ", "No files found"),
-    );
-  }
-});
-
-const uploadDesktopSchema = {
-  type: "object",
-  properties: {
-    filePaths: { type: "array", items: { type: "string" } },
-    ...commonOptions,
-  },
-};
-
-api.add(
-  "/upload/desktop",
-  buildMiddlewares("POST", uploadDesktopSchema),
-  async (request: ApiRequest) => {
-    const photoService = request.local.photoService as PhotosService;
-    const uploadManager = new UploadManager(photoService);
-    const filePaths = request.local.json.filePaths as string[];
-    if (!filePaths.length) {
-      return ApiResponse.fromError(
-        CustomError.validationSingle("files ", "No files found"),
-      );
-    }
-    const promises = filePaths.map(async (filePath) => {
-      const mimeType = mime.getType(filePath);
-      if (!mimeType) return;
-      await uploadManager.addPhotoFromFile(filePath, mimeType);
-    });
-    await Promise.all(promises);
-    try {
-      const updates = await uploadManager.end();
-      return ApiResponse.json(201, updates);
-    } catch (e: any) {
-      console.error(e);
-      e.message = `Could update change log: ${e.message}`;
-      return ApiResponse.fromError(e);
-    }
-  },
-);
-
-api.add(
-  "/updateAsset",
-  buildMiddlewares("POST"),
-  async (request: ApiRequest) => {
-    const photoService = request.local.photoService as PhotosService;
-    let itemId: number | null = null;
-    let photo: Photo = null;
-
-    if (request.mayContainFiles && request.fetchMultipartForm) {
-      try {
-        await request.fetchMultipartForm(async (type, data) => {
-          if (type === "field") {
-            if (data.name === "itemId") {
-              itemId = parseInt(data.value);
-            }
-          } else if (type === "file") {
-            if (itemId === null) {
-              console.error("itemId not found");
-              data.stream.resume();
-              return;
-            }
-            photo = await photoService.updateAsset(
-              itemId!,
-              data as ApiRequestFile,
-            );
-          }
-        });
-        return ApiResponse.json(201, photo.getMinDetails());
-      } catch (e: any) {
-        console.error(e);
-        e.message = `Could not update asset: ${e.message}`;
-        return ApiResponse.fromError(e);
-      }
-    } else {
-      //console.log(request.mayContainFiles, request.fetchMultipartForm)
-      return ApiResponse.fromError(
-        CustomError.validationSingle("files ", "No files found"),
-      );
-    }
-  },
-);
 
 const deleteSchema = {
   type: "object",
   properties: {
-    itemIds: { type: "array", items: { type: "number" } },
+    ids: { type: "array", items: { type: "number" } },
+    locationId: { type: "number" },
     ...commonOptions,
   },
-  required: ["itemIds"],
+  required: ["ids", "locationId"],
 };
 
 api.add(
   "/delete",
   buildMiddlewares("POST", deleteSchema),
   async (request: ApiRequest) => {
-    const photoService = request.local.photoService as PhotosService;
-    const itemIds = request.local.json.itemIds as number[];
+    const photoService = PhotosService.getInstance();
+    const ids = request.local.json.ids as number[];
+    const locationId = request.local.json.locationId as number;
+    const photoLobrary = photoService.getLibrary(locationId);
     try {
-      const res = await photoService.deletePhotos(itemIds);
+      const res = await photoLobrary.deletePhotos(ids);
       return ApiResponse.json(200, res);
     } catch (e: any) {
       console.error(e);
       e.message = `Could not delete photos: ${e.message}`;
-      return ApiResponse.fromError(e);
-    }
-  },
-);
-
-const importSchema = {
-  type: "object",
-  properties: {
-    fileIds: { type: "array", items: { type: "string" } },
-    deleteSource: { type: "boolean" },
-    ...commonOptions,
-  },
-  required: ["fileIds"],
-};
-
-api.add(
-  "/import",
-  buildMiddlewares("POST", importSchema),
-  async (request: ApiRequest) => {
-    const photoService = request.local.photoService as PhotosService;
-    const fileIds = request.local.json.fileIds as string[];
-    const deleteSource = request.local.json.deleteSource as boolean;
-    try {
-      const res = await photoService.importPhotos(fileIds, !!deleteSource);
-      return ApiResponse.json(200, res);
-    } catch (e: any) {
-      console.error(e);
-      e.message = `Could not import photos: ${e.message}`;
       return ApiResponse.fromError(e);
     }
   },
@@ -203,9 +64,10 @@ const listPhotosSchema = {
     offset: { type: "number" },
     sortBy: { type: "string", enum: ["capturedOn", "itemId", "mimeType", "lastEditedOn", "addedOn", "size", "duration"] },
     ascending: { type: "boolean" },
+    libraryId: { type: "number" },
     ...commonOptions,
   },
-  required: ["limit", "offset", "sortBy"],
+  required: ["limit", "offset", "sortBy", "libraryId"],
 };
 
 api.add(
@@ -216,14 +78,15 @@ api.add(
     validateJson(listPhotosSchema),
   ],
   async (request: ApiRequest) => {
+    const libraryId = request.local.json.libraryId;
+    delete request.local.json.libraryId;
+    if(request.local.json.storageId) {
+      delete request.local.json.storageId;
+    }
     const params = request.local.json as getPhotosParams;
-    const profile = request.profile!;
+    const photoLibrary = PhotosService.getInstance().getLibrary(libraryId);
     try {
-      const res = (
-        await Photo.getPhotos(profile, params)
-      ).map((photo) => {
-        return photo.getMinDetails();
-      });
+      const res = await photoLibrary.getPhotos(params);
       return ApiResponse.json(200, res);
     } catch (e: any) {
       console.error(e);
@@ -236,24 +99,81 @@ api.add(
 const getPhotoDetailsSchema = {
   type: "object",
   properties: {
-    itemId: { type: "string" },
+    id: { type: "string" },
+    libraryId: { type: "string" },
     ...commonOptions,
   },
-  required: ["itemId"],
+  required: ["id", "libraryId"],
 };
 
 api.add(
   "/photoDetails",
   buildMiddlewares("GET", getPhotoDetailsSchema),
   async (request: ApiRequest) => {
-    const photoService = request.local.photoService as PhotosService;
-    const itemId = parseInt(request.getParams.itemId);
+    const libraryId = request.local.json.libraryId;
+    const photoLibrary = PhotosService.getInstance().getLibrary(parseInt(libraryId));
+    const id = parseInt(request.getParams.id);
     try {
-      const res = await photoService.getPhotoDetails(itemId);
+      // To Fix: Still returns min details
+      const res = await photoLibrary.getPhoto(id);
       return ApiResponse.json(200, res);
     } catch (e: any) {
       console.error(e);
       e.message = `Could not get photo detail: ${e.message}`;
+      return ApiResponse.fromError(e);
+    }
+  },
+);
+
+const addLibrarySchema = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    location: { type: "string" },
+    ...commonOptions,
+  },
+  required: ["name", "location"],
+};
+
+api.add(
+  "/library/add",
+  buildMiddlewares("POST", addLibrarySchema),
+  async (request: ApiRequest) => {
+    const photoService = PhotosService.getInstance();
+    const name = request.local.json.name as string;
+    const location = request.local.json.location as string;
+    try {
+      const library = await photoService.addLibrary(name, location);
+      return ApiResponse.json(201, library);
+    } catch (e: any) {
+      console.error(e);
+      e.message = `Could not add library: ${e.message}`;
+      return ApiResponse.fromError(e);
+    }
+  },
+);
+
+const deleteLibrarySchema = {
+  type: "object",
+  properties: {
+    id: { type: "number" },
+    ...commonOptions,
+  },
+  required: ["id"],
+};
+
+api.add(
+  "/library/delete",
+  buildMiddlewares("POST", deleteLibrarySchema),
+  async (request: ApiRequest) => {
+    const photoService = PhotosService.getInstance();
+    const id = request.local.json.id as number;
+    try {
+      await photoService.removeLibrary(id);
+      return ApiResponse.json(204, {});
+    } catch (e: any) {
+      console.error(e);
+      e.message = `Could not delete library: ${e.message}`;
       return ApiResponse.fromError(e);
     }
   },

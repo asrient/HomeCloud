@@ -1,5 +1,4 @@
 import { DeviceInfo, PairingAuthType } from "../envConfig";
-import { ProfileDetails } from "../models";
 
 export type AgentInfo = {
     deviceName: string;
@@ -7,8 +6,6 @@ export type AgentInfo = {
     version: string;
     deviceInfo: DeviceInfo;
     pairingAuthType: PairingAuthType;
-    profile?: ProfileDetails;
-    availableProfiles: ProfileDetails[];
     iconKey: string | null;
 }
 
@@ -27,11 +24,8 @@ export type AgentCandidate = {
 }
 
 export type PairingRequest = {
-    clientProfileId: number;
     clientDeviceName: string;
     clientFinerprint: string;
-    clientprofileName: string;
-    targetProfileId: number;
     targetFingerprint: string;
     expireAt: number;
 }

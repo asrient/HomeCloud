@@ -4,7 +4,7 @@ import tls from 'tls';
 import CustomError, { ErrorCode, ErrorResponse } from "../customError";
 import { URLSearchParams } from 'url';
 import { createPairingRequest, createPairingRequestPacket, PairingRequestPacket } from "./pairing";
-import { Profile, Agent, Storage } from "../models";
+import { Agent, Storage } from "../models";
 import { Readable } from 'node:stream';
 import { AgentInfo, PairingRequest } from "./types";
 import { getFingerprintFromBase64 } from "../utils/cryptoUtils";
@@ -252,21 +252,16 @@ export async function getAgentInfo(client: AgentClient): Promise<AgentInfo> {
 
 // Pairing related functions
 
-async function createStorage(profile: Profile, client: AgentClient, accessKey: string) {
+async function createStorage(client: AgentClient, accessKey: string) {
     client.setAccessKey(accessKey);
     const targetInfo = await getAgentInfo(client);
-    if (!targetInfo.profile) {
-        throw CustomError.validationSingle('profile', 'Profile not found in target info response');
-    }
-    const agent = await Agent.createAgent(profile, {
+    const agent = await Agent.createAgent({
         fingerprint: client.getServerFingerprint(),
         deviceName: targetInfo.deviceName,
-        remoteProfileId: targetInfo.profile.id,
-        remoteProfileName: targetInfo.profile.name,
         iconKey: targetInfo.iconKey,
         authority: client.getHost(),
     });
-    const storage = await Storage.createStorage(profile, {
+    const storage = await Storage.createStorage({
         type: StorageType.Agent,
         name: `${targetInfo.deviceName}`,
         authType: StorageAuthType.Pairing,
@@ -280,13 +275,10 @@ async function createStorage(profile: Profile, client: AgentClient, accessKey: s
     return storage;
 }
 
-export async function requestPairing(profile: Profile, host: string, serverFingerprint: string, targetProfileId: number, password: string | null = null):
+export async function requestPairing(host: string, serverFingerprint: string, password: string | null = null):
     Promise<{ storage: Storage | null, token: string | undefined }> {
     const client = new AgentClient(host, serverFingerprint, null);
-    const pairingRequest: PairingRequest = createPairingRequest(profile, {
-        profileId: targetProfileId,
-        fingerprint: serverFingerprint,
-    });
+    const pairingRequest: PairingRequest = createPairingRequest(serverFingerprint);
     const packet: PairingRequestPacket = createPairingRequestPacket(pairingRequest);
     const data = await client.post<{
         accessKey?: string;
@@ -294,15 +286,15 @@ export async function requestPairing(profile: Profile, host: string, serverFinge
     }>('api/agent/pair', { packet, password });
     let storage: Storage | null = null;
     if (data.accessKey) {
-        storage = await createStorage(profile, client, data.accessKey);
+        storage = await createStorage(client, data.accessKey);
     }
     return { storage, token: data.token };
 }
 
-export async function sendOTP(profile: Profile, host: string, serverFingerprint: string, token: string, otp: string) {
+export async function sendOTP(host: string, serverFingerprint: string, token: string, otp: string) {
     const client = new AgentClient(host, serverFingerprint, null);
     const data = await client.post<{
         accessKey: string;
     }>('api/agent/otp', { token, otp });
-    return createStorage(profile, client, data.accessKey);
+    return createStorage(client, data.accessKey);
 }

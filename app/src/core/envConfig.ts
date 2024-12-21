@@ -8,26 +8,22 @@ export type SetupParams = {
   dataDir?: string;
   baseUrl: string;
   apiBaseUrl?: string;
-  webBuildDir: string;
-  profilesPolicy: ProfilesPolicy;
   secretKey: string;
   disabledStorageTypes?: StorageType[];
   oneAuthServerUrl: string | null;
   oneAuthAppId: string | null;
-  userHomeDir?: string;
-  allowPrivateUrls?: boolean;
-  desktopIsPackaged?: boolean;
+  userHomeDir: string;
+  desktopIsPackaged: boolean;
   version?: string;
-  defaultProfileId?: number;
   deviceName: string;
-  libraryDir: string;
   publicKeyPem: string;
   privateKeyPem: string;
   fingerprint: string;
   certPem: string;
   advertiseService: boolean;
   agentPort?: number;
-  appName?: string;
+  appName: string;
+  userName: string;
 };
 
 export enum OptionalType {
@@ -35,16 +31,6 @@ export enum OptionalType {
   Optional = "optional",
   Disabled = "disabled",
 }
-
-export type ProfilesPolicy = {
-  passwordPolicy: OptionalType; // Only applies to new profiles
-  allowSignups: boolean;
-  listProfiles: boolean; // Admins can still list profiles from settings
-  requireUsername: boolean;
-  syncPolicy: OptionalType;
-  adminIsDefault: boolean; // Make new profiles admin by default
-  singleProfile: boolean;
-};
 
 export enum StorageAuthType {
   Basic = "basic",
@@ -99,8 +85,6 @@ export type DeviceInfo = {
   formFactor: DeviceFormType;
 };
 
-export type AccessControl = { [key: string]: string };
-
 export const StorageTypeMeta: {
   [key in StorageType]: {
     name: string;
@@ -148,20 +132,15 @@ class EnvConfig {
   readonly IS_DEV: boolean;
   readonly BASE_URL: string;
   readonly API_BASE_URL: string;
-  readonly WEB_BUILD_DIR: string;
-  readonly PROFILES_CONFIG: ProfilesPolicy;
   readonly SECRET_KEY: Secret;
   readonly ENABLED_STORAGE_TYPES: string | StorageType[];
   readonly ONEAUTH_SERVER_URL: string;
   readonly ONEAUTH_APP_ID: string;
   readonly USER_HOME_DIR: string;
-  readonly ALLOW_PRIVATE_URLS: boolean;
   readonly DESKTOP_IS_PACKAGED: boolean;
   readonly VERSION: string;
-  DEFAULT_PROFILE_ID: number | null;
   readonly AGENT_PORT: number;
   readonly DEVICE_NAME: string;
-  readonly LIBRARY_DIR: string;
   readonly PUBLIC_KEY_PEM: string;
   readonly PRIVATE_KEY_PEM: string;
   readonly FINGERPRINT: string;
@@ -169,6 +148,7 @@ class EnvConfig {
   readonly PAIRING_AUTH_TYPE: PairingAuthType;
   readonly ADVERTISE_SERVICE: boolean;
   readonly APP_NAME: string;
+  readonly USER_NAME: string;
 
   constructor(config: SetupParams) {
     this.APP_NAME = config.appName || "HomeCloud";
@@ -177,8 +157,6 @@ class EnvConfig {
     this.BASE_URL = config.baseUrl;
     this.API_BASE_URL =
       config.apiBaseUrl || joinUrlPath(config.baseUrl, "/api/");
-    this.WEB_BUILD_DIR = config.webBuildDir;
-    this.PROFILES_CONFIG = config.profilesPolicy;
     this.SECRET_KEY = config.secretKey;
     this.ENABLED_STORAGE_TYPES = !!config.disabledStorageTypes
       ? implementedStorageTypes.filter(
@@ -189,12 +167,10 @@ class EnvConfig {
     this.ONEAUTH_APP_ID = config.oneAuthAppId;
     this.USER_HOME_DIR = config.userHomeDir;
 
-    this.ALLOW_PRIVATE_URLS = config.allowPrivateUrls ?? false;
     this.DESKTOP_IS_PACKAGED = config.desktopIsPackaged ?? false;
     this.VERSION = config.version ?? null;
-    this.DEFAULT_PROFILE_ID = config.defaultProfileId ?? null;
+    this.USER_NAME = config.userName || 'Homecloud User';
     this.DEVICE_NAME = config.deviceName;
-    this.LIBRARY_DIR = config.libraryDir;
     this.PUBLIC_KEY_PEM = config.publicKeyPem;
     this.PRIVATE_KEY_PEM = config.privateKeyPem;
     this.FINGERPRINT = config.fingerprint;
@@ -219,14 +195,19 @@ class EnvConfig {
   isOneAuthEnabled() {
     return !!this.ONEAUTH_SERVER_URL && !!this.ONEAUTH_APP_ID;
   }
-
-  setMainProfileId(profileId: number) {
-    this.DEFAULT_PROFILE_ID = profileId;
-  }
 }
 
 export let envConfig: EnvConfig;
 
 export function setupEnvConfig(config: SetupParams) {
   envConfig = new EnvConfig(config);
+}/**
+ * Enum representing the origin type of a request.
+ * @enum {string}
+ */
+
+export enum RequestOriginType {
+  Web = 'Web',
+  Agent = 'Agent'
 }
+

@@ -1,7 +1,6 @@
 import { ApiRequest, ApiResponse, RouteGroup } from "../interface";
 import { method, authenticate, AuthType, validateJson } from "../decorators";
 import { envConfig, PairingAuthType } from "../envConfig";
-import { Profile } from "../models";
 import CustomError from "../customError";
 import { PairingRequestPacket, registerPairingRequest, verifyOTP } from "../agentKit/pairing";
 import { AgentInfo } from "../agentKit/types";
@@ -14,8 +13,6 @@ api.add(
   "/agent/info",
   [method(["GET"]), authenticate(AuthType.Optional)],
   async (request: ApiRequest) => {
-    const profile = request.profile;
-    const availableProfiles = await Profile.getProfiles(0, 100); // TODO: Implement hard limit across the app
     const deviceInfo = getDeviceInfoCached();
     return ApiResponse.json(200, {
       version: envConfig.VERSION,
@@ -24,8 +21,6 @@ api.add(
       pairingAuthType: envConfig.PAIRING_AUTH_TYPE,
       deviceInfo,
       iconKey: getIconKey(deviceInfo),
-      profile: profile && profile.getDetails(true),
-      availableProfiles: availableProfiles.map((p) => p.getDetails()),
     } as AgentInfo);
   },
 );

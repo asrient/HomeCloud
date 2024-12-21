@@ -1,7 +1,6 @@
 import {
   ApiRequest,
   ApiResponse,
-  RequestOriginType,
   RouteGroup,
 } from "../../interface";
 import {
@@ -17,13 +16,13 @@ import {
   listPinnedFolders,
   removePinnedFolder,
 } from "../../services/files/pinned";
-import { Agent, Profile, Storage } from "../../models";
+import { Agent, Storage } from "../../models";
 import { FsDriver, RemoteItem } from "../../storageKit/interface";
 import { generateFileAccessToken } from "../../utils/fileUtils";
 import { downloadFile, WatchedFile } from "../../services/files/operations";
 import { envConfig, StorageType } from "../../envConfig";
 import CustomError from "../../customError";
-import { getFsDriver, getFsDriverByStorageId } from "../../storageKit/storageHelper";
+import { getFsDriver } from "../../storageKit/storageHelper";
 import fs from "fs";
 import { native } from "../../native";
 
@@ -57,9 +56,8 @@ api.add(
   "/pin/list",
   buildMiddlewares("POST", listPinsSchema),
   async (request: ApiRequest) => {
-    const profile = request.profile as Profile;
     try {
-      const pins = await listPinnedFolders(profile, [request.local.storage.id]);
+      const pins = await listPinnedFolders([request.local.storage.id]);
       return ApiResponse.json(200, {
         ok: true,
         pins: pins.map((pin) => pin.getDetails()),
@@ -271,9 +269,8 @@ const openFileRemoteSchema = {
     storageId: { type: "number" },
     fileId: { type: "string" },
     targetDeviceFingerprint: { type: "string" },
-    targetProfileId: { type: "number" },
   },
-  required: ["storageId", "fileId", "targetDeviceFingerprint", "targetProfileId"],
+  required: ["storageId", "fileId", "targetDeviceFingerprint"],
   additionalProperties: false,
 };
 
@@ -284,14 +281,14 @@ api.add(
     ...buildMiddlewares('POST', openFileRemoteSchema)
   ],
   async (request: ApiRequest) => {
-    const { targetDeviceFingerprint, targetProfileId } = request.local.json;
+    const { targetDeviceFingerprint } = request.local.json;
     if (targetDeviceFingerprint !== envConfig.FINGERPRINT) {
-      const agent = await Agent.getAgent(request.profile, targetDeviceFingerprint, targetProfileId);
+      const agent = await Agent.getAgent(targetDeviceFingerprint);
       if (!agent) {
         return ApiResponse.fromError(CustomError.generic('Agent not found on device.'));
       }
       const storage = await agent.getStorage();
-      request.local.fsDriver = await getFsDriver(storage, request.profile);
+      request.local.fsDriver = await getFsDriver(storage);
       request.local.storage = storage;
     }
     return openFileHandler(request);
@@ -319,11 +316,11 @@ api.add(
   ],
   async (request: ApiRequest) => {
     const { sourceStorageId, destStorageId, sourceFileIds, destDir, deleteSource } = request.local.json;
-    const sourceStorage = await request.profile.getStorageById(sourceStorageId);
+    const sourceStorage = await Storage.getById(sourceStorageId);
     if (!sourceStorage) {
       return ApiResponse.fromError(CustomError.generic('Source storage not found.'));
     }
-    const sourceFsDriver = await getFsDriver(sourceStorage, request.profile);
+    const sourceFsDriver = await getFsDriver(sourceStorage);
     if (sourceStorage.id === destStorageId) {
       const promises = sourceFileIds.map(async (sourceFileId: string) => {
         const stat = await sourceFsDriver.getStat(sourceFileId);
@@ -337,11 +334,11 @@ api.add(
         result: result.map((r) => r.status === 'fulfilled' ? r.value : r.reason),
       });
     }
-    const destStorage = await request.profile.getStorageById(destStorageId);
+    const destStorage = await Storage.getById(destStorageId);
     if (!destStorage) {
       return ApiResponse.fromError(CustomError.generic('Destination storage not found.'));
     }
-    const destFsDriver = await getFsDriver(destStorage, request.profile);
+    const destFsDriver = await getFsDriver(destStorage);
     const errors: string[] = [];
     const walk = async (sourceFileId: string, destDir: string): Promise<RemoteItem> => {
       const stat = await sourceFsDriver.getStat(sourceFileId);

@@ -2,8 +2,7 @@ import qs, { ParsedQs } from "qs";
 import * as cookie from "cookie";
 import mime from "mime";
 import { match } from "node-match-path";
-import { envConfig } from "./envConfig";
-import { Profile } from "./models";
+import { envConfig, RequestOriginType } from "./envConfig";
 import { Readable } from "stream";
 import CustomError, { ErrorType, ErrorResponse } from "./customError";
 import { streamToBuffer } from "./utils";
@@ -18,15 +17,6 @@ export type ApiRequestFile = {
   mime: string;
   stream: Readable;
 };
-
-/**
- * Enum representing the origin type of a request.
- * @enum {string}
- */
-export enum RequestOriginType {
-  Web = 'Web',
-  Agent = 'Agent',
-}
 
 /**
  * Class representing an API request.
@@ -87,12 +77,6 @@ export class ApiRequest {
    * @type {RequestOriginType}
    */
   requestOrigin: RequestOriginType;
-
-  /**
-   * Profile associated with the request.
-   * @type {Profile | null}
-   */
-  profile: Profile | null = null;
 
   /**
    * Remote address of the request.

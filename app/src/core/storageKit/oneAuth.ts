@@ -1,8 +1,8 @@
-import { PendingAuth, Profile, Storage } from "../models";
+import { PendingAuth, Storage } from "../models";
 import { envConfig, StorageType } from "../envConfig";
 import { joinUrlPath } from "../utils";
 
-export async function initiate(profile: Profile, storageType: StorageType) {
+export async function initiate(storageType: StorageType) {
   if (
     !envConfig.isStorageTypeEnabled(storageType) ||
     !envConfig.isOneAuthEnabled()
@@ -33,7 +33,6 @@ export async function initiate(profile: Profile, storageType: StorageType) {
   const { authUrl, referenceId, partialCode1 } = (await resp.json()) as any; // todo: add type
 
   const pendingAuth = await PendingAuth.createPendingAuth({
-    profile,
     storageType,
     referenceId,
     partialCode1,

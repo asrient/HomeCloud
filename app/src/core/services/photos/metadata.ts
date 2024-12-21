@@ -2,27 +2,7 @@ import ExifReader from "exifreader";
 import { streamToBuffer } from "../../utils";
 import ffmpeg from "fluent-ffmpeg";
 import { Readable } from "stream";
-
-export type MetadataType = {
-  cameraMake: string;
-  cameraModel: string;
-  orientation: string;
-  focalLength?: string;
-  aperture?: string;
-  exposureTime?: string;
-  isoSpeedRatings?: string;
-  fps?: number;
-  gpsLatitude?: string;
-  gpsLongitude?: string;
-};
-
-export type AssetDetailType = {
-  metadata: MetadataType;
-  duration?: number;
-  width?: number;
-  height?: number;
-  capturedOn: Date;
-};
+import { AssetDetailType } from "./types";
 
 function getDate(dateStr: string, offset: string) {
   // format: 2023:09:02 20:02:36, +05:30
@@ -56,7 +36,7 @@ export async function metaFromPhotoStream(filePath: string | Readable) {
   }
   const tags = buffer ? ExifReader.load(buffer) : await ExifReader.load(filePath as string);
   delete tags["MakerNote"];
-  console.log("photo tags:", tags);
+  // console.debug("photo tags:", tags);
 
   detail.metadata.cameraMake = tags.Make?.description || "";
   detail.metadata.cameraModel = tags.Model?.description || "";

@@ -1,7 +1,8 @@
 import http from "http";
 import tls from "tls";
 import { envConfig } from "./envConfig";
-import { ApiRequest, ApiRequestFile, RequestOriginType, RouteGroup } from "./interface";
+import { ApiRequest, ApiRequestFile, RouteGroup } from "./interface";
+import { RequestOriginType } from "./envConfig";
 import fs from "fs";
 import busboy from "busboy";
 

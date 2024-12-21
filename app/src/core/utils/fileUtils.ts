@@ -13,6 +13,20 @@ const execAsync = promisify(exec);
 const fsPromises = fs.promises;
 
 const tempDir = os.tmpdir();
+const scopedTmpDir = path.join(tempDir, 'Homecloud');
+
+// Does not actually create the directories
+export function getPartionedTmpDir(serviceName: string) {
+    return path.join(scopedTmpDir, serviceName);
+}
+
+export const cleanupTmpDir = async () => {
+    try {
+        await fsPromises.rm(scopedTmpDir, { recursive: true, force: true });
+    } catch (error) {
+        console.error('Error cleaning tmp dir:', error);
+    }
+}
 
 export async function apiFileToTempFile(file: ApiRequestFile): Promise<string> {
     const { stream } = file;

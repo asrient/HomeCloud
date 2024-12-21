@@ -1,5 +1,5 @@
 import { StorageType } from "../envConfig";
-import { Profile, Storage } from "../models";
+import { Storage } from "../models";
 import { ApiRequestFile } from "../interface";
 import { Readable } from "stream";
 
@@ -18,13 +18,11 @@ export interface RemoteItem {
 
 export class FsDriver {
   storage: Storage;
-  profile: Profile;
   storageType: StorageType = StorageType.WebDav;
   providesThumbnail: boolean = false;
 
-  constructor(storage: Storage, profile: Profile) {
+  constructor(storage: Storage) {
     this.storage = storage;
-    this.profile = profile;
   }
 
   public async init() {}

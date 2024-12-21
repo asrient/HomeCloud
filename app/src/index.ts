@@ -9,17 +9,14 @@ import fs from "fs";
 import {
   setupEnvConfig,
   envConfig,
-  OptionalType,
   initDb,
   ffmpegSetup,
   ServerAdaptor,
-  ProfilesPolicy,
   desktopAgentRouter,
   webRouter,
   RequestOriginType,
   cryptoUtils,
   DiscoveryService,
-  setupDbData,
 } from "./core/index";
 import path from "path";
 import os from "os";
@@ -29,8 +26,9 @@ import { getAppIntent, getDataDir, getUserLogDirectory, openWebApp } from "./uti
 import Tray from "./views/sysTray";
 import { setupLogger, stopLogger } from "./logger";
 import { setupNative } from "./core/native";
-import { cleanDesktopTmpDir } from "./core/utils/libraryUtils";
+import { cleanupTmpDir } from "./core/utils/fileUtils";
 import * as singleInstance from "./singleInstance";
+import PhotosService from "./core/services/photos/photosService";
 
 const startText = `
 ------------------------------
@@ -81,6 +79,7 @@ class App {
     this._appIsQuitting = true;
     console.log("👋 Quitting app gracefully..");
     await this.discoveryService.goodbye();
+    await PhotosService.stop();
     this.tray.remove();
     singleInstance.clear();
     console.log("👋 Goodbye!");
@@ -129,23 +128,17 @@ class App {
     fs.mkdirSync(dataDir, { recursive: true });
     const webServerBaseUrl = `http://127.0.0.1:${this.webPort}/`;
     const clientBaseUrl = env.CLIENT_BASE_URL || 'http://localhost:3000/';
-
-    const profilesPolicy: ProfilesPolicy = {
-      passwordPolicy: OptionalType.Optional,
-      allowSignups: false,
-      listProfiles: true,
-      syncPolicy: OptionalType.Optional,
-      adminIsDefault: true,
-      requireUsername: false,
-      singleProfile: true,
-    };
-
     const deviceName = os.hostname();
-    const libraryDir = path.join(os.homedir(), "Homecloud Library"); // todo: make it configurable
-    fs.mkdirSync(libraryDir, { recursive: true });
 
     const { privateKeyPem, publicKeyPem, certPem } = this.getOrGenerateKeys(dataDir);
     const fingerprint = cryptoUtils.getFingerprintFromPem(publicKeyPem);
+
+    let userName = 'Homecloud User';
+    try {
+      userName = os.userInfo().username;
+    } catch (e) {
+      console.error("Warning: couldn't fetch system username.");
+    }
 
     setupEnvConfig({
       appName: env.APP_NAME,
@@ -154,21 +147,18 @@ class App {
       dataDir,
       baseUrl: clientBaseUrl,
       apiBaseUrl: webServerBaseUrl + "api/",
-      webBuildDir: '', // fix this
-      profilesPolicy,
       secretKey: this.createOrGetSecretKey(dataDir),
       oneAuthServerUrl: env.ONEAUTH_SERVER_URL || '',
       oneAuthAppId: env.ONEAUTH_APP_ID || '',
       userHomeDir: os.homedir(),
-      allowPrivateUrls: true,
       deviceName,
-      libraryDir,
       publicKeyPem,
       privateKeyPem,
       fingerprint,
       certPem,
       advertiseService: true,
       version: env.VERSION,
+      userName,
     });
   }
 
@@ -206,7 +196,7 @@ class App {
 
   async cleanFromLastRun() {
     try {
-      await cleanDesktopTmpDir();
+      await cleanupTmpDir();
     } catch (e) {
       console.error("Error cleaning tmp dir:", e);
     }
@@ -235,24 +225,13 @@ class App {
       console.error("❌ Failed to initialize database. Exiting...");
       crash("Failed to initialize database");
     }
-    let profileName = 'Homecloud User';
-    try {
-      profileName = os.userInfo().username;
-    } catch (e) {
-      console.error("Warning: couldn't fetch system username.");
-    }
-    const defaultProfile = {
-      name: profileName,
-      username: null,
-      password: null,
-    };
-    await setupDbData(defaultProfile);
+    this.cleanFromLastRun();
+    PhotosService.start();
     this.startWebServer();
     this.startAgentServer();
     this.tray.setStatus("running");
     this.discoveryService.hello();
     this.discoveryService.listen();
-    this.cleanFromLastRun();
     this._isStarting = false;
     console.log("App params:", process.argv);
     console.log(`🌎 Go ahead, visit ${envConfig.BASE_URL}`);

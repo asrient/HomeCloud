@@ -7,34 +7,13 @@ import { createReadStream } from "fs";
 import { StorageType } from "../envConfig";
 import { Readable } from "stream";
 import { getMimeType, getNativeDrives } from "../utils/fileUtils";
-import { getLibraryDirForProfile, resolveLibraryPath } from "../utils/libraryUtils";
-import { AccessControl } from "../envConfig";
 
 export class LocalFsDriver extends FsDriver {
   override storageType = StorageType.Local;
-  accessControl: AccessControl | null = null;
-  allowedPaths: string[] | null = null;
 
-  override async init() {
-    const profile = this.profile;
-    this.accessControl = profile.getAccessControl();
-    const libraryDir = getLibraryDirForProfile(profile.id);
-    if (this.accessControl) {
-      this.allowedPaths = [libraryDir];
-      if (profile.isAdmin) {
-        // Making sure admins have access to whole file system even if custom drives are mapped.
-        this.allowedPaths.push(path.sep);
-      }
-      for (const [_key, value] of Object.entries(this.accessControl)) {
-        value && this.allowedPaths.push(`${value}${path.sep}`);
-      }
-    }
-  }
-
+  // todo: remove this
   hasAccess(filePath: string) {
-    if (!this.allowedPaths) return true;
-    filePath = `${filePath}${path.sep}`;
-    return this.allowedPaths.some((allowedPath) => filePath.startsWith(allowedPath));
+    return true;
   }
 
   assertAccess(filePath: string) {
@@ -44,7 +23,6 @@ export class LocalFsDriver extends FsDriver {
   }
 
   normalizePath(filePath: string) {
-    filePath = resolveLibraryPath(this.profile.id, filePath);
     if (!path.isAbsolute(filePath)) {
       throw new Error(`Relative paths not allowed: ${filePath}`);
     }
@@ -85,10 +63,7 @@ export class LocalFsDriver extends FsDriver {
   }
 
   async listDrives(): Promise<RemoteItem[]> {
-    let drives = this.accessControl;
-    if (!this.accessControl) {
-      drives = await getNativeDrives();
-    }
+    const drives = await getNativeDrives();
     const promises = Object.entries(drives).map(([key, value]) => {
       return this.toRemoteItem(value, key, 'application/x-drive', true);
     });

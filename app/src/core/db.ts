@@ -1,30 +1,25 @@
 import { Sequelize } from "sequelize";
-import { envConfig } from "./envConfig";
-import { initModels, Profile } from "./models";
+import { envConfig, StorageAuthType, StorageType } from "./envConfig";
+import { initModels } from "./models";
 import { verbose } from "sqlite3";
+import { Storage } from "./models";
 
 export let db: Sequelize;
 
-export type DefaultProfile = {
-  name: string;
-  username: string | null;
-  password: string | null;
-}
-
-export async function setupDbData(defaultProfile: DefaultProfile) {
-  const count = await Profile.countProfiles();
-  if (count === 0) {
-    console.log("🔑 Creating default profile...");
-    const profile = await Profile.createProfile({
-      ...defaultProfile,
-      isAdmin: true,
-      accessControl: null,
-    }, null);
-    envConfig.setMainProfileId(profile.id);
-  }
-  else if (count === 1) {
-    const profile = await Profile.getFirstProfile();
-    envConfig.setMainProfileId(profile.id);
+async function fixDBContent() {
+  let localStorage = await Storage.getLocalStorage();
+  if (!localStorage) {
+    console.log("🔧 Fix database: Local storage not found, creating one..");
+    localStorage = await Storage.createStorage({
+      type: StorageType.Local,
+      name: "This Device",
+      authType: StorageAuthType.None,
+      oneAuthId: null,
+      username: null,
+      secret: null,
+      url: null,
+      Agent: null,
+    })
   }
 }
 
@@ -49,5 +44,6 @@ export async function initDb(path: string) {
     //await db.sync({ alter: true });
   }
   await db.sync();
+  await fixDBContent();
   return true;
 }

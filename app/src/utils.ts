@@ -44,7 +44,7 @@ export function openWebApp() {
 }
 
 export function getAssetPath() {
-    return fs.realpathSync(path.join(__dirname, '..', '..', 'assets'));
+    return fs.realpathSync(path.join(__dirname, '..', 'assets'));
 }
 
 export function getUserLogDirectory(appName: string) {

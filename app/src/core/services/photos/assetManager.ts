@@ -1,110 +1,28 @@
-import { FsDriver } from "../../storageKit/interface";
-import { Storage } from "../../models";
 import {
   metaFromPhotoStream,
   metaFromVideoStream,
-  AssetDetailType,
 } from "./metadata";
-import { Readable } from "stream";
-import mime from "mime";
 import fs from "fs";
-import { buildLibraryPath, LibraryLocation } from "../../utils/libraryUtils";
-
-const PHOTOS_PER_FOLDER = 120;
-
-class PathStore {
-  assetFolderIds = new Map<number, string>();
-  fsDriver: FsDriver;
-  constructor(fsDriver: FsDriver) {
-    this.fsDriver = fsDriver;
-  }
-
-  public async getAssetParentFolderId(folderNo: number) {
-    if (this.assetFolderIds.has(folderNo)) {
-      return this.assetFolderIds.get(folderNo)!;
-    }
-    const dir = await this.fsDriver.makeOrGetDir(
-      folderNo.toString(),
-      buildLibraryPath(LibraryLocation.PhotosDir),
-    );
-    this.assetFolderIds.set(folderNo, dir.id);
-    return dir.id;
-  }
-}
+import path from "path";
+import { AssetDetailType } from "./types";
 
 export default class AssetManager {
-  fsDriver: FsDriver;
-  storage: Storage;
-  paths: PathStore;
+  private location: string;
 
-  constructor(fsDriver: FsDriver) {
-    this.fsDriver = fsDriver;
-    this.storage = fsDriver.storage;
-    this.paths = new PathStore(fsDriver);
+  constructor(lcation: string) {
+    this.location = lcation;
   }
 
-  private itemIdToFilename(itemId: number, mimeType: string) {
-    return `${itemId}.${mime.getExtension(mimeType)}`;
-  }
-
-  public async getAsset(
-    fileId: string,
-  ): Promise<[Readable, string]> {
-    return await this.fsDriver.readFile(fileId);
-  }
-
-  public async createAsset(itemId: number, filePath: string, mimeType: string) {
-    const folderNo = this.getFolderNoFromItemId(itemId);
-    const parentFolderId = await this.paths.getAssetParentFolderId(folderNo);
-    const stream = fs.createReadStream(filePath);
-    const stat = await this.fsDriver.writeFile(parentFolderId, {
-      name: this.itemIdToFilename(itemId, mimeType),
-      mime: mimeType,
-      stream: stream,
-    });
-    return stat;
-  }
-
-  public async importAsset(
-    itemId: number,
-    fileId: string,
-    mimeType: string,
-    deleteSource = false,
-  ) {
-    const folderNo = this.getFolderNoFromItemId(itemId);
-    const assetParentId = await this.paths.getAssetParentFolderId(folderNo);
-    const stat = await this.fsDriver.moveFile(
-      fileId,
-      assetParentId,
-      this.itemIdToFilename(itemId, mimeType),
-      deleteSource,
-    );
-    return stat.id;
-  }
-
-  public async updateAsset(
-    fileId: string,
-    itemId: number,
-    filePath: string,
-    mimeType: string,
-  ) {
-    const stream = fs.createReadStream(filePath);
-    const stat = await this.fsDriver.updateFile(fileId, {
-      name: this.itemIdToFilename(itemId, mimeType),
-      mime: mimeType,
-      stream: stream,
-    });
-    return stat;
-  }
-
-  public async delete(fileId: string) {
-    await this.fsDriver.unlink(fileId);
+  public async delete(directory: string, filename: string) {
+    await fs.promises.unlink(path.join(this.location, directory, filename));
   }
 
   public async generateDetail(
-    filePath: string | Readable,
+    directory: string,
+    filename: string,
     mimeType: string,
   ): Promise<AssetDetailType> {
+    const filePath = path.join(this.location, directory, filename);
     if (mimeType.startsWith("image")) {
       return await metaFromPhotoStream(filePath);
     } else if (mimeType.startsWith("video")) {
@@ -112,10 +30,5 @@ export default class AssetManager {
     } else {
       throw new Error(`Unknown mime type ${mimeType}`);
     }
-  }
-
-  public getFolderNoFromItemId(itemId: number) {
-    const folderNo = Math.floor(itemId / PHOTOS_PER_FOLDER);
-    return folderNo;
   }
 }

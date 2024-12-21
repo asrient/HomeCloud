@@ -1,7 +1,7 @@
 import { ApiRequest, ApiResponse, RouteGroup } from "../interface";
 import { method, authenticate, AuthType, validateQuery, validateJson } from "../decorators";
 import { DeviceInfo, envConfig } from "../envConfig";
-import { Profile, ProfileDetails, Storage } from "../models";
+import { Storage } from "../models";
 import { verifyFileAccessToken } from "../utils/fileUtils";
 import CustomError from "../customError";
 import { getFsDriverByStorageId } from "../storageKit/storageHelper";
@@ -15,25 +15,21 @@ const api = new RouteGroup();
 
 function getConfig() {
   return {
-    passwordPolicy: envConfig.PROFILES_CONFIG.passwordPolicy,
-    allowSignups: envConfig.PROFILES_CONFIG.allowSignups,
-    listProfiles: envConfig.PROFILES_CONFIG.listProfiles,
-    requireUsername: envConfig.PROFILES_CONFIG.requireUsername,
-    syncPolicy: envConfig.PROFILES_CONFIG.syncPolicy,
     storageTypes: envConfig.ENABLED_STORAGE_TYPES,
     isDev: envConfig.IS_DEV,
     version: envConfig.VERSION,
     deviceName: envConfig.DEVICE_NAME,
     fingerprint: envConfig.FINGERPRINT,
+    userName: envConfig.USER_NAME,
   };
 }
 
 type StateResponse = {
   config: object;
   deviceInfo: DeviceInfo;
-  profile: ProfileDetails | null;
   storages: object | null;
   iconKey: string;
+  isAuthenticated: boolean;
 };
 
 api.add(
@@ -45,12 +41,11 @@ api.add(
       config: getConfig(),
       deviceInfo,
       iconKey: getIconKey(deviceInfo),
-      profile: null,
       storages: null,
+      isAuthenticated: request.local.isAuthenticated,
     };
-    if (request.profile) {
-      res.profile = request.profile.getDetails();
-      const storages = await request.profile.getStorages();
+    if (request.local.isAuthenticated) {
+      const storages = await Storage.getAllStorages();
       const promises = storages.map((storage: Storage) => {
         return storage.getDetails();
       });
@@ -121,13 +116,9 @@ api.add(
     try {
     // check status of the session request
     const status = getApprovalStatus(token);
-    let profile: Profile | null = null;
+    const res = ApiResponse.json(200, { status });
     if (status) {
-      profile = await Profile.getProfileById(envConfig.DEFAULT_PROFILE_ID);
-    }
-    const res = ApiResponse.json(200, { status, profile: profile?.getDetails() });
-    if (status && profile) {
-      login(profile.id, res);
+      login(res);
     }
     return res;
     } catch (e: any) {
@@ -139,9 +130,7 @@ api.add(
     "/session/exit",
     [method(["POST"]), authenticate(AuthType.Required)],
     async (request: ApiRequest) => {
-      const profile = request.profile;
       const resp = ApiResponse.json(200, {
-        profile: profile?.getDetails(),
         ok: true,
       });
       logout(resp);

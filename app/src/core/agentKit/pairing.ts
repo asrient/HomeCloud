@@ -1,7 +1,7 @@
 import { NativeAsk, native } from "../native";
 import CustomError, { ErrorCode } from "../customError";
-import { envConfig, PairingAuthType } from "../envConfig";
-import { Agent, Profile } from "../models";
+import { envConfig, PairingAuthType, RequestOriginType } from "../envConfig";
+import { Agent } from "../models";
 import { verifySignature, signString, uuid, generateOTP, getFingerprintFromBase64, generatePemFromBase64, KeyType } from "../utils/cryptoUtils";
 import { generateJwt } from "../utils/profileUtils";
 import { PairingRequest } from "./types";
@@ -9,11 +9,8 @@ import { PairingRequest } from "./types";
 const QUEUE_LIMIT = 10;
 
 const requiredFields = [
-    "clientProfileId",
     "clientDeviceName",
     "clientFinerprint",
-    "clientprofileName",
-    "targetProfileId",
     "targetFingerprint",
     "expireAt"
 ];
@@ -23,14 +20,11 @@ export interface PairingRequestPacket {
     signature: string;
 }
 
-export function createPairingRequest(profile: Profile, target: { profileId: number, fingerprint: string }): PairingRequest {
+export function createPairingRequest(fingerprint: string): PairingRequest {
     return {
-        clientProfileId: profile.id,
         clientDeviceName: envConfig.DEVICE_NAME,
         clientFinerprint: envConfig.FINGERPRINT,
-        clientprofileName: profile.name,
-        targetProfileId: target.profileId,
-        targetFingerprint: target.fingerprint,
+        targetFingerprint: fingerprint,
         expireAt: Date.now() + 1000 * 60 * 5,
     };
 }
@@ -84,18 +78,12 @@ const pairingRequests: Map<string, {
 }> = new Map();
 
 async function createAgent(pairingRequest: PairingRequest, authority: string) {
-    const targetProfile = await Profile.getProfileById(pairingRequest.targetProfileId);
-    if (!targetProfile) {
-        throw CustomError.validationSingle("targetProfileId", "Invalid target profile id");
-    }
     if (!envConfig.IS_DEV && envConfig.FINGERPRINT === pairingRequest.clientFinerprint) {
         throw CustomError.security("Attempted to pair with self.");
     }
-    const agent = await Agent.createAgent(targetProfile, {
+    const agent = await Agent.createAgent({
         fingerprint: pairingRequest.clientFinerprint,
         deviceName: pairingRequest.clientDeviceName,
-        remoteProfileId: pairingRequest.clientProfileId,
-        remoteProfileName: pairingRequest.clientprofileName,
         authority,
     });
     const canAddBack = !agent.clientAccessDisabled();
@@ -115,24 +103,8 @@ export async function registerPairingRequest(packet: PairingRequestPacket, passw
         throw CustomError.code(ErrorCode.LIMIT_REACHED, "Please try again later.");
     }
     const pairingRequest = validatePairingRequest(packet, clientPublicKey);
-    const targetProfile = await Profile.getProfileById(pairingRequest.targetProfileId);
-    if (!targetProfile) {
-        throw CustomError.validationSingle("targetProfileId", "Invalid target profile id");
-    }
     if (envConfig.PAIRING_AUTH_TYPE === PairingAuthType.Password) {
-        // Allow only passwords for server
-        if (!password) {
-            throw CustomError.validationSingle("password", "Password is required");
-        }
-        if (!(await targetProfile.validatePassword(password))) {
-            throw CustomError.validationSingle("password", "Invalid password");
-        }
-        const { agent, canAddBack } = await createAgent(pairingRequest, clientRemoteAddress);
-        if (agent.clientAccessDisabled()) {
-            throw CustomError.security("Client access denied.");
-        }
-        const accessKey = generateJwt(targetProfile.id, agent.fingerprint, agent.id);
-        return { accessKey };
+        throw CustomError.generic("Password pairing is not supported.");
     }
     // OTP flow for desktop GUIs
     const token = uuid();
@@ -158,7 +130,6 @@ export async function registerPairingRequest(packet: PairingRequestPacket, passw
 
         Token: ${token}
 
-        Client Profile: ${pairingRequest.clientprofileName} (Id: ${pairingRequest.clientProfileId})
         Client Device: ${pairingRequest.clientDeviceName}
         Client Fingerprint: ${pairingRequest.clientFinerprint}
         Client IP Address: ${clientRemoteAddress}
@@ -200,16 +171,11 @@ export async function verifyOTP(token: string, otp: string, clientPublicKey: str
     if (pairingRequest.clientFinerprint !== currentFingerprint) {
         throw CustomError.validationSingle("fingerprint", "Invalid fingerprint");
     }
-    const targetProfile = await Profile.getProfileById(pairingRequest.targetProfileId);
-    if (!targetProfile) {
-        throw CustomError.validationSingle("targetProfileId", "Invalid profile id");
-    }
-
     const { agent, canAddBack } = await createAgent(pairingRequest, request.clientRemoteAddress);
     if (agent.clientAccessDisabled()) {
         throw CustomError.validationSingle("clientAccess", "Client access denied.");
     }
-    const accessKey = generateJwt(targetProfile.id, agent.fingerprint, agent.id);
+    const accessKey = generateJwt(RequestOriginType.Agent, agent.fingerprint, agent.id);
     deletePairingRequest(token);
     // todo: setup code for add back.
     return { accessKey };

@@ -3,7 +3,7 @@ import { FsDriver } from "../../storageKit/interface";
 import { getDefaultDirectoriesCached } from "../../utils/deviceInfo";
 import fs from "fs";
 import { native } from "../../native";
-import { getDesktopTmpDir } from "../../utils/libraryUtils";
+import { getPartionedTmpDir } from "../../utils/fileUtils";
 import { uuid } from "../../utils/cryptoUtils";
 import { watch, FSWatcher } from 'chokidar';
 
@@ -39,7 +39,7 @@ export async function downloadFile(fsDriver: FsDriver, fileId: string) {
 
 
 async function prepareTmpDir() {
-    const tmpDir = path.join(getDesktopTmpDir(), uuid());
+    const tmpDir = path.join(getPartionedTmpDir('Files'), uuid());
     await fs.promises.mkdir(tmpDir, { recursive: true });
     return tmpDir;
 }
