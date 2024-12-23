@@ -87,7 +87,7 @@ export function mergePhotosList(sortedLists: PhotoView[][], sortBy: PhotosSortOp
     merged: PhotoView[],
     discarded: PhotoView[][],
 } {
-    console.log('Storted lists to merge:', sortedLists);
+    // console.log('Storted lists to merge:', sortedLists);
 
     // // Debug: check if the lists are actually sorted
     // sortedLists.forEach((list, i) => {

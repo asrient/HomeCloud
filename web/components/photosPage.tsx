@@ -176,49 +176,59 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         return canLoadMore; // || pendingMerges;
     }, [fetchOptions.libraries, hasMore]);
 
+    const fetchIdRef = useRef<number>(0);
+
     const loadPhotos = useCallback(async () => {
         if (isLoadingRef.current) return;
+
         const libs = fetchOptions.libraries.filter((lib) => (hasMore[libraryHash(lib)] === undefined || hasMore[libraryHash(lib)]));
         if (!libs.length) return;
+
         isLoadingRef.current = true;
+        const fetchId = ++fetchIdRef.current;
         setError(null);
         console.log('loading photos', libs, countsRef.current, hasMore);
         const newPhotos: PhotoView[][] = [];
         const resultCount: { [libHash: string]: number } = {};
+
         const promises = libs.map(async (lib) => {
-            try {
-                const storagePhotos = await listPhotos({
-                    offset: countsRef.current[libraryHash(lib)] || 0,
-                    limit: FETCH_LIMIT,
-                    sortBy: fetchOptions.sortBy,
-                    storageId: lib.storageId,
-                    libraryId: lib.id,
-                    ascending: fetchOptions.ascending ?? true,
-                });
-                if (!isLoadingRef.current) return;
-                const storagePhotoViews: PhotoView[] = storagePhotos.map((p) => ({
-                    ...p,
-                    isSelected: false,
-                    storageId: lib.storageId,
-                    libraryId: lib.id,
-                }));
-                if (storagePhotoViews.length) {
-                    newPhotos.push(storagePhotoViews);
-                }
-                resultCount[libraryHash(lib)] = storagePhotos.length;
-            } catch (err: any) {
-                //setError(err.message);
-                if (!isLoadingRef.current) return;
-                console.error(err);
-                toast({
-                    type: 'foreground',
-                    title: `Could not get photos for lib: ${libraryHash(lib)}`,
-                    description: err.message,
-                    color: 'red',
-                });
+            const storagePhotos = await listPhotos({
+                offset: countsRef.current[libraryHash(lib)] || 0,
+                limit: FETCH_LIMIT,
+                sortBy: fetchOptions.sortBy,
+                storageId: lib.storageId,
+                libraryId: lib.id,
+                ascending: fetchOptions.ascending ?? true,
+            });
+            if (!isLoadingRef.current) return;
+            const storagePhotoViews: PhotoView[] = storagePhotos.map((p) => ({
+                ...p,
+                isSelected: false,
+                storageId: lib.storageId,
+                libraryId: lib.id,
+            }));
+            if (storagePhotoViews.length) {
+                newPhotos.push(storagePhotoViews);
             }
+            resultCount[libraryHash(lib)] = storagePhotos.length;
         });
-        await Promise.allSettled(promises);
+
+        try {
+            await Promise.all(promises);
+        } catch (err: any) {
+            console.error(err);
+            toast({
+                type: 'foreground',
+                title: `Could not fetch photos`,
+                description: err.message,
+                color: 'red',
+            });
+            isLoadingRef.current = false;
+            return;
+        }
+
+        if (!isLoadingRef.current) return;
+        if (fetchId !== fetchIdRef.current) return;
 
         const { merged, discarded } = mergePhotosList(newPhotos, fetchOptions.sortBy, fetchOptions.ascending ?? true);
 
@@ -262,6 +272,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         if (hasChanged) {
             console.log('Fetch options changed, resetting photos..');
             isLoadingRef.current = false;
+            fetchIdRef.current++; // invalidate any ongoing fetches
             setPhotos([]);
             setHasMore({});
             countsRef.current = {};

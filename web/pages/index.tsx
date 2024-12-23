@@ -24,7 +24,7 @@ function AppCard({ name, icon, href, description }: AppProps) {
       />
     </div>
     <div>
-      <h2 className={`mb-3 text-2xl font-semibold`}>
+      <h2 className={`mb-3 text-xl font-semibold`}>
         {name}
         <span className="ml-3 inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
@@ -99,7 +99,7 @@ export default function Home() {
               />
             </motion.div>
           </div>
-          <div className="flex-col pt-10 pb-16 text-foreground/50 text-4xl lg:text-6xl font-thin">
+          <div className="flex-col pt-10 pb-16 text-primary/80 text-3xl lg:text-4xl font-thin">
             <AnimatePresence mode="wait">
               <motion.span
                 key={greetings} // Changing key to trigger animation on text change
