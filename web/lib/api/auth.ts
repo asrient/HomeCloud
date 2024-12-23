@@ -1,5 +1,5 @@
 import { ApiClient } from './apiClient';
-import { Profile, Storage, ServerConfig, DeviceInfo } from '../types';
+import { Storage, ServerConfig, DeviceInfo } from '../types';
 
 export type RequestSessionParams = {
     fingerprint: string;
@@ -15,15 +15,15 @@ export type PollSessionParams = {
 };
 
 export async function pollSession(params: PollSessionParams) {
-    return await ApiClient.post<{ status: boolean; profile?: Profile; }>('/session/pollStatus', params);
+    return await ApiClient.post<{ status: boolean; }>('/session/pollStatus', params);
 }
 
 export type StateResponse = {
     config: ServerConfig;
     deviceInfo: DeviceInfo;
     iconKey: string | null;
-    profile: Profile | null;
     storages: Storage[] | null;
+    isAuthenticated: boolean;
 };
 
 export async function initalialState() {
@@ -32,7 +32,6 @@ export async function initalialState() {
 
 export async function logout() {
     return await ApiClient.post<{
-        profile: Profile;
         ok: boolean;
     }>('/session/exit');
 }

@@ -62,7 +62,6 @@ export type OpenFileRemoteParams = {
     storageId: number;
     fileId: string;
     targetDeviceFingerprint: string;
-    targetProfileId: number;
 }
 
 export async function openFileRemote(params: OpenFileRemoteParams) {

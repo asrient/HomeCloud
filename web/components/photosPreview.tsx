@@ -40,7 +40,7 @@ function ThumbnailPhoto({ item, className, height, width }: ThumbnailPhotoProps)
   return (<LazyImage
     fetchSrc={fetchThumbnailSrc}
     src={dafaultSrc}
-    alt={item.itemId.toString()}
+    alt={item.id.toString()}
     width={width || 0}
     height={height || 0}
     className={className}
@@ -70,10 +70,10 @@ export default function PhotosPreview({
 
   const index = useMemo(() => {
     if (images) {
-      return images.findIndex((img: PhotoView) => img.itemId === currentPhoto.itemId && img.storageId === currentPhoto.storageId)
+      return images.findIndex((img: PhotoView) => img.id === currentPhoto.id && img.storageId === currentPhoto.storageId)
     }
     return 0
-  }, [currentPhoto.itemId, currentPhoto.storageId, images])
+  }, [currentPhoto.id, currentPhoto.storageId, images])
 
   const downloadPhoto = useCallback(async () => {
     const storageId = currentPhoto.storageId;
@@ -280,11 +280,11 @@ export default function PhotosPreview({
                       }}
                       exit={{ width: '0%' }}
                       onClick={() => changePhoto(photo)}
-                      key={`${photo.storageId}-${photo.itemId}`}
+                      key={`${photo.storageId}-${photo.id}`}
                       className={`${photo === currentPhoto
                         ? 'z-20 rounded-md shadow shadow-black/50'
                         : 'z-10'
-                        } ${photo.itemId === 0 ? 'rounded-l-md' : ''} ${photo.itemId === images.length - 1 ? 'rounded-r-md' : ''
+                        } ${photo.id === 0 ? 'rounded-l-md' : ''} ${photo.id === images.length - 1 ? 'rounded-r-md' : ''
                         } relative inline-block w-full shrink-0 transform-gpu overflow-hidden focus:outline-none`}
                     >
                       <ThumbnailPhoto

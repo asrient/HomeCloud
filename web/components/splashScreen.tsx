@@ -29,7 +29,7 @@ function removeSessionTokenFromCache(fingerprint: string, token: string) {
 }
 
 const SplashScreen = () => {
-    const { serverConfig, profile, isInitalized, appError } = useAppState();
+    const { serverConfig, isInitalized, appError, isAuthenticated } = useAppState();
     const dispatch = useAppDispatch();
     const [isWaitingForConsent, setIsWaitingForConsent] = useState(false);
 
@@ -37,7 +37,7 @@ const SplashScreen = () => {
         setIsWaitingForConsent(false);
         try {
             const data = await initalialState();
-            if (!data.profile) {
+            if (!data.isAuthenticated) {
                 throw new Error("Session is not authenticated.");
             }
             dispatch(ActionTypes.INITIALIZE, data);
@@ -51,8 +51,8 @@ const SplashScreen = () => {
         if (!serverConfig?.fingerprint) return;
         if (appError) return;
         try {
-            const { status, profile } = await pollSession({ fingerprint: serverConfig.fingerprint, token });
-            console.log("Polling session status", status, profile);
+            const { status } = await pollSession({ fingerprint: serverConfig.fingerprint, token });
+            console.log("Polling session status", status);
             if (status) {
                 removeSessionTokenFromCache(serverConfig.fingerprint, token);
                 handleSessionCreated();
@@ -69,7 +69,7 @@ const SplashScreen = () => {
         if (!serverConfig?.fingerprint) return;
         if (!isInitalized) return;
         if (appError) return;
-        if (profile) return;
+        if (isAuthenticated) return;
         async function fetchToken() {
             console.log("Fetching token..");
             setIsWaitingForConsent(false);
@@ -83,7 +83,7 @@ const SplashScreen = () => {
             }
         }
         fetchToken();
-    }, [profile, isInitalized, serverConfig, appError, dispatch, checkStatus]);
+    }, [isInitalized, serverConfig, appError, dispatch, checkStatus, isAuthenticated]);
 
     return (<>
         <Head>

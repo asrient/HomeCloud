@@ -1,4 +1,4 @@
-import { PhotosSortOption, PhotoView } from "./types";
+import { PhotoLibrary, PhotosSortOption, PhotoView } from "./types";
 
 const months = ["January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"];
@@ -103,4 +103,12 @@ export function sortPhotos(photos: PhotoView[], sortBy: PhotosSortOption, ascend
         const ind = comesFirst([a, b], sortBy, ascending);
         return ind === 0 ? -1 : 1;
     });
+}
+
+export function libraryHash(library: PhotoLibrary) {
+    return libraryHashFromId(library.storageId, library.id);
+}
+
+export function libraryHashFromId(storageId: number, libraryId: number) {
+    return `${storageId}-${libraryId}`;
 }

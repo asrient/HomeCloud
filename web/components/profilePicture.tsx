@@ -1,8 +1,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { nameToInitials } from '@/lib/utils';
-import { Profile } from "@/lib/types";
 
-export default function ProfilePicture({ profile, size }: { profile: Profile, size?: 'sm' | 'md' | 'lg' }) {
+export default function ProfilePicture({ name, size }: { name: string, size?: 'sm' | 'md' | 'lg' }) {
     size = size || 'md';
 
     const sizeMap = {
@@ -13,7 +12,7 @@ export default function ProfilePicture({ profile, size }: { profile: Profile, si
 
     return (<Avatar className={`${sizeMap[size]} border border-solid`}>
         <AvatarFallback>
-            {nameToInitials(profile.name)}
+            {nameToInitials(name)}
         </AvatarFallback>
     </Avatar>);
 }

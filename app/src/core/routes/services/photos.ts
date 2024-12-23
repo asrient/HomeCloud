@@ -32,10 +32,10 @@ const deleteSchema = {
   type: "object",
   properties: {
     ids: { type: "array", items: { type: "number" } },
-    locationId: { type: "number" },
+    libraryId: { type: "number" },
     ...commonOptions,
   },
-  required: ["ids", "locationId"],
+  required: ["ids", "libraryId"],
 };
 
 api.add(
@@ -44,8 +44,8 @@ api.add(
   async (request: ApiRequest) => {
     const photoService = PhotosService.getInstance();
     const ids = request.local.json.ids as number[];
-    const locationId = request.local.json.locationId as number;
-    const photoLobrary = photoService.getLibrary(locationId);
+    const libraryId = request.local.json.libraryId as number;
+    const photoLobrary = photoService.getLibrary(libraryId);
     try {
       const res = await photoLobrary.deletePhotos(ids);
       return ApiResponse.json(200, res);
@@ -80,7 +80,7 @@ api.add(
   async (request: ApiRequest) => {
     const libraryId = request.local.json.libraryId;
     delete request.local.json.libraryId;
-    if(request.local.json.storageId) {
+    if (request.local.json.storageId) {
       delete request.local.json.storageId;
     }
     const params = request.local.json as getPhotosParams;
@@ -101,7 +101,7 @@ const getPhotoDetailsSchema = {
   properties: {
     id: { type: "string" },
     libraryId: { type: "string" },
-    ...commonOptions,
+    storageId: { type: "string" },
   },
   required: ["id", "libraryId"],
 };
@@ -174,6 +174,29 @@ api.add(
     } catch (e: any) {
       console.error(e);
       e.message = `Could not delete library: ${e.message}`;
+      return ApiResponse.fromError(e);
+    }
+  },
+);
+
+const listLibrarySchema = {
+  type: "object",
+  properties: {
+    storageId: { type: "string" },
+  },
+};
+
+api.add(
+  "/library/list",
+  buildMiddlewares("GET", listLibrarySchema),
+  async (_request: ApiRequest) => {
+    try {
+      const photoService = PhotosService.getInstance();
+      const libraries = photoService.getLibraries();
+      return ApiResponse.json(200, libraries);
+    } catch (e: any) {
+      console.error(e);
+      e.message = `Could not list libraries: ${e.message}`;
       return ApiResponse.fromError(e);
     }
   },

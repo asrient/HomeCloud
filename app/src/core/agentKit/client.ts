@@ -212,17 +212,13 @@ export class AgentClient {
         if (req.mayContainFiles) {
             body = req.bodyStream;
         }
-        else if (req.isJson) {
-            if (req.local.json) {
-                body = req.local.json;
-            } else {
-                body = await req.json();
-            }
+        else if (req.isJson && req.local.json) {
+            body = req.local.json;
         }
         else if (req.isText) {
             body = await req.text();
         }
-        else {
+        else if(req.method !== 'GET') {
             body = await req.body();
         }
         const reqPath = req.path.startsWith('/') ? req.path.substring(1) : req.path;

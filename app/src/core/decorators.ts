@@ -38,7 +38,7 @@ function parseJsonValidatorErrors(errors: ErrorObject[]) {
 }
 
 async function loadJsonBody(request: ApiRequest) {
-  if (request.local.json || !request.isJson) {
+  if (request.local.json || !request.isJson || request.method === "GET") {
     return;
   }
   try {

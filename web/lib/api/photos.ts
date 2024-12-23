@@ -1,5 +1,5 @@
 import { ApiClient } from './apiClient';
-import { FileList_, Photo } from '../types';
+import { FileList_, Photo, PhotoLibrary } from '../types';
 
 export type ListPhotosParams = {
     offset: number,
@@ -7,6 +7,7 @@ export type ListPhotosParams = {
     sortBy: string,
     ascending: boolean,
     storageId: number,
+    libraryId: number,
 };
 
 function normalizePhoto(photo: Photo): Photo {
@@ -24,45 +25,49 @@ export async function listPhotos(params: ListPhotosParams) {
 
 export type DeletePhotosParams = {
     storageId: number;
-    itemIds: number[];
+    libraryId: number;
+    ids: number[];
 };
 
 export async function deletePhotos(params: DeletePhotosParams) {
     return await ApiClient.post<{
         deleteCount: number,
-        errors: {
-            [itemId: number]: string;
-        },
         deletedIds: number[],
     }>('/services/photos/delete', params);
 }
 
-export type ImportPhotosParams = {
-    fileIds: string[];
-    deleteSource: boolean;
-    storageId: number;
-};
+type PhotoLibraryPrimative = Omit<PhotoLibrary, "storageId">;
 
-export type AddSuccessType = {
-    addCount: number,
-    errors: {
-        [fileId: string]: string,
-    },
-    photos: Photo[],
-};
-
-export async function importPhotos(params: ImportPhotosParams) {
-    const res = await ApiClient.post<AddSuccessType>('/services/photos/import', params);
-    res.photos = res.photos.map(normalizePhoto);
-    return res;
+function normalizePhotoLibrary(library: PhotoLibraryPrimative, storageId: number): PhotoLibrary {
+    return {
+        ...library,
+        storageId,
+    };
 }
 
-export async function uploadPhotos(storageId: number, files: FileList_) {
-    const formData = new FormData();
-    for (let i = 0; i < files.length; i++) {
-        formData.append('files', files[i], files[i].name);
-    }
-    const res = await ApiClient.post<AddSuccessType>('/services/photos/upload', { storageId }, formData);
-    res.photos = res.photos.map(normalizePhoto);
-    return res;
+export type AddLibraryParams = {
+    storageId: number;
+    name: string;
+    location: string;
+};
+
+export async function addLibrary(params: AddLibraryParams) {
+    const ph = await ApiClient.post<PhotoLibrary>('/services/photos/library/add', params);
+    return normalizePhotoLibrary(ph, params.storageId);
+}
+
+export type DeleteLibraryParams = {
+    storageId: number;
+    id: number;
+};
+
+export async function deleteLibrary(params: DeleteLibraryParams) {
+    return await ApiClient.post<{
+        deletedId: number;
+    }>('/services/photos/library/delete', params);
+}
+
+export async function getLibraries(storageId: number) {
+    const phs = await ApiClient.get<PhotoLibrary[]>('/services/photos/library/list', { storageId: storageId.toString() });
+    return phs.map((ph) => normalizePhotoLibrary(ph, storageId));
 }

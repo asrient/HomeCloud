@@ -47,12 +47,6 @@ const apps: AppProps[] = [
     href: '/photos'
   },
   {
-    name: 'Notes',
-    icon: '/icons/notes.png',
-    description: 'Organize your texts into notes and wikis and store them wherever you want.',
-    href: '/notes'
-  },
-  {
     name: 'Files',
     icon: '/icons/folder.png',
     description: 'Access and manage your files from all your storages in one place.',
@@ -62,10 +56,10 @@ const apps: AppProps[] = [
 
 export default function Home() {
   const [greetings, setGreetings] = useState('Hi');
-  const { profile } = useAppState();
+  const { serverConfig } = useAppState();
 
   useEffect(() => {
-    setGreetings(`Hi, ${getGreetings()} ${profile?.name || 'human'}.`);
+    setGreetings(`Hi, ${getGreetings()} ${serverConfig?.userName || 'human'}.`);
 
     // Change the greeting text after 6 seconds
     const timer = setTimeout(() => {
@@ -73,7 +67,7 @@ export default function Home() {
     }, 6000);
 
     return () => clearTimeout(timer); // Clean up the timer on unmount
-  }, [profile?.name]);
+  }, [serverConfig?.userName]);
 
   const greetingArray = greetings.split(''); // Split the greeting text into an array of characters
 

@@ -1,4 +1,4 @@
-import { Storage, AgentCandidate, AgentInfo, Profile, PairingAuthType } from "@/lib/types";
+import { Storage, AgentCandidate, AgentInfo, PairingAuthType } from "@/lib/types";
 import {
     Dialog,
     DialogContent,
@@ -20,7 +20,6 @@ import { Input } from "./ui/input";
 import { getAgentInfo } from "@/lib/api/discovery";
 import LoadingIcon from "./ui/loadingIcon";
 import { pairStorage, sendOTP } from "@/lib/api/storage";
-import ProfilePicture from "./profilePicture";
 import {
     InputOTP,
     InputOTPGroup,
@@ -158,33 +157,6 @@ function SearchAgentScreen({
 
 const labelClass = "text-md text-slate-800 font-normal";
 
-export function ProfileSelector({
-    profiles,
-    onSelect,
-    showTitle = true,
-}: {
-    profiles: Profile[];
-    onSelect: (profile: Profile) => void;
-    showTitle?: boolean;
-}) {
-    return (
-        <div className="min-h-[10rem]">
-            {showTitle && <div className={labelClass}>Select a profile to continue</div>}
-            <div className="grid grid-cols-1 gap-1 mt-2">
-                {
-                    profiles.map((profile, ind) => (
-                        <Button key={profile.id} variant={ind % 2 === 0 ? 'secondary' : 'ghost'}
-                            className="w-full rounded-none justify-start min-h-[3rem]" onClick={() => onSelect(profile)}>
-                            <ProfilePicture profile={profile} size="sm" />
-                            <div className="ml-2 text-base font-normal">{profile.name}</div>
-                        </Button>
-                    ))
-                }
-            </div>
-        </div>
-    )
-}
-
 function AgentFormScreen({
     candidate, onDone, onBack,
 }: {
@@ -196,7 +168,6 @@ function AgentFormScreen({
     const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
-    const [targetProfile, setTargetProfile] = useState<Profile | null>(null);
     const [key, setKey] = useState<string>('');
     const [token, setToken] = useState<string | null>(null);
 
@@ -206,9 +177,6 @@ function AgentFormScreen({
         try {
             const agentInfo = await getAgentInfo(candidate);
             setAgentInfo(agentInfo);
-            if (agentInfo.availableProfiles.length === 1) {
-                setTargetProfile(agentInfo.availableProfiles[0]);
-            }
         } catch (e: any) {
             setError(e.message);
         } finally {
@@ -240,39 +208,12 @@ function AgentFormScreen({
     const resetForm = useCallback(() => {
         setKey('');
         setToken(null);
-        setTargetProfile(null);
         fetchAgentInfo();
     }, [fetchAgentInfo]);
 
-    const submitPassword = useCallback(async () => {
-        if (!targetProfile || !agentInfo || !key) {
-            console.error('Cannot proceed without target profile and password');
-            return;
-        }
-        setLoading(true);
-        setError(null);
-        try {
-            const { storage } = await pairStorage({
-                host: candidate.host,
-                fingerprint: agentInfo.fingerprint,
-                targetProfileId: targetProfile.id,
-                password: key,
-            });
-            if (!storage) {
-                setError('Could not pair device');
-                return;
-            }
-            onDone(storage);
-        } catch (e: any) {
-            setError(e.message);
-        } finally {
-            setLoading(false);
-        }
-    }, [agentInfo, candidate.host, key, onDone, targetProfile]);
-
     const requestOTP = useCallback(async () => {
-        if (!targetProfile || !agentInfo) {
-            console.error('Cannot proceed without target profile');
+        if (!agentInfo) {
+            console.error('Cannot proceed without agent info');
             return;
         }
         setLoading(true);
@@ -281,7 +222,6 @@ function AgentFormScreen({
             const { token, storage } = await pairStorage({
                 host: candidate.host,
                 fingerprint: agentInfo.fingerprint,
-                targetProfileId: targetProfile.id,
             });
             if (storage) {
                 onDone(storage);
@@ -297,11 +237,11 @@ function AgentFormScreen({
         } finally {
             setLoading(false);
         }
-    }, [agentInfo, candidate.host, onDone, targetProfile]);
+    }, [agentInfo, candidate.host, onDone]);
 
     const submitOTP = useCallback(async () => {
-        if (!targetProfile || !agentInfo || !token || !key) {
-            console.error('Cannot proceed without target profile and OTP');
+        if (!agentInfo || !token || !key) {
+            console.error('Cannot proceed without OTP');
             return;
         }
         setLoading(true);
@@ -323,7 +263,7 @@ function AgentFormScreen({
         } finally {
             setLoading(false);
         }
-    }, [agentInfo, candidate.host, key, onDone, targetProfile, token]);
+    }, [agentInfo, candidate.host, key, onDone, token]);
 
     const containerClass = "flex flex-col items-center justify-center space-y-2 min-h-[5rem]";
 
@@ -371,23 +311,16 @@ function AgentFormScreen({
                     )
                         :
                         agentInfo && (
-                            !targetProfile ? (
-                                <ScrollArea>
-                                    <ProfileSelector profiles={agentInfo.availableProfiles} onSelect={setTargetProfile} />
-                                </ScrollArea>
-                            )
-                                :
                                 agentInfo.pairingAuthType === PairingAuthType.Password ? (
                                     <div className={containerClass}>
-                                        <div className={labelClass}>Enter password for "{targetProfile.name}"</div>
-                                        <Input value={key} onChange={(e) => setKey(e.target.value)} type="password" />
+                                        Not implemented.
                                     </div>
                                 )
                                     :
                                     agentInfo.pairingAuthType === PairingAuthType.OTP ? (
                                         token ? (
                                             <div className={containerClass}>
-                                                <div className={labelClass}>Enter OTP for "{targetProfile.name}"</div>
+                                                <div className={labelClass}>Enter OTP</div>
                                                 <InputOTP maxLength={6}
                                                     value={key}
                                                     onChange={(e) => setKey(e)}
@@ -422,15 +355,11 @@ function AgentFormScreen({
             <DialogFooter>
                 <div className="space-x-2 flex justify-center items-center w-full">
                     <Button variant='secondary' size='lg' onClick={() => {
-                        if (agentInfo && agentInfo.availableProfiles.length > 1 && !!targetProfile) {
-                            setTargetProfile(null);
-                            return;
-                        }
                         onBack();
                     }}>Back</Button>
                     <Button disabled={
-                        loading || (!!agentInfo && !targetProfile) || (agentInfo?.pairingAuthType === PairingAuthType.Password && !!targetProfile && !key)
-                        || (agentInfo?.pairingAuthType === PairingAuthType.OTP && !!targetProfile && !!token && !key)
+                        loading || (agentInfo?.pairingAuthType === PairingAuthType.Password && !key)
+                        || (agentInfo?.pairingAuthType === PairingAuthType.OTP && !!token && !key)
                     } variant='default' size='lg' onClick={() => {
                         if (error) {
                             if (token) {
@@ -443,7 +372,8 @@ function AgentFormScreen({
                         }
                         if (agentInfo) {
                             if (agentInfo.pairingAuthType === PairingAuthType.Password) {
-                                submitPassword();
+                                alert('Not implemented');
+                                console.error('Not implemented');
                             } else if (agentInfo.pairingAuthType === PairingAuthType.OTP) {
                                 if (token && key) {
                                     submitOTP();

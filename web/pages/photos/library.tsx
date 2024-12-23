@@ -1,35 +1,32 @@
-import { AppName, SidebarType, PhotosFetchOptions, PhotosSortOption } from '@/lib/types'
+import { SidebarType, PhotosFetchOptions, PhotosSortOption } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
 import PhotosPage from '@/components/photosPage'
-import useFilterStorages from '@/components/hooks/useFilterStorages'
 import { useMemo } from 'react';
 import { useRouter } from 'next/router';
+import usePhotoLibraries from '@/components/hooks/usePhotoLibraries';
 
 export default function Page() {
   const router = useRouter();
-  const storages = useFilterStorages(AppName.Photos);
-  const { id } = router.query as { id: string };
+  const { s, lib } = router.query as { s: string; lib: string; };
 
-  const storage = useMemo(() => {
-    return storages.find((s) => s.id === parseInt(id));
-  }, [storages, id]);
+  const { libraries } = usePhotoLibraries([{ storageId: parseInt(s), libraryId: parseInt(lib) }]);
 
   const fetchOptions: PhotosFetchOptions = useMemo(() => ({
     sortBy: PhotosSortOption.AddedOn,
-    storageIds: [parseInt(id)],
+    libraries,
     ascending: false,
-  }), [id]);
+  }), [libraries]);
 
-  if(!id) return (
+  if (!libraries.length) return (
     <div className='p-5 py-10 min-h-[50vh] flex justify-center items-center text-red-500'>
-      <span>Invalid storage id</span>
+      <span>Library not available.</span>
     </div>
   )
 
   return (
     <PhotosPage
       fetchOptions={fetchOptions}
-      pageTitle={storage?.name || 'Invalid Storage'}
+      pageTitle={libraries[0]?.name || 'Invalid Storage'}
       pageIcon='/icons/ssd.png'
     />
   )

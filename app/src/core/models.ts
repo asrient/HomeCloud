@@ -383,7 +383,7 @@ export class Storage extends DbModel {
     if (this.type === StorageType.Local) {
       const localStorageCount = await Storage.count({ where: { type: StorageType.Local } });
       if (localStorageCount === 1) {
-        throw new Error("Cannot delete the only local storage for this profile");
+        throw new Error("Cannot delete local storage.");
       }
     }
     return this.destroy();

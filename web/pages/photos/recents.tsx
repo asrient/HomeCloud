@@ -1,18 +1,17 @@
-import { AppName, SidebarType, PhotosFetchOptions, PhotosSortOption } from '@/lib/types'
+import { SidebarType, PhotosFetchOptions, PhotosSortOption } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
 import PhotosPage from '@/components/photosPage'
-import useFilterStorages from '@/components/hooks/useFilterStorages'
 import { useMemo } from 'react';
+import usePhotoLibraries from '@/components/hooks/usePhotoLibraries';
 
 export default function Page() {
-  const storages = useFilterStorages(AppName.Photos);
-  const storageIds = useMemo(() => storages.map((s) => s.id), [storages]);
+  const { libraries } = usePhotoLibraries();
 
   const fetchOptions: PhotosFetchOptions = useMemo(() => ({
     sortBy: PhotosSortOption.AddedOn,
-    storageIds,
+    libraries,
     ascending: false,
-  }), [storageIds]);
+  }), [libraries]);
 
   return (
     <PhotosPage

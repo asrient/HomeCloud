@@ -29,18 +29,6 @@ export enum OptionalType {
     Disabled = 'disabled',
 }
 
-export type AccessControl = { [key: string]: string };
-
-export type Profile = {
-    id: number;
-    username: string | null;
-    name: string;
-    isAdmin: boolean;
-    isPasswordProtected: boolean;
-    isDisabled: boolean;
-    accessControl?: AccessControl | null;
-}
-
 export enum StorageAuthType {
     Basic = 'basic',
     None = 'none',
@@ -97,13 +85,10 @@ export type DeviceInfo = {
 export type AgentDetails = {
     id: number;
     fingerprint: string;
-    remoteProfileId: number;
     deviceName: string;
-    remoteProfileName: string;
     lastSeen: Date;
     authority: string;
     allowClientAccess: boolean;
-    profileId: number;
     iconKey?: string;
 }
 
@@ -119,28 +104,22 @@ export type Storage = {
 }
 
 export type ServerConfig = {
-    passwordPolicy: OptionalType;
-    allowSignups: boolean;
-    listProfiles: boolean;
-    requireUsername: boolean;
-    syncPolicy: OptionalType;
     storageTypes: StorageType[];
     isDev: boolean;
     version?: string;
     deviceName: string;
     fingerprint: string;
+    userName: string;
 }
 
 export enum AppName {
     Photos = 'photos',
     Files = 'files',
-    Notes = 'notes',
 }
 
 export const AppNames = [
     AppName.Photos,
     AppName.Files,
-    AppName.Notes,
 ]
 
 export type NextUrl = {
@@ -167,7 +146,6 @@ export enum SidebarType {
     Files = "files",
     Settings = "settings",
     Photos = "photos",
-    Notes = "notes",
 }
 
 export type PageUIConfig = {
@@ -198,9 +176,15 @@ export type RemoteItemWithStorage = RemoteItem & {
     storageId: number;
 }
 
+export type PhotoLibrary = {
+    id: number;
+    name: string;
+    location: string;
+    storageId: number;
+}
+
 export type Photo = {
-    itemId: number;
-    folderNo: number;
+    id: number;
     fileId: string;
     mimeType: string;
     capturedOn: Date;
@@ -215,6 +199,7 @@ export type PhotoView = {
     thumbnail?: string;
     assetUrl?: string;
     storageId: number;
+    libraryId: number;
 } & Photo;
 
 export enum PhotosSortOption {
@@ -225,14 +210,7 @@ export enum PhotosSortOption {
 export type PhotosFetchOptions = {
     sortBy: PhotosSortOption;
     ascending?: boolean;
-    storageIds: number[];
-}
-
-export type NoteItem = {
-    stat: RemoteItem;
-    storageId: number;
-    childNoteStats: RemoteItem[];
-    isRootNote: boolean;
+    libraries: PhotoLibrary[];
 }
 
 export type AgentCandidate = {
@@ -248,7 +226,5 @@ export type AgentInfo = {
     version: string;
     deviceInfo: DeviceInfo;
     pairingAuthType: PairingAuthType;
-    profile?: Profile;
-    availableProfiles: Profile[];
     iconKey?: string;
 }

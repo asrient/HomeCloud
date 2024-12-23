@@ -1,6 +1,6 @@
 import { Sequelize } from "sequelize";
 import { envConfig, StorageAuthType, StorageType } from "./envConfig";
-import { initModels } from "./models";
+import { initModels, PinnedFolders } from "./models";
 import { verbose } from "sqlite3";
 import { Storage } from "./models";
 
@@ -19,7 +19,12 @@ async function fixDBContent() {
       secret: null,
       url: null,
       Agent: null,
-    })
+    });
+    try {
+      await PinnedFolders.createDefaultPins(localStorage);
+    } catch (error) {
+      console.error("🔧 Fix database: Error creating default pins:", error);
+    }
   }
 }
 

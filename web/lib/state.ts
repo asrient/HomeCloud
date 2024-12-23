@@ -1,5 +1,5 @@
 import { Dispatch, createContext } from 'react';
-import { Profile, ServerConfig, Storage, PinnedFolder, NoteItem, RemoteItem, DeviceInfo } from './types';
+import { ServerConfig, Storage, PinnedFolder, RemoteItem, DeviceInfo, PhotoLibrary } from './types';
 
 export type AppStateType = {
     isInitalized: boolean;
@@ -7,7 +7,6 @@ export type AppStateType = {
     serverConfig: ServerConfig | null;
     deviceInfo: DeviceInfo | null;
     appError: string | null;
-    profile: Profile | null;
     storages: Storage[] | null;
     disabledStorages: number[];
     showSidebar: boolean;
@@ -17,9 +16,9 @@ export type AppStateType = {
     disks: {
         [storageId: number]: RemoteItem[];
     };
-    notes: { [id: string]: NoteItem };
-    rootNoteStats: Record<number, RemoteItem[]>;
+    photoLibraries: Record<number, PhotoLibrary[]>;
     iconKey: string | null;
+    isAuthenticated: boolean;
 };
 
 export enum ActionTypes {
@@ -36,11 +35,9 @@ export enum ActionTypes {
     SET_DISKS = 'SET_DISKS',
     ADD_PINNED_FOLDER = 'ADD_PINNED_FOLDER',
     REMOVE_PINNED_FOLDER = 'REMOVE_PINNED_FOLDER',
-    UPDATE_PROFILE = 'UPDATE_PROFILE',
-    ADD_NOTE = 'ADD_NOTE',
-    RENAME_NOTE = 'RENAME_NOTE',
-    REMOVE_NOTE = 'REMOVE_NOTE',
-    SET_ROOT_NOTE_STATS = 'SET_ROOT_NOTE_STATS',
+    SET_PHOTO_LIBRARIES = 'SET_PHOTO_LIBRARIES',
+    REMOVE_PHOTO_LIBRARY = "REMOVE_PHOTO_LIBRARY",
+    ADD_PHOTO_LIBRARY = "ADD_PHOTO_LIBRARY",
 }
 
 export type AppDispatchType = {
@@ -54,24 +51,19 @@ export const initialAppState: AppStateType = {
     isAppLoaded: false,
     serverConfig: null,
     appError: null,
-    profile: null,
     storages: null,
     disabledStorages: [],
     showSidebar: false,
     pinnedFolders: {},
     disks: {},
-    notes: {},
-    rootNoteStats: {},
     deviceInfo: null,
     iconKey: null,
+    photoLibraries: {},
+    isAuthenticated: false,
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
 export const DispatchContext = createContext<Dispatch<AppDispatchType> | null>(null);
-
-export function noteUid(storageId: number, id: string) {
-    return `${storageId}:${id}`;
-}
 
 export function reducer(draft: AppStateType, action: AppDispatchType) {
     const { type, payload } = action;
@@ -88,14 +80,13 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             draft.isInitalized = true;
             draft.serverConfig = payload.config;
             draft.appError = null;
-            draft.profile = payload.profile;
             draft.storages = payload.storages;
             draft.disabledStorages = [];
             draft.pinnedFolders = {};
-            draft.notes = {};
-            draft.rootNoteStats = {};
+            draft.photoLibraries = {};
             draft.deviceInfo = payload.deviceInfo;
             draft.iconKey = payload.iconKey;
+            draft.isAuthenticated = payload.isAuthenticated;
             return draft;
         }
         case ActionTypes.ERROR: {
@@ -188,102 +179,31 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             draft.pinnedFolders[storageId] = draft.pinnedFolders[storageId].filter((pinnedFolder) => !(pinnedFolder.folderId === folderId));
             return draft;
         }
-        case ActionTypes.UPDATE_PROFILE: {
-            const { profile }: {
-                profile: Profile;
-            } = payload;
-            draft.profile = profile;
-            return draft;
-        }
-        case ActionTypes.ADD_NOTE: {
-            const { note }: {
-                note: NoteItem;
-            } = payload;
-
-            const parentId = note.stat.parentIds?.[0];
-            if (parentId) {
-                const parentNote = draft.notes[noteUid(note.storageId, parentId)];
-                if (parentNote) {
-                    const existingIndex = parentNote.childNoteStats.findIndex((stat) => stat.id === note.stat.id);
-                    if (existingIndex !== undefined && existingIndex !== -1) {
-                        parentNote.childNoteStats[existingIndex] = note.stat;
-                    } else {
-                        parentNote.childNoteStats.push(note.stat);
-                    }
-                }
-            }
-            draft.notes[noteUid(note.storageId, note.stat.id)] = note;
-            if (note.isRootNote && draft.rootNoteStats[note.storageId]) {
-                const rootNoteStats = draft.rootNoteStats[note.storageId];
-                const existingIndex = rootNoteStats.findIndex((stat) => stat.id === note.stat.id);
-                if (existingIndex !== undefined && existingIndex !== -1) {
-                    rootNoteStats[existingIndex] = note.stat;
-                } else {
-                    draft.rootNoteStats[note.storageId] = [...rootNoteStats, note.stat];
-                }
-            }
-            return draft;
-        }
-        case ActionTypes.RENAME_NOTE: {
-            const { newName, newId, childNoteStats, oldId, storageId }: {
-                newName: string;
-                newId: string;
-                oldId: string;
+        case ActionTypes.SET_PHOTO_LIBRARIES: {
+            const { storageId, photoLibraries }: {
                 storageId: number;
-                childNoteStats: RemoteItem[];
+                photoLibraries: PhotoLibrary[];
             } = payload;
-            const oldUid = noteUid(storageId, oldId);
-            const note = draft.notes[oldUid];
-            if (note) {
-                note.stat.name = newName;
-                note.stat.id = newId;
-                note.childNoteStats = childNoteStats;
-                draft.notes[noteUid(note.storageId, newId)] = note;
-                delete draft.notes[oldUid];
-                const parentId = note.stat.parentIds?.[0];
-                if (parentId) {
-                    const parentNote = draft.notes[noteUid(note.storageId, parentId)];
-                    if (parentNote) {
-                        parentNote.childNoteStats = parentNote.childNoteStats.filter((stat) => stat.id !== oldId);
-                        parentNote.childNoteStats.push(note.stat);
-                    }
-                }
-                if (note.isRootNote && draft.rootNoteStats[note.storageId]) {
-                    const rootNoteStats = draft.rootNoteStats[note.storageId]
-                    draft.rootNoteStats[note.storageId] = [...rootNoteStats.filter((stat) => stat.id !== oldId), note.stat];
-                }
-            }
+            draft.photoLibraries[storageId] = photoLibraries;
             return draft;
         }
-        case ActionTypes.REMOVE_NOTE: {
-            const { id, storageId }: {
-                id: string;
+        case ActionTypes.REMOVE_PHOTO_LIBRARY: {
+            const { storageId, libraryId }: {
                 storageId: number;
+                libraryId: number;
             } = payload;
-            const note = draft.notes[noteUid(storageId, id)];
-            if (!note) return draft;
-            const parentId = note.stat.parentIds?.[0];
-            if (parentId) {
-                const parentNote = draft.notes[noteUid(note.storageId, parentId)];
-                if (parentNote) {
-                    parentNote.childNoteStats = parentNote.childNoteStats.filter((stat) => stat.id !== id);
-                }
-            }
-
-            if (note.isRootNote && draft.rootNoteStats[note.storageId]) {
-                const rootNoteStats = draft.rootNoteStats[note.storageId];
-                draft.rootNoteStats[note.storageId] = rootNoteStats.filter((stat) => stat.id !== id);
-            }
-
-            delete draft.notes[noteUid(storageId, id)];
+            draft.photoLibraries[storageId] = draft.photoLibraries[storageId].filter((lib) => lib.id !== libraryId);
             return draft;
         }
-        case ActionTypes.SET_ROOT_NOTE_STATS: {
-            const { storageId, rootNoteStats }: {
+        case ActionTypes.ADD_PHOTO_LIBRARY: {
+            const { storageId, library }: {
                 storageId: number;
-                rootNoteStats: RemoteItem[];
+                library: PhotoLibrary;
             } = payload;
-            draft.rootNoteStats[storageId] = rootNoteStats;
+            if (!draft.photoLibraries[storageId]) {
+                draft.photoLibraries[storageId] = [];
+            }
+            draft.photoLibraries[storageId].push(library);
             return draft;
         }
         default:

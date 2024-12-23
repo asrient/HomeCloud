@@ -1,23 +1,14 @@
-import { AppName, FileList_, PhotoView, PhotosFetchOptions } from "@/lib/types";
+import { PhotoView, PhotosFetchOptions } from "@/lib/types";
 import Head from "next/head";
 import PageBar from "./pageBar";
-import UploadFileSelector from "./uploadFileSelector";
 import { Button } from "./ui/button";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { listPhotos, uploadPhotos, deletePhotos } from "@/lib/api/photos";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import useFilterStorages from "./hooks/useFilterStorages";
+import { listPhotos, deletePhotos } from "@/lib/api/photos";
 import Loading from "./ui/loading";
 import LazyImage from "./lazyImage";
 import { getThumbnail } from "@/lib/api/files";
 import { cn, isMobile } from "@/lib/utils";
-import { dateToTitle, mergePhotosList } from "@/lib/photoUtils";
+import { dateToTitle, mergePhotosList, libraryHash, libraryHashFromId } from "@/lib/photoUtils";
 import Image from "next/image";
 import {
     ContextMenu,
@@ -37,7 +28,7 @@ export type PhotosPageProps = {
     fetchOptions: PhotosFetchOptions;
 }
 
-const FETCH_LIMIT = 200;
+const FETCH_LIMIT = 50;
 
 type ClickProps = {
     onClick: (item: PhotoView, e: React.MouseEvent) => void;
@@ -77,7 +68,7 @@ function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick 
     return (<LazyImage
         fetchSrc={fetchThumbnailSrc}
         src={dafaultSrc}
-        alt={item.itemId.toString()}
+        alt={item.id.toString()}
         onClick={handleOnClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleRightClick}
@@ -104,13 +95,13 @@ function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridPr
     const gridClasses = useMemo(() => {
         switch (size) {
             case 1:
-                return 'grid-cols-9 md:grid-cols-12 lg:grid-cols-16';
+                return 'grid-cols-9 md:grid-cols-12 lg:grid-cols-16 xl:grid-cols-18';
             case 2:
-                return 'grid-cols-7 md:grid-cols-9 lg:grid-cols-12';
+                return 'grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-12';
             case 3:
-                return 'grid-cols-5 md:grid-cols-7 lg:grid-cols-9 lg:gap-2';
+                return 'grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 lg:gap-1';
             case 4:
-                return 'grid-cols-3 md:grid-cols-5 lg:grid-cols-6 md:gap-2 lg:gap-3';
+                return 'grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 md:gap-1';
             default:
                 return 'grid-cols-1';
         }
@@ -143,7 +134,7 @@ function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridPr
                         <div className='pb-2 text-md font-bold'>{section.title}</div>
                         <div className={'grid gap-1 ' + gridClasses}>
                             {section.photos.map((photo) => (
-                                <div className='w-full aspect-square' key={`${photo.itemId}-${photo.storageId}`}>
+                                <div className='w-full aspect-square' key={`${photo.id}-${photo.libraryId}-${photo.storageId}`}>
                                     <ThumbnailPhoto item={photo} {...clickProps} />
                                 </div>
                             ))}
@@ -162,11 +153,9 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const [photos, setPhotos] = useState<PhotoView[]>([]);
     const isLoadingRef = useRef(false);
     const [hasMore, setHasMore] = useState<{
-        [key: number]: boolean;
+        [key: string]: boolean;
     }>({});
     const [error, setError] = useState(null);
-    const [selectedStorageId, setSelectedStorageId] = useState<number | null>(null);
-    const activeStorages = useFilterStorages(AppName.Photos);
     const [zoom, setZoom] = useState(3);
     const [selectMode, setSelectMode] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -181,88 +170,95 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         setHasMore
     });
 
-    const enabledStorages = useMemo(() => {
-        return activeStorages.filter((storage) => fetchOptions.storageIds.includes(storage.id));
-    }, [activeStorages, fetchOptions.storageIds]);
-
     const throttleTimerRef = useRef<number | null>(null);
-    const [toBeMerged, setToBeMerged] = useState<{ [storageId: number]: PhotoView[] }>([]);
+    const toBeMergedRef = useRef<{ [libHash: string]: PhotoView[] }>({});
+    const countsRef = useRef<{ [libHash: string]: number }>({});
 
-    useEffect(() => {
-        if (!Object.keys(toBeMerged).length) return;
+    const scheduleUpdate = useCallback(() => {
+        if (!Object.keys(toBeMergedRef.current).length) return;
         if (throttleTimerRef.current) {
             clearTimeout(throttleTimerRef.current);
         }
+
         throttleTimerRef.current = window.setTimeout(() => {
+            const list = Object.values(toBeMergedRef.current);
+            if (!list.length) return;
+
             setPhotos((prevPhotos) => {
-                const list = Object.values(toBeMerged);
                 const { merged, discarded } = mergePhotosList([prevPhotos, ...list], fetchOptions.sortBy, fetchOptions.ascending ?? true);
-                setHasMore((prev) => {
+                const counts: { [libHash: string]: number } = {};
+                merged.forEach((p) => {
+                    const hash = libraryHashFromId(p.storageId, p.libraryId);
+                    counts[hash] = (counts[hash] + 1) || 1;
+                });
+                countsRef.current = counts;
+                toBeMergedRef.current = {};
+
+                (discarded.length > 0) && setHasMore((prev) => {
+                    console.log('discarded:', discarded);
                     const newHasMore = { ...prev };
-                    let changed = false;
                     discarded.forEach((list) => {
                         if (!list.length) return;
                         const first = list[0];
-                        newHasMore[first.storageId] = true;
-                        changed = true;
+                        newHasMore[libraryHashFromId(first.storageId, first.libraryId)] = true;
                     });
-                    if (changed) return newHasMore;
-                    return prev;
+                    return newHasMore;
                 });
+
                 return merged;
             });
-            setToBeMerged({});
         }, THROTTLE_DELAY);
+
         return () => {
             if (throttleTimerRef.current) {
                 clearTimeout(throttleTimerRef.current);
             }
         }
-    }, [toBeMerged, fetchOptions.ascending, fetchOptions.sortBy]);
+    }, [toBeMergedRef, fetchOptions.ascending, fetchOptions.sortBy]);
 
     const showSpinner = useMemo(() => {
-        const canLoadMore = !!(fetchOptions.storageIds.find((id) => hasMore[id] === undefined || hasMore[id]));
-        const pendingMerges = !!Object.keys(toBeMerged).length;
-        return canLoadMore || pendingMerges;
-    }, [fetchOptions.storageIds, hasMore, toBeMerged]);
+        const canLoadMore = !!(fetchOptions.libraries.find((lib) => hasMore[libraryHash(lib)] === undefined || hasMore[libraryHash(lib)]));
+        //const pendingMerges = !!Object.keys(toBeMerged).length;
+        return canLoadMore; // || pendingMerges;
+    }, [fetchOptions.libraries, hasMore]);
 
     const loadPhotos = useCallback(async () => {
         if (isLoadingRef.current) return;
-        const storageIds_ = fetchOptions.storageIds.filter((id) => (hasMore[id] === undefined || hasMore[id]) && (toBeMerged[id] === undefined));
-        if (!storageIds_.length) return;
+        const libs = fetchOptions.libraries.filter((lib) => (hasMore[libraryHash(lib)] === undefined || hasMore[libraryHash(lib)]) && (toBeMergedRef.current[libraryHash(lib)] === undefined));
+        if (!libs.length) return;
         isLoadingRef.current = true;
         setError(null);
-        const counts: { [storageId: number]: number } = {};
-        photos.forEach((p) => {
-            counts[p.storageId] = (counts[p.storageId] + 1) || 1;
-        });
-        console.log('loading photos', storageIds_, counts, hasMore);
-        const promises = storageIds_.map(async (id) => {
+        console.log('loading photos', libs, countsRef.current, hasMore);
+        const promises = libs.map(async (lib) => {
             try {
                 const storagePhotos = await listPhotos({
-                    offset: counts[id] || 0,
+                    offset: countsRef.current[libraryHash(lib)] || 0,
                     limit: FETCH_LIMIT,
                     sortBy: fetchOptions.sortBy,
-                    storageId: id,
+                    storageId: lib.storageId,
+                    libraryId: lib.id,
                     ascending: fetchOptions.ascending ?? true,
                 });
                 if (!isLoadingRef.current) return;
+                if (toBeMergedRef.current[libraryHash(lib)] !== undefined) return;
                 const storagePhotoViews: PhotoView[] = storagePhotos.map((p) => ({
                     ...p,
                     isSelected: false,
-                    storageId: id,
+                    storageId: lib.storageId,
+                    libraryId: lib.id,
                 }));
                 if (storagePhotoViews.length) {
-                    setToBeMerged((prev) => ({ ...prev, [id]: storagePhotoViews }));
+                    toBeMergedRef.current[libraryHash(lib)] = storagePhotoViews;
+                    scheduleUpdate();
                 }
-                setHasMore((prev) => ({ ...prev, [id]: storagePhotos.length === FETCH_LIMIT }));
+                setHasMore((prev) => ({ ...prev, [libraryHash(lib)]: storagePhotos.length === FETCH_LIMIT }));
             } catch (err: any) {
                 //setError(err.message);
                 if (!isLoadingRef.current) return;
                 console.error(err);
                 toast({
                     type: 'foreground',
-                    title: `Could not get photos for storage ${id}`,
+                    title: `Could not get photos for lib: ${libraryHash(lib)}`,
                     description: err.message,
                     color: 'red',
                 });
@@ -270,55 +266,33 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         });
         await Promise.allSettled(promises);
         isLoadingRef.current = false;
-    }, [fetchOptions.ascending, fetchOptions.sortBy, fetchOptions.storageIds, hasMore, photos, toBeMerged, toast]);
+    }, [fetchOptions.ascending, fetchOptions.libraries, fetchOptions.sortBy, hasMore, scheduleUpdate, toast]);
 
     const [currentFetchOptions, setCurrentFetchOptions] = useState<PhotosFetchOptions>(fetchOptions);
     useEffect(() => {
+        const currentLibHashes = currentFetchOptions.libraries.map(libraryHash);
+        const newLibHashes = fetchOptions.libraries.map(libraryHash);
         const hasChanged = (
             currentFetchOptions.sortBy !== fetchOptions.sortBy ||
             currentFetchOptions.ascending !== fetchOptions.ascending ||
-            currentFetchOptions.storageIds.length !== fetchOptions.storageIds.length ||
-            currentFetchOptions.storageIds.some((id) => !fetchOptions.storageIds.includes(id))
+            currentFetchOptions.libraries.length !== fetchOptions.libraries.length ||
+            currentLibHashes.some((id) => !newLibHashes.includes(id))
         );
         if (hasChanged) {
             console.log('Fetch options changed, resetting photos..');
             isLoadingRef.current = false;
             setPhotos([]);
             setHasMore({});
+            toBeMergedRef.current = {};
+            countsRef.current = {};
             setCurrentFetchOptions(fetchOptions);
         }
-    }, [currentFetchOptions.ascending, currentFetchOptions.sortBy, currentFetchOptions.storageIds, fetchOptions, isLoadingRef]);
+    }, [currentFetchOptions.ascending, currentFetchOptions.libraries, currentFetchOptions.sortBy, fetchOptions, isLoadingRef]);
 
     const fetchNew = useCallback(async () => {
         console.log('fetchNew')
         await loadPhotos();
     }, [loadPhotos]);
-
-    const onUpload = useCallback(async (files: FileList_) => {
-        if (!selectedStorageId) throw new Error('Please select a storage.');
-        try {
-            const storageId = selectedStorageId;
-            const { addCount, photos } = await uploadPhotos(storageId, files);
-            if (addCount === 0) return;
-            applyUpdates({
-                add: photos,
-                update: {},
-                delete: [],
-            }, storageId);
-        } catch (err: any) {
-            console.error(err);
-            toast({
-                type: 'foreground',
-                title: 'Upload failed',
-                description: err.message,
-                color: 'red',
-            });
-        }
-    }, [applyUpdates, selectedStorageId, toast])
-
-    const handleStorageSelect = useCallback((storageId: string | null) => {
-        setSelectedStorageId(storageId ? parseInt(storageId) : null);
-    }, []);
 
     const zoomIn = useCallback(() => {
         if (zoom >= 4) return;
@@ -333,7 +307,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const selectPhoto = useCallback((item: PhotoView, toggle = true, persistSelection?: boolean) => {
         const persistSelection_ = selectMode || persistSelection;
         setPhotos((prevPhotos) => prevPhotos.map((p) => {
-            if (p.itemId === item.itemId && p.storageId === item.storageId) {
+            if (p.id === item.id && p.storageId === item.storageId && p.libraryId === item.libraryId) {
                 return {
                     ...p,
                     isSelected: toggle ? !p.isSelected : true,
@@ -391,26 +365,24 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const deleteSelected = useCallback(async () => {
         if (!selectedCount) return;
-        const delMap = new Map<number, number[]>();
+        const delMap = new Map<string, { ids: number[]; storageId: number; libraryId: number; }>();
         selectedPhotos.forEach((p) => {
-            const photos = delMap.get(p.storageId) ?? [];
-            photos.push(p.itemId);
-            delMap.set(p.storageId, photos);
+            const libHash = libraryHashFromId(p.storageId, p.libraryId);
+            const photos = delMap.get(libHash) ?? { ids: [], storageId: p.storageId, libraryId: p.libraryId };
+            photos.ids.push(p.id);
+            delMap.set(libHash, photos);
         });
         const promises: Promise<void>[] = [];
         const errors: string[] = [];
-        delMap.forEach((itemIds, storageId) => {
+        delMap.forEach((del) => {
             promises.push((async () => {
                 try {
-                    const res = await deletePhotos({ storageId, itemIds });
+                    const res = await deletePhotos(del);
                     applyUpdates({
                         add: [],
                         update: {},
                         delete: res.deletedIds,
-                    }, storageId);
-                    Object.keys(res.errors).forEach((itemId) => {
-                        errors.push(`#${itemId}: ${res.errors[parseInt(itemId)]}`);
-                    });
+                    }, del.storageId, del.libraryId);
                 } catch (err: any) {
                     errors.push(err.message);
                 }
@@ -465,36 +437,6 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM13.5 10.5h-6" />
                         </svg>
                     </Button>
-                    <UploadFileSelector
-                        onUpload={onUpload}
-                        title='Upload Photos'
-                        accept='image/*, video/*'
-                        embedComponent={
-                            <Select
-                                onValueChange={handleStorageSelect}
-                                value={selectedStorageId?.toString()}
-                            >
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Select storage" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {
-                                        enabledStorages.map((storage) => (
-                                            <SelectItem key={storage.id} value={storage.id.toString()}>
-                                                {storage.name}
-                                            </SelectItem>
-                                        ))
-                                    }
-                                </SelectContent>
-                            </Select>
-                        }
-                    >
-                        <Button variant='ghost' size='icon'>
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                            </svg>
-                        </Button>
-                    </UploadFileSelector>
                 </PageBar>
                 <ContextMenu>
                     <ContextMenuTrigger>

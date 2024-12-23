@@ -8,7 +8,7 @@ import mime from "mime";
 import { watch, FSWatcher } from 'chokidar';
 import { AssetDetailType } from "./types";
 import AssetManager from "./assetManager";
-import { getPhotosParams } from "./types";
+import { getPhotosParams, DeleteResponse } from "./types";
 
 const PHOTOS_DB_NAME = 'Photos.db';
 
@@ -285,7 +285,7 @@ export class PhotoLibrary {
         return photo ? this.repo.getMinDetails(photo) : null;
     }
 
-    public async deletePhotos(ids: number[]) {
+    public async deletePhotos(ids: number[]): Promise<DeleteResponse> {
         const photos = await this.repo.getPhotosByIds(ids);
         const promises = photos.map(async (photo) => {
             await this.assetManager.delete(photo.directory, photo.filename);
@@ -298,6 +298,10 @@ export class PhotoLibrary {
         }
         const success = result.filter((r) => r.status === 'fulfilled');
         const successIds = success.map((r) => r.value);
-        await this.repo.deletePhotos(successIds);
+        const count = await this.repo.deletePhotos(successIds);
+        return {
+            deleteCount: count,
+            deletedIds: successIds,
+        };
     }
 }

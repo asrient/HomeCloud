@@ -1,12 +1,17 @@
-import { AppName, PinnedFolder, SidebarItem, SidebarList } from "@/lib/types";
+import { AppName, PhotoLibrary, PinnedFolder, SidebarItem, SidebarList } from "@/lib/types";
 import useFilterStorages from "./useFilterStorages";
 import { useAppState } from "./useAppState";
-import { folderViewUrl, buildNextUrl, photosByStorageUrl } from "@/lib/urls";
+import { folderViewUrl, buildNextUrl, photosLibraryUrl } from "@/lib/urls";
 import { iconUrl, FileType } from "@/lib/fileUtils";
 import { getIconForStorage, getUrlFromIconKey } from "@/lib/storageConfig";
 
 export type FilesSidebarData = {
     folderId?: string;
+    storageId: number;
+}
+
+export type PhotosSidebarData = {
+    libraryId: number;
     storageId: number;
 }
 
@@ -65,8 +70,8 @@ export function useFilesBar(): SidebarList {
 
 export function usePhotosBar(): SidebarList {
     const storages = useFilterStorages(AppName.Photos);
-    const { iconKey } = useAppState();
-    return [
+    const { photoLibraries } = useAppState();
+    const list: SidebarList = [
         {
             title: 'Library',
             items: [
@@ -84,16 +89,30 @@ export function usePhotosBar(): SidebarList {
                 },
             ]
         },
-        {
-            title: 'Devices',
-            items: storages?.map((storage) => ({
-                title: storage.name,
-                icon: getIconForStorage(storage, iconKey),
-                href: photosByStorageUrl(storage.id),
-                key: storage.id.toString(),
-            })) || []
-        }
     ]
+
+    storages?.forEach((storage) => {
+        const libs: PhotoLibrary[] = photoLibraries ? (photoLibraries[storage.id] || []) : [];
+        const items: SidebarItem[] = [];
+        libs.forEach((lib) => {
+            items.push({
+                title: lib.name,
+                icon: iconUrl(FileType.Folder),
+                href: photosLibraryUrl(storage.id, lib.id),
+                key: `${storage.id}-${lib.id}`,
+                rightClickable: true,
+                data: {
+                    libraryId: lib.id,
+                    storageId: storage.id,
+                } as PhotosSidebarData,
+            });
+        });
+        list.push({
+            title: storage.name,
+            items,
+        });
+    });
+    return list;
 }
 
 export function useSettingsBar(): SidebarList {
@@ -101,12 +120,6 @@ export function useSettingsBar(): SidebarList {
     return [
         {
             items: [
-                {
-                    title: 'Profile',
-                    href: buildNextUrl('/settings/profile'),
-                    icon: '/icons/user.png',
-                    key: 'profile',
-                },
                 {
                     title: 'General',
                     href: buildNextUrl('/settings/general'),

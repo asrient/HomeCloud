@@ -57,8 +57,6 @@ function StorageItem({ storage, isDisabled }: { storage: Storage, isDisabled: bo
                         {
                             storage.type === StorageType.Agent ?
                                 (<span>
-                                    {storage.agent?.remoteProfileName}
-                                    <span className="p-1">•</span>
                                     {deviceIdFromFingerprint(storage.agent!.fingerprint)}
                                 </span>) :
                                 getName(storage.type)
@@ -97,7 +95,7 @@ function EmptyPlaceholder({
 }
 
 function DevicesPopover() {
-    const { profile, storages, disabledStorages, serverConfig, iconKey } = useAppState();
+    const { storages, disabledStorages, serverConfig, iconKey, isAuthenticated } = useAppState();
     const [settingsUrl_, setSettingsUrl_] = useState<NextUrl | null>(null);
     const [addAgentModalOpen, setAddAgentModalOpen] = useState(false);
 
@@ -139,7 +137,7 @@ function DevicesPopover() {
         return getUrlFromIconKey(iconKey);
     }, [iconKey]);
 
-    if (!profile) return null;
+    if (!isAuthenticated) return null;
 
     return (
         <>
@@ -160,8 +158,6 @@ function DevicesPopover() {
                                 <div className="text-[0.6rem] leading-tight text-slate-500">THIS DEVICE</div>
                                 <div className="text-[0.9rem]">{serverConfig?.deviceName}</div>
                                 <div className="text-[0.7rem] leading-tight text-slate-500">
-                                    {profile.name}
-                                    <span className="p-1">•</span>
                                     {deviceIdFromFingerprint(serverConfig?.fingerprint || '')}
                                 </div>
                             </div>
@@ -258,9 +254,6 @@ export default function AppHeader() {
                         </TabsTrigger>
                         <TabsTrigger className={tabClass} value="photos">
                             Photos
-                        </TabsTrigger>
-                        <TabsTrigger className={tabClass} value="notes">
-                            Notes
                         </TabsTrigger>
                         <TabsTrigger className={tabClass} value="files">
                             Files

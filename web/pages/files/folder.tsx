@@ -34,7 +34,6 @@ import ConfirmModal from '@/components/confirmModal'
 import { ActionTypes } from '@/lib/state'
 import { toast, useToast } from '@/components/ui/use-toast'
 import mime from 'mime'
-import ImportPhotosModal from '@/components/importPhotosModal'
 import PreviewModal from '@/components/preview'
 import DeviceSelectorModal, { Device } from '@/components/deviceSelectorModal'
 
@@ -56,7 +55,6 @@ function OpenInDevice({ file, reset }: {
         storageId: file.storageId,
         fileId: file.id,
         targetDeviceFingerprint: device.fingerprint,
-        targetProfileId: device.profileId,
       });
     } catch (e: any) {
       console.error(e);
@@ -625,7 +623,6 @@ const Page: NextPageWithConfig = () => {
             onConfirm={onDelete}>
           </ConfirmModal>
         }
-        <ImportPhotosModal files={selectedItems} isOpen={importPhotosDialogOpen} onOpenChange={setImportPhotosDialogOpen} />
         <OpenInDevice file={remoteOpenFile} reset={() => setRemoteOpenFile(null)} />
         <PreviewModal item={previewItem} close={() => setPreviewItem(null)} />
         {

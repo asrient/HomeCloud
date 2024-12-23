@@ -1,6 +1,5 @@
 import { ApiClient } from './apiClient';
 import { Storage, StorageAuthType, StorageType } from '../types';
-import { boolean } from 'zod';
 
 export type AddStorageParams = {
     name: string;
@@ -58,7 +57,6 @@ export async function deleteStorage(storageId: number) {
 export type PairParams = {
     host: string;
     fingerprint: string;
-    targetProfileId: number;
     password?: string;
 };
 

@@ -40,3 +40,8 @@ export type AssetDetailType = {
     height?: number;
     capturedOn: Date;
 };
+
+export type DeleteResponse = {
+    deleteCount: number,
+    deletedIds: number[],
+};
