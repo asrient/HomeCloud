@@ -147,8 +147,6 @@ function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridPr
     )
 }
 
-const THROTTLE_DELAY = 1000;
-
 export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: PhotosPageProps) {
     const [photos, setPhotos] = useState<PhotoView[]>([]);
     const isLoadingRef = useRef(false);
@@ -170,51 +168,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         setHasMore
     });
 
-    const throttleTimerRef = useRef<number | null>(null);
-    const toBeMergedRef = useRef<{ [libHash: string]: PhotoView[] }>({});
     const countsRef = useRef<{ [libHash: string]: number }>({});
-
-    const scheduleUpdate = useCallback(() => {
-        if (!Object.keys(toBeMergedRef.current).length) return;
-        if (throttleTimerRef.current) {
-            clearTimeout(throttleTimerRef.current);
-        }
-
-        throttleTimerRef.current = window.setTimeout(() => {
-            const list = Object.values(toBeMergedRef.current);
-            if (!list.length) return;
-
-            setPhotos((prevPhotos) => {
-                const { merged, discarded } = mergePhotosList([prevPhotos, ...list], fetchOptions.sortBy, fetchOptions.ascending ?? true);
-                const counts: { [libHash: string]: number } = {};
-                merged.forEach((p) => {
-                    const hash = libraryHashFromId(p.storageId, p.libraryId);
-                    counts[hash] = (counts[hash] + 1) || 1;
-                });
-                countsRef.current = counts;
-                toBeMergedRef.current = {};
-
-                (discarded.length > 0) && setHasMore((prev) => {
-                    console.log('discarded:', discarded);
-                    const newHasMore = { ...prev };
-                    discarded.forEach((list) => {
-                        if (!list.length) return;
-                        const first = list[0];
-                        newHasMore[libraryHashFromId(first.storageId, first.libraryId)] = true;
-                    });
-                    return newHasMore;
-                });
-
-                return merged;
-            });
-        }, THROTTLE_DELAY);
-
-        return () => {
-            if (throttleTimerRef.current) {
-                clearTimeout(throttleTimerRef.current);
-            }
-        }
-    }, [toBeMergedRef, fetchOptions.ascending, fetchOptions.sortBy]);
 
     const showSpinner = useMemo(() => {
         const canLoadMore = !!(fetchOptions.libraries.find((lib) => hasMore[libraryHash(lib)] === undefined || hasMore[libraryHash(lib)]));
@@ -224,11 +178,13 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const loadPhotos = useCallback(async () => {
         if (isLoadingRef.current) return;
-        const libs = fetchOptions.libraries.filter((lib) => (hasMore[libraryHash(lib)] === undefined || hasMore[libraryHash(lib)]) && (toBeMergedRef.current[libraryHash(lib)] === undefined));
+        const libs = fetchOptions.libraries.filter((lib) => (hasMore[libraryHash(lib)] === undefined || hasMore[libraryHash(lib)]));
         if (!libs.length) return;
         isLoadingRef.current = true;
         setError(null);
         console.log('loading photos', libs, countsRef.current, hasMore);
+        const newPhotos: PhotoView[][] = [];
+        const resultCount: { [libHash: string]: number } = {};
         const promises = libs.map(async (lib) => {
             try {
                 const storagePhotos = await listPhotos({
@@ -240,7 +196,6 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                     ascending: fetchOptions.ascending ?? true,
                 });
                 if (!isLoadingRef.current) return;
-                if (toBeMergedRef.current[libraryHash(lib)] !== undefined) return;
                 const storagePhotoViews: PhotoView[] = storagePhotos.map((p) => ({
                     ...p,
                     isSelected: false,
@@ -248,10 +203,9 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                     libraryId: lib.id,
                 }));
                 if (storagePhotoViews.length) {
-                    toBeMergedRef.current[libraryHash(lib)] = storagePhotoViews;
-                    scheduleUpdate();
+                    newPhotos.push(storagePhotoViews);
                 }
-                setHasMore((prev) => ({ ...prev, [libraryHash(lib)]: storagePhotos.length === FETCH_LIMIT }));
+                resultCount[libraryHash(lib)] = storagePhotos.length;
             } catch (err: any) {
                 //setError(err.message);
                 if (!isLoadingRef.current) return;
@@ -265,8 +219,35 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             }
         });
         await Promise.allSettled(promises);
+
+        const { merged, discarded } = mergePhotosList(newPhotos, fetchOptions.sortBy, fetchOptions.ascending ?? true);
+
+        const discardedCounts: { [libHash: string]: number } = {};
+        discarded.forEach((plist) => {
+            plist.forEach((p) => {
+                const hash = libraryHashFromId(p.storageId, p.libraryId);
+                discardedCounts[hash] = (discardedCounts[hash] + 1) || 1;
+            });
+        });
+
+        setHasMore((prev) => {
+            const newHasMore = { ...prev };
+            libs.forEach((lib) => {
+                const hash = libraryHash(lib);
+                newHasMore[hash] = resultCount[hash] === undefined || resultCount[hash] === FETCH_LIMIT || (discardedCounts[hash] || 0) > 0;
+            });
+            return newHasMore;
+        });
+
+        libs.forEach((lib) => {
+            const hash = libraryHash(lib);
+            countsRef.current[hash] = (countsRef.current[hash] || 0) + (resultCount[hash] || 0) - (discardedCounts[hash] || 0);
+        });
+
+        setPhotos((prevPhotos) => [...prevPhotos, ...merged]);
+
         isLoadingRef.current = false;
-    }, [fetchOptions.ascending, fetchOptions.libraries, fetchOptions.sortBy, hasMore, scheduleUpdate, toast]);
+    }, [fetchOptions.ascending, fetchOptions.libraries, fetchOptions.sortBy, hasMore, toast]);
 
     const [currentFetchOptions, setCurrentFetchOptions] = useState<PhotosFetchOptions>(fetchOptions);
     useEffect(() => {
@@ -283,7 +264,6 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             isLoadingRef.current = false;
             setPhotos([]);
             setHasMore({});
-            toBeMergedRef.current = {};
             countsRef.current = {};
             setCurrentFetchOptions(fetchOptions);
         }

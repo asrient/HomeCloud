@@ -65,15 +65,45 @@ function comesFirst(photos: PhotoView[], sortBy: PhotosSortOption, ascending: bo
     }
 }
 
+// check if the list is actually sorted
+function isListSorted(list: PhotoView[], sortBy: PhotosSortOption, ascending: boolean) {
+    for (let i = 0; i < list.length - 1; i++) {
+        const a = list[i];
+        const b = list[i + 1];
+        if (ascending) {
+            if (a[sortBy] > b[sortBy]) {
+                return false;
+            }
+        } else {
+            if (a[sortBy] < b[sortBy]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 export function mergePhotosList(sortedLists: PhotoView[][], sortBy: PhotosSortOption, ascending: boolean, endMarker: PhotoView | null = null): {
     merged: PhotoView[],
     discarded: PhotoView[][],
 } {
+    console.log('Storted lists to merge:', sortedLists);
+
+    // // Debug: check if the lists are actually sorted
+    // sortedLists.forEach((list, i) => {
+    //     if(!isListSorted(list, sortBy, ascending)) {
+    //         console.error('List', i, 'is not sorted');
+    //     } else {
+    //         console.log('List', i, 'is sorted');
+    //     }
+    // });
+
     sortedLists = sortedLists.filter((list) => list.length > 0);
     if (!endMarker) {
-        const endMarkerInd = comesFirst(sortedLists.map((list) => list[list.length - 1]), sortBy, ascending);
+        const endMarkerInd = comesFirst(sortedLists.map((list) => list[list.length - 1]).reverse(), sortBy, ascending);
         endMarker = sortedLists[endMarkerInd][sortedLists[endMarkerInd].length - 1];
     }
+    // console.log('End marker:', endMarker);
     let totalLength = 0;
     sortedLists.forEach((list) => totalLength += list.length);
     const merged: PhotoView[] = [];
