@@ -7,18 +7,30 @@ const TMP_PACKAGE_JSON = '.package.tmp.json';
 const TMP_DESKTOP_ENV_FILE = 'src/.env.tmp.js';
 const DESKTOP_ENV_FILE = 'src/env.js';
 
+const ALLOWED_NODE_ENVS = ['development', 'production'];
+
 function getEnvFileContent(packageJson) {
     if (!process.env.CLIENT_BASE_URL) {
         throw new Error('CLIENT_BASE_URL environment variable is required to be set.');
     }
+
+    const NODE_ENV = process.env.NODE_ENV || 'production';
+
+    if (!ALLOWED_NODE_ENVS.includes(NODE_ENV)) {
+        throw new Error(`NODE_ENV should be one of ${ALLOWED_NODE_ENVS.join(', ')}. Received: ${NODE_ENV}`);
+    }
+
+    console.log('NODE_ENV:', NODE_ENV);
     console.log('CLIENT_BASE_URL:', process.env.CLIENT_BASE_URL);
     console.log('ONEAUTH_SERVER_URL:', process.env.ONEAUTH_SERVER_URL || 'NOT SET');
     console.log('ONEAUTH_APP_ID:', !!process.env.ONEAUTH_APP_ID ? '**hidden**' : 'NOT SET');
+
     if (process.env.ONEAUTH_SERVER_URL && !process.env.ONEAUTH_APP_ID) {
         throw new Error('ONEAUTH_APP_ID environment variable is required to be set.');
     }
+
     const env = {
-        NODE_ENV: 'production',
+        NODE_ENV,
         CLIENT_BASE_URL: process.env.CLIENT_BASE_URL,
         DESKTOP_IS_PACKAGED: true,
         ONEAUTH_SERVER_URL: process.env.ONEAUTH_SERVER_URL,
@@ -29,7 +41,7 @@ function getEnvFileContent(packageJson) {
     const txt = `
 // BY ASRIENT
 // Auto-generated file. Do not edit.
-// Contains hard coded environment variables for desktop, should not be committed to the repository.
+// Contains hard coded environment variables, do not commit to git.
 
 const env = ${JSON.stringify(env, null, 2)};
 

@@ -3,12 +3,14 @@ import { InfoRepository, PhotoRepository } from "./repository";
 import { verbose } from "sqlite3";
 import path from "node:path";
 import { envConfig } from "../../envConfig";
-import fs from "fs/promises";
+import fs from "fs";
 import mime from "mime";
 import { watch, FSWatcher } from 'chokidar';
 import { AssetDetailType } from "./types";
 import AssetManager from "./assetManager";
 import { getPhotosParams, DeleteResponse } from "./types";
+
+const fsPromises = fs.promises;
 
 const PHOTOS_DB_NAME = 'Photos.db';
 
@@ -26,7 +28,7 @@ export class PhotoLibrary {
     private repo: PhotoRepository;
     private infoRepo: InfoRepository;
     private lastUpdate: Date;
-    private isLoading: boolean = false;
+    private isMounted: boolean = false;
     private watcher: FSWatcher;
     private assetManager: AssetManager;
     private firstScan: boolean = true;
@@ -43,9 +45,8 @@ export class PhotoLibrary {
 
     public async mount() {
         console.log("📸 Initializing Photo Library at:", this.location);
-        this.isLoading = true;
         this.firstScan = true;
-        const stats = await fs.stat(this.location);
+        const stats = await fsPromises.stat(this.location);
         this.firstScanDirMtime = stats.mtime;
         this.db = new Sequelize({
             dialect: "sqlite",
@@ -67,11 +68,11 @@ export class PhotoLibrary {
         console.log("📸 Last Version:", lastVersion);
         await this.searchUpdatedFiles();
         this.startWatching();
-        this.isLoading = false;
+        this.isMounted = true;
     }
 
-    get isLibraryLoading() {
-        return this.isLoading;
+    get isLibraryMounted() {
+        return this.isMounted;
     }
 
     public async eject() {
@@ -82,6 +83,7 @@ export class PhotoLibrary {
             await this.batchProcessUpdates();
         }
         await this.db.close();
+        this.isMounted = false;
     }
 
     private async setLastUpdateCounter(date: Date) {
@@ -114,7 +116,7 @@ export class PhotoLibrary {
                 this.firstScan = false;
                 this.firstScanDirMtime = null;
             } else {
-                const stats = await fs.stat(directoryPath);
+                const stats = await fsPromises.stat(directoryPath);
                 mtime = stats.mtime;
             }
 
@@ -128,7 +130,7 @@ export class PhotoLibrary {
                 maxMtime = mtime;
             }
 
-            const entries = await fs.readdir(directoryPath, { withFileTypes: true });
+            const entries = await fsPromises.readdir(directoryPath, { withFileTypes: true });
             const allAssetFilenames = new Set<string>();
 
             const tasks = entries.map(async (entry) => {
@@ -158,6 +160,9 @@ export class PhotoLibrary {
         }
 
         await traverseDirectory(this.location, true);
+        console.log("📸 Found new files count:", newFiles.length);
+        console.log("📸 Found deleted files count:", deletedFiles.length);
+
         if (newFiles.length === 0 && deletedFiles.length === 0 && this.isDeltaNegligible(maxMtime, this.lastUpdate)) return;
         await this.ingestUpdates({ deletedFiles, addedFiles: newFiles }, maxMtime);
     }
@@ -174,15 +179,19 @@ export class PhotoLibrary {
             }
         });
         this.watcher.on('add', (path_) => {
+            console.debug("📸 File added:", path_);
             if (!this.validateAssetPath(path_)) return;
             path_ = path.relative(this.location, path_);
             this.ingestUpdates({ deletedFiles: [], addedFiles: [path_] }, new Date());
         });
         this.watcher.on('unlink', (path_) => {
+            console.debug("📸 File deleted:", path_);
             if (!this.validateAssetPath(path_)) return;
             path_ = path.relative(this.location, path_);
             this.ingestUpdates({ deletedFiles: [path_], addedFiles: [] }, new Date());
         });
+
+        console.log("📸 Watching for changes in:", this.location);
     }
 
     private updatesQueue: { deletedFiles: string[], addedFiles: string[], timestamp: Date }[] = [];
@@ -244,7 +253,7 @@ export class PhotoLibrary {
             const mimeType = mime.getType(file) || '';
             const detail = await this.assetManager.generateDetail(directory, filename, mimeType);
             const fullPath = path.join(this.location, directory, filename);
-            const size = (await fs.stat(fullPath)).size;
+            const size = (await fsPromises.stat(fullPath)).size;
             photos.push({ directory, filename, detail, mime: mimeType, size });
         });
 
@@ -276,16 +285,25 @@ export class PhotoLibrary {
         }
     }
 
+    private requireLibraryMounted() {
+        if (!this.isMounted) {
+            throw new Error("Library not mounted");
+        }
+    }
+
     public async getPhotos(params: getPhotosParams) {
+        this.requireLibraryMounted();
         return (await this.repo.getPhotos(params)).map((p) => this.repo.getMinDetails(p));
     }
 
     public async getPhoto(id: number) {
+        this.requireLibraryMounted();
         const photo = await this.repo.getPhoto(id);
         return photo ? this.repo.getMinDetails(photo) : null;
     }
 
     public async deletePhotos(ids: number[]): Promise<DeleteResponse> {
+        this.requireLibraryMounted();
         const photos = await this.repo.getPhotosByIds(ids);
         const promises = photos.map(async (photo) => {
             await this.assetManager.delete(photo.directory, photo.filename);

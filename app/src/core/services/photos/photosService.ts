@@ -24,15 +24,24 @@ export default class PhotosService {
     if (locations.length === 0) {
       locations.push(await PhotosService.instance.createFirstLibrary());
     }
-    locations.forEach((rec) => {
+
+    const promises = locations.map(async (rec) => {
       const lib = new PhotoLibrary(rec.location);
-      lib.mount();
-      PhotosService.instance.libraries[rec.id] = {
-        name: rec.name,
-        location: rec.location,
-        lib,
-      };
+      try {
+        await lib.mount();
+
+        PhotosService.instance.libraries[rec.id] = {
+          name: rec.name,
+          location: rec.location,
+          lib,
+        };
+      } catch (e) {
+        console.error(`Failed to mount library ${rec.name} at ${rec.location}:`, e);
+        return;
+      }
     });
+
+    await Promise.allSettled(promises);
   }
 
   private async checkLocationAccess(location: string): Promise<boolean> {

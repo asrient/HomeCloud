@@ -137,7 +137,7 @@ export class WatchedFile {
     }
 
     private isSaving = false;
-    async saveChanges() {
+    saveChanges = () => {
         if (this.isSaving || !native) {
             return;
         }
@@ -161,7 +161,7 @@ export class WatchedFile {
         })
     }
 
-    async writeToRemote() {
+    writeToRemote = async () => {
         this.isSaving = true;
         try {
             const stream = fs.createReadStream(this.tmpFile);

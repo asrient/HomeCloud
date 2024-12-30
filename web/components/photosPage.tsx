@@ -404,7 +404,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     return (
         <>
             <Head>
-                <title>{`${pageTitle} - Photos`}</title>
+                <title>{pageTitle}</title>
             </Head>
             <main>
                 <PhotosPreviewModal

@@ -49,7 +49,7 @@
     "bcrypt": "^5.1.1",
     "bonjour-service": "^1.2.1",
     "busboy": "^1.6.0",
-    "chokidar": "^4.0.1",
+    "chokidar": "^4.0.3",
     "cloneable-readable": "^3.0.0",
     "cookie": "^1.0.1",
     "dropbox": "^10.34.0",
