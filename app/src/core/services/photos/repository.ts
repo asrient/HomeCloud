@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { DataTypes, Model, ModelStatic, Sequelize } from 'sequelize';
+import { DataTypes, Model, ModelStatic, Op, Sequelize } from 'sequelize';
 import { ModelAttributes } from 'sequelize/types';
 import { createPhotoType, getPhotosParams } from './types';
 
@@ -9,12 +9,16 @@ const COLUMNS: ModelAttributes = {
         primaryKey: true,
         autoIncrement: true,
     },
-    directory: {
+    directoryName: {
         type: DataTypes.STRING,
         allowNull: false,
         validate: {
             notEmpty: true,
         },
+    },
+    parentDirectory: {
+        type: DataTypes.STRING,
+        allowNull: true,
     },
     filename: {
         type: DataTypes.STRING,
@@ -71,7 +75,7 @@ const COLUMNS: ModelAttributes = {
 
 export interface PhotoModel extends Model {
     id: number;
-    directory: string;
+    directoryName: string;
     filename: string;
     mimeType: string;
     capturedOn: Date;
@@ -83,6 +87,7 @@ export interface PhotoModel extends Model {
     width: number;
     originDevice: string | null;
     metadata: string | null;
+    parentDirectory: string | null;
 }
 
 export interface InfoModel extends Model {
@@ -145,7 +150,7 @@ export class PhotoRepository {
         this.location = location;
         this.Photo = db.define<PhotoModel>('Photo', COLUMNS, {
             indexes: [
-                { unique: true, fields: ['directory', 'filename'] },
+                { unique: true, fields: ['parentDirectory', 'directoryName', 'filename'] },
             ]
         });
     }
@@ -153,7 +158,7 @@ export class PhotoRepository {
     getMinDetails(photo: PhotoModel) {
         return {
             id: photo.id,
-            fileId: path.join(this.location, photo.directory, photo.filename),
+            fileId: path.join(this.location, photo.parentDirectory || '', photo.directoryName, photo.filename),
             mimeType: photo.mimeType,
             capturedOn: photo.capturedOn,
             addedOn: photo.addedOn,
@@ -175,7 +180,18 @@ export class PhotoRepository {
         directory = directory.replace(/\\/g, '/');
         if (directory.startsWith('/')) directory = directory.slice(1);
         if (directory === '') directory = '.';
+        if (directory.endsWith('/')) directory = directory.slice(0, -1);
         return directory;
+    }
+
+    getDirectoryParts(dir: string): { parent: string; name: string } {
+        dir = this.normalizeDirectory(dir);
+        if (dir === '.') return { parent: null, name: '.' };
+        const parts = dir.split('/');
+        const name = parts.pop();
+        let parent = parts.join('/');
+        if (parent === '') parent = '.';
+        return { parent, name };
     }
 
     async updateBulk(
@@ -184,7 +200,12 @@ export class PhotoRepository {
         const promises: Promise<[affectedCount: number, affectedRows: PhotoModel[]]>[] = [];
         for (const id of Object.keys(updates).map((id) => parseInt(id))) {
             const update = updates[id];
-            if (update.directory) update.directory = this.normalizeDirectory(update.directory);
+            if (update.directory) {
+                const { parent, name } = this.getDirectoryParts(update.directory);
+                update.directoryName = name;
+                update.parentDirectory = parent;
+                delete update.directory;
+            }
             if (update.id) delete update.id;
             if (update.addedOn) delete update.addedOn;
             update.lastEditedOn = new Date();
@@ -200,12 +221,53 @@ export class PhotoRepository {
         return this.Photo.destroy({ where: { id: ids } });
     }
 
-    async deletePhotosByPath(paths: {directory: string; filename: string}[]) {
+    async deletePhotosByPath(paths: { directory: string; filename: string }[]) {
         const promises = paths.map(({ directory, filename }) => {
-            directory = this.normalizeDirectory(directory);
-            return this.Photo.destroy({ where: { directory, filename } });
+            const { name, parent } = this.getDirectoryParts(directory);
+            return this.Photo.destroy({ where: { directoryName: name, filename, parentDirectory: parent } });
         });
         return Promise.all(promises);
+    }
+
+    async deletePhotosByDirectories(directories: string[]) {
+        // delete photos where the directory as its parent
+        // this will not work if directory is root
+        const promises: Promise<number>[] = [];
+        directories.forEach((directory) => {
+            directory = this.normalizeDirectory(directory);
+            if (directory === '.') {
+                throw new Error('Cannot delete root directory from library');
+            }
+            const { name, parent } = this.getDirectoryParts(directory);
+            promises.push(this.Photo.destroy({
+                where: {
+                    [Op.or]: [
+                        { parentDirectory: { [Op.startsWith]: `${directory}/` } },
+                        { parentDirectory: directory },
+                        { directoryName: name, parentDirectory: parent },
+                    ],
+
+                },
+            }));
+        });
+        const result = await Promise.all(promises);
+        let sum = 0;
+        result.forEach((count) => {
+            sum += count;
+        });
+        return sum;
+    }
+
+    async getImmediateChildDirectories(directory: string) {
+        directory = this.normalizeDirectory(directory);
+        const resp = await this.Photo.findAll({
+            where: {
+                parentDirectory: directory,
+            },
+            attributes: ['directoryName'],
+            group: ['directoryName'],
+        });
+        return resp.map((photo) => path.join(directory, photo.directoryName));
     }
 
     async deleteAllPhotos() {
@@ -222,20 +284,35 @@ export class PhotoRepository {
 
     async createPhotosBulk(items: createPhotoType[]): Promise<PhotoModel[]> {
         // normalize directory field
-        items.forEach((item) => {
-            item.directory = this.normalizeDirectory(item.directory);
+        const photoParams: createPhotoExtendedType[] = items.map((item) => {
+            const { parent, name } = this.getDirectoryParts(item.directory);
+            return {
+                ...item,
+                parentDirectory: parent,
+                directoryName: name,
+                lastEditedOn: new Date(),
+                addedOn: new Date(),
+            };
         });
-        return this.Photo.bulkCreate(items);
+        return this.Photo.bulkCreate(photoParams);
     }
 
     async getFilenamesForDirectory(directory: string) {
-        directory = this.normalizeDirectory(directory);
+        const { name, parent } = this.getDirectoryParts(directory);
         const resp = await this.Photo.findAll({
             where: {
-                directory,
+                directoryName: name,
+                parentDirectory: parent,
             },
             attributes: ['filename'],
         });
         return resp.map((photo) => photo.filename);
     }
 }
+
+type createPhotoExtendedType = Omit<createPhotoType, 'directory'> & {
+    parentDirectory: string | null;
+    directoryName: string;
+    lastEditedOn: Date;
+    addedOn: Date;
+};

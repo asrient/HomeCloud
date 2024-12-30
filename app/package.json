@@ -46,7 +46,6 @@
   "dependencies": {
     "@googleapis/drive": "^8.14.0",
     "ajv": "^8.12.0",
-    "bcrypt": "^5.1.1",
     "bonjour-service": "^1.2.1",
     "busboy": "^1.6.0",
     "chokidar": "^4.0.3",
@@ -84,6 +83,7 @@
     "@types/node": "^22.9.0",
     "@types/qs": "^6.9.7",
     "@types/uuid": "^9.0.5",
+    "dotenv": "^16.4.7",
     "nodemon": "^3.1.7",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3",

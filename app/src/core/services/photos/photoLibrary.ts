@@ -5,14 +5,14 @@ import path from "node:path";
 import { envConfig } from "../../envConfig";
 import fs from "fs";
 import mime from "mime";
-import { watch, FSWatcher } from 'chokidar';
-import { AssetDetailType } from "./types";
+import { AssetDetailType, createPhotoType } from "./types";
 import AssetManager from "./assetManager";
 import { getPhotosParams, DeleteResponse } from "./types";
+import { FSWatcher } from "node:fs";
 
 const fsPromises = fs.promises;
 
-const PHOTOS_DB_NAME = 'Photos.db';
+const PHOTOS_DB_NAME = '.PhotosLibrary';
 
 type createPhoto_ = {
     directory: string;
@@ -44,6 +44,9 @@ export class PhotoLibrary {
     }
 
     public async mount() {
+        if (this.isMounted) {
+            return;
+        }
         console.log("📸 Initializing Photo Library at:", this.location);
         this.firstScan = true;
         const stats = await fsPromises.stat(this.location);
@@ -95,8 +98,19 @@ export class PhotoLibrary {
     }
 
     validateAssetPath(path: string) {
+        if (path.startsWith('.')) return false;
         const mimeType = mime.getType(path);
-        return mimeType?.startsWith('image') || mimeType?.startsWith('video');
+        if (!mimeType) return false;
+        return this.validateMimeType(mimeType);
+    }
+
+    validateMimeType(mimeType: string) {
+        return mimeType.startsWith('image') || mimeType.startsWith('video');
+    }
+
+    ignoreDirectory(dirPath: string) {
+        const dirname = path.basename(dirPath);
+        return dirname.startsWith('.');
     }
 
     /**
@@ -107,9 +121,12 @@ export class PhotoLibrary {
         console.log("📸 Searching for updated files starting from:", this.lastUpdate);
         const newFiles: string[] = [];
         const deletedFiles: string[] = [];
+        const deletedDirs: string[] = [];
         let maxMtime = this.lastUpdate;
 
         const traverseDirectory = async (directoryPath: string, isRoot = false): Promise<void> => {
+            if (!isRoot && this.ignoreDirectory(directoryPath)) return;
+
             let mtime: Date;
             if (this.firstScan && isRoot) {
                 mtime = this.firstScanDirMtime;
@@ -130,22 +147,37 @@ export class PhotoLibrary {
                 maxMtime = mtime;
             }
 
+            const relativeDirPath = path.relative(this.location, directoryPath);
+
+            const trackedDirs = new Set<string>(await this.repo.getImmediateChildDirectories(relativeDirPath));
+
             const entries = await fsPromises.readdir(directoryPath, { withFileTypes: true });
             const allAssetFilenames = new Set<string>();
 
             const tasks = entries.map(async (entry) => {
                 const filename = entry.name;
                 const fullPath = path.join(directoryPath, filename);
+                const relativePath = path.join(relativeDirPath, filename);
                 if (entry.isFile() && this.validateAssetPath(fullPath)) {
                     allAssetFilenames.add(filename);
                 } else if (entry.isDirectory()) {
+                    trackedDirs.delete(relativePath);
                     await traverseDirectory(fullPath); // Recurse into subdirectory
                 }
             });
 
-            await Promise.all(tasks); // Wait for all tasks to complete
+            const result = await Promise.allSettled(tasks); // Wait for all tasks to complete
 
-            const relativeDirPath = path.relative(this.location, directoryPath);
+            // Log errors if any
+            const failed = result.filter((r) => r.status === 'rejected');
+            if (failed.length > 0) {
+                console.error("Error traversing directory", directoryPath, failed);
+            }
+
+            // Add directories to global deletedDirs that have been deleted, i.e exists in DB but not on FS
+            deletedDirs.push(...Array.from(trackedDirs));
+
+            // Check for new files and deleted files by comparing with tracked filenames on DB
             const trackedFilenames = await this.repo.getFilenamesForDirectory(relativeDirPath);
             trackedFilenames.forEach((filename) => {
                 if (allAssetFilenames.has(filename)) {
@@ -164,41 +196,106 @@ export class PhotoLibrary {
         console.log("📸 Found deleted files count:", deletedFiles.length);
 
         if (newFiles.length === 0 && deletedFiles.length === 0 && this.isDeltaNegligible(maxMtime, this.lastUpdate)) return;
-        await this.ingestUpdates({ deletedFiles, addedFiles: newFiles }, maxMtime);
+        await this.ingestUpdates({ deletedFiles, addedFiles: newFiles, deletedDirs }, maxMtime);
+    }
+
+    private async walkDirectory(dirRelativePath: string) {
+        const fullDirPath = path.join(this.location, dirRelativePath);
+        if (this.ignoreDirectory(fullDirPath)) return [];
+
+        const entries = await fsPromises.readdir(fullDirPath, { withFileTypes: true });
+        const files: string[] = [];
+        const tasks = entries.map(async (entry) => {
+            const relativePath = path.join(dirRelativePath, entry.name);
+            if (entry.isFile() && this.validateAssetPath(relativePath)) {
+                files.push(relativePath);
+            } else if (entry.isDirectory()) {
+                const children = await this.walkDirectory(relativePath);
+                files.push(...children);
+            }
+        });
+        await Promise.all(tasks);
+        return files;
+    }
+
+    private handleFileChange = async (filename: string) => {
+        if (filename === PHOTOS_DB_NAME) return;
+        if (filename.startsWith('.')) return;
+
+        const fullPath = path.join(this.location, filename);
+        const relativePath = path.relative(this.location, fullPath);
+        console.debug("📸 File changed:", filename);
+
+        let stats: fs.Stats = null;
+        try {
+            stats = await fsPromises.stat(fullPath);
+        } catch (e) {
+            // Ignored
+        }
+        const isAssetFile = this.validateAssetPath(fullPath);
+        const date = new Date();
+
+        const params = { deletedFiles: [], addedFiles: [], deletedDirs: [] };
+
+        if (!stats) {
+            if (isAssetFile) {
+                params.deletedFiles.push(relativePath);
+            } else {
+                params.deletedDirs.push(relativePath);
+            }
+        } else if (stats.isDirectory()) {
+            // walk the directory and find all files
+            const files = await this.walkDirectory(relativePath);
+            params.addedFiles.push(...files);
+        } else if (isAssetFile) {
+            params.addedFiles.push(relativePath);
+        }
+
+        // check if params are empty
+        if (params.deletedFiles.length === 0 && params.addedFiles.length === 0 && params.deletedDirs.length === 0) return;
+
+        this.ingestUpdates(params, date);
     }
 
     private async startWatching() {
-        this.watcher = watch(this.location, {
-            interval: 1000,
-            ignored: PHOTOS_DB_NAME,
-            binaryInterval: 2000,
-            ignoreInitial: true,
-            awaitWriteFinish: {
-                stabilityThreshold: 5000,
-                pollInterval: 1000
+        // Using native FS watcher instead of chokidar for now due to issues with yode
+        // https://github.com/yue/yode/issues/7
+
+        this.watcher = fs.watch(this.location, { recursive: true }, async (eventType, filename) => {
+            if (!filename || eventType === 'change') return;
+            try {
+                await this.handleFileChange(filename);
+            } catch (e) {
+                console.error("📸 Error handling file change:", filename, e);
             }
         });
-        this.watcher.on('add', (path_) => {
-            console.debug("📸 File added:", path_);
-            if (!this.validateAssetPath(path_)) return;
-            path_ = path.relative(this.location, path_);
-            this.ingestUpdates({ deletedFiles: [], addedFiles: [path_] }, new Date());
-        });
-        this.watcher.on('unlink', (path_) => {
-            console.debug("📸 File deleted:", path_);
-            if (!this.validateAssetPath(path_)) return;
-            path_ = path.relative(this.location, path_);
-            this.ingestUpdates({ deletedFiles: [path_], addedFiles: [] }, new Date());
+
+        // Chokidar specific events:
+        // this.watcher.on('add', (path_) => {
+        //     console.debug("📸 File added:", path_);
+        //     if (!this.validateAssetPath(path_)) return;
+        //     path_ = path.relative(this.location, path_);
+        //     this.ingestUpdates({ deletedFiles: [], addedFiles: [path_] }, new Date());
+        // });
+        // this.watcher.on('unlink', (path_) => {
+        //     console.debug("📸 File deleted:", path_);
+        //     if (!this.validateAssetPath(path_)) return;
+        //     path_ = path.relative(this.location, path_);
+        //     this.ingestUpdates({ deletedFiles: [path_], addedFiles: [] }, new Date());
+        // });
+
+        this.watcher.on('error', (err) => {
+            console.error("📸 Watcher error:", err);
         });
 
         console.log("📸 Watching for changes in:", this.location);
     }
 
-    private updatesQueue: { deletedFiles: string[], addedFiles: string[], timestamp: Date }[] = [];
+    private updatesQueue: { deletedFiles: string[], addedFiles: string[], deletedDirs: string[], timestamp: Date }[] = [];
     private batchTimeout: NodeJS.Timeout;
 
-    private async ingestUpdates({ deletedFiles, addedFiles }: { deletedFiles: string[], addedFiles: string[] }, lastUpdate: Date) {
-        this.updatesQueue.push({ deletedFiles, addedFiles, timestamp: lastUpdate });
+    private async ingestUpdates({ deletedFiles, addedFiles, deletedDirs }: { deletedFiles: string[], addedFiles: string[], deletedDirs: string[] }, lastUpdate: Date) {
+        this.updatesQueue.push({ deletedFiles, addedFiles, timestamp: lastUpdate, deletedDirs });
         if (this.updatesQueue.length === 1) {
             this.batchTimeout = setTimeout(() => {
                 this.batchProcessUpdates();
@@ -211,11 +308,15 @@ export class PhotoLibrary {
         this.updatesQueue = [];
         console.log("📸 Processing batch updates:", batch);
         const deletedFiles = new Set<string>();
+        const deletedDirs = new Set<string>();
         const addedFiles = new Set<string>();
         let maxMtime = this.lastUpdate;
-        batch.forEach(({ deletedFiles: del, addedFiles: add, timestamp }) => {
+        batch.forEach(({ deletedFiles: del, deletedDirs: delDirs, addedFiles: add, timestamp }) => {
             del.forEach((file) => {
                 deletedFiles.add(file);
+            });
+            delDirs.forEach((dir) => {
+                deletedDirs.add(dir);
             });
             add.forEach((file) => {
                 addedFiles.add(file);
@@ -237,8 +338,17 @@ export class PhotoLibrary {
                 console.error("Error deleting photos", e);
             }
         }
-        const add = Array.from(addedFiles);
 
+        const delDirs = Array.from(deletedDirs);
+        if (delDirs.length > 0) {
+            try {
+                await this.repo.deletePhotosByDirectories(delDirs);
+            } catch (e) {
+                console.error("Error deleting photos dir", e);
+            }
+        }
+
+        const add = Array.from(addedFiles);
         if (add.length > 0) {
             await this.createPhotos(add);
         }
@@ -264,13 +374,11 @@ export class PhotoLibrary {
         }
 
         try {
-            await this.repo.createPhotosBulk(photos.map(({ directory, filename, detail, mime, size }) => {
+            await this.repo.createPhotosBulk(photos.map(({ directory, filename, detail, mime, size }): createPhotoType => {
                 return {
                     directory,
                     filename,
                     metadata: JSON.stringify(detail.metadata),
-                    addedOn: new Date(),
-                    lastEditedOn: new Date(),
                     mimeType: mime,
                     capturedOn: detail.capturedOn,
                     width: detail.width || null,
@@ -306,7 +414,7 @@ export class PhotoLibrary {
         this.requireLibraryMounted();
         const photos = await this.repo.getPhotosByIds(ids);
         const promises = photos.map(async (photo) => {
-            await this.assetManager.delete(photo.directory, photo.filename);
+            await this.assetManager.delete(path.join(photo.parentDirectory || '', photo.directoryName), photo.filename);
             return photo.id;
         });
         const result = await Promise.allSettled(promises);

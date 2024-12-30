@@ -10,8 +10,6 @@ export type createPhotoType = {
     filename: string;
     mimeType: string;
     capturedOn: Date;
-    lastEditedOn: Date;
-    addedOn: Date;
     size: number;
     duration: number | null;
     height: number | null;
