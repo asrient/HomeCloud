@@ -1,4 +1,4 @@
-import { StorageAuthType, StorageType, AppName, Storage, DeviceInfo } from './types';
+import { StorageAuthType, StorageType, AppName, Storage } from './types';
 
 export type OneAuthButtonConfig = {
     text: string;
@@ -40,7 +40,7 @@ export const StorageTypeConfig: {
         name: 'Local',
         authTypes: [StorageAuthType.None],
         urlRequired: false,
-        allowedApps: [AppName.Files, AppName.Photos, AppName.Notes],
+        allowedApps: [AppName.Files, AppName.Photos],
     },
     [StorageType.Dropbox]: {
         name: 'Dropbox',
@@ -59,7 +59,7 @@ export const StorageTypeConfig: {
         name: 'Device',
         authTypes: [StorageAuthType.Pairing],
         urlRequired: false,
-        allowedApps: [AppName.Files, AppName.Photos, AppName.Notes],
+        allowedApps: [AppName.Files, AppName.Photos],
     }
 }
 
