@@ -7,6 +7,7 @@ import { Readable } from "stream";
 
 export class AgentFsDriver extends FsDriver {
   override storageType = StorageType.Agent;
+  // Even though agents provide thumbnails through thumbnail service, it is not implemented via the FsDriver.
   override providesThumbnail = false;
   client: AgentClient;
 

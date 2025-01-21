@@ -49,7 +49,7 @@ function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick 
             return item.thumbnail;
         }
         const thumbResp = await getThumbnail(item.storageId, item.fileId);
-        item.thumbnail = thumbResp.image;
+        item.thumbnail = thumbResp;
         return item.thumbnail;
     }, [item]);
 

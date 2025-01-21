@@ -5,8 +5,6 @@ import Ajv, { ErrorObject } from "ajv";
 import { verifyJwt } from "./utils/profileUtils";
 import { Storage, Agent } from "./models";
 import { getFsDriver } from "./storageKit/storageHelper";
-import PhotosService from "./services/photos/photosService";
-import { FsDriver } from "./storageKit/interface";
 import CustomError, { ErrorCode } from "./customError";
 import { getFingerprintFromBase64 } from "./utils/cryptoUtils";
 import { getClientFromStorage } from "./agentKit/client";

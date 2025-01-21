@@ -1,7 +1,9 @@
 # Unused source files
 /src/
+addons/
 .github
 tsconfig.json
+binding.gyp
 
 # Everything else should keep same with .gitignore
 *.swp
@@ -24,3 +26,6 @@ src/.env.tmp.js
 # Debug generated data
 Debug/
 Debug.log
+
+*.pdb
+*.md

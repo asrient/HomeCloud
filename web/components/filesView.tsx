@@ -13,6 +13,7 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion"
+import { useAppState } from "./hooks/useAppState";
 
 export enum SortBy {
     Name = 'Name',
@@ -37,15 +38,17 @@ export type FileRemoteItem = RemoteItem & {
 
 function ThumbnailImage({ item, className }: { item: FileRemoteItem, className?: string }) {
     const dafaultSrc = useMemo(() => getDefaultIcon(item), [item]);
+    const { storages } = useAppState();
 
     const fetchThumbnailSrc = useCallback(async () => {
         if (item.type === 'directory') return null;
-        if (!item.thumbnail && canGenerateThumbnail(item) && 'storageId' in item && item.storageId) {
-            const thumbResp = await getThumbnail(item.storageId, item.id);
-            item.thumbnail = thumbResp.image;
+        const storage = storages?.find(s => s.id === item.storageId);
+        if (!item.thumbnail && storage && canGenerateThumbnail(item, storage)) {
+            const thumbResp = await getThumbnail(storage.id, item.id);
+            item.thumbnail = thumbResp;
         }
         return item.thumbnail;
-    }, [item]);
+    }, [item, storages]);
 
     return (<LazyImage
         fetchSrc={fetchThumbnailSrc}

@@ -34,16 +34,8 @@ export async function listPins(params: ListPinsParams) {
     }>('/services/files/pin/list', params);
 }
 
-export type ThumbnailResponse = {
-    fileId: string,
-    updatedAt: Date | null,
-    image: string,
-    height: number | null,
-    width: number | null
-}
-
 export async function getThumbnail(storageId: number, fileId: string) {
-    return await ApiClient.post<ThumbnailResponse>('/services/thumb/getThumbnail', { storageId, fileId });
+    return await ApiClient.post<string>('/services/thumb/getThumbnail', { storageId, fileId });
 }
 
 export async function fileAccessToken(storageId: number, fileId: string) {

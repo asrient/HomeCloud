@@ -33,7 +33,7 @@ function ThumbnailPhoto({ item, className, height, width }: ThumbnailPhotoProps)
       return item.thumbnail;
     }
     const thumbResp = await getThumbnail(item.storageId, item.fileId);
-    item.thumbnail = thumbResp.image;
+    item.thumbnail = thumbResp;
     return item.thumbnail;
   }, [item]);
 
@@ -109,7 +109,7 @@ export default function PhotosPreview({
         return;
       }
       try {
-        const url = await getFileUrl(currentPhoto.storageId, currentPhoto.fileId);
+        const url = getFileUrl(currentPhoto.storageId, currentPhoto.fileId);
         if (currentPhotoRef.current !== currentPhoto) return;
         currentPhoto.assetUrl = url;
         setAssetUrl(currentPhoto.assetUrl);

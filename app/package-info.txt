@@ -12,13 +12,6 @@ The package.json file is updated automatically at build time to make the followi
 Explaination of unpacked modules and directories:
 - "asset": custom asset directory.
 
-Sharp
-- "node_modules/@img": was added manually here since it would make the string very big (many deps mentioned as @img/<dep>).
-- "node_modules/detect-libc": no furthur deps.
-- "node_modules/semver": no furthur deps.
-- "node_modules/sharp": if not unpacked, gave errors related to readFile.
-- "color" module: has a few dependencies.
-
 Sequalize
 - "node_modules/validator": error 'readFile only works on file', possibly caused by a custom impl of require.
 

@@ -15,18 +15,21 @@ export const StorageTypeConfig: {
         oneAuthButtonConfig?: OneAuthButtonConfig;
         urlRequired?: boolean;
         allowedApps: AppName[];
+        supportsThumbnail: boolean;
     }
 } = {
     [StorageType.WebDav]: {
         name: 'WebDAV',
         authTypes: [StorageAuthType.Basic, StorageAuthType.Digest, StorageAuthType.None],
         urlRequired: true,
+        supportsThumbnail: false,
         allowedApps: [AppName.Files],
     },
     [StorageType.Google]: {
         name: 'Google Drive',
         authTypes: [StorageAuthType.OneAuth],
         allowedApps: [AppName.Files],
+        supportsThumbnail: true,
         oneAuthButtonConfig: {
             text: 'Sign in with Google',
             icon: 'google',
@@ -40,12 +43,14 @@ export const StorageTypeConfig: {
         name: 'Local',
         authTypes: [StorageAuthType.None],
         urlRequired: false,
+        supportsThumbnail: true,
         allowedApps: [AppName.Files, AppName.Photos],
     },
     [StorageType.Dropbox]: {
         name: 'Dropbox',
         authTypes: [StorageAuthType.OneAuth],
         allowedApps: [AppName.Files],
+        supportsThumbnail: true,
         oneAuthButtonConfig: {
             text: 'Sign in to Dropbox',
             icon: 'dropbox',
@@ -59,6 +64,7 @@ export const StorageTypeConfig: {
         name: 'Device',
         authTypes: [StorageAuthType.Pairing],
         urlRequired: false,
+        supportsThumbnail: true,
         allowedApps: [AppName.Files, AppName.Photos],
     }
 }
@@ -141,4 +147,8 @@ export function getIconForStorage(storage: Storage, thisDeviceIconKey: string | 
         return getUrlFromIconKey(thisDeviceIconKey);
     }
     return getIconUrlFromType(storage.type);
+}
+
+export function storageSupportsThumbnail(storage: Storage) {
+    return StorageTypeConfig[storage.type].supportsThumbnail;
 }

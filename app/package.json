@@ -18,16 +18,11 @@
   },
   "unpackDirs": [
     "assets",
-    "node_modules/@img",
-    "node_modules/detect-libc",
-    "node_modules/semver",
-    "node_modules/sharp",
     "node_modules/validator"
   ],
   "unpackModules": [
     "open",
-    "bindings",
-    "color"
+    "bindings"
   ],
   "scripts": {
     "watch": "tsc --watch",
@@ -36,8 +31,10 @@
     "prepack": "tsc",
     "postpack": "node buildAssets/postpack.js",
     "start": "yode dist/index.js",
-    "build": "node buildAssets/prepack.js && yackage build ../out",
-    "dist": "node buildAssets/prepack.js && yackage dist ../out",
+    "configure": "node-gyp configure",
+    "build-native": "node-gyp build",
+    "build": "node-gyp build && node buildAssets/prepack.js && yackage build ../out",
+    "dist": "node-gyp build && node buildAssets/prepack.js && yackage dist ../out",
     "test:bonjour": "ts-node test/bonjour.ts"
   },
   "author": "ASRIENT",
@@ -64,12 +61,12 @@
     "jsonwebtoken": "^9.0.1",
     "mime": "^3.0.0",
     "minimatch": "9.0.5",
+    "node-addon-api": "^8.3.0",
     "node-match-path": "^0.6.3",
     "open": "^10.1.0",
     "qs": "^6.11.2",
     "selfsigned": "^2.4.1",
     "sequelize": "^6.32.1",
-    "sharp": "0.33.5",
     "sqlite3": "^5.1.6",
     "uuid": "^9.0.1"
   },
@@ -84,6 +81,7 @@
     "@types/qs": "^6.9.7",
     "@types/uuid": "^9.0.5",
     "dotenv": "^16.4.7",
+    "node-gyp": "^11.0.0",
     "nodemon": "^3.1.7",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3",

@@ -76,6 +76,10 @@ export abstract class NativeImpl {
             close: () => ask.close()
         }
     }
+
+    importModule(moduleName: string) {
+        return require(`../../build/Release/${moduleName}.node`);
+    }
 }
 
 export let native: NativeImpl | null = null;

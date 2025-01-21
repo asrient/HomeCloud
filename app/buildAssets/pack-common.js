@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const TMP_PACKAGE_JSON = '.package.tmp.json';
 const TMP_DESKTOP_ENV_FILE = 'src/.env.tmp.js';
@@ -84,6 +85,7 @@ function prepack() {
     packageJson.devDependencies = {};
 
     const unpackDirs = packageJson.unpackDirs || [];
+    unpackDirs.push(path.join('helpers', os.platform()));
     let unpackModules = packageJson.unpackModules || [];
     const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
 

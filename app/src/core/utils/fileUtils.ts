@@ -8,6 +8,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import mime from "mime";
+import { getDriveDetails } from "../services/system/drivers/win32";
 
 const execAsync = promisify(exec);
 const fsPromises = fs.promises;
@@ -74,7 +75,7 @@ export async function getNativeDrives(): Promise<{ [key: string]: string }> {
     const platform = process.platform;
     try {
         if (platform === 'win32') {
-            return await getWindowsDrives();
+            return getWindowsDrives();
         } else if (platform === 'darwin') {
             return await getMacDrives();
         } else if (platform === 'linux') {
@@ -88,44 +89,15 @@ export async function getNativeDrives(): Promise<{ [key: string]: string }> {
     }
 }
 
-async function getWindowsDrivesManually(): Promise<{ [key: string]: string }> {
-    const drives = 'ABCDEFGHIJKLMNO'.split(''); // only considering A to O drives to reduce system calls.
-    const result: { [key: string]: string } = {};
-    await Promise.all(drives.map(async (drive) => {
-        const drivePath = `${drive}:\\`;
-        try {
-            await fsPromises.access(drivePath);
-            result[`${drive}:`] = drivePath;
-        } catch (error) {
-            // Ignore drives that are not accessible
-        }
-    }));
-    return result;
-}
-
 /**
  * Gets the available drives on Windows.
  */
-async function getWindowsDrives(): Promise<{ [key: string]: string }> {
-    const { stdout, stderr } = await execAsync('wmic logicaldisk get name,volumename');
-    if (stderr || !stdout) {
-        stderr && console.error('Error executing wmic command:', stderr);
-        return getWindowsDrivesManually();
-    }
-    const lines = stdout.split('\n').filter((line) => line.trim().length > 0);
-    const drives = lines.slice(1).map((line) => line.trim()); // Skip the header
+function getWindowsDrives(): { [key: string]: string } {
+    const drives = getDriveDetails();
     const result: { [key: string]: string } = {};
-
-    drives.forEach((drive) => {
-        // Split the line by whitespace to separate the drive name and volume name
-        const [name, ...volumeArray] = drive.split(/\s+/);
-        const volumeName = volumeArray.join(' '); // Join the rest to handle multi-word volume names
-
-        // Normalize the path to use C:\ style format
-        const normalizedPath = name.endsWith(':') ? `${name}\\` : name;
-
-        // Use volume name if available, otherwise just the drive letter
-        result[volumeName ? `${volumeName} (${name})` : name] = normalizedPath;
+    drives.map((drive) => {
+        const letter = drive.path.replace('\\', '');
+        result[`${drive.name} (${letter})`] = drive.path;
     });
     return result;
 }

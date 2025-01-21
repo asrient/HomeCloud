@@ -17,6 +17,7 @@ import {
   RequestOriginType,
   cryptoUtils,
   DiscoveryService,
+  ThumbService,
 } from "./core/index";
 import path from "path";
 import os from "os";
@@ -32,7 +33,7 @@ import PhotosService from "./core/services/photos/photosService";
 
 const startText = `
 ------------------------------
-|   ***HomeCloud Desktop***  |
+|      HomeCloud Desktop     |
 ------------------------------
 `;
 
@@ -80,6 +81,7 @@ class App {
     console.log("👋 Quitting app gracefully..");
     await this.discoveryService.goodbye();
     await PhotosService.stop();
+    await ThumbService.stop();
     this.tray.remove();
     singleInstance.clear();
     console.log("👋 Goodbye!");
@@ -227,6 +229,7 @@ class App {
     }
     this.cleanFromLastRun();
     PhotosService.start();
+    ThumbService.start();
     this.startWebServer();
     this.startAgentServer();
     this.tray.setStatus("running");

@@ -1,7 +1,5 @@
 import { Sequelize, Op, DataTypes, Model, ModelAttributes, ModelIndexesOptions } from "sequelize";
 import {
-  envConfig,
-  OptionalType,
   StorageType,
   StorageTypes,
   StorageAuthType,
@@ -10,8 +8,6 @@ import {
 } from "./envConfig";
 import { createHash } from "./utils";
 import { getDefaultDirectoriesCached } from "./utils/deviceInfo";
-
-const DAYS_5 = 5 * 24 * 60 * 60 * 1000;
 
 export class DbModel extends Model {
   static _columns: ModelAttributes;
@@ -379,6 +375,10 @@ export class Storage extends DbModel {
     return this.type === StorageType.Agent;
   }
 
+  isLocalType() {
+    return this.type === StorageType.Local;
+  }
+
   async delete() {
     if (this.type === StorageType.Local) {
       const localStorageCount = await Storage.count({ where: { type: StorageType.Local } });
@@ -738,144 +738,6 @@ export class PendingAuth extends DbModel {
   }
 }
 
-export type ThumbDetails = {
-  fileId: string;
-  updatedAt: Date;
-  image: string;
-  height: number;
-  width: number;
-}
-
-export class Thumb extends DbModel {
-  declare setStorage: (storage: Storage) => Promise<void>;
-  declare getStorage: () => Promise<Storage>;
-  declare fileId: string;
-  declare mimeType: string;
-  declare updatedAt: Date;
-  declare height: number | null;
-  declare width: number | null;
-  declare image: string;
-  declare lastReadOn: Date;
-  declare StorageId: number;
-
-  static _indexes: ModelIndexesOptions[] = [
-    { unique: true, fields: ['fileId', 'StorageId'] }
-  ];
-
-  static _columns: ModelAttributes = {
-    fileId: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: true,
-      },
-    },
-    mimeType: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: true,
-      },
-    },
-    height: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
-    width: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
-    image: {
-      type: DataTypes.TEXT,
-      allowNull: false,
-    },
-    lastReadOn: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
-    },
-  };
-
-  getDetails(): ThumbDetails {
-    return {
-      fileId: this.fileId,
-      updatedAt: this.updatedAt,
-      image: this.image,
-      height: this.height,
-      width: this.width,
-    };
-  }
-
-  isUpToDate(fileLastModified: Date) {
-    return this.updatedAt >= fileLastModified;
-  }
-
-  async updateThumb({
-    mimeType,
-    height,
-    width,
-    image,
-  }: {
-    mimeType?: string;
-    height?: number | null;
-    width?: number | null;
-    image: string;
-  }) {
-    this.mimeType = mimeType || this.mimeType;
-    this.height = height || this.height;
-    this.width = width || this.width;
-    this.image = image;
-    this.lastReadOn = new Date();
-    return this.save();
-  }
-
-  static async getThumb(fileId: string, storage: Storage) {
-    const thumb = await Thumb.findOne({
-      where: { fileId, StorageId: storage.id },
-    });
-    if (!thumb) return null;
-    thumb.lastReadOn = new Date();
-    thumb.save(); // not waiting for save to complete
-    return thumb;
-  }
-
-  static async createThumb(
-    {
-      fileId,
-      mimeType,
-      height,
-      width,
-      image,
-    }: {
-      fileId: string;
-      mimeType: string;
-      height: number | null;
-      width: number | null;
-      image: string;
-    },
-    storage: Storage,
-  ) {
-    return Thumb.create({
-      fileId,
-      mimeType,
-      height,
-      width,
-      image,
-      StorageId: storage.id,
-    });
-  }
-
-  static async deleteThumbs(fileIds: string[], storage: Storage) {
-    return Thumb.destroy({ where: { fileId: fileIds, StorageId: storage.id } });
-  }
-
-  static async removeOldThumbs() {
-    const now = new Date();
-    const expired = new Date(now.getTime() - DAYS_5 * 4); // 20 days
-    return Thumb.destroy({ where: { lastReadOn: { [Op.lt]: expired } } });
-  }
-}
-
 export class PinnedFolders extends DbModel {
   declare id: number;
   declare folderId: string;
@@ -950,7 +812,6 @@ export function initModels(db: Sequelize) {
   const classes = [
     Storage,
     PendingAuth,
-    Thumb,
     PinnedFolders,
     Agent,
     PhotoLibraryLocation,
@@ -964,12 +825,6 @@ export function initModels(db: Sequelize) {
     onUpdate: "CASCADE",
   });
   Storage.belongsTo(Agent);
-
-  Storage.hasMany(Thumb, {
-    onDelete: "CASCADE",
-    onUpdate: "CASCADE",
-  });
-  Thumb.belongsTo(Storage);
 
   Storage.hasMany(PinnedFolders, {
     onDelete: "CASCADE",

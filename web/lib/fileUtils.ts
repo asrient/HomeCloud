@@ -1,7 +1,8 @@
-import { DeviceInfo, OSType, PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage } from "./types";
+import { DeviceInfo, OSType, PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage, StorageType } from "./types";
 import mime from 'mime';
 import { staticConfig } from "./staticConfig";
 import { move, MoveParams } from "./api/files";
+import { storageSupportsThumbnail } from "./storageConfig";
 
 export enum FileType {
     File = 'File',
@@ -267,7 +268,8 @@ export function getDefaultIcon(item: RemoteItem) {
     return iconUrl(getKind(item));
 }
 
-export function canGenerateThumbnail(item: RemoteItem) {
+export function canGenerateThumbnail(item: RemoteItem, storage: Storage) {
+    if (!storageSupportsThumbnail(storage)) return false;
     const kind = getKind(item);
     return kind === FileType.Image || kind === FileType.Video;
 }
