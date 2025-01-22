@@ -10,7 +10,6 @@ import {
   setupEnvConfig,
   envConfig,
   initDb,
-  ffmpegSetup,
   ServerAdaptor,
   desktopAgentRouter,
   webRouter,
@@ -62,7 +61,6 @@ class App {
     startLogger();
     console.log(startText);
     this.setupConfig();
-    ffmpegSetup();
     this.webServer = new ServerAdaptor(webRouter, RequestOriginType.Web);
     this.agentServer = new ServerAdaptor(desktopAgentRouter, RequestOriginType.Agent);
     this.discoveryService = DiscoveryService.setup();

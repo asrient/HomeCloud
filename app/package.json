@@ -50,7 +50,7 @@
     "cookie": "^1.0.1",
     "dropbox": "^10.34.0",
     "dropbox-stream": "^1.0.5",
-    "exifreader": "^4.13.0",
+    "exifreader": "^4.26.0",
     "fast-xml-parser": "^4.5.0",
     "fetch-yode": "^1.1.1",
     "fluent-ffmpeg": "^2.1.3",

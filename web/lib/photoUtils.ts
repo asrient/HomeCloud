@@ -99,6 +99,10 @@ export function mergePhotosList(sortedLists: PhotoView[][], sortBy: PhotosSortOp
     // });
 
     sortedLists = sortedLists.filter((list) => list.length > 0);
+    if (sortedLists.length === 0) {
+        return { merged: [], discarded: [] };
+    }
+
     if (!endMarker) {
         const endMarkerInd = comesFirst(sortedLists.map((list) => list[list.length - 1]).reverse(), sortBy, ascending);
         endMarker = sortedLists[endMarkerInd][sortedLists[endMarkerInd].length - 1];
