@@ -33,7 +33,7 @@ api.add(
     const { fileId } = request.local.json;
     const { storage } = request.local as { storage: Storage };
 
-    if(!storage.isLocalType()) {
+    if(!!storage && !storage.isLocalType()) {
       const fsDriver = await getFsDriver(storage);
       if (fsDriver.providesThumbnail) {
         try {

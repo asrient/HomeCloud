@@ -28,4 +28,8 @@ export default class NativeImplDesktop extends NativeImpl {
             close: () => ask.close()
         };
     }
+
+    openNativeScreen(id: string, data?: any, forceNewWindow = false): void {
+        
+    }
 }

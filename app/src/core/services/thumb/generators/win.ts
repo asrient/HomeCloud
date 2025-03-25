@@ -33,7 +33,6 @@ export default class ThumbGeneratorWin extends ThumbGenerator {
     async generateThumbnailJPEG(filePath: string): Promise<Buffer> {
         const thumb = this.getThumbModule();
         const data = thumb.generateThumbnail(filePath);
-        console.log('Thumbnail data:', data);
         if (!data) {
             throw new Error(`Thumbnail generation failed for ${filePath}`);
         }

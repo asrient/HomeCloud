@@ -80,6 +80,8 @@ export abstract class NativeImpl {
     importModule(moduleName: string) {
         return require(`../../build/Release/${moduleName}.node`);
     }
+
+    abstract openNativeScreen(id: string, data?: any, forceNewWindow?: boolean): void;
 }
 
 export let native: NativeImpl | null = null;
