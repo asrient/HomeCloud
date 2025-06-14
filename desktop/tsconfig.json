@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "baseUrl": "src",
+    "outDir": "dist",
+    "allowJs": true,
+    "module": "nodenext",
+    "esModuleInterop": true,
+    "target": "ES2022",
+    "paths": {
+      "*": ["*"],
+      "@/*": ["*"],
+      "@shared/*": ["shared/*"],
+    }
+  },
+  "include": ["src/**/*"],
+}
