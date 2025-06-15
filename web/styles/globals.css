@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 0 0% 40%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
@@ -32,7 +32,7 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 0 0% 18%;
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
@@ -62,6 +62,16 @@
     background-image: radial-gradient(at 37% 41%, rgb(236, 252, 203) 0, transparent 49%), radial-gradient(at 43% 72%, rgb(186, 230, 253) 0, transparent 44%), radial-gradient(at 7% 77%, rgb(233, 213, 255) 0, transparent 21%), radial-gradient(at 69% 48%, rgb(224, 242, 254) 0, transparent 44%), radial-gradient(at 56% 36%, rgb(244, 244, 245) 0, transparent 13%), radial-gradient(at 17% 17%, rgb(254, 205, 211) 0, transparent 42%);
   
   }
+
+  .app-dragable {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  .app-nodrag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
 }
 
 @layer base {
@@ -70,6 +80,8 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
   }
 }
+
+@custom-variant dark (&:where(.dark, .dark *));

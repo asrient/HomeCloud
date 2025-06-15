@@ -1,4 +1,4 @@
-import { app, BrowserWindow, safeStorage, protocol, net } from 'electron';
+import { app, BrowserWindow, safeStorage, protocol, net, nativeTheme } from 'electron';
 import path from 'node:path';
 import env from './env';
 import { DesktopConfigType } from './types';
@@ -113,9 +113,24 @@ function shouldShowDevTools() {
 
 const createWindow = () => {
   // Create the browser window.
+  const isSystemDarkMode = nativeTheme.shouldUseDarkColors;
+  console.log('System dark mode:', isSystemDarkMode);
   const mainWindow = new BrowserWindow({
-    width: 1400,
+    width: 1200,
     height: 800,
+    // remove the default titlebar
+    titleBarStyle: 'hidden',
+    backgroundMaterial: 'mica',
+    vibrancy: 'sidebar',
+    // expose window controls in Windows/Linux
+    ...(process.platform !== 'darwin' ? {
+      titleBarOverlay: {
+        // make controls transparent
+        color: '#00000000',
+        // make symbol color white if the system is dark mode
+        symbolColor: isSystemDarkMode ? '#ffffff' : '#000000',
+      }
+    } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       sandbox: false,

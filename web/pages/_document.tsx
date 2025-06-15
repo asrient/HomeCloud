@@ -1,4 +1,5 @@
 import { Html, Head, Main, NextScript } from 'next/document'
+import { ThemeProvider } from '@/components/theme-provider'
 
 export default function Document() {
   return (
@@ -6,8 +7,15 @@ export default function Document() {
       <title>HomeCloud</title>
       <Head />
       <body>
-        <Main />
-        <NextScript />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <Main />
+          <NextScript />
+        </ThemeProvider>
       </body>
     </Html>
   )

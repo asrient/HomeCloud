@@ -21,7 +21,7 @@ export type AppDispatchType = {
 export const initialAppState: AppStateType = {
     isInitalized: false,
     appError: null,
-    showSidebar: false,
+    showSidebar: true,
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
