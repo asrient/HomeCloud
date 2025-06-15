@@ -7,7 +7,8 @@ require('dotenv').config();
 
 const env = {
     NODE_ENV: process.env.NODE_ENV || 'development',
-    ONEAUTH_APP_ID: process.env.ONEAUTH_APP_ID
+    ONEAUTH_APP_ID: process.env.ONEAUTH_APP_ID,
+    USE_WEB_APP_SERVER: process.env.USE_WEB_APP_SERVER ? process.env.USE_WEB_APP_SERVER === 'true' : true,
 };
 
 module.exports = env;

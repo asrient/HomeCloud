@@ -8,6 +8,8 @@ export type ModulesType = {
     ServiceController: typeof ServiceController;
     crypto: CryptoModule;
     ConfigStorage: typeof ConfigStorage;
+    getLocalServiceController: () => ServiceController;
+    getRemoteServiceController: (fingerprint: string) => Promise<ServiceController>;
 }
 
 export function setModules(mod: ModulesType) {

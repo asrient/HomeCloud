@@ -13,7 +13,6 @@ import ConfirmModal from '@/components/confirmModal'
 import { Button } from '@/components/ui/button'
 
 function Page() {
-  const { isAppLoaded, serverConfig } = useAppState();
 
     const performLogout = useCallback(async () => {
       await logout();
@@ -29,7 +28,7 @@ function Page() {
         <PageBar icon='/icons/settings.png' title='General'>
         </PageBar>
 
-        {isAppLoaded && (<PageContainer>
+        <PageContainer>
           <div className='mt-6 mb-10 flex flex-col items-center justify-center font-light text-foreground/40'>
             <Image src='/icons/icon.png' priority alt='HomeCloud' width={80} height={80} />
             <div className='pt-4 text-lg'>
@@ -44,11 +43,11 @@ function Page() {
               {staticConfig.webVersion}
             </Line>
             {
-              serverConfig?.version && (
-                <Line title='Backend Version'>
-                  {serverConfig.version}
-                </Line>
-              )
+              // serverConfig?.version && (
+              //   <Line title='Backend Version'>
+              //     {serverConfig.version}
+              //   </Line>
+              // )
             }
             {
               staticConfig.isDev && (
@@ -58,11 +57,11 @@ function Page() {
               )
             }
             {
-              serverConfig?.isDev && (
-                <Line title='Backend Mode'>
-                  <div className='text-yellow-500'>Development</div>
-                </Line>
-              )
+              // serverConfig?.isDev && (
+              //   <Line title='Backend Mode'>
+              //     <div className='text-yellow-500'>Development</div>
+              //   </Line>
+              // )
             }
           </Section>
           <Section>
@@ -80,7 +79,7 @@ function Page() {
                   </ConfirmModal>
                 </Line>
               </Section>
-        </PageContainer>)}
+        </PageContainer>
       </main>
     </>
   )

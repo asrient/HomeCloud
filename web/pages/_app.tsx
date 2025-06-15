@@ -20,8 +20,8 @@ type AppPropsWithConfig = AppProps & {
 
 function App({ Component, pageProps }: AppPropsWithConfig) {
   const { sidebarType, noAppShell } = Component.config || {};
-  const { isAuthenticated } = useAppState();
-  if (!isAuthenticated) {
+  const { isInitalized } = useAppState();
+  if (!isInitalized) {
     return <SplashScreen />
   }
   return (

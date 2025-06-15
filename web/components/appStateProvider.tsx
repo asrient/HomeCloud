@@ -1,39 +1,54 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { reducer, initialAppState, AppContext, DispatchContext, ActionTypes } from '../lib/state';
 import { useImmerReducer } from 'use-immer';
 import { setupStaticConfig } from '@/lib/staticConfig';
-import { initalialState } from '@/lib/api/auth';
-import { useAppDispatch, useAppState } from './hooks/useAppState';
-import usePinnedFolders from './hooks/usePinnedFolders';
-import { isMobile } from '@/lib/utils';
+import { useAppDispatch } from './hooks/useAppState';
 
 function WithInitialState({ children }: {
     children: React.ReactNode;
 }) {
     const dispatch = useAppDispatch();
-    const { isAppLoaded, isInitalized } = useAppState();
-    const [isLoading, setIsLoading] = React.useState(false);
-    usePinnedFolders();
+    const loadingStateRef = useRef<'initial' | 'loading' | 'loaded'>('initial');
+    const bindingRef = useRef<any | null>(null);
 
     useEffect(() => {
-        async function fetchInitialState() {
-            console.log("Fetching initial state");
-            setIsLoading(true);
-            try {
-                const data = await initalialState();
-                dispatch(ActionTypes.INITIALIZE, data);
-            } catch (error: any) {
-                console.error(error);
-                dispatch(ActionTypes.ERROR, error.message);
-            } finally {
-                setIsLoading(false);
+        if (!(window as any).modules) {
+            console.error("Modules not loaded.");
+            dispatch(ActionTypes.ERROR, "Modules not loaded.");
+            return;
+        }
+        const localSc = (window as any).modules.getLocalServiceController();
+        const waitForReadySignal = async () => {
+            console.log("waitForReadySignal");
+            if (loadingStateRef.current === 'loading') {
+                console.warn("Already waiting for service controller to be ready.");
+                return;
+            }
+            loadingStateRef.current = 'loading';
+            bindingRef.current = localSc.readyStateSignal.add((ready: boolean) => {
+                console.log("Service controller is ready:", ready);
+                loadingStateRef.current = 'loaded';
+                // Detach the binding to avoid memory leaks
+                bindingRef.current ?? localSc.readyStateSignal.detach(bindingRef.current);
+                if (ready) {
+                    dispatch(ActionTypes.INITIALIZE, {});
+                } else {
+                    dispatch(ActionTypes.ERROR, "Service controller is not ready");
+                }
+            });
+        }
+        if (loadingStateRef.current === 'initial') {
+            if (localSc && localSc.readyState) {
+                console.log("Service controller is already up:", localSc.readyState);
+                // If the service controller is already ready, we can initialize immediately
+                dispatch(ActionTypes.INITIALIZE, {});
+            } else {
+                // Otherwise, wait for the service controller to signal readiness
+                console.log("Waiting for service controller to be ready...");
+                waitForReadySignal();
             }
         }
-        if (isAppLoaded && !isInitalized && !isLoading) {
-            fetchInitialState();
-        }
-    }, [dispatch, isAppLoaded, isInitalized, isLoading]);
-
+    }, [dispatch]);
     return children;
 }
 
@@ -45,13 +60,7 @@ export default function AppStateProvider({ children }: {
 
     useEffect(() => {
         setupStaticConfig();
-        dispatch({
-            type: ActionTypes.APP_LOADED,
-            payload: {
-                showSidebar: !isMobile(),
-            },
-        });
-    }, [dispatch]);
+    }, []);
 
     return (
         <AppContext.Provider value={state}>

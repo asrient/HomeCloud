@@ -1,4 +1,4 @@
-import { app, BrowserWindow, safeStorage } from 'electron';
+import { app, BrowserWindow, safeStorage, protocol, net } from 'electron';
 import path from 'node:path';
 import env from './env';
 import { DesktopConfigType } from './types';
@@ -8,6 +8,10 @@ import DesktopServiceController from './services/desktopServiceController';
 import fs from 'node:fs';
 import os from 'node:os';
 import DesktopConfigStorage from './configStorage';
+
+const WEB_APP_SERVER = 'http://localhost:3000';
+
+require('@electron/remote/main').initialize();
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -73,6 +77,7 @@ async function getConfig() {
   const desktopConfig: DesktopConfigType = {
     IS_DESKTOP_PACKED: isPackaged,
     IS_DEV: env.NODE_ENV === 'development',
+    USE_WEB_APP_SERVER: env.USE_WEB_APP_SERVER,
     DATA_DIR: dataDir,
     SECRET_KEY: createOrGetSecretKey(dataDir),
     VERSION: app.getVersion(),
@@ -92,28 +97,61 @@ async function initModules() {
     config,
     ServiceController: DesktopServiceController,
     ConfigStorage: DesktopConfigStorage,
+    getLocalServiceController: () => DesktopServiceController.getLocalInstance<DesktopServiceController>(),
+    getRemoteServiceController: async (fingerprint: string) => {
+      return DesktopServiceController.getRemoteInstance(fingerprint);
+    }
   };
   setModules(modules);
   const serviceController = DesktopServiceController.getLocalInstance<DesktopServiceController>();
-  await serviceController.setup();
+  serviceController.setup();
+}
+
+function shouldShowDevTools() {
+  return modules.config.IS_DEV && !(modules.config as DesktopConfigType).IS_DESKTOP_PACKED;
 }
 
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1400,
+    height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      sandbox: false,
+      contextIsolation: false, // Disable context isolation for remote module
     },
   });
 
+  require("@electron/remote/main").enable(mainWindow.webContents);
   // and load the index.html of the app.
-  mainWindow.loadFile(path.join(__dirname, '../assets/home', 'index.html'));
+  if ((modules.config as DesktopConfigType).USE_WEB_APP_SERVER) {
+    console.log('Loading web app from server:', WEB_APP_SERVER);
+    mainWindow.loadURL(WEB_APP_SERVER);
+  } else {
+    // Load the app from the local assets/web directory
+    mainWindow.loadURL(`app://-/index.html`);
+  }
 
   // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  if (shouldShowDevTools()) {
+    mainWindow.webContents.openDevTools();
+  }
 };
+
+function handleProtocols() {
+  // Register a custom protocol to serve files from assets/web
+  protocol.handle('app', async (request) => {
+    const url = request.url.replace('app://-', '');
+    // Ensure the URL is safe and does not contain any path traversal characters
+    if (url.includes('..') || url.includes('~')) {
+      throw new Error('Invalid URL');
+    }
+    // Construct the file path
+    const filePath = path.join(__dirname, '../assets/web', url);
+    return net.fetch(`file://${filePath}`)
+  });
+}
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -121,6 +159,7 @@ const createWindow = () => {
 app.whenReady().then(async () => {
   await initModules();
   console.log('Modules initialized:', global.modules);
+  handleProtocols();
   // Create the main window
   createWindow();
 
@@ -144,3 +183,6 @@ app.on('window-all-closed', () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { secure: true, standard: true } },
+]);

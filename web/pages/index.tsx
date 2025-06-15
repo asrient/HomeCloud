@@ -56,10 +56,9 @@ const apps: AppProps[] = [
 
 export default function Home() {
   const [greetings, setGreetings] = useState('Hi');
-  const { serverConfig } = useAppState();
 
   useEffect(() => {
-    setGreetings(`Hi, ${getGreetings()} ${serverConfig?.userName || 'human'}.`);
+    setGreetings(`Hi, ${getGreetings()} human.`);
 
     // Change the greeting text after 6 seconds
     const timer = setTimeout(() => {
@@ -67,7 +66,7 @@ export default function Home() {
     }, 6000);
 
     return () => clearTimeout(timer); // Clean up the timer on unmount
-  }, [serverConfig?.userName]);
+  }, []);
 
   const greetingArray = greetings.split(''); // Split the greeting text into an array of characters
 

@@ -27,6 +27,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@electron/remote": "^2.1.2",
     "ajv": "^8.12.0",
     "bonjour-service": "^1.2.1",
     "chokidar": "^4.0.3",

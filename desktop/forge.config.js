@@ -11,17 +11,20 @@ const ALLOWED_NODE_ENVS = ['development', 'production'];
 
 function getEnvFileContent() {
   const NODE_ENV = process.env.NODE_ENV || 'production';
+  const USE_WEB_APP_SERVER = process.env.USE_WEB_APP_SERVER === 'true';
 
   if (!ALLOWED_NODE_ENVS.includes(NODE_ENV)) {
     throw new Error(`NODE_ENV should be one of ${ALLOWED_NODE_ENVS.join(', ')}. Received: ${NODE_ENV}`);
   }
 
   console.log('NODE_ENV:', NODE_ENV);
+  console.log('USE_WEB_APP_SERVER:', USE_WEB_APP_SERVER ? 'true' : 'false');
   console.log('ONEAUTH_APP_ID:', !!process.env.ONEAUTH_APP_ID ? '**hidden**' : 'NOT SET');
 
   const env = {
     NODE_ENV,
     ONEAUTH_APP_ID: process.env.ONEAUTH_APP_ID,
+    USE_WEB_APP_SERVER,
   };
   const txt = `
 // BY ASRIENT

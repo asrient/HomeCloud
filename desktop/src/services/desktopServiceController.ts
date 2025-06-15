@@ -29,6 +29,8 @@ export default class DesktopServiceController extends ServiceController {
         ));
 
         await this.startAll();
+        this.readyState = true;
+        this.readyStateSignal.dispatch(this.readyState);
     }
 
     private async startAll() {

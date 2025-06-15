@@ -2,6 +2,7 @@ import { AppConfigType } from "./shared/types";
 
 export type DesktopConfigType = AppConfigType & {
     IS_DESKTOP_PACKED: boolean;
+    USE_WEB_APP_SERVER: boolean;
 }
 export type WinDriveDetails = {
     path: string;

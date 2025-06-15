@@ -4,6 +4,7 @@ import { AppService } from "./appService";
 import { SystemService } from "./systemService";
 import { ThumbService } from "./thumbService";
 import { FilesService } from "./filesService";
+import Signal from "../signals";
 
 export default class ServiceController extends RPCController {
     private static localInstance: RPCController | null = null;
@@ -12,6 +13,9 @@ export default class ServiceController extends RPCController {
     public system: SystemService;
     public thumbnail: ThumbService;
     public files: FilesService;
+
+    public readyState: boolean = false;
+    public readyStateSignal = new Signal<[boolean]>();
 
     public static async getRemoteInstance(fingerprint: string): Promise<ServiceController> {
         const localService = this.getLocalInstance();
