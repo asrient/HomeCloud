@@ -146,6 +146,7 @@ export enum SidebarType {
     Files = "files",
     Settings = "settings",
     Photos = "photos",
+    Dev = "dev",
 }
 
 export type PageUIConfig = {

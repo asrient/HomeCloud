@@ -61,7 +61,7 @@ export class RPCPeer {
     private decryptionKey: string | null = null;
 
     constructor(private opts: RPCPeerOptions) {
-        this.parser = new DataChannelParser(this.onFrame.bind(this));
+        this.parser = new DataChannelParser({onFrame: this.onFrame});
         // this.opts.dataChannel.binaryType = 'arraybuffer';
         this.opts.dataChannel.onmessage = ev => {
             this.parser.feed(new Uint8Array(ev.data as ArrayBuffer));
@@ -70,7 +70,8 @@ export class RPCPeer {
             this.onError(ev.error);
         };
         this.opts.dataChannel.ondisconnect = (ev: CloseEvent) => {
-            this.close();
+            console.log('Data channel disconnected:', ev);
+            this.close(true);
         };
         this.sendHello();
     }
@@ -156,15 +157,18 @@ export class RPCPeer {
         this.close();
     }
 
-    public close() {
-        this.opts.dataChannel.disconnect();
+    public close(isDisconnected = false) {
+        console.log('Closing RPCPeer connection');
+        if (!isDisconnected) {
+            this.opts.dataChannel.disconnect();
+        }
         this.pending.clear();
         this.streamControllers.forEach(ctrl => ctrl.close());
         this.streamControllers.clear();
         this.opts.onClose?.();
     }
 
-    private onFrame(type: number, payload: Uint8Array) {
+    private onFrame = ({ type, flags, payload }: { type: number, payload: Uint8Array, flags: number }) => {
         if (!this.targetPublicKeyPem && type !== MessageType.HELLO) {
             console.warn('Received message before HELLO', type);
             return;

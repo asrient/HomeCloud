@@ -118,6 +118,8 @@ const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 900,
+    minHeight: 600,
     // remove the default titlebar
     titleBarStyle: 'hidden',
     backgroundMaterial: 'mica',

@@ -90,8 +90,11 @@ export default function AppHeader() {
                         <TabsTrigger className={tabClass} value="files">
                             Files
                         </TabsTrigger>
-                        <TabsTrigger className={cn(tabClass, 'hidden sm:block')} value="settings">
+                        <TabsTrigger className={tabClass} value="settings">
                             Settings
+                        </TabsTrigger>
+                        <TabsTrigger className={tabClass} value="dev">
+                            Debug
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>

@@ -130,8 +130,14 @@ export class RPCControllerProxy {
     private proxyObject<T extends Object>(prifix: string, obj: T): T {
         // Transform the service instance to use the proxy call
         // This will intercept all method calls and call the proxy call instead
+        // console.log(`Proxying object: ${prifix}`);
         const newObj = new Proxy(obj, {
             get: (target, prop) => {
+                // console.log(`Accessing property: ${prifix}.${prop.toString()}`);
+                // if property does not exist, return undefined
+                if (!(prop in target)) {
+                    return undefined;
+                }
                 const type = typeof target[prop];
                 const name = prop.toString();
                 const fqn = `${prifix}.${name}`;
@@ -155,7 +161,8 @@ export class RPCControllerProxy {
                     if (target[prop] instanceof Signal) {
                         const metadata = target[prop].getMetadata();
                         if (!metadata || !metadata.isExposed) {
-                            throw new Error(`Signal ${fqn} is not exposed.`);
+                            return null;
+                            // throw new Error(`Signal ${fqn} is not exposed.`);
                         }
                         return {
                             add: (fn: any) => {
@@ -188,7 +195,8 @@ export class RPCControllerProxy {
                     // If the property is an object, we need to proxy it too
                     return this.proxyObject(fqn, target[prop]);
                 }
-                throw new Error(`"${fqn}" cannot be used from a proxy, ${type} type is not supported.`);
+                // throw new Error(`"${fqn}" cannot be used from a proxy, ${type} type is not supported.`);
+                return null; // Return null for unsupported types
             },
 
             set(target, prop, value) {

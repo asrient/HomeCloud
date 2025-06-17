@@ -4,6 +4,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { FilesSidebar } from "./filesSidebar";
 import { PhotosSidebar } from "./photosSidebar";
 import { SettingsSidebar } from "./settingsSidebar";
+import { DevSidebar } from "./devSidebar";
 import { cn } from "@/lib/utils";
 import useHideSidebar from "../hooks/useHideSidebar";
 
@@ -11,7 +12,7 @@ import useHideSidebar from "../hooks/useHideSidebar";
 export function MainContent({ children }: { children: React.ReactNode }) {
     return (
         <div className="md:px-2 md:pb-2 h-full">
-            <div className="min-h-full md:rounded-md border shadow relative bg-background/70 md:overflow-x-hidden md:h-[calc(100vh_-_2.6rem_-_0.5rem)] md:overflow-y-auto">
+            <div className="min-h-full md:rounded-md shadow relative bg-background/70 md:overflow-x-hidden md:h-[calc(100vh_-_2.6rem_-_0.5rem)] md:overflow-y-auto">
                 {children}
             </div>
         </div>
@@ -40,6 +41,8 @@ export function AppLayout({ children, sidebarType }: { children: React.ReactNode
                                 ? <PhotosSidebar />
                                 : sidebarType === 'settings'
                                     ? <SettingsSidebar />
+                                : sidebarType === 'dev'
+                                    ? <DevSidebar />
                                     : <div>{sidebarType} Nav</div>
                     }
                 </ScrollArea>

@@ -16,17 +16,10 @@ export abstract class ConnectionInterface {
 }
 
 class ServiceControllerProxyFactory {
-    private instances: Map<string, WeakRef<RPCControllerProxy>> = new Map();
+    private instances: Map<string, RPCControllerProxy> = new Map();
 
     get(fingerprint: string) {
-        const ref = this.instances.get(fingerprint);
-        if (ref) {
-            const proxy = ref.deref();
-            if (proxy) {
-                return proxy;
-            }
-            this.instances.delete(fingerprint);
-        }
+        return this.instances.get(fingerprint);
     }
 
     getOrCreate(fingerprint: string): RPCControllerProxy {
@@ -36,8 +29,7 @@ class ServiceControllerProxyFactory {
         }
         const localSc = modules.ServiceController.getLocalInstance();
         proxy = new RPCControllerProxy(localSc);
-        const weakRef = new WeakRef(proxy);
-        this.instances.set(fingerprint, weakRef);
+        this.instances.set(fingerprint, proxy);
         return proxy;
     }
 
@@ -95,7 +87,7 @@ export class NetService extends Service {
 
         // if not, create a new one
         const newSignal = new Signal<[RPCController | Error]>();
-        this.connectionLock.set(fingerprint, signal);
+        this.connectionLock.set(fingerprint, newSignal);
 
         try {
             const sc = await this.createConnection<T>(fingerprint);
@@ -119,7 +111,9 @@ export class NetService extends Service {
                 const connectionInterface = this.connectionInterfaces.get(candidate.connectionType);
                 if (connectionInterface) {
                     try {
+                        console.log(`Connecting to ${fingerprint} on ${candidate.connectionType}`);
                         const dataChannel = await connectionInterface.connect(candidate);
+                        console.log(`Connected to ${fingerprint} on ${candidate.connectionType}`);
                         const sc = await this.setupConnection(candidate.connectionType, fingerprint, dataChannel);
                         return sc as T;
                     }
@@ -256,7 +250,6 @@ export class NetService extends Service {
                         controllerProxy: proxy,
                         signalSubs: new Map(),
                     });
-
                     resolve(proxy.controller);
                 }
             });

@@ -6,10 +6,10 @@ import { SignalMetadata } from './types';
 
 type CallBack<T extends any[]> = (...x: T) => void;
 
-const SIGNAL_KEY = Symbol('SIGNAL');
+const SIGNAL_KEY = 'SIGNAL';
 
 export interface SignalNodeRef<T, S> {
-  [SIGNAL_KEY]: Symbol;
+  [SIGNAL_KEY]: string;
   __brand?: S;
   __type?: T;
 }
@@ -24,12 +24,12 @@ function isSignalNodeRef(obj: any): obj is SignalNodeRef<any, any> {
   return typeof obj === 'object' && SIGNAL_KEY in obj;
 }
 
-export default class Signal<T extends any[] = any[], S extends any = Symbol | string> {
+export default class Signal<T extends any[] = any[], S extends any = string> {
   /**
    * A Symbol that is used to guarantee the uniqueness of the Signal
    * instance.
    */
-  private readonly _symbol = Symbol('Signal');
+  private readonly _symbol = 'Signal';
   private _refMap = new WeakMap<SignalNodeRef<T, S>, SignalNode<T>>();
 
   private _head?: SignalNode<T> = undefined;

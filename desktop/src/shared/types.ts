@@ -33,6 +33,17 @@ export type MethodContext = {
     fqn: string;
 }
 
+export type ServiceDoc = {
+    __doctype__: 'function' | 'error';
+    description?: string;
+    methodInfo?: MethodInfo;
+    fqn?: string;
+}
+
+export type ServiceDocTree = {
+    [key: string]: ServiceDoc | ServiceDocTree;
+}
+
 export enum OSType {
     Windows = "windows",
     MacOS = "macos",

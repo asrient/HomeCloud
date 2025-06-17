@@ -42,16 +42,20 @@ export default class TCPInterface extends ConnectionInterface {
             const socket = new net.Socket();
             const host = candidate.data?.host || 'localhost';
             const port = candidate.data?.port || this.port;
+            let isResolved = false;
 
             socket.connect(port, host, () => {
+                socket.setKeepAlive(true);
                 const connectionId = `${host}:${port}`;
                 this.connections.set(connectionId, socket);
-                
+
                 const dataChannel = this.createDataChannel(socket, connectionId);
                 resolve(dataChannel);
+                isResolved = true;
             });
 
             socket.on('error', (error) => {
+                if (isResolved) return; // Avoid resolving/rejecting multiple times
                 console.error('TCP connection error:', error);
                 reject(error);
             });
@@ -75,11 +79,11 @@ export default class TCPInterface extends ConnectionInterface {
         return new Promise((resolve) => {
             // Force discovery update
             this.discovery.getCandidates(false);
-            
+
             // Wait a bit for discovery to update
             setTimeout(() => {
                 const candidates = this.discovery.getCandidates(true);
-                
+
                 if (fingerprint) {
                     const filtered = candidates.filter(candidate => candidate.fingerprint === fingerprint);
                     resolve(filtered);
@@ -98,16 +102,18 @@ export default class TCPInterface extends ConnectionInterface {
         return new Promise((resolve, reject) => {
             try {
                 // Start the TCP server
-                this.server = net.createServer((socket) => {
+                this.server = net.createServer({
+                    keepAlive: true,
+                }, (socket) => {
                     this.handleIncomingConnection(socket);
                 });
 
                 this.server.listen(this.port, () => {
                     console.log(`TCP server listening on port ${this.port}`);
-                    
+
                     // Start discovery service
                     this.discovery.listen();
-                    
+
                     // Publish our service
                     const deviceInfo = {
                         os: process.platform as any,
@@ -115,7 +121,7 @@ export default class TCPInterface extends ConnectionInterface {
                         formFactor: 'desktop' as any
                     };
                     this.discovery.hello(deviceInfo);
-                    
+
                     resolve();
                 });
 
@@ -172,13 +178,13 @@ export default class TCPInterface extends ConnectionInterface {
         console.log(`New TCP connection from ${connectionId}`);
 
         const dataChannel = this.createDataChannel(socket, connectionId);
-        
+
         if (this.onIncomingConnectionCallback) {
             this.onIncomingConnectionCallback(dataChannel);
         }
 
-        socket.on('close', () => {
-            console.log(`TCP connection closed: ${connectionId}`);
+        socket.on('close', (hasErr) => {
+            console.log(`TCP connection closed: ${connectionId}. Had error: ${hasErr}`);
             this.connections.delete(connectionId);
         });
 
@@ -220,13 +226,17 @@ export default class TCPInterface extends ConnectionInterface {
             }
         });
 
-        socket.on('close', () => {
+        socket.on('close', (hadErr) => {
+            console.log(`Socket ${connectionId} closed. Had error: ${hadErr}`);
             if (disconnectHandler) {
                 const closeEvent = {
                     code: 1000,
                     reason: 'Connection closed'
                 } as CloseEvent;
                 disconnectHandler(closeEvent);
+            }
+            if (this.connections.has(connectionId)) {
+                this.connections.delete(connectionId);
             }
         });
 
@@ -265,6 +275,7 @@ export default class TCPInterface extends ConnectionInterface {
             },
 
             disconnect: () => {
+                console.log(`Disconnecting socket: ${connectionId}`);
                 socket.end();
                 this.connections.delete(connectionId);
             }
