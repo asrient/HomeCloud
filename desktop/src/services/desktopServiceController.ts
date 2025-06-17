@@ -21,6 +21,7 @@ export default class DesktopServiceController extends ServiceController {
         console.log("Setting up services...");
         await this.app.init();
         this.system.init();
+        this.files.init();
         this.thumbnail.init();
         this.net.init(new Map(
             [
@@ -39,6 +40,7 @@ export default class DesktopServiceController extends ServiceController {
         await this.app.start();
         await this.net.start();
         await this.system.start();
+        await this.files.start();
         await this.thumbnail.start();
         console.log("All services started.");
     }

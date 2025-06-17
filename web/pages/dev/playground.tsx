@@ -64,6 +64,7 @@ function FunctionPlayground({ fqn, serviceController }:
       setResult(res);
       setError(null);
     } catch (err: any) {
+      console.error('Error executing function:', err);
       setError(err.message || 'An error occurred');
       setResult(null);
     }

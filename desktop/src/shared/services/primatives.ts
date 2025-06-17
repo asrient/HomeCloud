@@ -232,14 +232,21 @@ export class RPCController {
         return obj;
     }
 
-    getCallable(fqn: string): Function {
+    getCallable(fqn: string): { obj: any, funcName: string } {
         // Get the callable function from the object
-        const obj = this.getAttr(fqn);
+        // get the parent object of the function
+        const objParts = fqn.split(".");
+        const funcName = objParts.pop();
+        const objPath = objParts.join(".");
+        const obj = this.getAttr(objPath);
+        if (!obj || !(funcName in obj)) {
+            throw new Error(`FQN: ${fqn} not found.`);
+        }
         // Only functions are correct type of callable
-        if (typeof obj !== "function") {
+        if (typeof obj[funcName] !== "function") {
             throw new Error(`Function ${fqn} is not callable.`);
         }
-        return obj;
+        return { obj, funcName };
     }
 
     getSignal(fqn: string): Signal {

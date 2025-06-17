@@ -92,6 +92,7 @@ export class NetService extends Service {
         try {
             const sc = await this.createConnection<T>(fingerprint);
             newSignal.dispatch(sc);
+            return sc;
         } catch (error) {
             console.error(`Error creating connection for ${fingerprint}:`, error);
             newSignal.dispatch(error);
@@ -180,9 +181,9 @@ export class NetService extends Service {
                     methodCall: async (fqn: string, args: any[]) => {
                         const fingerprint = rpc.getTargetFingerprint();
                         const serviceController = modules.ServiceController.getLocalInstance();
-                        const method = serviceController.getCallable(fqn);
+                        const { obj, funcName } = serviceController.getCallable(fqn);
                         // Check if peer can access the method here
-                        const methodInfo = getMethodInfo(serviceController);
+                        const methodInfo = getMethodInfo(obj[funcName]);
                         const [canAccess, err] = serviceController.app.checkAccess(fingerprint, fqn, methodInfo);
                         if (!canAccess) {
                             throw (err || new Error(`Access denied for ${fingerprint} on ${fqn}`));
@@ -201,7 +202,7 @@ export class NetService extends Service {
                                 args.push(context);
                             }
                         }
-                        return await method(...args);
+                        return await obj[funcName](...args);
                     },
                 },
 

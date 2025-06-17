@@ -34,13 +34,20 @@ export default class ConfigStorage {
     public getItem<T>(key: string): T | undefined {
         this.assertLoaded();
         // lookup in the data object
-        return this.data[key];
+        const data = this.data[key];
+        if (data === undefined) {
+            return undefined; // Return undefined if the key does not exist
+        }
+        // Return a deep copy of the data to prevent mutation
+        return JSON.parse(JSON.stringify(data)) as T;
     }
 
     public setItem(key: string, value: any) {
         this.assertLoaded();
+        // Create a deep copy of the value to prevent mutation
+        const valueCopy = JSON.parse(JSON.stringify(value));
         // set the value in the data object
-        this.data[key] = value;
+        this.data[key] = valueCopy;
     }
 
     public deleteKey(key: string) {

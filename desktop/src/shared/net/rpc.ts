@@ -173,7 +173,7 @@ export class RPCPeer {
             console.warn('Received message before HELLO', type);
             return;
         }
-        if (!(!this.isReady() && SETUP_AUTH_TYPES.includes(type))) {
+        if (!this.isReady() && !SETUP_AUTH_TYPES.includes(type)) {
             console.warn('Message type not allowed right now', type);
             return;
         }
@@ -315,7 +315,7 @@ export class RPCPeer {
 
     private parseJson(text: string) {
         return JSON.parse(text, (_, v) => {
-            if (v.__rpc_stream_id__ && typeof v.__rpc_stream_id__ === 'number') {
+            if (!!v && v.__rpc_stream_id__ && typeof v.__rpc_stream_id__ === 'number') {
                 const id = v.__rpc_stream_id__;
                 const stream = new ReadableStream<Uint8Array>({
                     start: ctrl => {
