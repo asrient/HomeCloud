@@ -1,4 +1,5 @@
-import CryptoModule, { EncryptedData } from "./shared/crypto";
+import CryptoModule from "shared/crypto";
+import { EncryptedData } from "shared/crypto";
 import crypto from "crypto";
 
 export default class CryptoImpl extends CryptoModule {

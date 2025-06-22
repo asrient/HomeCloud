@@ -2,7 +2,7 @@ import { app, BrowserWindow, safeStorage, protocol, net, nativeTheme } from 'ele
 import path from 'node:path';
 import env from './env';
 import { DesktopConfigType } from './types';
-import { setModules, ModulesType } from './shared/modules';
+import { setModules, ModulesType } from 'shared/modules';
 import CryptoImpl from './cryptoImpl';
 import DesktopServiceController from './services/desktopServiceController';
 import fs from 'node:fs';

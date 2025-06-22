@@ -47,6 +47,7 @@ module.exports = {
     icon: "assets/appIcons/icon",
     publisherName: "ASRIENT",
     appBundleId: "org.homecloud.desktop",
+    derefSymlinks: true, // Dereference symlinks
     ignore: [ // doc: https://electron.github.io/packager/main/interfaces/Options.html#ignore
       "^/[.]vs$",
       "^/public$",

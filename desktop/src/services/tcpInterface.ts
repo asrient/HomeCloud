@@ -1,5 +1,5 @@
-import { ConnectionInterface } from "../shared/services/netService";
-import { GenericDataChannel, PeerCandidate, ConnectionType } from "../shared/types";
+import { ConnectionInterface } from "shared/services/netService";
+import { GenericDataChannel, PeerCandidate, ConnectionType } from "shared/types";
 import net from "node:net";
 import Discovery from "./discovery";
 

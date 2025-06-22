@@ -47,3 +47,5 @@ export abstract class FilesService extends Service {
     public async stop() {
     }
 }
+
+export { FsDriver } from "../files/fsDriver";

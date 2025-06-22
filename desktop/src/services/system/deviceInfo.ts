@@ -1,4 +1,4 @@
-import { DeviceFormType, DeviceInfo, OSType, DefaultDirectories } from "../../shared/types";
+import { DeviceFormType, DeviceInfo, OSType, DefaultDirectories } from "shared/types";
 import os from "os";
 import path from "path";
 import { execSync } from "child_process";

@@ -1,4 +1,4 @@
-import ConfigStorage from "./shared/storage";
+import ConfigStorage from "shared/storage";
 import fs from "fs/promises";
 import path from "path";
 

@@ -1,4 +1,4 @@
-import { AppConfigType } from "./shared/types";
+import { AppConfigType } from "shared/types";
 
 export type DesktopConfigType = AppConfigType & {
     IS_DESKTOP_PACKED: boolean;

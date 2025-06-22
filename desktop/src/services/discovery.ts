@@ -1,6 +1,6 @@
 import Bonjour, { Browser, Service } from 'bonjour-service';
-import { getIconKey } from '../shared/utils';
-import { PeerCandidate, BonjourTxt, DeviceInfo, ConnectionType } from '../shared/types';
+import { getIconKey } from 'shared/utils';
+import { PeerCandidate, BonjourTxt, DeviceInfo, ConnectionType } from 'shared/types';
 
 const SERVICE_TYPE = 'hc-agent';
 

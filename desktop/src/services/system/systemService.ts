@@ -1,5 +1,5 @@
-import { SystemService } from "../../shared/services/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "../../shared/types";
+import { SystemService } from "shared/services/systemService";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
 import { dialog, BrowserWindow } from "electron";
 import { getDriveDetails } from "./drivers/win32";
