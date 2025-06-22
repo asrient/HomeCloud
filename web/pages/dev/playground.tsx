@@ -98,7 +98,7 @@ function FunctionPlayground({ fqn, serviceController }:
         Execute
       </Button>
       {result && (
-        <div className='mt-4 p-2 bg-green-100 text-green-800 rounded-md'>
+        <div className='mt-4 p-2 bg-green-100 text-green-800 rounded-md overflow-y-auto'>
           <pre>{JSON.stringify(result, null, 2)}</pre>
         </div>
       )}
@@ -269,7 +269,7 @@ function DeviceSelector({ setDeviceCandidate }: {
           variant='secondary'
           onClick={() => setDeviceCandidate(null)}
         >
-          Connect
+          Select
         </Button>
       </div>
       <hr />
@@ -295,7 +295,7 @@ function DeviceSelector({ setDeviceCandidate }: {
               variant='secondary'
               onClick={() => setDeviceCandidate({ fingerprint: device.fingerprint, deviceName: device.deviceName })}
             >
-              Connect
+              Select
             </Button>
           </div>
         ))
@@ -314,7 +314,7 @@ function DeviceSelector({ setDeviceCandidate }: {
               variant='secondary'
               onClick={() => setDeviceCandidate({ fingerprint: device.fingerprint, deviceName: device.deviceName })}
             >
-              Connect
+              Select
             </Button>
           </div>
         ))

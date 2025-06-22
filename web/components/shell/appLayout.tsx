@@ -12,7 +12,7 @@ import useHideSidebar from "../hooks/useHideSidebar";
 export function MainContent({ children }: { children: React.ReactNode }) {
     return (
         <div className="md:px-2 md:pb-2 h-full">
-            <div className="min-h-full md:rounded-md shadow relative bg-background/70 md:overflow-x-hidden md:h-[calc(100vh_-_2.6rem_-_0.5rem)] md:overflow-y-auto">
+            <div className="min-h-full md:rounded-md shadow relative border bg-background/70 md:overflow-x-hidden md:h-[calc(100vh_-_2.6rem_-_0.5rem)] md:overflow-y-auto">
                 {children}
             </div>
         </div>

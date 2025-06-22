@@ -117,7 +117,7 @@ const createWindow = () => {
   console.log('System dark mode:', isSystemDarkMode);
   const mainWindow = new BrowserWindow({
     width: 1200,
-    height: 800,
+    height: 860,
     minWidth: 900,
     minHeight: 600,
     // remove the default titlebar

@@ -130,10 +130,10 @@ export class RPCControllerProxy {
     private proxyObject<T extends Object>(prifix: string, obj: T): T {
         // Transform the service instance to use the proxy call
         // This will intercept all method calls and call the proxy call instead
-        console.log(`Proxying object: ${prifix}`);
+        // console.log(`Proxying object: ${prifix}`);
         const newObj = new Proxy(obj, {
             get: (target, prop) => {
-                console.log(`Accessing property: ${prifix}.${prop.toString()}`);
+                // console.log(`Accessing property: ${prifix}.${prop.toString()}`);
                 // if property does not exist, return undefined
                 if (!(prop in target)) {
                     return undefined;
