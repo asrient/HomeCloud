@@ -130,10 +130,10 @@ export class RPCControllerProxy {
     private proxyObject<T extends Object>(prifix: string, obj: T): T {
         // Transform the service instance to use the proxy call
         // This will intercept all method calls and call the proxy call instead
-        // console.log(`Proxying object: ${prifix}`);
+        console.log(`Proxying object: ${prifix}`);
         const newObj = new Proxy(obj, {
             get: (target, prop) => {
-                // console.log(`Accessing property: ${prifix}.${prop.toString()}`);
+                console.log(`Accessing property: ${prifix}.${prop.toString()}`);
                 // if property does not exist, return undefined
                 if (!(prop in target)) {
                     return undefined;
@@ -141,6 +141,11 @@ export class RPCControllerProxy {
                 const type = typeof target[prop];
                 const name = prop.toString();
                 const fqn = `${prifix}.${name}`;
+
+                if (type === "symbol" || name.startsWith("_")) {
+                    return undefined;
+                }
+
                 if (type === "function") {
                     return async (...args: any[]) => {
                         // Call the proxy call with the method name and arguments
@@ -158,8 +163,15 @@ export class RPCControllerProxy {
                     };
                 }
                 else if (type === "object") {
-                    if (target[prop] instanceof Signal) {
-                        const metadata = target[prop].getMetadata();
+                    const obj = target[prop];
+                    if (obj === null) {
+                        return null; // Return null for null objects
+                    }
+                    if (Array.isArray(obj) || obj instanceof Map || obj instanceof Set || obj instanceof Date) {
+                        return null;
+                    }
+                    if (obj instanceof Signal) {
+                        const metadata = obj.getMetadata();
                         if (!metadata || !metadata.isExposed) {
                             return null;
                             // throw new Error(`Signal ${fqn} is not exposed.`);
@@ -193,10 +205,10 @@ export class RPCControllerProxy {
                     }
 
                     // If the property is an object, we need to proxy it too
-                    return this.proxyObject(fqn, target[prop]);
+                    return this.proxyObject(fqn, obj);
                 }
                 // throw new Error(`"${fqn}" cannot be used from a proxy, ${type} type is not supported.`);
-                return null; // Return null for unsupported types
+                return undefined; // Return undefined for unsupported types
             },
 
             set(target, prop, value) {

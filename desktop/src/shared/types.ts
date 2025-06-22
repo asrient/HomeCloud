@@ -182,3 +182,9 @@ export type PinnedFolder = {
     path: string;
     name: string;
 }
+
+export type ConnectionInfo = {
+    fingerprint: string;
+    deviceName: string | null;
+    connectionType: ConnectionType;
+}

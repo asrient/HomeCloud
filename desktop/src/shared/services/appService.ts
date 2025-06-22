@@ -167,8 +167,10 @@ export class AppService extends Service {
             return [false, `Method ${fqn} is not exposed.`];
         }
         if (!info.isAllowAll) {
-            // todo: Check if peer can access the method here.
-            return [false, 'Access denied.'];
+            const peer = this.getPeer(fingerprint);
+            if (!peer) {
+                return [false, 'Access denied.'];
+            }
         }
         return [true, null];
     }

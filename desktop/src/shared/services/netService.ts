@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, RPCController, getMethodInfo, assertServiceRunning, RPCControllerProxy } from "./primatives";
-import { ProxyHandlers, GenericDataChannel, PeerCandidate, ConnectionType, MethodContext } from "../types";
+import { ProxyHandlers, GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo } from "../types";
 import { RPCPeer, RPCPeerOptions } from "../net/rpc";
 import Signal, { SignalNodeRef } from "../signals";
 
@@ -61,6 +61,20 @@ export class NetService extends Service {
                 this.setupConnection(type, null, dataChannel);
             });
         });
+    }
+
+    @assertServiceRunning
+    public async getConnectedDevices(): Promise<ConnectionInfo[]> {
+        const connectionInfos: ConnectionInfo[] = [];
+        for (const [fingerprint, connection] of this.connections) {
+            const connInfo = {
+                fingerprint,
+                deviceName: connection.rpc.getTargetDeviceName(),
+                connectionType: connection.type,
+            }
+            connectionInfos.push(connInfo);
+        }
+        return connectionInfos;
     }
 
     @assertServiceRunning
@@ -134,6 +148,7 @@ export class NetService extends Service {
             let isResolved = false;
             const rpc = new RPCPeer({
                 isSecure: connInterface?.isSecure || false,
+                pingIntervalMs: 5000,
                 fingerprint: fingerprint_,
                 dataChannel,
                 handlers: {

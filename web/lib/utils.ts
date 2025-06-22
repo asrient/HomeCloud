@@ -38,3 +38,15 @@ export function getGreetings() {
     return "Good evening"
   }
 }
+
+export function getUrlFromIconKey(iconKey?: string | null) {
+  iconKey = iconKey || 'pc';
+  return `/icons/d/${iconKey}.png`;
+}
+
+export function printFingerprint(fingerprint: string, full = false) {
+  if (full) {
+    return fingerprint;
+  }
+  return `$${fingerprint.slice(0, 8)}`;
+}

@@ -5,7 +5,7 @@ import { SystemService } from "./systemService";
 import { ThumbService } from "./thumbService";
 import { FilesService } from "./filesService";
 import Signal from "../signals";
-import {generateServicesDoc} from "../doc";
+import { generateServicesDoc } from "../doc";
 
 export default class ServiceController extends RPCController {
     private static localInstance: RPCController | null = null;

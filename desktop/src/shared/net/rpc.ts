@@ -16,6 +16,7 @@ export enum MessageType {
     SIGNAL_SUBSCRIBE = 0x0B,
     SIGNAL_UNSUBSCRIBE = 0x0C,
     SIGNAL_EVENT = 0x0D,
+    PING = 0x0E,
 }
 
 const SETUP_AUTH_TYPES = [
@@ -38,6 +39,7 @@ export interface RPCPeerOptions {
     handlers: ProxyHandlers;
     fingerprint: string | null;
     isSecure: boolean;
+    pingIntervalMs?: number; // Optional ping interval in milliseconds
     onError?: (error: Error) => void;
     onClose?: () => void;
     onReady?: (rpc: RPCPeer) => void;
@@ -53,6 +55,7 @@ export class RPCPeer {
     private streamControllers = new Map<number, ReadableStreamController<Uint8Array>>();
     private targetPublicKeyPem: string | null = null;
     private targetFingerprint: string | null = null;
+    private targetDeviceName: string | null = null;
 
     private isTargetAuthenticated = false;
     private isTargetReady = false;
@@ -60,8 +63,10 @@ export class RPCPeer {
     private encryptionKey: string | null = null;
     private decryptionKey: string | null = null;
 
+    private pingIntervalId: NodeJS.Timeout | null = null;
+
     constructor(private opts: RPCPeerOptions) {
-        this.parser = new DataChannelParser({onFrame: this.onFrame});
+        this.parser = new DataChannelParser({ onFrame: this.onFrame });
         // this.opts.dataChannel.binaryType = 'arraybuffer';
         this.opts.dataChannel.onmessage = ev => {
             this.parser.feed(new Uint8Array(ev.data as ArrayBuffer));
@@ -74,6 +79,32 @@ export class RPCPeer {
             this.close(true);
         };
         this.sendHello();
+        this.startPing();
+    }
+
+    private startPing() {
+        if (this.pingIntervalId || !this.opts.pingIntervalMs) return;
+        // Ensure ping interval is min 1 second
+        if (this.opts.pingIntervalMs < 1000) {
+            console.warn('Ping interval is too short, setting to 1000ms');
+            this.opts.pingIntervalMs = 1000;
+        }
+        this.pingIntervalId = setInterval(() => {
+            if (this.isReady()) {
+                this.sendPing();
+            }
+        }, this.opts.pingIntervalMs);
+    }
+
+    private stopPing() {
+        if (this.pingIntervalId) {
+            clearInterval(this.pingIntervalId);
+            this.pingIntervalId = null;
+        }
+    }
+
+    public getTargetDeviceName() {
+        return this.targetDeviceName;
     }
 
     public getTargetFingerprint() {
@@ -165,6 +196,7 @@ export class RPCPeer {
         this.pending.clear();
         this.streamControllers.forEach(ctrl => ctrl.close());
         this.streamControllers.clear();
+        this.stopPing();
         this.opts.onClose?.();
     }
 
@@ -177,42 +209,52 @@ export class RPCPeer {
             console.warn('Message type not allowed right now', type);
             return;
         }
-        switch (type) {
-            case MessageType.HELLO:
-                this.handleHello(payload);
-                break;
-            case MessageType.READY:
-                this.handleTargetReady(payload);
-                break;
-            case MessageType.REQUEST:
-                this.handleRequest(payload);
-                break;
-            case MessageType.RESPONSE:
-                this.handleResponse(payload);
-                break;
-            case MessageType.ERROR:
-                this.handleError(payload);
-                break;
-            case MessageType.AUTH_CHALLENGE:
-                this.onAuthChallenge(payload);
-                break;
-            case MessageType.AUTH_RESPONSE:
-                this.onAuthResponse(payload);
-                break;
-            case MessageType.STREAM_CANCEL:
-            case MessageType.STREAM_CHUNK:
-            case MessageType.STREAM_END:
-                this.handleStreamMessage(type, payload);
-                break;
-            case MessageType.SIGNAL_EVENT:
-                this.handleSignalEvent(payload);
-                break;
-            case MessageType.SIGNAL_SUBSCRIBE:
-                this.handleSignalSubscribe(payload);
-                break;
-            case MessageType.SIGNAL_UNSUBSCRIBE:
-                this.handleSignalUnsubscribe(payload);
-                break;
+        try {
+            switch (type) {
+                case MessageType.PING:
+                    // Handle ping if needed, currently no-op
+                    break;
+                case MessageType.HELLO:
+                    this.handleHello(payload);
+                    break;
+                case MessageType.READY:
+                    this.handleTargetReady(payload);
+                    break;
+                case MessageType.REQUEST:
+                    this.handleRequest(payload);
+                    break;
+                case MessageType.RESPONSE:
+                    this.handleResponse(payload);
+                    break;
+                case MessageType.ERROR:
+                    this.handleError(payload);
+                    break;
+                case MessageType.AUTH_CHALLENGE:
+                    this.onAuthChallenge(payload);
+                    break;
+                case MessageType.AUTH_RESPONSE:
+                    this.onAuthResponse(payload);
+                    break;
+                case MessageType.STREAM_CANCEL:
+                case MessageType.STREAM_CHUNK:
+                case MessageType.STREAM_END:
+                    this.handleStreamMessage(type, payload);
+                    break;
+                case MessageType.SIGNAL_EVENT:
+                    this.handleSignalEvent(payload);
+                    break;
+                case MessageType.SIGNAL_SUBSCRIBE:
+                    this.handleSignalSubscribe(payload);
+                    break;
+                case MessageType.SIGNAL_UNSUBSCRIBE:
+                    this.handleSignalUnsubscribe(payload);
+                    break;
+                default:
+                    console.warn('Unknown message type received', type);
+            }
+        } catch (e) {
+            console.error('Error handling frame', type, e);
+            // Ignore errors in handling frames, we don't want to crash the connection for now.
         }
     }
 
@@ -387,7 +429,7 @@ export class RPCPeer {
             return;
         }
         const json = new TextDecoder().decode(buf);
-        const { version, publicKeyPem } = JSON.parse(json);
+        const { version, publicKeyPem, deviceName } = JSON.parse(json);
         const computedFingerprint = modules.crypto.getFingerprintFromPem(publicKeyPem);
         if (this.opts.fingerprint && computedFingerprint !== this.opts.fingerprint) {
             console.error('Fingerprint mismatch', computedFingerprint, this.opts.fingerprint);
@@ -396,6 +438,7 @@ export class RPCPeer {
         } else {
             this.targetPublicKeyPem = publicKeyPem;
             this.targetFingerprint = computedFingerprint;
+            this.targetDeviceName = deviceName || null;
             this.sendAuthChallenge();
         }
     }
@@ -403,10 +446,16 @@ export class RPCPeer {
     private sendHello() {
         const hello = {
             version: '1.0',
+            deviceName: modules.config.DEVICE_NAME,
             publicKeyPem: modules.config.PUBLIC_KEY_PEM,
         };
         const payload = new TextEncoder().encode(JSON.stringify(hello));
         this.sendFrame(MessageType.HELLO, payload);
+    }
+
+    public sendPing() {
+        const pingPayload = new Uint8Array(0);
+        this.sendFrame(MessageType.PING, pingPayload);
     }
 
     private handleError(buf: Uint8Array) {

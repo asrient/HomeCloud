@@ -1,43 +1,52 @@
-import { SettingsSidebar } from '@/components/shell/settingsSidebar'
 import Head from 'next/head'
 import Image from 'next/image'
 import { SidebarType } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
 import PageBar from '@/components/pageBar'
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion'
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import LoadingIcon from '@/components/ui/loadingIcon'
+import { printFingerprint, getUrlFromIconKey } from '@/lib/utils'
 
 export type MethodInfo = {
-    isExposed: boolean;
-    isAllowAll: boolean;
-    passContext: boolean;
+  isExposed: boolean;
+  isAllowAll: boolean;
+  passContext: boolean;
 }
 
 export type ServiceDoc = {
-    __doctype__: 'function' | 'error';
-    description?: string;
-    methodInfo?: MethodInfo;
-    fqn?: string;
+  __doctype__: 'function' | 'error';
+  description?: string;
+  methodInfo?: MethodInfo;
+  fqn?: string;
 }
 
 export type ServiceDocTree = {
-    [key: string]: ServiceDoc | ServiceDocTree;
+  [key: string]: ServiceDoc | ServiceDocTree;
 }
 
 // Take parameters for the func call from userand execute the function located by the FQN and display the result.
 function FunctionPlayground({ fqn, serviceController }:
-{
-  fqn: string;
-  serviceController: any;
-}) {
+  {
+    fqn: string;
+    serviceController: any;
+  }) {
   const [params, setParams] = useState<string>('[]');
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleExecute = useCallback(async () => {
     try {
-      const paramsArray = JSON.parse(params);
+      const paramsArray = JSON.parse(params || '[]');
       // iterate through the serviceController to find the function by FQN
       const parts = fqn.split('.');
       // remove the last part if it is a function name
@@ -47,7 +56,7 @@ function FunctionPlayground({ fqn, serviceController }:
       }
       let obj = serviceController;
       for (const part of parts) {
-        if(typeof obj !== 'object') {
+        if (typeof obj !== 'object') {
           throw new Error(`FQN ${fqn} is not valid, ${part} is not an object`);
         }
         if (part in obj) {
@@ -84,6 +93,7 @@ function FunctionPlayground({ fqn, serviceController }:
         size='lg'
         variant='default'
         onClick={handleExecute}
+        disabled={!fqn || !serviceController}
       >
         Execute
       </Button>
@@ -126,13 +136,13 @@ function FunctionConsole({ doc, name, serviceController
           )}
         </ul>
       </div>
-        <FunctionPlayground fqn={doc.fqn || name} serviceController={serviceController} />
+      <FunctionPlayground fqn={doc.fqn || name} serviceController={serviceController} />
     </div>
   );
 }
 
 function ErrorDoc({ doc, name }: {
-  doc: ServiceDoc; 
+  doc: ServiceDoc;
   name: string;
 }) {
   return (
@@ -167,35 +177,161 @@ function ServiceFragment({
         entries.map(([key, value]) => {
           const type: string = String(value.__doctype__ || 'tree');
           const methodInfo: MethodInfo = (value.methodInfo as MethodInfo) || null;
-          return(
-          <AccordionItem key={key} value={`item-${key}`}>
-            <AccordionTrigger className='w-full'>
-              <div className='text-sm font-normal'>
-              <span>{key}</span>
-              <span className='text-blue-500 text-xs ml-2 border border-blue-500 px-1 rounded-md'>{type}</span>
-              {
-                methodInfo && methodInfo.isExposed && (
-                  <span className='text-green-500 text-xs ml-2 border border-green-500 px-1 rounded-md'>Exposed</span>
-                )
-              }
-              {
-                methodInfo && methodInfo.isAllowAll && (
-                  <span className='text-yellow-500 text-xs ml-2 border border-yellow-500 px-1 rounded-md'>Allow All</span>
-                )
-              }
-              </div>
+          return (
+            <AccordionItem key={key} value={`item-${key}`}>
+              <AccordionTrigger className='w-full'>
+                <div className='text-sm font-normal'>
+                  <span>{key}</span>
+                  <span className='text-blue-500 text-xs ml-2 border border-blue-500 px-1 rounded-md'>{type}</span>
+                  {
+                    methodInfo && methodInfo.isExposed && (
+                      <span className='text-green-500 text-xs ml-2 border border-green-500 px-1 rounded-md'>Exposed</span>
+                    )
+                  }
+                  {
+                    methodInfo && methodInfo.isAllowAll && (
+                      <span className='text-yellow-500 text-xs ml-2 border border-yellow-500 px-1 rounded-md'>Allow All</span>
+                    )
+                  }
+                </div>
 
-            </AccordionTrigger>
-            <AccordionContent>
-              {type === 'function' && <FunctionConsole doc={value as ServiceDoc} name={key} serviceController={serviceController} />}
-              {type === 'error' && <ErrorDoc doc={value as ServiceDoc} name={key} />}
-              {type === 'tree' && <ServiceFragment serviceController={serviceController} docTree={value as ServiceDocTree} name={key} />}
-            </AccordionContent>
-          </AccordionItem>
-        )})
+              </AccordionTrigger>
+              <AccordionContent>
+                {type === 'function' && <FunctionConsole doc={value as ServiceDoc} name={key} serviceController={serviceController} />}
+                {type === 'error' && <ErrorDoc doc={value as ServiceDoc} name={key} />}
+                {type === 'tree' && <ServiceFragment serviceController={serviceController} docTree={value as ServiceDocTree} name={key} />}
+              </AccordionContent>
+            </AccordionItem>
+          )
+        })
       }
     </Accordion>
   )
+}
+
+type DeviceCandidate = {
+  fingerprint: string;
+  deviceName: string | null;
+}
+
+type ConnectionInfo = {
+  fingerprint: string;
+  deviceName: string | null;
+  connectionType: any;
+}
+
+type PeerInfo = {
+  deviceName: string;
+  fingerprint: string;
+  version: string;
+  deviceInfo: any;
+  iconKey: string | null;
+}
+
+function DeviceSelector({ setDeviceCandidate }: {
+  setDeviceCandidate: (deviceCandidate: DeviceCandidate | null) => void;
+}) {
+  const [fingerprint, setFingerprint] = useState<string>('');
+  const [connectedDevices, setConnectedDevices] = useState<ConnectionInfo[]>([]);
+  const [peers, setPeers] = useState<PeerInfo[]>([]);
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      const sc = (window as any).modules.getLocalServiceController();
+      const devices = await sc.net.getConnectedDevices();
+      setConnectedDevices(devices);
+      const peers = sc.app.getPeers();
+      setPeers(peers);
+    }
+    fetchDevices();
+  }, []);
+
+  const handleConnect = () => {
+    if (!fingerprint.trim()) {
+      alert('Please enter a valid fingerprint');
+      return;
+    }
+    setDeviceCandidate({
+      fingerprint: fingerprint.trim(),
+      deviceName: null,
+    })
+  };
+
+  return (
+    <div>
+
+      <div className='flex items-center justify-between mb-2'>
+        <div className='text-sm'>
+          This Device
+        </div>
+        <Button
+          size='sm'
+          variant='secondary'
+          onClick={() => setDeviceCandidate(null)}
+        >
+          Connect
+        </Button>
+      </div>
+      <hr />
+      <div className='py-2 text-xs text-foreground/60'>MY DEVICES</div>
+      {
+        peers.map((device) => (
+          <div key={device.fingerprint} className='flex items-center justify-between mb-2'>
+            <div className='flex items-center space-x-2 pr-6'>
+              <Image
+                src={getUrlFromIconKey(device.iconKey)}
+                alt={device.iconKey || 'Unknown Device'}
+                width={40}
+                height={40}
+              />
+              <div className='text-sm'>
+                <div>{device.deviceName || 'Unknow Device'}</div>
+                <div className='text-[0.8rem] text-foreground/60'>{printFingerprint(device.fingerprint)}</div>
+              </div>
+            </div>
+
+            <Button
+              size='sm'
+              variant='secondary'
+              onClick={() => setDeviceCandidate({ fingerprint: device.fingerprint, deviceName: device.deviceName })}
+            >
+              Connect
+            </Button>
+          </div>
+        ))
+      }
+      <hr />
+      <div className='py-2 text-xs text-foreground/60'>CONNECTED</div>
+      {
+        connectedDevices.map((device) => (
+          <div key={device.fingerprint} className='flex items-center justify-between mb-2'>
+            <div className='text-sm'>
+              <div>{device.deviceName || 'Unknow Device'}</div>
+              <div className='text-[0.8rem] text-foreground/60'>{printFingerprint(device.fingerprint)}</div>
+            </div>
+            <Button
+              size='sm'
+              variant='secondary'
+              onClick={() => setDeviceCandidate({ fingerprint: device.fingerprint, deviceName: device.deviceName })}
+            >
+              Connect
+            </Button>
+          </div>
+        ))
+      }
+      <hr />
+      <div className='flex items-center space-x-2 my-4'>
+        <input
+          type='text'
+          placeholder='Fingerprint'
+          value={fingerprint}
+          onChange={(e) => setFingerprint(e.target.value.trim())}
+          className='p-2 border rounded-md flex-grow'
+        />
+        <Button onClick={handleConnect}>Connect</Button>
+      </div>
+    </div>
+  );
 }
 
 function Page() {
@@ -205,7 +341,29 @@ function Page() {
     return sc.getDoc();
   }, []);
 
-  const sc = useMemo(() => (window as any).modules.getLocalServiceController(), []);
+  const [error, setError] = useState<string | null>(null);
+  const [serviceController, setServiceController] = useState<any>(null);
+  const [deviceCandidate, setDeviceCandidate] = useState<DeviceCandidate | null>(null);
+  const [showDeviceSelector, setShowDeviceSelector] = useState<boolean>(false);
+
+  useEffect(() => {
+    async function loadServiceController() {
+      if (!deviceCandidate) {
+        const sc = (window as any).modules.getLocalServiceController();
+        setServiceController(sc);
+      } else {
+        try {
+          const sc = await (window as any).modules.getRemoteServiceController(deviceCandidate.fingerprint);
+          setServiceController(sc);
+        } catch (err: any) {
+          console.error('Error getting remote service controller:', err);
+          setError(err.message || 'An error occurred while fetching the remote service controller');
+          setServiceController(null);
+        }
+      }
+    }
+    loadServiceController();
+  }, [deviceCandidate]);
 
   return (
     <>
@@ -213,10 +371,49 @@ function Page() {
         <title>Playground</title>
       </Head>
       <PageBar icon='/icons/program.png' title='Debug Services'>
+        <div className='text-sm text-foreground mr-3'>
+          {deviceCandidate ? deviceCandidate.deviceName || printFingerprint(deviceCandidate.fingerprint) : 'This Device'}
+        </div>
+        <Button
+          size='sm'
+          variant='secondary'
+          disabled={!serviceController && !error}
+          onClick={() => setShowDeviceSelector(true)}
+        >
+          {
+            (serviceController || error) ? 'Switch' : (
+              <LoadingIcon className='text-sm' />
+            )
+          }
+        </Button>
       </PageBar>
       <main className='p-6'>
-        <ServiceFragment docTree={servicesDoc} serviceController={sc} name='Local Service Controller' />
+        {
+          error && (<div className='text-xs text-red-700 bg-red-300 rounded-md p-2 mb-4'>
+            {error}
+          </div>)
+        }
+        <ServiceFragment docTree={servicesDoc} serviceController={serviceController} name='Local Service Controller' />
       </main>
+      <Sheet
+        open={showDeviceSelector}
+        onOpenChange={setShowDeviceSelector}>
+        <SheetContent className="w-[600px]">
+          <SheetHeader>
+            <SheetTitle>Select a device</SheetTitle>
+            <SheetDescription>
+              Choose a device to connect to and debug its services.
+            </SheetDescription>
+          </SheetHeader>
+          <div className='pt-4'>
+            <DeviceSelector setDeviceCandidate={(dev) => {
+              setError(null);
+              setDeviceCandidate(dev);
+              setShowDeviceSelector(false);
+            }} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   )
 }
