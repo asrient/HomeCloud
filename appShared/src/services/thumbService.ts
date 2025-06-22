@@ -6,12 +6,12 @@ export abstract class ThumbService extends Service {
         this._init();
     }
 
-    abstract generateThumbnailJPEGImpl(filePath: string): Promise<Buffer>;
+    abstract generateThumbnailJPEGImpl(filePath: string): Promise<Uint8Array>;
     abstract generateThumbnailURIImpl(filePath: string): Promise<string>;
 
     @exposed
     @assertServiceRunning
-    async generateThumbnailJPEG(filePath: string): Promise<Buffer> {
+    async generateThumbnailJPEG(filePath: string): Promise<Uint8Array> {
         return this.generateThumbnailJPEGImpl(filePath);
     }
 

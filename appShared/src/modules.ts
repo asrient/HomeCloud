@@ -12,6 +12,6 @@ export type ModulesType = {
     getRemoteServiceController: (fingerprint: string) => Promise<ServiceController>;
 }
 
-export function setModules(mod: ModulesType) {
-    global.modules = mod;
+export function setModules(mod: ModulesType, globalObject: any) {
+    globalObject.modules = mod;
 }

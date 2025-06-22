@@ -5,6 +5,7 @@ import ThumbGeneratorMac from "./generators/mac";
 import ThumbGeneratorLinux from "./generators/linux";
 import { ThumbService } from "shared/services/thumbService";
 import { serviceStartMethod, serviceStopMethod } from "shared/services/primatives";
+import { Buffer } from "buffer";
 
 export default class DesktopThumbService extends ThumbService {
   generator: ThumbGenerator;
@@ -44,6 +45,7 @@ export default class DesktopThumbService extends ThumbService {
   async generateThumbnailURIImpl(filePath: string): Promise<string> {
     const buffer = await this.generateThumbnailJPEG(filePath);
     // convert the buffer to uri encoded string
-    return `data:image/jpeg;base64,${buffer.toString("base64")}`;
+    const base64 = Buffer.from(buffer).toString('base64');
+    return `data:image/jpeg;base64,${base64}`;
   }
 }

@@ -63,7 +63,7 @@ export class RPCPeer {
     private encryptionKey: string | null = null;
     private decryptionKey: string | null = null;
 
-    private pingIntervalId: NodeJS.Timeout | null = null;
+    private pingIntervalId: number | null = null;
 
     constructor(private opts: RPCPeerOptions) {
         this.parser = new DataChannelParser({ onFrame: this.onFrame });
