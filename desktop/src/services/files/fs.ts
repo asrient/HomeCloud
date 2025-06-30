@@ -7,10 +7,13 @@ import { getMimeType, getNativeDrives } from "./fileUtils";
 import { Readable } from "stream";
 import { exposed } from "shared/services/primatives";
 
-
 export default class LocalFsDriver extends FsDriver {
 
   private normalizePath(filePath: string) {
+    if(filePath.endsWith(':')) {
+      // Special case for Windows drive letters
+      filePath += path.sep;
+    }
     if (!path.isAbsolute(filePath)) {
       throw new Error(`Relative paths not allowed: ${filePath}`);
     }

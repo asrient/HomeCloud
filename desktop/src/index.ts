@@ -161,7 +161,10 @@ async function handleMediaRequest(request: Request): Promise<GlobalResponse> {
   const urlObj = new URL(request.url);
   if (urlObj.pathname === '/previewFile') {
     // Handle preview file request
-    const fingerprint = urlObj.searchParams.get('fingerprint') || null;
+    let fingerprint = urlObj.searchParams.get('fingerprint') || null;
+    if (fingerprint === 'null') {
+      fingerprint = null; // Convert 'null' string to actual null
+    }
     const path = urlObj.searchParams.get('path') || '';
     console.log('Handling media preview request:', { fingerprint, path });
     const serviceController = await getServiceController(fingerprint);

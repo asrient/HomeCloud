@@ -71,7 +71,8 @@ const DeviceSectionView = ({
                 icon: getDefaultIcon(disk),
                 href: folderViewUrl(fingerprint, disk.path),
                 key: disk.path,
-                data: sidebarData
+                data: sidebarData,
+                rightClickable: true,
             });
         });
         return {
