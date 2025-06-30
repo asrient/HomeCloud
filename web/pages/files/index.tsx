@@ -1,70 +1,50 @@
 import { Inter } from 'next/font/google'
 import Head from 'next/head'
 import { buildPageConfig } from '@/lib/utils'
-import { SidebarType, PinnedFolder, Storage, RemoteItem } from "@/lib/types"
+import { SidebarType } from "@/lib/types"
+import { RemoteItem, PinnedFolder, PeerInfo } from 'shared/types'
 import type { NextPageWithConfig } from '../_app'
 import PageBar from '@/components/pageBar'
 import { Group, SortBy, FileRemoteItem } from '@/components/filesView'
-import { AppName } from "@/lib/types";
-import useFilterStorages from "@/components/hooks/useFilterStorages";
-import { useAppState } from "@/components/hooks/useAppState";
-import { pinnedFolderToRemoteItem } from "@/lib/fileUtils";
-import { useEffect, useMemo, useRef } from 'react'
-import { useDisksForStorage } from '@/components/hooks/usePinnedFolders'
+import { useMemo } from 'react'
+import { useFolder } from '@/components/hooks/useFolders'
+import { usePeerState } from '@/components/hooks/usePeerState'
 
 const inter = Inter({ subsets: ['latin'] })
 
-const pinnedFolderToFileRemoteItem = (item: PinnedFolder, storage: Storage): FileRemoteItem => {
-  return {
-    ...pinnedFolderToRemoteItem(item, storage),
-    isSelected: false,
-  }
-}
-
-const remoteItemToFileRemoteItem = (item: RemoteItem, storage: Storage): FileRemoteItem => {
+const remoteItemToFileRemoteItem = (item: RemoteItem, fingerprint: string | null): FileRemoteItem => {
   return {
     ...item,
     isSelected: false,
-    storageId: storage.id,
+    deviceFingerprint: fingerprint,
   }
 }
 
+const DeviceSectionView = ({
+  peer,
+}: {
+  peer?: PeerInfo
+}) => {
+  const fingerprint = useMemo(() => !!peer ? peer.fingerprint : null, [peer]);
+  const { remoteItems } = useFolder(fingerprint, '');
+
+  const items: FileRemoteItem[] = useMemo(() => {
+    return remoteItems.map(item => remoteItemToFileRemoteItem(item, fingerprint));
+  }, [remoteItems, fingerprint]);
+
+  return (
+    <Group
+      title={peer ? peer.deviceName : 'This Device'}
+      items={items}
+      sortBy={SortBy.None}
+      view='grid'
+    />
+  )
+}
+
 const Page: NextPageWithConfig = () => {
-  const storages = useFilterStorages(AppName.Files);
-  const { pinnedFolders, disks } = useAppState();
-  const { loadDisks } = useDisksForStorage();
-  const hasRunEffect = useRef(false);
-
-  // We only want to refresh the disks once when the page is loaded
-  // The higher level hook usePinnedFolders will handle updating the disks when needed
-  // Can also think of a better way by showing refresh button
-  useEffect(() => {
-    if (hasRunEffect.current) return;
-    console.log('reloading disks..');
-    storages.forEach((storage) => {
-      loadDisks(storage);
-    });
-    hasRunEffect.current = true;
-  }, [loadDisks, storages]);
-
-  const storageSections: { title: string, items: FileRemoteItem[], key: string }[] = useMemo(() => {
-    return storages.map(storage => {
-      const pins: PinnedFolder[] = pinnedFolders ? (pinnedFolders[storage.id] || []) : [];
-      const disks_ = disks ? (disks[storage.id] || []) : [];
-      const items: FileRemoteItem[] = [];
-      pins.forEach((pin) => {
-        items.push(pinnedFolderToFileRemoteItem(pin, storage));
-      });
-      disks_.forEach((disk) => {
-        items.push(remoteItemToFileRemoteItem(disk, storage));
-      });
-      return {
-        title: storage.name,
-        items,
-        key: storage.id.toString(),
-      };
-    });
-  }, [storages, pinnedFolders, disks]);
+  const peers = usePeerState();
+  const onlinePeers = useMemo(() => peers.filter(peer => !!peer.connection), [peers]);
 
   return (
     <>
@@ -76,17 +56,10 @@ const Page: NextPageWithConfig = () => {
       <main
         className={inter.className}
       >
-        {
-          storageSections.map((section) => (
-            <Group
-              key={section.key}
-              title={section.title}
-              items={section.items}
-              sortBy={SortBy.None}
-              view='grid'
-            />
-          ))
-        }
+        <DeviceSectionView/>
+        {onlinePeers.map(peer => (
+          <DeviceSectionView key={peer.fingerprint} peer={peer} />
+        ))}
       </main>
     </>
   )

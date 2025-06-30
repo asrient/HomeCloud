@@ -9,7 +9,7 @@
     "tsc": "tsc",
     "clean": "rm -rf build",
     "build": "node-gyp configure && node-gyp build",
-    "start": "electron-forge start",
+    "start": "tsc && electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",

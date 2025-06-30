@@ -1,6 +1,6 @@
 import { SidebarType, PhotosFetchOptions, PhotosSortOption } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
-import PhotosPage from '@/components/photosPage'
+//import PhotosPage from '@/components/photosPage'
 import { useMemo } from 'react';
 import usePhotoLibraries from '@/components/hooks/usePhotoLibraries';
 
@@ -14,11 +14,12 @@ export default function Page() {
   }), [libraries]);
 
   return (
-    <PhotosPage
-      fetchOptions={fetchOptions}
-      pageTitle='All Photos'
-      pageIcon='/icons/photos.png'
-    />
+    // <PhotosPage
+    //   fetchOptions={fetchOptions}
+    //   pageTitle='All Photos'
+    //   pageIcon='/icons/photos.png'
+    // />
+    null
   )
 }
 

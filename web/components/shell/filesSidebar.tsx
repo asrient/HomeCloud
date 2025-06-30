@@ -1,71 +1,129 @@
-import { Sidebar } from "./sidebar";
-import { FilesSidebarData, useFilesBar } from "../hooks/useSidebar";
+import { SidebarSectionView, SidebarView } from "./sidebar";
 import {
     ContextMenu,
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { useCallback, useState } from "react";
-import { SidebarItem } from "@/lib/types";
+import { useCallback, useMemo, useState } from "react";
+import { SidebarItem, SidebarSection } from "@/lib/types";
 import { useRouter } from "next/router";
-import { removePin } from "@/lib/api/files";
-import { ActionTypes } from "@/lib/state";
-import { useAppDispatch } from "../hooks/useAppState";
-import { useToast } from "@/components/ui/use-toast";
+import { useAppState } from "../hooks/useAppState";
+import { PeerInfo } from "shared/types";
+import { useFolder, usePinnedFolders } from "../hooks/useFolders";
+import { getDefaultIcon, pinnedFolderToRemoteItem } from "@/lib/fileUtils";
+import { buildNextUrl, folderViewUrl } from "@/lib/urls";
+import { getServiceController } from "@/lib/utils";
 
-export function FilesSidebar() {
-    const list = useFilesBar();
+type FilesSidebarData = {
+    path?: string;
+    deviceFingerprint: string | null;
+}
+
+const DeviceSectionView = ({
+    peer
+}: {
+    peer?: PeerInfo
+}) => {
+
+    const fingerprint = useMemo(() => !!peer ? peer.fingerprint : null, [peer]);
+
+    const { remoteItems: disks } = useFolder(fingerprint, '');
+    const { pinnedFolders } = usePinnedFolders(fingerprint);
     const [selectedSidebarItem, setSelectedSidebarItem] = useState<SidebarItem | null>(null);
     const router = useRouter();
-    const dispatch = useAppDispatch();
-    const { toast } = useToast();
 
     const openItem = useCallback(() => {
+        console.log('Opening item:', selectedSidebarItem);
         if (!selectedSidebarItem) return;
         router.push(selectedSidebarItem.href || '/files');
     }, [selectedSidebarItem, router]);
 
     const removePinnedFolder = useCallback(async () => {
         if (!selectedSidebarItem || !selectedSidebarItem.data) return;
-        const { folderId, storageId } = (selectedSidebarItem.data as FilesSidebarData);
-        if (!folderId || !storageId) return;
+        const { deviceFingerprint, path } = (selectedSidebarItem.data as FilesSidebarData);
+        if (!deviceFingerprint || !path) return;
+        if (deviceFingerprint !== fingerprint) {
+            console.warn('Selected item does not belong to the current peer');
+            return;
+        }
         try {
-            const resp = await removePin({ storageId, folderId });
-            if (!resp.ok) throw new Error('Failed to remove pin');
-            dispatch(ActionTypes.REMOVE_PINNED_FOLDER, { storageId, folderId });
+            const serviceController = await getServiceController(fingerprint);
+            await serviceController.files.removePinnedFolder(path);
         } catch (e: any) {
             console.error(e);
-            toast({
-                variant: "destructive",
-                title: 'Uh oh! Something went wrong.',
-                description: `Could not remove from "${selectedSidebarItem.title}" favourites.`,
-            });
+            alert(`Could not remove from "${selectedSidebarItem.title}" favourites.`);
         }
-    }, [selectedSidebarItem, dispatch, toast]);
+    }, [fingerprint, selectedSidebarItem]);
 
-    const folderId = (selectedSidebarItem?.data as FilesSidebarData)?.folderId;
+    const section = useMemo((): SidebarSection => {
+        const pinnedRemoteItems = pinnedFolders.map((pinned) => {
+            return pinnedFolderToRemoteItem(pinned, fingerprint);
+        });
+        const items: SidebarItem[] = [];
+        [...pinnedRemoteItems, ...disks].forEach((disk) => {
+            const sidebarData: FilesSidebarData = {
+                path: disk.path,
+                deviceFingerprint: fingerprint
+            };
+            items.push({
+                title: disk.name,
+                icon: getDefaultIcon(disk),
+                href: folderViewUrl(fingerprint, disk.path),
+                key: disk.path,
+                data: sidebarData
+            });
+        });
+        return {
+            title: peer ? peer.deviceName : 'This Device',
+            items
+        };
+    }, [disks, fingerprint, peer, pinnedFolders]);
+
+    const folderPath = (selectedSidebarItem?.data as FilesSidebarData)?.path;
 
     return (<ContextMenu>
         <ContextMenuTrigger>
-            <Sidebar onRightClick={setSelectedSidebarItem} list={list} />
+            <SidebarSectionView onRightClick={setSelectedSidebarItem} section={section} />
         </ContextMenuTrigger>
         <ContextMenuContent>
-            {
-                folderId && (
-                    <>
-                        <ContextMenuItem onClick={openItem}>
-                            Open
-                        </ContextMenuItem>
-                        <ContextMenuItem>
-                            Get info
-                        </ContextMenuItem>
-                        <ContextMenuItem onClick={removePinnedFolder} className='text-red-500'>
-                            Remove
-                        </ContextMenuItem>
-                    </>
-                )
-            }
+            {folderPath && (
+                <>
+                    <ContextMenuItem onClick={openItem}>
+                        Open
+                    </ContextMenuItem>
+                    <ContextMenuItem>
+                        Get info
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={removePinnedFolder} className='text-red-500'>
+                        Remove
+                    </ContextMenuItem>
+                </>
+            )}
         </ContextMenuContent>
     </ContextMenu>);
+}
+
+export function FilesSidebar() {
+    const { peers } = useAppState();
+
+    return (
+        <SidebarView>
+            <SidebarSectionView
+                section={
+                    {
+                        items: [{
+                            title: 'All Files',
+                            icon: '/icons/stack.png',
+                            href: buildNextUrl('/files'),
+                            key: 'files'
+                        }]
+                    }
+                } />
+            <DeviceSectionView />
+            {peers.map((peer) => (
+                <DeviceSectionView key={peer.fingerprint} peer={peer} />
+            ))}
+        </SidebarView>
+    )
 }

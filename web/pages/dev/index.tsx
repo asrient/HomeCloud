@@ -18,9 +18,12 @@ function Page() {
   const [staticConfigList, setStaticConfigList] = useState<any[]>([]);
 
   useEffect(() => {
-    const configObj = (window as any).modules.config;
+    const configObj = window.modules.config;
     // convert to list
-    const list = Object.keys(configObj || {}).map(key => ({ key, value: convertToString(configObj[key]) }));
+    const list = Object.keys(configObj).map(key => ({
+      key,
+      value: convertToString(configObj[key as keyof typeof configObj])
+    }));
     setConfigList(list);
   }, []);
 

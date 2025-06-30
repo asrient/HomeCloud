@@ -50,3 +50,10 @@ export function printFingerprint(fingerprint: string, full = false) {
   }
   return `$${fingerprint.slice(0, 8)}`;
 }
+
+export async function getServiceController(fingerprint: string | null) {
+  if (!fingerprint) {
+    return window.modules.getLocalServiceController();
+  }
+  return window.modules.getRemoteServiceController(fingerprint);
+}

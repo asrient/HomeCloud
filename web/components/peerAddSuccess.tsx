@@ -1,12 +1,12 @@
-import { Storage } from "@/lib/types";
-import React, { } from "react";
+import React from "react";
 import { Button } from "./ui/button";
+import { PeerInfo } from "shared/types";
 
 export default function SuccessScreen({
-    storage,
+    peer,
     onClose,
 }: {
-    storage: Storage;
+    peer: PeerInfo;
     onClose: () => void;
 }) {
     return (
@@ -18,7 +18,7 @@ export default function SuccessScreen({
                     </svg>
                 </div>
                 <div className='font-medium pl-1 text-sm'>
-                    {storage.name}
+                    {peer.deviceName}
                 </div>
             </div>
             <div className="flex justify-center items-center">

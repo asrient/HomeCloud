@@ -3,7 +3,6 @@ import { usePhotosBar, PhotosSidebarData } from "../hooks/useSidebar";
 import { SidebarItem } from "@/lib/types";
 import { useCallback, useMemo, useState } from "react";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from "@/components/ui/context-menu";
-import { deleteLibrary } from "@/lib/api/photos";
 import { ActionTypes } from "@/lib/state";
 import { useToast } from "../ui/use-toast";
 import { useAppDispatch } from "../hooks/useAppState";
@@ -23,8 +22,8 @@ export function PhotosSidebar() {
         const { libraryId, storageId } = (selectedSidebarItem.data as PhotosSidebarData);
         if (!libraryId || !storageId) return;
         try {
-            await deleteLibrary({ storageId, id: libraryId });
-            dispatch(ActionTypes.REMOVE_PHOTO_LIBRARY, { storageId, libraryId });
+            //await deleteLibrary({ storageId, id: libraryId });
+            //dispatch(ActionTypes.REMOVE_PHOTO_LIBRARY, { storageId, libraryId });
         } catch (e: any) {
             console.error(e);
             toast({
@@ -33,7 +32,7 @@ export function PhotosSidebar() {
                 description: `Could not remove "${selectedSidebarItem.title}" library.`,
             });
         }
-    }, [dispatch, selectedSidebarItem, toast]);
+    }, [selectedSidebarItem, toast]);
 
     return (<ContextMenu>
         <ContextMenuTrigger>

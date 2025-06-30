@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, RPCController, getMethodInfo, assertServiceRunning, RPCControllerProxy } from "./primatives";
-import { ProxyHandlers, GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo } from "../types";
+import { ProxyHandlers, GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo, SignalEvent } from "../types";
 import { RPCPeer, RPCPeerOptions } from "../net/rpc";
 import Signal, { SignalNodeRef } from "../signals";
 
@@ -49,6 +49,8 @@ export class NetService extends Service {
         signalSubs: Map<string, SignalNodeRef<any, any>>;
     }> = new Map();
 
+    public connectionSignal = new Signal<[SignalEvent, ConnectionInfo]>();
+
     private connectionLock: Map<string, Signal<[RPCController | Error]>> = new Map();
 
     private connectionInterfaces: Map<ConnectionType, ConnectionInterface>;
@@ -64,17 +66,22 @@ export class NetService extends Service {
     }
 
     @assertServiceRunning
-    public async getConnectedDevices(): Promise<ConnectionInfo[]> {
-        const connectionInfos: ConnectionInfo[] = [];
-        for (const [fingerprint, connection] of this.connections) {
-            const connInfo = {
+    public getConnectionInfo(fingerprint: string): ConnectionInfo | null {
+        const connection = this.connections.get(fingerprint);
+        if (connection) {
+            return {
                 fingerprint,
                 deviceName: connection.rpc.getTargetDeviceName(),
                 connectionType: connection.type,
-            }
-            connectionInfos.push(connInfo);
+            };
         }
-        return connectionInfos;
+        return null;
+    }
+
+    @assertServiceRunning
+    public async getConnectedDevices(): Promise<ConnectionInfo[]> {
+        const fingerprints = Array.from(this.connections.keys());
+        return fingerprints.map(fingerprint => this.getConnectionInfo(fingerprint));
     }
 
     @assertServiceRunning
@@ -236,6 +243,8 @@ export class NetService extends Service {
                             const signal = serviceController.getSignal(fqn);
                             signal.detach(signalRef);
                         }
+                        this.connectionSignal.dispatch(SignalEvent.REMOVE, this.getConnectionInfo(fingerprint));
+                        // Remove the connection
                         this.connections.delete(fingerprint);
                     }
                     if (!isResolved) {
@@ -266,6 +275,7 @@ export class NetService extends Service {
                         controllerProxy: proxy,
                         signalSubs: new Map(),
                     });
+                    this.connectionSignal.dispatch(SignalEvent.ADD, this.getConnectionInfo(fingerprint));
                     resolve(proxy.controller);
                 }
             });

@@ -1,6 +1,6 @@
 import { SidebarType, PhotosFetchOptions, PhotosSortOption } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
-import PhotosPage from '@/components/photosPage'
+//import PhotosPage from '@/components/photosPage'
 import { useMemo } from 'react';
 import { useRouter } from 'next/router';
 import usePhotoLibraries from '@/components/hooks/usePhotoLibraries';
@@ -27,11 +27,12 @@ export default function Page() {
   )
 
   return (
-    <PhotosPage
-      fetchOptions={fetchOptions}
-      pageTitle={libraries[0]?.name || 'Library'}
-      pageIcon='/icons/ssd.png'
-    />
+    // <PhotosPage
+    //   fetchOptions={fetchOptions}
+    //   pageTitle={libraries[0]?.name || 'Library'}
+    //   pageIcon='/icons/ssd.png'
+    // />
+    null
   )
 }
 

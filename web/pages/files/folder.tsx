@@ -1,17 +1,15 @@
 import { useRouter } from 'next/router'
-import { buildPageConfig, isMobile } from '@/lib/utils'
-import { FileList_, RemoteItem, SidebarType, Storage, StorageType } from "@/lib/types"
+import { buildPageConfig, getServiceController, isMobile } from '@/lib/utils'
+import { FileList_, SidebarType } from "@/lib/types"
+import { RemoteItem, PeerInfo } from 'shared/types'
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getStat, readDir, upload, mkDir, rename, unlinkMultiple } from '@/lib/api/fs'
-import { addPin, downloadFile, openFileLocal, openFileRemote } from '@/lib/api/files'
 import Head from 'next/head'
-import { useAppDispatch, useAppState } from '@/components/hooks/useAppState'
 import LoadingIcon from '@/components/ui/loadingIcon'
 import Image from 'next/image'
 import PageBar from '@/components/pageBar'
-import { canPreview, getDefaultIcon, getNativeFilesAppIcon, getNativeFilesAppName, hasItemsToCopy, performCopyItems, setItemsToCopy } from '@/lib/fileUtils'
+import { canPreview, getDefaultIcon, getNativeFilesAppIcon, getNativeFilesAppName, hasItemsToCopy, setItemsToCopy, performCopyItems } from '@/lib/fileUtils'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -31,11 +29,12 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import ConfirmModal from '@/components/confirmModal'
-import { ActionTypes } from '@/lib/state'
 import { toast, useToast } from '@/components/ui/use-toast'
 import mime from 'mime'
 import PreviewModal from '@/components/preview'
 import DeviceSelectorModal, { Device } from '@/components/deviceSelectorModal'
+import { useFolder, useStat } from '@/components/hooks/useFolders'
+import { useAppState } from '@/components/hooks/useAppState'
 
 function OpenInDevice({ file, reset }: {
   file: FileRemoteItem | null,
@@ -45,22 +44,22 @@ function OpenInDevice({ file, reset }: {
   const { toast } = useToast();
 
   const onSelect = useCallback(async (device: Device) => {
-    if (!file || !file.storageId) return;
+    if (!file || !file.deviceFingerprint) return;
     console.log('Selected Device to open file', device);
     toast({
-      title: `Opening "${file.name}" in ${device.name}`,
+      title: `Opening "${file.name}" in ${device.deviceName}`,
     });
     try {
-      await openFileRemote({
-        storageId: file.storageId,
-        fileId: file.id,
-        targetDeviceFingerprint: device.fingerprint,
-      });
+      // await openFileRemote({
+      //   storageId: file.storageId,
+      //   fileId: file.id,
+      //   targetDeviceFingerprint: device.fingerprint,
+      // });
     } catch (e: any) {
       console.error(e);
       toast({
         variant: "destructive",
-        title: `Failed to open file in ${device.name}`,
+        title: `Failed to open file in ${device.deviceName}`,
         description: e.message,
       });
     } finally {
@@ -79,19 +78,25 @@ function OpenInDevice({ file, reset }: {
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
-  const dispatch = useAppDispatch()
   const { toast } = useToast();
-  const { s, id } = router.query as { s: string, id: string };
-  const storageId = s ? parseInt(s) : null;
-  const folderId = useMemo(() => id || '/', [id]);
-  const [items, setItems] = useState<FileRemoteItem[]>([])
-  const [folderStat, setFolderStat] = useState<RemoteItem | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
-  const [currentStorageId, setCurrentStorageId] = useState<number | null>(null)
-  const { storages, deviceInfo } = useAppState()
-  const [storage, setStorage] = useState<Storage | null>(null)
+  const { path, fingerprint: fingerprintStr } = router.query as { fingerprint: string, path: string };
+  const fingerprint = useMemo(() => fingerprintStr || null, [fingerprintStr]);
+
+  const { peers } = useAppState();
+  const peer = useMemo(() => {
+    return peers.find(p => p.fingerprint === fingerprint) || null;
+  }, [fingerprint, peers]);
+
+  const toFileRemoteItem = useCallback((item: RemoteItem): FileRemoteItem => {
+  return {
+    ...item,
+    isSelected: false,
+    deviceFingerprint: fingerprint,
+  }
+}, [fingerprint]);
+
+  const { remoteItems, isLoading, error, reload, setRemoteItems } = useFolder<FileRemoteItem>(fingerprint, path, toFileRemoteItem);
+  const { remoteItem: folderStat } = useStat(fingerprint, path);
   const [view, setView] = useState<'list' | 'grid'>('grid')
   const [selectMode, setSelectMode] = useState(false)
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false)
@@ -102,7 +107,7 @@ const Page: NextPageWithConfig = () => {
   const [previewItem, setPreviewItem] = useState<FileRemoteItem | null>(null);
   const [remoteOpenFile, setRemoteOpenFile] = useState<FileRemoteItem | null>(null);
 
-  const selectedItems = useMemo(() => items.filter(item => item.isSelected), [items]);
+  const selectedItems = useMemo(() => remoteItems.filter(item => item.isSelected), [remoteItems]);
 
   const photosImportable = useMemo(() => {
     if (selectedItems.length > 100) return false;
@@ -117,67 +122,7 @@ const Page: NextPageWithConfig = () => {
       if (type !== 'image' && type !== 'video') return false;
     }
     return true;
-  }, [selectedItems])
-
-  useEffect(() => {
-    if (storageId && storages) {
-      const storage = storages.find(s => s.id === storageId) || null;
-      setStorage(storage)
-    }
-  }, [storageId, storages])
-
-  useEffect(() => {
-    async function fetchItems() {
-      try {
-        const items = await readDir({
-          storageId: storageId!,
-          id: folderId,
-        })
-        const fileItems: FileRemoteItem[] = items.map(item => ({
-          ...item,
-          isSelected: false,
-          storageId,
-        }))
-        setItems(fileItems)
-        const stat = await getStat({
-          storageId: storageId!,
-          id: folderId,
-        })
-        setFolderStat(stat)
-      } catch (e: any) {
-        console.error(e)
-        setError(e.message)
-      }
-    }
-    async function fetchStat() {
-      try {
-        const stat = await getStat({
-          storageId: storageId!,
-          id: folderId,
-        })
-        setFolderStat(stat)
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    if (!storageId) {
-      setError('Invalid Storage')
-      return
-    }
-    if (isLoading || (currentFolderId === folderId && currentStorageId === storageId)) return;
-    setIsLoading(true)
-    setError(null)
-    setCurrentFolderId(folderId)
-    setCurrentStorageId(storageId)
-    setItems([])
-    setFolderStat(null)
-    Promise.all([
-      fetchItems(),
-      fetchStat(),
-    ]).finally(() => {
-      setIsLoading(false)
-    })
-  }, [storageId, folderId, isLoading, items, currentFolderId, currentStorageId])
+  }, [selectedItems]);
 
   const defaultIcon = useMemo(() => folderStat ? getDefaultIcon(folderStat) : undefined, [folderStat]);
 
@@ -186,40 +131,28 @@ const Page: NextPageWithConfig = () => {
   }
 
   const onUpload = useCallback(async (files: FileList_) => {
-    if (!storageId) throw new Error('Storage not set');
-    if (!folderId) throw new Error('Folder not set');
-    const items = await upload({
-      storageId,
-      parentId: folderId,
-      files,
-    })
-    const fileItems: FileRemoteItem[] = items.map(item => ({
-      ...item,
-      isSelected: false,
-      storageId,
-    }))
-    setItems((prevItems) => [...prevItems, ...fileItems]);
-  }, [storageId, folderId])
+    const serviceController = window.modules.getLocalServiceController();
+    const filePaths: string[] = [];
+    Object.values(files).forEach(file => {
+      if (file instanceof File && file.path) {
+        filePaths.push(file.path);
+      }
+    });
+    const items = await serviceController.files.move(fingerprint, path, filePaths);
+    setRemoteItems((prevItems) => [...prevItems, ...items.map(toFileRemoteItem)]);
+  }, [fingerprint, path, setRemoteItems, toFileRemoteItem])
+
 
   const onNewFolder = useCallback(async (name: string) => {
-    if (!storageId) throw new Error('Storage not set');
-    if (!folderId) throw new Error('Folder not set');
-    const newFolder = await mkDir({
-      storageId,
-      parentId: folderId,
-      name,
-    })
-    const item = {
-      ...newFolder,
-      isSelected: true,
-      storageId,
-    }
-    setItems((prevItems) => [...prevItems, item]);
-  }, [storageId, folderId]);
+    const serviceController = await getServiceController(fingerprint);
+    const newFolder = await serviceController.files.fs.mkDir(name, path);
+    const item = toFileRemoteItem(newFolder);
+    setRemoteItems((prevItems) => [...prevItems, item]);
+  }, [fingerprint, path, setRemoteItems, toFileRemoteItem]);
 
   const selectItem = useCallback((item: FileRemoteItem, toggle = true, persistSelection?: boolean) => {
-    setItems((prevItems) => prevItems.map(prevItem => {
-      if (prevItem.id === item.id) {
+    setRemoteItems((prevItems) => prevItems.map(prevItem => {
+      if (prevItem.path === item.path) {
         return {
           ...prevItem,
           isSelected: toggle ? !prevItem.isSelected : true,
@@ -228,13 +161,13 @@ const Page: NextPageWithConfig = () => {
       const persistSelection_ = selectMode || persistSelection;
       return { ...prevItem, isSelected: persistSelection_ ? prevItem.isSelected : false }
     }))
-  }, [selectMode])
+  }, [selectMode, setRemoteItems])
 
   const openItemNative = useCallback(async (item: FileRemoteItem) => {
     if (previewLoading) return;
     setPreviewLoading(true);
     try {
-      await openFileLocal(storageId as number, item.id);
+      // await openFileLocal(storageId as number, item.id);
     } catch (e) {
       console.error(e);
       toast({
@@ -246,11 +179,11 @@ const Page: NextPageWithConfig = () => {
       setPreviewLoading(false);
     }
 
-  }, [previewLoading, storageId, toast]);
+  }, [previewLoading, toast]);
 
   const openItem = useCallback(async (item: FileRemoteItem) => {
     if (item.type === 'directory') {
-      router.push(folderViewUrl(storageId as number, item.id))
+      router.push(folderViewUrl(item.deviceFingerprint, item.path));
     } else {
       if (item.mimeType && canPreview(item.mimeType)) {
         setPreviewItem(item);
@@ -258,17 +191,18 @@ const Page: NextPageWithConfig = () => {
       }
       return openItemNative(item);
     }
-  }, [openItemNative, router, storageId])
+  }, [openItemNative, router])
 
   const downloadSelected = useCallback(async () => {
     const item = selectedItems[0];
-    if (!item || !item.storageId) return;
+    if (!item || !item.deviceFingerprint) return;
+    const serviceController = window.modules.getLocalServiceController();
     toast({
       title: 'Download started',
       description: item.name,
     });
     try {
-      await downloadFile(item.storageId, item.id);
+      await serviceController.files.download(item.deviceFingerprint, item.path);
       toast({
         title: 'File downloaded',
         description: item.name,
@@ -281,7 +215,7 @@ const Page: NextPageWithConfig = () => {
         description: item.name,
       });
     }
-  }, [selectedItems, toast])
+  }, [selectedItems, toast]);
 
   const onItemClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
     const isShift = e.shiftKey;
@@ -299,11 +233,11 @@ const Page: NextPageWithConfig = () => {
   }, [openItem]);
 
   const onClickOutside = useCallback(() => {
-    setItems((prevItems) => prevItems.map(prevItem => ({
+    setRemoteItems((prevItems) => prevItems.map(prevItem => ({
       ...prevItem,
       isSelected: false,
     })))
-  }, [])
+  }, [setRemoteItems])
 
   const onItemRightClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
     selectItem(item, false, true)
@@ -327,75 +261,57 @@ const Page: NextPageWithConfig = () => {
   }, []);
 
   const onRename = useCallback(async (newName: string) => {
-    if (!storageId) throw new Error('Storage not set');
-    if (!folderId) throw new Error('Folder not set');
     const item = selectedItems[0];
-    const newItem = await rename({
-      storageId,
-      newName,
-      id: item.id,
-    })
-    setItems((prevItems) => prevItems.map(prevItem => {
-      if (prevItem.id === item.id) {
+    const serviceController = await getServiceController(item.deviceFingerprint);
+    const newItem = await serviceController.files.fs.rename(item.path, newName);
+    setRemoteItems((prevItems) => prevItems.map(prevItem => {
+      if (prevItem.path === item.path) {
         return {
           ...newItem,
           isSelected: true,
-          storageId,
+          deviceFingerprint: item.deviceFingerprint,
         }
       }
       return prevItem;
     }))
-  }, [storageId, folderId, selectedItems]);
+  }, [selectedItems, setRemoteItems]);
 
   const onDelete = useCallback(async () => {
-    if (!storageId) throw new Error('Storage not set');
-    const ids = selectedItems.map(item => item.id);
-    const { deletedIds } = await unlinkMultiple({
-      storageId,
-      ids,
-    })
+    const ids = selectedItems.map(item => item.path);
+    const serviceController = await getServiceController(fingerprint);
+    const deletedIds = await serviceController.files.fs.unlinkMultiple(ids)
     if (deletedIds.length === 0) {
       throw new Error('Failed to delete items');
     }
-    setItems((prevItems) => prevItems.filter(prevItem => !deletedIds.includes(prevItem.id)));
-  }, [storageId, selectedItems]);
+    setRemoteItems((prevItems) => prevItems.filter(prevItem => !deletedIds.includes(prevItem.path)));
+  }, [fingerprint, selectedItems, setRemoteItems]);
 
   const openDeleteDialog = useCallback(() => {
     setDeleteDialogOpen(true);
   }, []);
 
   const cutCopy = useCallback((cut = false) => {
-    if (!storageId) return;
-    const selectedIds = selectedItems.map(item => item.id);
-    setItemsToCopy(storageId, selectedIds, cut);
-  }, [selectedItems, storageId]);
+    const selectedIds = selectedItems.map(item => item.path);
+    setItemsToCopy(fingerprint, selectedIds, cut);
+  }, [selectedItems, fingerprint]);
 
   const isPastingRef = useRef(false);
   const paste = useCallback(async (e: any) => {
     if (isPastingRef.current) return;
-    if (!storageId) return;
     isPastingRef.current = true;
     toast({
       title: 'Pasting items here..',
     });
     try {
-      const data = await performCopyItems(storageId, folderId);
-      if (!data) return;
-      const { items, errors } = data;
+      const items = await performCopyItems(fingerprint, path);
+      if (!items) return;
       console.log('new items added', items);
-      if (errors.length > 0) {
-        toast({
-          variant: "destructive",
-          title: `Could not copy ${errors.length} item(s)`,
-        });
-        console.error('Copy errors', errors);
-      }
       const fileItems: FileRemoteItem[] = items.map(item => ({
         ...item,
         isSelected: true,
-        storageId,
+        deviceFingerprint: fingerprint,
       }));
-      setItems((prevItems) => [...prevItems, ...fileItems]);
+      setRemoteItems((prevItems) => [...prevItems, ...fileItems]);
     } catch (e: any) {
       console.error(e);
       toast({
@@ -406,17 +322,15 @@ const Page: NextPageWithConfig = () => {
     } finally {
       isPastingRef.current = false;
     }
-  }, [folderId, storageId, toast]);
+  }, [fingerprint, path, setRemoteItems, toast]);
 
   const pinFolder = useCallback(async () => {
     const item = selectedItems[0];
-    if (!item || item.type !== 'directory' || !storage) return;
+    if (!item || item.type !== 'directory') return;
+    const serviceController = await getServiceController(item.deviceFingerprint);
     try {
-      const { pin } = await addPin({
-        storageId: storage?.id,
-        folderId: item.id,
-      })
-      dispatch(ActionTypes.ADD_PINNED_FOLDER, { pin, storageId: storage?.id });
+      const pin = await serviceController.files.addPinnedFolder(item.path);
+      console.log('Pinned folder:', pin);
     } catch (e) {
       console.error(e);
       toast({
@@ -425,7 +339,7 @@ const Page: NextPageWithConfig = () => {
         description: `Could not add "${item.name}" to favourites.`,
       });
     }
-  }, [selectedItems, storage, dispatch, toast]);
+  }, [selectedItems, toast]);
 
   const openImportPhotosDialog = useCallback(() => {
     setImportPhotosDialogOpen(true);
@@ -443,12 +357,12 @@ const Page: NextPageWithConfig = () => {
     openItemNative(item);
   }, [selectedItems, openItemNative]);
 
-  const isSingleLocalItemSelected = useMemo(() => {
-    if (selectedItems.length !== 1) return false;
-    const item = selectedItems[0];
-    const storage = storages?.find(s => s.id === item.storageId);
-    return storage?.type === StorageType.Local;
-  }, [selectedItems, storages]);
+  // const isSingleLocalItemSelected = useMemo(() => {
+  //   if (selectedItems.length !== 1) return false;
+  //   const item = selectedItems[0];
+  //   const storage = storages?.find(s => s.id === item.storageId);
+  //   return storage?.type === StorageType.Local;
+  // }, [selectedItems, storages]);
 
   const openFileRemote = useCallback(() => {
     const item = selectedItems[0];
@@ -456,7 +370,7 @@ const Page: NextPageWithConfig = () => {
     setRemoteOpenFile(item);
   }, [selectedItems]);
 
-  if (isLoading || error || !storageId) return (
+  if (isLoading || error) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
       <div className='container h-full flex flex-col justify-center items-center min-h-[90vh] p-5 text-slate-400'>
@@ -479,7 +393,7 @@ const Page: NextPageWithConfig = () => {
     </>
   )
 
-  const storageName = storage ? storage.name : 'Unknown storage'
+  const peerName = peer ? peer.deviceName : 'Unknown device'
   const selectedCount = selectedItems.length;
   const isFolderSelected = selectedCount === 1 && selectedItems[0].type === 'directory';
 
@@ -489,13 +403,13 @@ const Page: NextPageWithConfig = () => {
         <title>
           {
             folderStat && !['/', ''].includes(folderStat.name)
-              ? `${folderStat.name} | ${storageName}`
-              : storageName
+              ? `${folderStat.name} | ${peerName}`
+              : peerName
           }
         </title>
       </Head>
       <main>
-        <PageBar title={folderStat?.name || storageName} icon={defaultIcon}>
+        <PageBar title={folderStat?.name || peerName} icon={defaultIcon}>
           <Button onClick={toggleSelectMode} variant={selectMode ? 'outline' : 'ghost'}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -542,7 +456,7 @@ const Page: NextPageWithConfig = () => {
                 onClick={onItemClick}
                 onRightClick={onItemRightClick}
                 onDbClick={onItemDbClick}
-                items={items} />
+                items={remoteItems} />
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
@@ -555,12 +469,12 @@ const Page: NextPageWithConfig = () => {
                       onClick={openSelectedItem}>
                       Preview
                     </ContextMenuItem>
-                    {
+                    {/* {
                       isFolderSelected && isSingleLocalItemSelected && <ContextMenuItem disabled={previewLoading} onClick={openSelectedItemNative}>
                         <Image src={getNativeFilesAppIcon(deviceInfo)} alt='Folder Icon' width={16} height={16} className='mr-[0.2rem]' />
                         Open in {getNativeFilesAppName(deviceInfo)}
                       </ContextMenuItem>
-                    }
+                    } */}
                     {
                       !isFolderSelected && <ContextMenuItem disabled={previewLoading} onClick={openSelectedItemNative}>
                         Open in app..
@@ -595,8 +509,8 @@ const Page: NextPageWithConfig = () => {
                     </ContextMenuItem>
                   )
                 }
-                <ContextMenuItem disabled={!storageId} onClick={() => cutCopy()}>Copy</ContextMenuItem>
-                <ContextMenuItem disabled={!storageId} onClick={() => cutCopy(true)}>Cut</ContextMenuItem>
+                <ContextMenuItem onClick={() => cutCopy()}>Copy</ContextMenuItem>
+                <ContextMenuItem onClick={() => cutCopy(true)}>Cut</ContextMenuItem>
                 <ContextMenuItem className='text-red-500' onClick={openDeleteDialog}>
                   Delete
                 </ContextMenuItem>
@@ -631,9 +545,9 @@ const Page: NextPageWithConfig = () => {
             <span className='text-xs pt-2'>Opening Item</span>
           </div>
         }
-        {folderStat && storage && folderStat.parentIds && folderStat.parentIds.length > 0 &&
+        {folderStat &&
           <div className='p-2 pt-3 md:py-1 md:sticky md:bottom-0 w-full bg-background z-10'>
-            <FolderPath storage={storage} folder={folderStat} />
+            <FolderPath peer={peer} folder={folderStat} />
           </div>
         }
       </main>

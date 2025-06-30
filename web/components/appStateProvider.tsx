@@ -1,23 +1,76 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { reducer, initialAppState, AppContext, DispatchContext, ActionTypes } from '../lib/state';
 import { useImmerReducer } from 'use-immer';
 import { setupStaticConfig } from '@/lib/staticConfig';
 import { useAppDispatch } from './hooks/useAppState';
+import { ConnectionInfo, PeerInfo } from 'shared/types';
+import { SignalNodeRef } from 'shared/signals';
+import { SignalEvent } from '@/lib/enums';
 
 function WithInitialState({ children }: {
     children: React.ReactNode;
 }) {
     const dispatch = useAppDispatch();
     const loadingStateRef = useRef<'initial' | 'loading' | 'loaded'>('initial');
-    const bindingRef = useRef<any | null>(null);
+    const bindingRef = useRef<SignalNodeRef<[boolean], string> | null>(null);
+    const peerSignalRef = useRef<SignalNodeRef<[SignalEvent, PeerInfo], string> | null>(null);
+    const connectionSignalRef = useRef<SignalNodeRef<[SignalEvent, ConnectionInfo], string> | null>(null);
+
+    const initializeApp = useCallback(async () => {
+        console.log("Initializing app state...");
+        const localSc = window.modules.getLocalServiceController();
+        const peers = localSc.app.getPeers();
+        const connections = await localSc.net.getConnectedDevices();
+        dispatch(ActionTypes.INITIALIZE, {
+            peers,
+            connections,
+        });
+
+        peerSignalRef.current = localSc.app.peerSignal.add((event: SignalEvent, peer: PeerInfo) => {
+            console.log("Peer signal received:", event, peer);
+            if (event === SignalEvent.ADD) {
+                dispatch(ActionTypes.ADD_PEER, peer);
+            } else if (event === SignalEvent.REMOVE) {
+                dispatch(ActionTypes.REMOVE_PEER, peer);
+            } else if (event === SignalEvent.UPDATE) {
+                dispatch(ActionTypes.UPDATE_PEER, peer);
+            }
+        });
+
+        connectionSignalRef.current = localSc.net.connectionSignal.add((event: SignalEvent, connection: ConnectionInfo) => {
+            console.log("Connection signal received:", event, connection);
+            if (event === SignalEvent.ADD) {
+                dispatch(ActionTypes.ADD_CONNECTION, connection);
+            } else if (event === SignalEvent.REMOVE) {
+                dispatch(ActionTypes.REMOVE_CONNECTION, connection);
+            }
+        });
+    }, [dispatch]);
+
+    const clearSignals = useCallback(() => {
+        console.log("Clearing signals...");
+        const localSc = window.modules.getLocalServiceController();
+        if (bindingRef.current) {
+            localSc.readyStateSignal.detach(bindingRef.current);
+            bindingRef.current = null;
+        }
+        if (peerSignalRef.current) {
+            localSc.app.peerSignal.detach(peerSignalRef.current);
+            peerSignalRef.current = null;
+        }
+        if (connectionSignalRef.current) {
+            localSc.net.connectionSignal.detach(connectionSignalRef.current);
+            connectionSignalRef.current = null;
+        }
+    }, []);
 
     useEffect(() => {
-        if (!(window as any).modules) {
+        if (!window.modules) {
             console.error("Modules not loaded.");
             dispatch(ActionTypes.ERROR, "Modules not loaded.");
             return;
         }
-        const localSc = (window as any).modules.getLocalServiceController();
+        const localSc = window.modules.getLocalServiceController();
         const waitForReadySignal = async () => {
             console.log("waitForReadySignal");
             if (loadingStateRef.current === 'loading') {
@@ -29,9 +82,9 @@ function WithInitialState({ children }: {
                 console.log("Service controller is ready:", ready);
                 loadingStateRef.current = 'loaded';
                 // Detach the binding to avoid memory leaks
-                bindingRef.current ?? localSc.readyStateSignal.detach(bindingRef.current);
+                if (bindingRef.current !== null) localSc.readyStateSignal.detach(bindingRef.current);
                 if (ready) {
-                    dispatch(ActionTypes.INITIALIZE, {});
+                    initializeApp();
                 } else {
                     dispatch(ActionTypes.ERROR, "Service controller is not ready");
                 }
@@ -41,14 +94,16 @@ function WithInitialState({ children }: {
             if (localSc && localSc.readyState) {
                 console.log("Service controller is already up:", localSc.readyState);
                 // If the service controller is already ready, we can initialize immediately
-                dispatch(ActionTypes.INITIALIZE, {});
+                initializeApp();
+                loadingStateRef.current = 'loaded';
             } else {
                 // Otherwise, wait for the service controller to signal readiness
                 console.log("Waiting for service controller to be ready...");
                 waitForReadySignal();
             }
         }
-    }, [dispatch]);
+        return clearSignals;
+    }, [clearSignals, dispatch, initializeApp]);
     return children;
 }
 

@@ -1,7 +1,8 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, allowAll, withContext } from "./primatives";
-import { MethodContext, MethodInfo, PeerInfo, StoreNames, NativeAskConfig } from "../types";
+import { MethodContext, MethodInfo, PeerInfo, StoreNames, SignalEvent } from "../types";
 import ConfigStorage from "../storage";
 import { getIconKey } from "../utils";
+import Signal from "../signals";
 
 export class AppService extends Service {
     protected store: ConfigStorage;
@@ -31,6 +32,8 @@ export class AppService extends Service {
         return peer || null;
     }
 
+    public peerSignal = new Signal<[SignalEvent, PeerInfo]>();
+
     protected async removePeerFromStore(fingerprint: string) {
         const peers = this.getPeers();
         const ind = peers.findIndex((peer) => peer.fingerprint === fingerprint);
@@ -55,12 +58,17 @@ export class AppService extends Service {
         }
         this.store.setItem('peers', peers);
         await this.store.save();
-        // notify the addition
+        if (existingPeer) {
+            this.peerSignal.dispatch(SignalEvent.UPDATE, peer);
+        } else {
+            this.peerSignal.dispatch(SignalEvent.ADD, peer);
+        }
         return peer;
     }
 
     public async removePeer(fingerprint: string) {
-        await this.removePeerFromStore(fingerprint);
+        const peer = await this.removePeerFromStore(fingerprint);
+        this.peerSignal.dispatch(SignalEvent.REMOVE, peer);
         // notify the removal
         try {
             const remoteService = await modules.ServiceController.getRemoteInstance(fingerprint);

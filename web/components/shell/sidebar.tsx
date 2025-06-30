@@ -1,7 +1,7 @@
 import { cn, isMobile } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import Link from "next/link";
-import { SidebarItem, SidebarList } from "@/lib/types";
+import { SidebarItem, SidebarList, SidebarSection } from "@/lib/types";
 import { useCallback } from "react";
 import Image from "next/image";
 import { useUrlMatch } from "../hooks/useUrlMatch";
@@ -25,7 +25,7 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
     }, [item, onRightClick]);
 
     const onClick_ = useCallback((e: React.MouseEvent) => {
-        if (onClick ) {
+        if (onClick) {
             onClick(item, e);
         } else {
             if (isMobile()) {
@@ -35,10 +35,10 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
     }, [hideSidebar, item, onClick]);
 
     return (<Link href={item.href || ''} onContextMenu={onRightClick_} onClick={onClick_}>
-        <Button variant={isMatch ? 'secondary' : 'ghost'} 
-        className={cn(
-            isMatch && "bg-foreground/10",
-            "rounded-md sidebarItem w-full justify-start text-xs text-left text-ellipsis text-foreground/80 truncate font-medium h-8")}
+        <Button variant={isMatch ? 'secondary' : 'ghost'}
+            className={cn(
+                isMatch && "bg-foreground/10",
+                "rounded-md sidebarItem w-full justify-start text-xs text-left text-ellipsis text-foreground/80 truncate font-medium h-8")}
         >
             {item.icon && <Image
                 alt={item.title}
@@ -53,9 +53,8 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
     </Link>)
 }
 
-export function Sidebar({ className, list, onRightClick, onClick }: {
-    className?: string,
-    list?: SidebarList,
+export function SidebarSectionView({ section, onRightClick, onClick }: {
+    section: SidebarSection,
     onRightClick?: (item: SidebarItem) => void,
     onClick?: (item: SidebarItem, e: React.MouseEvent) => void,
 }) {
@@ -70,33 +69,57 @@ export function Sidebar({ className, list, onRightClick, onClick }: {
     }, []);
 
     return (
-        <div className={cn("pb-12", className)} onContextMenu={handleContextMenu}>
-            <div className="space-y-4 pb-2">
-                {
-                    list?.map((item, index) => (
-                        <div className="px-2 md:pr-0 py-2" key={index}>
-                            {
-                                item.title && (<h2 className="mb-1 px-4 text-xs font-semibold tracking-tight text-muted-foreground/90">
-                                    {item.title}
-                                </h2>)
-                            }
+        <div className="px-2 md:pr-0 py-2">
+            {
+                section.title && (<h2 className="mb-1 px-4 text-xs font-semibold tracking-tight text-muted-foreground/90">
+                    {section.title}
+                </h2>)
+            }
 
-                            <div className="space-y-1">
-                                {
-                                    item.items?.map((item: SidebarItem) => (
-                                        <SidebarItemView
-                                            key={item.key}
-                                            item={item}
-                                            isMatch={!!item.href && isMatch(item.href)}
-                                            onRightClick={onRightClick}
-                                            onClick={onClick} />
-                                    ))
-                                }
-                            </div>
-                        </div>
+            <div className="space-y-1" onContextMenu={handleContextMenu}>
+                {
+                    section.items?.map((item: SidebarItem) => (
+                        <SidebarItemView
+                            key={item.key}
+                            item={item}
+                            isMatch={!!item.href && isMatch(item.href)}
+                            onRightClick={onRightClick}
+                            onClick={onClick} />
                     ))
                 }
             </div>
         </div>
+    )
+}
+
+export function SidebarView({ className, children }: {
+    className?: string,
+    children?: React.ReactNode,
+}) {
+    return (
+        <div className={cn("pb-12 space-y-4", className)}>
+            {children}
+        </div>
+    )
+}
+
+export function Sidebar({ className, list, onRightClick, onClick }: {
+    className?: string,
+    list: SidebarList,
+    onRightClick?: (item: SidebarItem) => void,
+    onClick?: (item: SidebarItem, e: React.MouseEvent) => void,
+}) {
+
+    return (
+        <SidebarView className={className}>
+            {
+                list.map((section: SidebarSection, index: number) => (
+                    <SidebarSectionView
+                        key={index}
+                        section={section}
+                        onRightClick={onRightClick}
+                        onClick={onClick} />
+                ))}
+        </SidebarView>
     )
 }

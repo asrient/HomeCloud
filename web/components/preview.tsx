@@ -3,9 +3,8 @@ import { useCallback, useMemo, useState } from 'react'
 import { getDefaultIcon, getFileUrl } from '@/lib/fileUtils';
 import Image from 'next/image';
 import { Button } from './ui/button';
-import { ArrowUpOnSquareIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowUpOnSquareIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { FileRemoteItem } from './filesView';
-import { openFileLocal } from '@/lib/api/files';
 import { toast } from './ui/use-toast';
 import LoadingIcon from './ui/loadingIcon';
 
@@ -16,9 +15,9 @@ function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }
     const openInApp = useCallback(async () => {
         if (openingInApp) return;
         setOpeningInApp(true);
-        if (!item.storageId) return;
+        if (!item.deviceFingerprint) return;
         try {
-            await openFileLocal(item.storageId, item.id);
+            //await openFileLocal(item.storageId, item.id);
         } catch (e: any) {
             console.error(e);
             toast({
@@ -28,16 +27,16 @@ function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }
         } finally {
             setOpeningInApp(false);
         }
-    }, [item.id, item.storageId, openingInApp]);
+    }, [item.deviceFingerprint, openingInApp]);
 
     return (
-        <div className='flex items-center justify-between p-1 px-3 bg-background text-s border-b bottom-1'>
-            <div className='flex items-center space-x-2'>
-                <Image height={20} width={20} src={icon} alt='Item icon' />
-                <div className='text-foreground font-medium'>{item.name}</div>
-            </div>
-            <div className='flex items-center space-x-2 text-primary'>
-                {item.storageId && <Button onClick={openInApp} variant='default' disabled={openingInApp} size='sm'>
+        <div className='bg-background text-s border-b bottom-1'>
+            <div className='flex items-center p-1 px-3 space-x-2 pl-10 no-drag'>
+                <Button variant='secondary' size='icon' className='rounded-full p-1' onClick={close}>
+                    <ArrowLeftIcon className="h-5 w-5" />
+                </Button>
+                <div className='pl-[5rem]'></div>
+                <Button onClick={openInApp} variant='default' disabled={openingInApp} size='sm'>
                     {
                         openingInApp ?
                             <LoadingIcon className='h-5 w-5 mr-1' />
@@ -45,17 +44,18 @@ function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }
                             <ArrowUpOnSquareIcon className='h-5 w-5 mr-1' />
                     }
                     Open
-                </Button>}
-                <Button variant='secondary' size='icon' className='rounded-full p-1' onClick={close}>
-                    <XMarkIcon className="h-5 w-5" />
                 </Button>
+                <div className='flex items-center space-x-2 pl-[3rem]'>
+                    <Image height={20} width={20} src={icon} alt='Item icon' />
+                    <div className='text-foreground font-medium'>{item.name}</div>
+                </div>
             </div>
         </div>
     )
 }
 
 function PreviewContent({ item }: { item: FileRemoteItem }) {
-    const assetUrl = useMemo<string | null>(() => item.storageId ? getFileUrl(item.storageId, item.id) : null, [item]);
+    const assetUrl = useMemo<string>(() => getFileUrl(item.deviceFingerprint, item.path), [item]);
     const contentType = useMemo(() => item.mimeType?.split('/')[0], [item]);
 
     if (assetUrl && contentType === 'image') {

@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 import CustomError from '@/lib/customError';
-import { ErrorType } from '@/lib/types';
+import { ErrorType } from 'shared/customError';
 
 const Form = FormProvider
 

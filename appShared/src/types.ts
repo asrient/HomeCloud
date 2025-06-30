@@ -188,3 +188,10 @@ export type ConnectionInfo = {
     deviceName: string | null;
     connectionType: ConnectionType;
 }
+
+export enum SignalEvent {
+    ADD = "add",
+    REMOVE = "remove",
+    UPDATE = "update",
+    ERROR = "error",
+}

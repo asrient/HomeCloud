@@ -8,8 +8,8 @@ export function buildNextUrl(path: string, params?: { [key: string]: any }): Nex
     }
 }
 
-export function folderViewUrl(storageId: number, folderId: string = '') {
-    return buildNextUrl('/files/folder', { s: storageId, id: folderId });
+export function folderViewUrl(fingerprint: string | null, path: string = '') {
+    return buildNextUrl('/files/folder', { path, fingerprint });
 }
 
 export function photosLibraryUrl(storageId: number, libraryId: number) {
@@ -21,4 +21,8 @@ export function settingsUrl() {
         return buildNextUrl('/settings');
     }
     return buildNextUrl('/settings/general');
+}
+
+export function deviceSettingsUrl(fingerprint: string) {
+    return buildNextUrl('/settings/device', { id: fingerprint });
 }

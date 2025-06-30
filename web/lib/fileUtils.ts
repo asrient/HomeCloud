@@ -1,8 +1,8 @@
-import { DeviceInfo, OSType, PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage, StorageType } from "./types";
+import { DeviceInfo, PinnedFolder, RemoteItem, PeerInfo } from "shared/types";
+import { RemoteItemWithPeer } from "./types";
+import { OSType } from "@/lib/enums";
 import mime from 'mime';
-import { staticConfig } from "./staticConfig";
-import { move, MoveParams } from "./api/files";
-import { storageSupportsThumbnail } from "./storageConfig";
+import { getServiceController } from "./utils";
 
 export enum FileType {
     File = 'File',
@@ -165,9 +165,6 @@ export function mimeToKind(mimeType: string): FileType {
 
 export function getKind(item: RemoteItem) {
     if (item.type === 'directory') {
-        if (!item.parentIds || item.parentIds.length === 0) {
-            return FileType.Drive;
-        }
         if (!!item.mimeType) return mimeToKind(item.mimeType);
         return FileType.Folder;
     }
@@ -268,46 +265,71 @@ export function getDefaultIcon(item: RemoteItem) {
     return iconUrl(getKind(item));
 }
 
-export function canGenerateThumbnail(item: RemoteItem, storage: Storage) {
-    if (!storageSupportsThumbnail(storage)) return false;
+export function canGenerateThumbnail(item: RemoteItem) {
     const kind = getKind(item);
     return kind === FileType.Image || kind === FileType.Video;
 }
 
-export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder, storage: Storage): RemoteItemWithStorage {
+export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder, fingerprint: string | null): RemoteItemWithPeer {
     return {
-        id: pinnedFolder.folderId,
+        path: pinnedFolder.path,
         name: pinnedFolder.name,
         type: 'directory',
-        parentIds: [''],
         size: 0,
         mimeType: '',
         lastModified: new Date(),
         createdAt: new Date(),
         etag: '',
         thumbnail: '',
-        storageId: storage.id,
+        deviceFingerprint: fingerprint,
     }
 }
 
-export function storageToRemoteItem(storage: Storage): RemoteItemWithStorage {
+export function peerToRemoteItem(peer: PeerInfo | null): RemoteItemWithPeer {
     return {
-        id: '',
-        name: storage.name,
+        path: '',
+        name: peer ? peer.deviceName : 'This Device',
         type: 'directory',
-        parentIds: [],
         size: 0,
         mimeType: '',
         lastModified: new Date(),
         createdAt: new Date(),
         etag: '',
         thumbnail: '',
-        storageId: storage.id,
+        deviceFingerprint: peer ? peer.fingerprint : null,
     }
 }
 
-export function getFileUrl(storageId: number, fileId: string) {
-    return `${staticConfig.apiBaseUrl}/fs/readFile?storageId=${storageId}&id=${fileId}`;
+export function getPathChain(path: string): RemoteItem[] {
+    // check for both / and \ as path separators
+    const separator = path.includes('/') ? '/' : '\\';
+    const hasLeadingSeparator = path.startsWith(separator);
+    const parts = path.split(separator).filter(part => part.length > 0);
+    const chain: RemoteItem[] = [];
+    let currentPath = '';
+    for (const part of parts) {
+        if (currentPath.length === 0 && !hasLeadingSeparator) {
+            currentPath = part; // first part without leading separator
+        } else {
+            currentPath += separator + part;
+        }
+        chain.push({
+            path: currentPath,
+            name: part,
+            type: 'directory',
+            size: 0,
+            mimeType: '',
+            lastModified: new Date(),
+            createdAt: new Date(),
+            etag: '',
+            thumbnail: '',
+        });
+    }
+    return chain;
+}
+
+export function getFileUrl(fingerprint: string | null, path: string) {
+    return `app://media/previewFile?fingerprint=${fingerprint}&path=${path}`;
 }
 
 export function canPreview(mimeType: string) {
@@ -342,16 +364,16 @@ export function getNativeFilesAppIcon(deviceInfo: DeviceInfo | null) {
 
 const CLIPBOARD_KEY = 'files-clipboard';
 
-export function setItemsToCopy(storageId: number, itemIds: string[], cut = false) {
+export function setItemsToCopy(fingerprint: string | null, itemIds: string[], cut = false) {
     const clipboardJson = {
-        storageId,
+        fingerprint,
         itemIds,
         cut,
     }
     sessionStorage.setItem(CLIPBOARD_KEY, JSON.stringify(clipboardJson));
 }
 
-export function getItemsToCopy(): { storageId: number, itemIds: string[], cut: boolean } | null {
+export function getItemsToCopy(): { fingerprint: string | null, itemIds: string[], cut: boolean } | null {
     const clipboardJson = sessionStorage.getItem(CLIPBOARD_KEY);
     if (!clipboardJson) return null;
     return JSON.parse(clipboardJson);
@@ -365,18 +387,12 @@ export function hasItemsToCopy() {
     return !!sessionStorage.getItem(CLIPBOARD_KEY);
 }
 
-export async function performCopyItems(destStorageId: number, destFolderId: string) {
+export async function performCopyItems(destFingerprint: string | null, destFolderId: string) {
     const clipboard = getItemsToCopy();
     if (!clipboard) return;
-    const { storageId, itemIds, cut } = clipboard;
-    const moveParams: MoveParams = {
-        sourceStorageId: storageId,
-        destStorageId,
-        destDir: destFolderId,
-        sourceFileIds: itemIds,
-        deleteSource: cut,
-    }
-    const res = move(moveParams);
+    const { fingerprint: sourceFingerprint, itemIds, cut } = clipboard;
+    const serviceController = await getServiceController(sourceFingerprint);
+    const res = await serviceController.files.move(destFingerprint, destFolderId, itemIds, cut);
     if (cut) {
         clearItemsToCopy();
     }

@@ -16,23 +16,8 @@ import {
 } from "@/components/ui/sheet"
 import LoadingIcon from '@/components/ui/loadingIcon'
 import { printFingerprint, getUrlFromIconKey } from '@/lib/utils'
-
-export type MethodInfo = {
-  isExposed: boolean;
-  isAllowAll: boolean;
-  passContext: boolean;
-}
-
-export type ServiceDoc = {
-  __doctype__: 'function' | 'error';
-  description?: string;
-  methodInfo?: MethodInfo;
-  fqn?: string;
-}
-
-export type ServiceDocTree = {
-  [key: string]: ServiceDoc | ServiceDocTree;
-}
+import { ConnectionInfo, PeerInfo, ServiceDocTree, ServiceDoc, MethodInfo } from 'shared/types'
+import ServiceController from 'shared/services/controller'
 
 // Take parameters for the func call from userand execute the function located by the FQN and display the result.
 function FunctionPlayground({ fqn, serviceController }:
@@ -115,7 +100,7 @@ function FunctionConsole({ doc, name, serviceController
 }: {
   doc: ServiceDoc;
   name: string;
-  serviceController: any;
+  serviceController: ServiceController | null;
 }) {
   const methodInfo = doc.methodInfo;
   const description = doc.description || 'No description available';
@@ -158,7 +143,7 @@ function ServiceFragment({
 }: {
   docTree: ServiceDocTree;
   name: string;
-  serviceController: any;
+  serviceController: ServiceController | null;
 }) {
 
   const entries = Object.entries(docTree);
@@ -214,20 +199,6 @@ type DeviceCandidate = {
   deviceName: string | null;
 }
 
-type ConnectionInfo = {
-  fingerprint: string;
-  deviceName: string | null;
-  connectionType: any;
-}
-
-type PeerInfo = {
-  deviceName: string;
-  fingerprint: string;
-  version: string;
-  deviceInfo: any;
-  iconKey: string | null;
-}
-
 function DeviceSelector({ setDeviceCandidate }: {
   setDeviceCandidate: (deviceCandidate: DeviceCandidate | null) => void;
 }) {
@@ -237,7 +208,7 @@ function DeviceSelector({ setDeviceCandidate }: {
 
   useEffect(() => {
     const fetchDevices = async () => {
-      const sc = (window as any).modules.getLocalServiceController();
+      const sc = window.modules.getLocalServiceController();
       const devices = await sc.net.getConnectedDevices();
       setConnectedDevices(devices);
       const peers = sc.app.getPeers();
@@ -337,23 +308,23 @@ function DeviceSelector({ setDeviceCandidate }: {
 function Page() {
 
   const servicesDoc = useMemo(() => {
-    const sc = (window as any).modules.getLocalServiceController()
+    const sc = window.modules.getLocalServiceController()
     return sc.getDoc();
   }, []);
 
   const [error, setError] = useState<string | null>(null);
-  const [serviceController, setServiceController] = useState<any>(null);
+  const [serviceController, setServiceController] = useState<ServiceController | null>(null);
   const [deviceCandidate, setDeviceCandidate] = useState<DeviceCandidate | null>(null);
   const [showDeviceSelector, setShowDeviceSelector] = useState<boolean>(false);
 
   useEffect(() => {
     async function loadServiceController() {
       if (!deviceCandidate) {
-        const sc = (window as any).modules.getLocalServiceController();
+        const sc = window.modules.getLocalServiceController();
         setServiceController(sc);
       } else {
         try {
-          const sc = await (window as any).modules.getRemoteServiceController(deviceCandidate.fingerprint);
+          const sc = await window.modules.getRemoteServiceController(deviceCandidate.fingerprint);
           setServiceController(sc);
         } catch (err: any) {
           console.error('Error getting remote service controller:', err);

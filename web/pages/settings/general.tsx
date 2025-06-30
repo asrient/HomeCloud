@@ -6,18 +6,10 @@ import Head from 'next/head'
 import Image from 'next/image'
 import React from 'react'
 import { staticConfig } from '@/lib/staticConfig'
-import { useAppState } from '@/components/hooks/useAppState'
-import { logout } from '@/lib/api/auth'
-import { useCallback } from 'react'
 import ConfirmModal from '@/components/confirmModal'
 import { Button } from '@/components/ui/button'
 
 function Page() {
-
-    const performLogout = useCallback(async () => {
-      await logout();
-      window.location.href = '/';
-    }, []);
 
   return (
     <>
@@ -69,7 +61,7 @@ function Page() {
                   <ConfirmModal
                     title='Logout'
                     description='Are you sure you want to logout from this browser?'
-                    onConfirm={performLogout}
+                    onConfirm={async () => {}}
                     buttonVariant='destructive'
                     buttonText='Logout'
                   >
