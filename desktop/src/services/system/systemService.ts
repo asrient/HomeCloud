@@ -1,7 +1,7 @@
 import { SystemService } from "shared/services/systemService";
 import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
-import { dialog, BrowserWindow } from "electron";
+import { dialog, BrowserWindow, shell } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails } from "../../types";
 
@@ -103,6 +103,14 @@ class DesktopSystemService extends SystemService {
 
     public async getWindowsDrives(): Promise<WinDriveDetails[]> {
         return getDriveDetails();
+    }
+
+    public async openUrl(url: string): Promise<void> {
+        await shell.openExternal(url);
+    }
+
+    public async openFile(filePath: string): Promise<void> {
+        await shell.openPath(filePath);
     }
 }
 

@@ -3,6 +3,7 @@ import { FsDriver } from "../files/fsDriver";
 import ConfigStorage from "../storage";
 import { StoreNames, PinnedFolder, SignalEvent, RemoteItem } from "../types";
 import Signal from "../signals";
+import { getServiceController } from "../utils"
 
 const PINNED_FOLDERS_KEY = "pinnedFolders";
 
@@ -21,15 +22,51 @@ export abstract class FilesService extends Service {
 
     public separator = "/";
 
+    protected abstract _moveSingle(remoteFingerprint: string | null, remoteFolderId: string, localFilePath: string, deleteSource: boolean): Promise<RemoteItem[]>
+
     @exposed
-    public move(remoteFingerprint: string | null, remoteFolderId: string, localFilePaths: string[], deleteSource = false): Promise<RemoteItem[]> {
-        //return this.fs.copyFiles(remoteFingerprint, remoteFolderId, localFilePaths, deleteSource);
+    public async move(remoteFingerprint: string | null, remoteFolderId: string, localFilePaths: string[], deleteSource = false): Promise<RemoteItem[]> {
+        // make sure remoteFingerprint is accessible
+        await getServiceController(remoteFingerprint);
+        if (remoteFingerprint !== null) {
+            // check if peer is added
+            const localSc = modules.getLocalServiceController();
+            const peer = localSc.app.getPeer(remoteFingerprint);
+            if (!peer) {
+                throw new Error(`Device "${remoteFingerprint}" is not paired.`);
+            }
+        }
+        const promises = Promise.allSettled(localFilePaths.map(async (localFilePath) => {
+            return this._moveSingle(remoteFingerprint, remoteFolderId, localFilePath, deleteSource);
+        }));
+        const items = [];
+        const results = await promises;
+        results.forEach(result => {
+            if (result.status === "fulfilled") {
+                items.push(...result.value);
+            } else {
+                console.error("Failed to move file:", result.reason);
+            }
+        });
+        return items;
+    }
+
+    public async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
         throw new Error("Method not implemented.");
     }
 
+    protected abstract _openRemoteFile(remoteFingerprint: string, remotePath: string): Promise<void>;
+
     @exposed
-    public download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
-        throw new Error("Method not implemented.");
+    public async openFile(deviceFingerprint: string | null, path: string): Promise<void> {
+        if (deviceFingerprint === null) {
+            // its a local file, just open it.
+            const localSc = modules.getLocalServiceController();
+            localSc.system.openFile(path);
+            return;
+        }
+        // create a watch file.
+        await this._openRemoteFile(deviceFingerprint, path);
     }
 
     @exposed

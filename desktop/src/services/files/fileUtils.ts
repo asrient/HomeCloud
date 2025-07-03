@@ -1,9 +1,11 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import fs from 'fs';
+import fs, { createReadStream } from 'fs';
 import path from 'path';
 import mime from "mime";
 import DesktopSystemService from "../system/systemService";
+import { FileContent } from 'shared/types';
+import { Readable } from 'stream';
 
 const execAsync = promisify(exec);
 const fsPromises = fs.promises;
@@ -132,4 +134,17 @@ export function getMimeType(filePath: string, isDirectory = false): string {
         return 'application/x-apple-diskimage';
     }
     return mime.getType(filePath) || 'application/octet-stream';
+}
+
+export function getFileContent(filePath: string): FileContent {
+    const fileStream = Readable.toWeb(createReadStream(filePath));
+    const fileName = path.basename(filePath);
+    const mimeType = mime.getType(filePath) || "application/octet-stream";
+    // Create a FileContent object
+    const fileContentObj: FileContent = {
+        name: fileName,
+        stream: fileStream,
+        mime: mimeType
+    };
+    return fileContentObj;
 }

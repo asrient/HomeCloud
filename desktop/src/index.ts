@@ -8,7 +8,7 @@ import DesktopServiceController from './services/desktopServiceController';
 import fs from 'node:fs';
 import os from 'node:os';
 import DesktopConfigStorage from './configStorage';
-import { getServiceController } from './utils';
+import { getServiceController } from 'shared/utils';
 
 const WEB_APP_SERVER = 'http://localhost:3000';
 

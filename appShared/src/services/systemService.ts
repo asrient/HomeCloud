@@ -15,6 +15,16 @@ export abstract class SystemService extends Service {
     public abstract ask(config: NativeAskConfig): NativeAsk;
 
     @exposed
+    public async openUrl(url: string) {
+        throw new Error("Method not implemented.");
+    }
+    
+    @exposed
+    public async openFile(filePath: string) {
+        throw new Error("Method not implemented.");
+    }
+
+    @exposed
     public async deviceInfo(): Promise<DeviceInfo> {
         const deviceInfo = await this.getDeviceInfo();
         return deviceInfo;

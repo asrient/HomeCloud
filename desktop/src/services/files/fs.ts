@@ -2,9 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { FsDriver } from "shared/files/fsDriver";
 import { FileContent, RemoteItem } from "shared/types";
-import { createReadStream } from "fs";
-import { getMimeType, getNativeDrives } from "./fileUtils";
-import { Readable } from "stream";
+import { getMimeType, getNativeDrives, getFileContent } from "./fileUtils";
 import { exposed } from "shared/services/primatives";
 
 export default class LocalFsDriver extends FsDriver {
@@ -111,14 +109,7 @@ export default class LocalFsDriver extends FsDriver {
   @exposed
   public override async readFile(id: string): Promise<FileContent> {
     id = this.normalizePath(id);
-    const mimeType = getMimeType(id);
-    const stream = createReadStream(id);
-    const fileContent: FileContent = {
-      name: this.pathToFilename(id),
-      mime: mimeType,
-      stream: Readable.toWeb(stream),
-    };
-    return fileContent;
+    return getFileContent(id);
   }
 
   private pathToFilename(filePath: string) {

@@ -52,3 +52,10 @@ export function getIconKey(deviceInfo: DeviceInfo) {
 export function deviceIdFromFingerprint(fingerprint: string) {
   return fingerprint.slice(0, 5);
 }
+
+export async function getServiceController(fingerprint: string | null) {
+    if (!fingerprint) {
+        return modules.getLocalServiceController();
+    }
+    return modules.getRemoteServiceController(fingerprint);
+}

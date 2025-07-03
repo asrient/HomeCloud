@@ -50,11 +50,8 @@ function OpenInDevice({ file, reset }: {
       title: `Opening "${file.name}" in ${device.deviceName}`,
     });
     try {
-      // await openFileRemote({
-      //   storageId: file.storageId,
-      //   fileId: file.id,
-      //   targetDeviceFingerprint: device.fingerprint,
-      // });
+      const serviceController = await getServiceController(device.fingerprint);
+      await serviceController.files.openFile(file.deviceFingerprint, file.path);
     } catch (e: any) {
       console.error(e);
       toast({
@@ -88,12 +85,12 @@ const Page: NextPageWithConfig = () => {
   }, [fingerprint, peers]);
 
   const toFileRemoteItem = useCallback((item: RemoteItem): FileRemoteItem => {
-  return {
-    ...item,
-    isSelected: false,
-    deviceFingerprint: fingerprint,
-  }
-}, [fingerprint]);
+    return {
+      ...item,
+      isSelected: false,
+      deviceFingerprint: fingerprint,
+    }
+  }, [fingerprint]);
 
   const { remoteItems, isLoading, error, reload, setRemoteItems } = useFolder<FileRemoteItem>(fingerprint, path, toFileRemoteItem);
   const { remoteItem: folderStat } = useStat(fingerprint, path);
@@ -167,7 +164,9 @@ const Page: NextPageWithConfig = () => {
     if (previewLoading) return;
     setPreviewLoading(true);
     try {
-      // await openFileLocal(storageId as number, item.id);
+      // open file locally
+      const serviceController = window.modules.getLocalServiceController();
+      await serviceController.files.openFile(item.deviceFingerprint, item.path);
     } catch (e) {
       console.error(e);
       toast({
@@ -305,8 +304,10 @@ const Page: NextPageWithConfig = () => {
     try {
       const items = await performCopyItems(fingerprint, path);
       if (!items) return;
+      // filter out those that starts with the current path
+      const filteredItems = items.filter(item => !item.path.startsWith(path));
       console.log('new items added', items);
-      const fileItems: FileRemoteItem[] = items.map(item => ({
+      const fileItems: FileRemoteItem[] = filteredItems.map(item => ({
         ...item,
         isSelected: true,
         deviceFingerprint: fingerprint,

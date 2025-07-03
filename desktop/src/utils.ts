@@ -25,10 +25,3 @@ export const cleanupTmpDir = async () => {
 export async function removeTempFile(filePath: string) {
     return fs.promises.unlink(filePath);
 }
-
-export async function getServiceController(fingerprint: string | null) {
-    if (!fingerprint) {
-        return modules.getLocalServiceController();
-    }
-    return modules.getRemoteServiceController(fingerprint);
-}

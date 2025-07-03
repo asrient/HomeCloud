@@ -17,7 +17,9 @@ function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }
         setOpeningInApp(true);
         if (!item.deviceFingerprint) return;
         try {
-            //await openFileLocal(item.storageId, item.id);
+            // open file locally
+            const serviceController = window.modules.getLocalServiceController();
+            await serviceController.files.openFile(item.deviceFingerprint, item.path);
         } catch (e: any) {
             console.error(e);
             toast({
@@ -27,7 +29,7 @@ function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }
         } finally {
             setOpeningInApp(false);
         }
-    }, [item.deviceFingerprint, openingInApp]);
+    }, [item.deviceFingerprint, item.path, openingInApp]);
 
     return (
         <div className='bg-background text-s border-b bottom-1'>
