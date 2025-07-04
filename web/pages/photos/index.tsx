@@ -1,25 +1,16 @@
-import { SidebarType, PhotosFetchOptions, PhotosSortOption } from '@/lib/types'
+import { SidebarType } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
-//import PhotosPage from '@/components/photosPage'
-import { useMemo } from 'react';
-import usePhotoLibraries from '@/components/hooks/usePhotoLibraries';
 
 export default function Page() {
-  const { libraries } = usePhotoLibraries();
-
-  const fetchOptions: PhotosFetchOptions = useMemo(() => ({
-    sortBy: PhotosSortOption.CapturedOn,
-    libraries,
-    ascending: false,
-  }), [libraries]);
-
   return (
-    // <PhotosPage
-    //   fetchOptions={fetchOptions}
-    //   pageTitle='All Photos'
-    //   pageIcon='/icons/photos.png'
-    // />
-    null
+    <div className='p-5 py-10 min-h-full flex justify-center items-center flex-col'>
+      <div className='text-primary text-4xl font-thin'>
+        Your photos, across devices.
+      </div>
+      <div className='text-muted-foreground text-md mt-2'>
+        Select a library to view your photos.
+      </div>
+      </div>
   )
 }
 

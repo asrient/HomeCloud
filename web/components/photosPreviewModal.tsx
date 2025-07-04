@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import SharedPhotoModal from './photosPreview'
-import { Photo, PhotoView } from '@/lib/types'
-import { useCallback, useEffect, useState } from 'react'
+import { PhotoView } from '@/lib/types'
+import { useCallback } from 'react'
 
 export default function PhotosPreviewModal({
   photo,

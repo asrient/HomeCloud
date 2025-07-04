@@ -13,10 +13,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSwipeable } from 'react-swipeable'
 import { variants } from '@/lib/animationVariants'
 import type { PhotoView } from '@/lib/types'
-import { downloadFile, getThumbnail } from '@/lib/api/files'
 import LazyImage from './lazyImage'
 import { getFileUrl } from '@/lib/fileUtils'
 import { toast } from './ui/use-toast'
+import { getServiceController } from '@/lib/utils'
 
 type ThumbnailPhotoProps = {
   item: PhotoView;
@@ -32,8 +32,8 @@ function ThumbnailPhoto({ item, className, height, width }: ThumbnailPhotoProps)
     if (item.thumbnail) {
       return item.thumbnail;
     }
-    const thumbResp = await getThumbnail(item.storageId, item.fileId);
-    item.thumbnail = thumbResp;
+    const serviceController = await getServiceController(item.deviceFingerprint);
+    item.thumbnail = await serviceController.thumbnail.generateThumbnailURI(item.fileId);
     return item.thumbnail;
   }, [item]);
 
@@ -70,19 +70,20 @@ export default function PhotosPreview({
 
   const index = useMemo(() => {
     if (images) {
-      return images.findIndex((img: PhotoView) => img.id === currentPhoto.id && img.storageId === currentPhoto.storageId)
+      return images.findIndex((img: PhotoView) => img.id === currentPhoto.id && img.deviceFingerprint === currentPhoto.deviceFingerprint)
     }
     return 0
-  }, [currentPhoto.id, currentPhoto.storageId, images])
+  }, [currentPhoto.id, currentPhoto.deviceFingerprint, images])
 
   const downloadPhoto = useCallback(async () => {
-    const storageId = currentPhoto.storageId;
+    const deviceFingerprint = currentPhoto.deviceFingerprint;
     const fileId = currentPhoto.fileId;
     toast({
       title: 'Download started',
     });
     try {
-      await downloadFile(storageId, fileId);
+      const serviceController = await getServiceController(null);
+      await serviceController.files.download(deviceFingerprint, fileId);
       toast({
         title: 'Photo downloaded',
       });
@@ -94,7 +95,7 @@ export default function PhotosPreview({
         description: fileId,
       });
     }
-  }, [currentPhoto.fileId, currentPhoto.storageId]);
+  }, [currentPhoto.fileId, currentPhoto.deviceFingerprint]);
 
   useEffect(() => {
     if (currentPhotoRef.current === currentPhoto) return;
@@ -109,7 +110,7 @@ export default function PhotosPreview({
         return;
       }
       try {
-        const url = getFileUrl(currentPhoto.storageId, currentPhoto.fileId);
+        const url = getFileUrl(currentPhoto.deviceFingerprint, currentPhoto.fileId);
         if (currentPhotoRef.current !== currentPhoto) return;
         currentPhoto.assetUrl = url;
         setAssetUrl(currentPhoto.assetUrl);
@@ -280,7 +281,7 @@ export default function PhotosPreview({
                       }}
                       exit={{ width: '0%' }}
                       onClick={() => changePhoto(photo)}
-                      key={`${photo.storageId}-${photo.id}`}
+                      key={`${photo.deviceFingerprint}-${photo.id}`}
                       className={`${photo === currentPhoto
                         ? 'z-20 rounded-md shadow shadow-black/50'
                         : 'z-10'

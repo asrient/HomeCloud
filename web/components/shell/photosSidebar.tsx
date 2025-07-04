@@ -1,56 +1,50 @@
-import { Sidebar } from "./sidebar";
-import { usePhotosBar, PhotosSidebarData } from "../hooks/useSidebar";
-import { SidebarItem } from "@/lib/types";
-import { useCallback, useMemo, useState } from "react";
-import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from "@/components/ui/context-menu";
-import { ActionTypes } from "@/lib/state";
-import { useToast } from "../ui/use-toast";
-import { useAppDispatch } from "../hooks/useAppState";
+import { SidebarSectionView, SidebarView } from "./sidebar";
+import { SidebarItem, SidebarSection } from "@/lib/types";
+import { useMemo } from "react";
+import { useAppState } from "../hooks/useAppState";
+import { buildNextUrl } from "@/lib/urls";
+import { PeerInfo } from "shared/types";
+import { usePhotoLibraries } from "../hooks/usePhotos";
+import { iconUrl, FileType } from "@/lib/fileUtils";
+import { photosLibraryUrl } from "@/lib/urls";
+
+const DeviceSectionView = ({
+    peer
+}: {
+    peer?: PeerInfo
+}) => {
+    const fingerprint = useMemo(() => !!peer ? peer.fingerprint : null, [peer]);
+    const { photoLibraries } = usePhotoLibraries(fingerprint);
+
+    const section = useMemo((): SidebarSection => {
+        const items: SidebarItem[] = [];
+        photoLibraries.forEach((library) => {
+            items.push({
+                title: library.name,
+                icon: iconUrl(FileType.Folder),
+                href: photosLibraryUrl(fingerprint, library.id),
+                key: library.id,
+                rightClickable: false,
+            });
+        });
+        return {
+            title: peer ? peer.deviceName : 'This Device',
+            items
+        };
+    }, [photoLibraries, fingerprint, peer]);
+
+    return (<SidebarSectionView section={section} />);
+}
 
 export function PhotosSidebar() {
-    const list = usePhotosBar();
-    const [selectedSidebarItem, setSelectedSidebarItem] = useState<SidebarItem | null>(null);
-    const { toast } = useToast();
-    const dispatch = useAppDispatch();
+    const { peers } = useAppState();
 
-    const isLibrarySelected = useMemo(() => {
-        return selectedSidebarItem?.data?.libraryId !== undefined;
-    }, [selectedSidebarItem]);
-
-    const removeLibrary = useCallback(async () => {
-        if (!selectedSidebarItem || !selectedSidebarItem.data) return;
-        const { libraryId, storageId } = (selectedSidebarItem.data as PhotosSidebarData);
-        if (!libraryId || !storageId) return;
-        try {
-            //await deleteLibrary({ storageId, id: libraryId });
-            //dispatch(ActionTypes.REMOVE_PHOTO_LIBRARY, { storageId, libraryId });
-        } catch (e: any) {
-            console.error(e);
-            toast({
-                variant: "destructive",
-                title: 'Uh oh! Something went wrong.',
-                description: `Could not remove "${selectedSidebarItem.title}" library.`,
-            });
-        }
-    }, [selectedSidebarItem, toast]);
-
-    return (<ContextMenu>
-        <ContextMenuTrigger>
-            <Sidebar onRightClick={setSelectedSidebarItem} list={list} />
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-            {
-                isLibrarySelected && (
-                    <>
-                        <ContextMenuItem>
-                            Get info
-                        </ContextMenuItem>
-                        <ContextMenuItem onClick={removeLibrary} className='text-red-500'>
-                            Remove
-                        </ContextMenuItem>
-                    </>
-                )
-            }
-        </ContextMenuContent>
-    </ContextMenu>);
+    return (
+            <SidebarView>
+                <DeviceSectionView />
+                {peers.map((peer) => (
+                    <DeviceSectionView key={peer.fingerprint} peer={peer} />
+                ))}
+            </SidebarView>
+        )
 }

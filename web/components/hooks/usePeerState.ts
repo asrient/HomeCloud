@@ -25,3 +25,12 @@ export const usePeerState = () => {
         return Object.values(peerMap);
     }, [peers, connections]);
 }
+
+export const usePeer = (fingerprint: string | null) => {
+    const { peers } = useAppState();
+
+    const peer = useMemo(() => {
+        return peers.find(p => p.fingerprint === fingerprint);
+    }, [fingerprint, peers]);
+    return peer;
+}

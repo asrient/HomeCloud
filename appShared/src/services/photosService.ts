@@ -20,6 +20,16 @@ export abstract class PhotosService extends Service {
         return locations || [];
     }
 
+    @exposed
+    async getLocation(id: string): Promise<PhotoLibraryLocation | null> {
+        const locations = this.store.getItem<PhotoLibraryLocation[]>(this.PH_LIBS_KEY) || [];
+        const location = locations.find(loc => loc.id === id);
+        if (!location) {
+            return null;
+        }
+        return location;
+    }
+
     protected async _allowLocationAdd(location: PhotoLibraryLocation): Promise<boolean> {
         // This method can be overridden by subclasses to implement custom logic for allowing location addition
         return true; // Default behavior allows all locations

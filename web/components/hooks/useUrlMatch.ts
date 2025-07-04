@@ -12,7 +12,13 @@ export function useUrlMatch() {
         const keys = Object.keys(nextUrl.query);
         for (let i = 0; i < keys.length; i++) {
             const key = keys[i];
-            if (nextUrl.query[key] != query[key]) return false;
+            let value = query[key];
+            let requiredValue = nextUrl.query[key];
+            if (requiredValue === null) {
+                // If the next URL requires a null value, we consider an empty string as a match.
+                requiredValue = '';
+            }
+            if (requiredValue != value) return false;
         }
         return true;
     }, [pathname, query]);

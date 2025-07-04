@@ -1,4 +1,4 @@
-import { RemoteItem, PeerInfo, ConnectionInfo } from "shared/types";
+import { RemoteItem, PeerInfo, ConnectionInfo, Photo, PhotoLibraryLocation } from "shared/types";
 
 export type PeerState = PeerInfo & {
     connection: ConnectionInfo | null;
@@ -60,30 +60,12 @@ export type PageUIConfig = {
     noAppShell: boolean;
 }
 
-export type PhotoLibrary = {
-    id: number;
-    name: string;
-    location: string;
-    storageId: number;
-}
-
-export type Photo = {
-    id: number;
-    fileId: string;
-    mimeType: string;
-    capturedOn: Date;
-    addedOn: Date;
-    duration: number | null;
-    height: number;
-    width: number;
-}
-
 export type PhotoView = {
     isSelected: boolean;
     thumbnail?: string;
     assetUrl?: string;
-    storageId: number;
-    libraryId: number;
+    deviceFingerprint: string | null;
+    libraryId: string;
 } & Photo;
 
 export enum PhotosSortOption {
@@ -94,5 +76,6 @@ export enum PhotosSortOption {
 export type PhotosFetchOptions = {
     sortBy: PhotosSortOption;
     ascending?: boolean;
-    libraries: PhotoLibrary[];
+    library: PhotoLibraryLocation;
+    deviceFingerprint: string | null;
 }

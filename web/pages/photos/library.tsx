@@ -1,23 +1,41 @@
 import { SidebarType, PhotosFetchOptions, PhotosSortOption } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
-//import PhotosPage from '@/components/photosPage'
-import { useMemo } from 'react';
+import PhotosPage from '@/components/photosPage'
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import usePhotoLibraries from '@/components/hooks/usePhotoLibraries';
+import { usePhotoLibrary } from '@/components/hooks/usePhotos';
+import LoadingIcon from '@/components/ui/loadingIcon';
+import { usePeer } from '@/components/hooks/usePeerState';
 
 export default function Page() {
   const router = useRouter();
-  const { s, lib } = router.query as { s: string; lib: string; };
+  const { fingerprint: fingerprintStr, lib } = router.query as { fingerprint: string | null; lib: string; };
+  const fingerprint = useMemo(() => fingerprintStr ? fingerprintStr : null, [fingerprintStr]);
 
-  const { libraries } = usePhotoLibraries([{ storageId: parseInt(s), libraryId: parseInt(lib) }]);
+  const { photoLibrary, isLoading } = usePhotoLibrary(fingerprint, lib);
 
-  const fetchOptions: PhotosFetchOptions = useMemo(() => ({
-    sortBy: PhotosSortOption.AddedOn,
-    libraries,
-    ascending: false,
-  }), [libraries]);
+  const peer = usePeer(fingerprint);
 
-  if (!libraries.length) return (
+  const fetchOptions: PhotosFetchOptions | null = useMemo(() => {
+    if (!photoLibrary) {
+      return null;
+    }
+    return {
+      sortBy: PhotosSortOption.AddedOn,
+      library: photoLibrary,
+      ascending: false,
+      deviceFingerprint: fingerprint,
+    }
+  }, [fingerprint, photoLibrary]);
+
+  if (isLoading) return (
+    <div className='p-5 py-10 min-h-[50vh] flex justify-center items-center'>
+      <LoadingIcon className='h-8 w-8 mr-1' />
+      <span>Loading library...</span>
+    </div>
+  )
+
+  if (!fetchOptions) return (
     <div className='p-5 py-10 min-h-[50vh] flex justify-center items-center text-destructive'>
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor" className="h-8 w-8 mr-1">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
@@ -27,12 +45,11 @@ export default function Page() {
   )
 
   return (
-    // <PhotosPage
-    //   fetchOptions={fetchOptions}
-    //   pageTitle={libraries[0]?.name || 'Library'}
-    //   pageIcon='/icons/ssd.png'
-    // />
-    null
+    <PhotosPage
+      fetchOptions={fetchOptions}
+      pageTitle={`${peer ? peer.deviceName : 'This Device'} - ${photoLibrary?.name}`}
+      pageIcon='/icons/photos.png'
+    />
   )
 }
 
