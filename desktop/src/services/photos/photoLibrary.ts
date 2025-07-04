@@ -22,20 +22,20 @@ type createPhoto_ = {
 };
 
 export class PhotoLibrary {
-    private location: string;
-    private db: Sequelize;
-    private repo: PhotoRepository;
-    private infoRepo: InfoRepository;
-    private lastUpdate: Date;
-    private isMounted: boolean = false;
-    private watcher: FSWatcher;
-    private assetManager: AssetManager;
-    private firstScan: boolean = true;
-    private firstScanDirMtime: Date;
+    private _location: string;
+    private _db: Sequelize;
+    private _repo: PhotoRepository;
+    private _infoRepo: InfoRepository;
+    private _lastUpdate: Date;
+    private _isMounted: boolean = false;
+    private _watcher: FSWatcher;
+    private _assetManager: AssetManager;
+    private _firstScan: boolean = true;
+    private _firstScanDirMtime: Date;
 
     constructor(location: string) {
-        this.location = location;
-        this.assetManager = new AssetManager(location);
+        this._location = location;
+        this._assetManager = new AssetManager(location);
     }
 
     isDeltaNegligible(a: Date, b: Date, threshold = 1000) {
@@ -43,57 +43,57 @@ export class PhotoLibrary {
     }
 
     public async mount() {
-        if (this.isMounted) {
+        if (this._isMounted) {
             return;
         }
-        console.log("📸 Initializing Photo Library at:", this.location);
-        this.firstScan = true;
-        const stats = await fsPromises.stat(this.location);
-        this.firstScanDirMtime = stats.mtime;
-        this.db = new Sequelize({
+        console.log("📸 Initializing Photo Library at:", this._location);
+        this._firstScan = true;
+        const stats = await fsPromises.stat(this._location);
+        this._firstScanDirMtime = stats.mtime;
+        this._db = new Sequelize({
             dialect: "sqlite",
-            storage: path.join(this.location, PHOTOS_DB_NAME),
+            storage: path.join(this._location, PHOTOS_DB_NAME),
             dialectModule: verbose(),
             logging: modules.config.IS_DEV,
         });
-        await this.db.authenticate();
+        await this._db.authenticate();
         console.log("📸 Photo Library DB Connection established.");
-        this.repo = new PhotoRepository(this.db, this.location);
-        this.infoRepo = new InfoRepository(this.db);
-        await this.db.sync();
+        this._repo = new PhotoRepository(this._db, this._location);
+        this._infoRepo = new InfoRepository(this._db);
+        await this._db.sync();
 
-        this.lastUpdate = (await this.infoRepo.getLastUpdate()) || new Date(0);
-        const lastVersion = await this.infoRepo.getVersion();
+        this._lastUpdate = (await this._infoRepo.getLastUpdate()) || new Date(0);
+        const lastVersion = await this._infoRepo.getVersion();
         if (!lastVersion) {
-            this.infoRepo.setVersion(modules.config.VERSION);
+            this._infoRepo.setVersion(modules.config.VERSION);
         }
         console.log("📸 Last Version:", lastVersion);
         await this.searchUpdatedFiles();
         this.startWatching();
-        this.isMounted = true;
+        this._isMounted = true;
     }
 
     get isLibraryMounted() {
-        return this.isMounted;
+        return this._isMounted;
     }
 
     public async eject() {
-        console.log("📸 Ejecting Photo Library at:", this.location);
-        this.watcher.close();
+        console.log("📸 Ejecting Photo Library at:", this._location);
+        this._watcher.close();
         if (this.batchTimeout) {
             clearTimeout(this.batchTimeout);
             await this.batchProcessUpdates();
         }
-        await this.db.close();
-        this.isMounted = false;
+        await this._db.close();
+        this._isMounted = false;
     }
 
     private async setLastUpdateCounter(date: Date) {
-        if (date <= this.lastUpdate) {
+        if (date <= this._lastUpdate) {
             return;
         }
-        this.lastUpdate = date;
-        await this.infoRepo.setLastUpdate(date);
+        this._lastUpdate = date;
+        await this._infoRepo.setLastUpdate(date);
     }
 
     validateAssetPath(path: string) {
@@ -117,27 +117,27 @@ export class PhotoLibrary {
      * traversing only directories that have been modified.
      */
     async searchUpdatedFiles(): Promise<void> {
-        console.log("📸 Searching for updated files starting from:", this.lastUpdate);
+        console.log("📸 Searching for updated files starting from:", this._lastUpdate);
         const newFiles: string[] = [];
         const deletedFiles: string[] = [];
         const deletedDirs: string[] = [];
-        let maxMtime = this.lastUpdate;
+        let maxMtime = this._lastUpdate;
 
         const traverseDirectory = async (directoryPath: string, isRoot = false): Promise<void> => {
             if (!isRoot && this.ignoreDirectory(directoryPath)) return;
 
             let mtime: Date;
-            if (this.firstScan && isRoot) {
-                mtime = this.firstScanDirMtime;
-                this.firstScan = false;
-                this.firstScanDirMtime = null;
+            if (this._firstScan && isRoot) {
+                mtime = this._firstScanDirMtime;
+                this._firstScan = false;
+                this._firstScanDirMtime = null;
             } else {
                 const stats = await fsPromises.stat(directoryPath);
                 mtime = stats.mtime;
             }
 
             // Skip directories that haven't changed since lastUpdated
-            if (mtime <= this.lastUpdate || this.isDeltaNegligible(mtime, this.lastUpdate, isRoot ? 1200 : 600)) {
+            if (mtime <= this._lastUpdate || this.isDeltaNegligible(mtime, this._lastUpdate, isRoot ? 1200 : 600)) {
                 return;
             }
             console.log("📸 Traversing directory:", directoryPath, "Last Modified:", mtime);
@@ -146,9 +146,9 @@ export class PhotoLibrary {
                 maxMtime = mtime;
             }
 
-            const relativeDirPath = path.relative(this.location, directoryPath);
+            const relativeDirPath = path.relative(this._location, directoryPath);
 
-            const trackedDirs = new Set<string>(await this.repo.getImmediateChildDirectories(relativeDirPath));
+            const trackedDirs = new Set<string>(await this._repo.getImmediateChildDirectories(relativeDirPath));
 
             const entries = await fsPromises.readdir(directoryPath, { withFileTypes: true });
             const allAssetFilenames = new Set<string>();
@@ -177,7 +177,7 @@ export class PhotoLibrary {
             deletedDirs.push(...Array.from(trackedDirs));
 
             // Check for new files and deleted files by comparing with tracked filenames on DB
-            const trackedFilenames = await this.repo.getFilenamesForDirectory(relativeDirPath);
+            const trackedFilenames = await this._repo.getFilenamesForDirectory(relativeDirPath);
             trackedFilenames.forEach((filename) => {
                 if (allAssetFilenames.has(filename)) {
                     allAssetFilenames.delete(filename);
@@ -190,16 +190,16 @@ export class PhotoLibrary {
             });
         }
 
-        await traverseDirectory(this.location, true);
+        await traverseDirectory(this._location, true);
         console.log("📸 Found new files count:", newFiles.length);
         console.log("📸 Found deleted files count:", deletedFiles.length);
 
-        if (newFiles.length === 0 && deletedFiles.length === 0 && this.isDeltaNegligible(maxMtime, this.lastUpdate)) return;
+        if (newFiles.length === 0 && deletedFiles.length === 0 && this.isDeltaNegligible(maxMtime, this._lastUpdate)) return;
         await this.ingestUpdates({ deletedFiles, addedFiles: newFiles, deletedDirs }, maxMtime);
     }
 
     private async walkDirectory(dirRelativePath: string) {
-        const fullDirPath = path.join(this.location, dirRelativePath);
+        const fullDirPath = path.join(this._location, dirRelativePath);
         if (this.ignoreDirectory(fullDirPath)) return [];
 
         const entries = await fsPromises.readdir(fullDirPath, { withFileTypes: true });
@@ -221,8 +221,8 @@ export class PhotoLibrary {
         if (filename === PHOTOS_DB_NAME) return;
         if (filename.startsWith('.')) return;
 
-        const fullPath = path.join(this.location, filename);
-        const relativePath = path.relative(this.location, fullPath);
+        const fullPath = path.join(this._location, filename);
+        const relativePath = path.relative(this._location, fullPath);
         console.debug("📸 File changed:", filename);
 
         let stats: fs.Stats = null;
@@ -260,7 +260,7 @@ export class PhotoLibrary {
         // Using native FS watcher instead of chokidar for now due to issues with yode
         // https://github.com/yue/yode/issues/7
 
-        this.watcher = fs.watch(this.location, { recursive: true }, async (eventType, filename) => {
+        this._watcher = fs.watch(this._location, { recursive: true }, async (eventType, filename) => {
             if (!filename || eventType === 'change') return;
             try {
                 await this.handleFileChange(filename);
@@ -270,24 +270,24 @@ export class PhotoLibrary {
         });
 
         // Chokidar specific events:
-        // this.watcher.on('add', (path_) => {
+        // this._watcher.on('add', (path_) => {
         //     console.debug("📸 File added:", path_);
         //     if (!this.validateAssetPath(path_)) return;
-        //     path_ = path.relative(this.location, path_);
+        //     path_ = path.relative(this._location, path_);
         //     this.ingestUpdates({ deletedFiles: [], addedFiles: [path_] }, new Date());
         // });
-        // this.watcher.on('unlink', (path_) => {
+        // this._watcher.on('unlink', (path_) => {
         //     console.debug("📸 File deleted:", path_);
         //     if (!this.validateAssetPath(path_)) return;
-        //     path_ = path.relative(this.location, path_);
+        //     path_ = path.relative(this._location, path_);
         //     this.ingestUpdates({ deletedFiles: [path_], addedFiles: [] }, new Date());
         // });
 
-        this.watcher.on('error', (err) => {
+        this._watcher.on('error', (err) => {
             console.error("📸 Watcher error:", err);
         });
 
-        console.log("📸 Watching for changes in:", this.location);
+        console.log("📸 Watching for changes in:", this._location);
     }
 
     private updatesQueue: { deletedFiles: string[], addedFiles: string[], deletedDirs: string[], timestamp: Date }[] = [];
@@ -309,7 +309,7 @@ export class PhotoLibrary {
         const deletedFiles = new Set<string>();
         const deletedDirs = new Set<string>();
         const addedFiles = new Set<string>();
-        let maxMtime = this.lastUpdate;
+        let maxMtime = this._lastUpdate;
         batch.forEach(({ deletedFiles: del, deletedDirs: delDirs, addedFiles: add, timestamp }) => {
             del.forEach((file) => {
                 deletedFiles.add(file);
@@ -332,7 +332,7 @@ export class PhotoLibrary {
         });
         if (del.length > 0) {
             try {
-                await this.repo.deletePhotosByPath(Array.from(del));
+                await this._repo.deletePhotosByPath(Array.from(del));
             } catch (e) {
                 console.error("Error deleting photos", e);
             }
@@ -341,7 +341,7 @@ export class PhotoLibrary {
         const delDirs = Array.from(deletedDirs);
         if (delDirs.length > 0) {
             try {
-                await this.repo.deletePhotosByDirectories(delDirs);
+                await this._repo.deletePhotosByDirectories(delDirs);
             } catch (e) {
                 console.error("Error deleting photos dir", e);
             }
@@ -360,8 +360,8 @@ export class PhotoLibrary {
             const directory = path.dirname(file);
             const filename = path.basename(file);
             const mimeType = mime.getType(file) || '';
-            const detail = await this.assetManager.generateDetail(directory, filename, mimeType);
-            const fullPath = path.join(this.location, directory, filename);
+            const detail = await this._assetManager.generateDetail(directory, filename, mimeType);
+            const fullPath = path.join(this._location, directory, filename);
             const size = (await fsPromises.stat(fullPath)).size;
             photos.push({ directory, filename, detail, mime: mimeType, size });
         });
@@ -373,7 +373,7 @@ export class PhotoLibrary {
         }
 
         try {
-            await this.repo.createPhotosBulk(photos.map(({ directory, filename, detail, mime, size }): createPhotoType => {
+            await this._repo.createPhotosBulk(photos.map(({ directory, filename, detail, mime, size }): createPhotoType => {
                 return {
                     directory,
                     filename,
@@ -393,27 +393,27 @@ export class PhotoLibrary {
     }
 
     private requireLibraryMounted() {
-        if (!this.isMounted) {
+        if (!this._isMounted) {
             throw new Error("Library not mounted");
         }
     }
 
     public async getPhotos(params: GetPhotosParams) {
         this.requireLibraryMounted();
-        return (await this.repo.getPhotos(params)).map((p) => this.repo.getMinDetails(p));
+        return (await this._repo.getPhotos(params)).map((p) => this._repo.getMinDetails(p));
     }
 
     public async getPhoto(id: number) {
         this.requireLibraryMounted();
-        const photo = await this.repo.getPhoto(id);
-        return photo ? this.repo.getMinDetails(photo) : null;
+        const photo = await this._repo.getPhoto(id);
+        return photo ? this._repo.getMinDetails(photo) : null;
     }
 
     public async deletePhotos(ids: number[]): Promise<DeletePhotosResponse> {
         this.requireLibraryMounted();
-        const photos = await this.repo.getPhotosByIds(ids);
+        const photos = await this._repo.getPhotosByIds(ids);
         const promises = photos.map(async (photo) => {
-            await this.assetManager.delete(path.join(photo.parentDirectory || '', photo.directoryName), photo.filename);
+            await this._assetManager.delete(path.join(photo.parentDirectory || '', photo.directoryName), photo.filename);
             return photo.id;
         });
         const result = await Promise.allSettled(promises);
@@ -423,7 +423,7 @@ export class PhotoLibrary {
         }
         const success = result.filter((r) => r.status === 'fulfilled');
         const successIds = success.map((r) => r.value);
-        const count = await this.repo.deletePhotos(successIds);
+        const count = await this._repo.deletePhotos(successIds);
         return {
             deleteCount: count,
             deletedIds: successIds,
