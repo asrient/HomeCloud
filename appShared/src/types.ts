@@ -121,11 +121,6 @@ export type PairingRequest = {
     expireAt: number;
 }
 
-export type PhotoLibraryLocation = {
-    name: string;
-    directory: string;
-}
-
 export type NativeButtonConfig = {
     text: string;
     type?: "primary" | "default" | "danger";
@@ -194,4 +189,33 @@ export enum SignalEvent {
     REMOVE = "remove",
     UPDATE = "update",
     ERROR = "error",
+}
+
+export type GetPhotosParams = {
+    offset: number,
+    limit: number,
+    sortBy: string,
+    ascending: boolean,
+};
+
+export type DeletePhotosResponse = {
+    deleteCount: number,
+    deletedIds: number[],
+};
+
+export type PhotoLibraryLocation = {
+    id: string;
+    name: string;
+    location: string;
+}
+
+export type Photo = {
+    id: number;
+    fileId: string;
+    mimeType: string;
+    capturedOn: Date;
+    addedOn: Date;
+    duration: number;
+    height: number;
+    width: number;
 }

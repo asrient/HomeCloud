@@ -6,6 +6,7 @@ import { ThumbService } from "./thumbService";
 import { FilesService } from "./filesService";
 import Signal from "../signals";
 import { generateServicesDoc } from "../doc";
+import { PhotosService } from "./photosService";
 
 export default class ServiceController extends RPCController {
     private static localInstance: RPCController | null = null;
@@ -14,6 +15,7 @@ export default class ServiceController extends RPCController {
     public system: SystemService;
     public thumbnail: ThumbService;
     public files: FilesService;
+    public photos: PhotosService;
 
     public readyState: boolean = false;
     public readyStateSignal = new Signal<[boolean]>();
