@@ -14,15 +14,15 @@ export const OnlineIndicator = ({ isOnline, className }: { isOnline?: boolean, c
     }, [isOnline]);
 
     return (
-        <span className={cn('inline-block w-2 h-2 rounded-full mr-1', indicatorClass, className)}></span>
+        <span className={cn('inline-block w-2 h-2 rounded-full', indicatorClass, className)}></span>
     );
 }
 
 export enum DeviceIconSize {
-    SMALL = 30,
-    MEDIUM = 60,
-    LARGE = 90,
-    XLARGE = 120,
+    SMALL = 60,
+    MEDIUM = 90,
+    LARGE = 120,
+    XLARGE = 180,
 }
 
 export const DeviceIcon = ({
@@ -37,9 +37,9 @@ export const DeviceIcon = ({
     size?: DeviceIconSize;
 }) => {
     return (
-        <div className={cn('flex items-center justify-center', className)}>
+        <div className={cn('flex items-center justify-center relative', className)}>
             <Image src={getUrlFromIconKey(iconKey)} width={size} height={size} alt="Device icon" />
-            <OnlineIndicator isOnline={isOnline} className="absolute top-1 right-1" />
+            <OnlineIndicator isOnline={isOnline} className="absolute bottom-0 right-0" />
         </div>
     );
 }
