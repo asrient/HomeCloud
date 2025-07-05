@@ -218,7 +218,7 @@ export default function PhotosPreview({
                       style={{ transform: 'translate3d(0, 0, 0)' }}
                       onClick={() => changePhoto(images[index - 1])}
                     >
-                      <ChevronLeftIcon className="h-6 w-6" />
+                      <ChevronLeftIcon className="h-5 w-5" />
                     </button>
                   )}
                   {index + 1 < images.length && (
@@ -227,7 +227,7 @@ export default function PhotosPreview({
                       style={{ transform: 'translate3d(0, 0, 0)' }}
                       onClick={() => changePhoto(images[index + 1])}
                     >
-                      <ChevronRightIcon className="h-6 w-6" />
+                      <ChevronRightIcon className="h-5 w-5" />
                     </button>
                   )}
                 </>

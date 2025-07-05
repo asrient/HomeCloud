@@ -21,34 +21,36 @@ export default function PageBar({ children, title, icon, hideSidebarButton }: {
     }, [dispatch, showSidebar]);
 
     return (
-        <div className='sticky top-0 w-full h-[2.8rem] flex justify-between items-center p-1 border-muted bg-background/95 border-b backdrop-blur-md z-10 shadow-sm'>
-            <div className='flex justify-center items-center pl-3 md:pl-4'>
+        <div className='sticky top-0 w-full min-h-[3.5rem] flex justify-between items-center px-3 py-1 z-10'>
+            <div className='flex justify-center items-center bg-background/80 backdrop-blur-md rounded-full shadow-xl p-0.5 px-2'>
                 {
                     !hideSidebarButton && !showSidebar && (
-                        <Button variant='ghost' size='icon' className='mr-1' title='Show Side Bar' onClick={toggleSidebar}>
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                        <Button variant='ghost' size='icon' className='text-primary/90' title='Show menu' onClick={toggleSidebar}>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
                             </svg>
                         </Button>
                     )
                 }
-                {
-                    icon && typeof icon === 'string' ? (
-                        <Image
-                            alt={title}
-                            src={icon}
-                            loading="eager"
-                            height={0}
-                            width={0}
-                            className="mr-2 h-6 w-6"
-                        />
-                    ) : (<span className='mr-2 text-primary/90'>{icon}</span>)
-                }
-                <span className='font-semibold truncate'>{title}</span>
+                <div className='flex items-center space-x-2 py-2 px-1'>
+                    {
+                        icon && typeof icon === 'string' ? (
+                            <Image
+                                alt={title}
+                                src={icon}
+                                loading="eager"
+                                height={0}
+                                width={0}
+                                className="h-6 w-6"
+                            />
+                        ) : icon
+                    }
+                    <span className='font-medium truncate text-base text-foreground'>{title}</span>
+                </div>
             </div>
-            <div className='flex justify-center items-center md:space-x-1 pl-3 pr-2 text-primary/90'>
+            {children && (<div className='flex justify-center items-center md:space-x-1 bg-background/80 backdrop-blur-md rounded-full text-primary/90 shadow-xl p-1'>
                 {children}
-            </div>
+            </div>)}
         </div>
     )
 }

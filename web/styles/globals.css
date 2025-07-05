@@ -32,6 +32,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     --background: 0 0% 18%;
     --foreground: 28 40% 98%;
     --card: 222.2 84% 4.9%;
@@ -60,7 +61,7 @@
 
   .home-bg {
     background-image: radial-gradient(at 37% 41%, rgb(236, 252, 203) 0, transparent 49%), radial-gradient(at 43% 72%, rgb(186, 230, 253) 0, transparent 44%), radial-gradient(at 7% 77%, rgb(233, 213, 255) 0, transparent 21%), radial-gradient(at 69% 48%, rgb(224, 242, 254) 0, transparent 44%), radial-gradient(at 56% 36%, rgb(244, 244, 245) 0, transparent 13%), radial-gradient(at 17% 17%, rgb(254, 205, 211) 0, transparent 42%);
-  
+
   }
 
   .app-dragable {
@@ -72,6 +73,20 @@
     -webkit-app-region: no-drag;
     app-region: no-drag;
   }
+
+  .app-titlebar {
+    position: fixed;
+    top: 0;
+    /* env(titlebar-area-y, 0)*/
+    height: env(titlebar-area-height, 50);
+    left: env(titlebar-area-x, 0);
+    width: env(titlebar-area-width, 100%);
+  }
+
+  button,
+  a {
+    cursor: default;
+  }
 }
 
 @layer base {
@@ -81,6 +96,7 @@
 
   body {
     @apply text-foreground;
+    @apply select-none;
   }
 }
 

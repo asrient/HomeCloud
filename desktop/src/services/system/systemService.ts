@@ -1,15 +1,18 @@
 import { SystemService } from "shared/services/systemService";
 import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
-import { dialog, BrowserWindow, shell } from "electron";
+import { dialog, BrowserWindow, shell, systemPreferences } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails } from "../../types";
+import { serviceStartMethod, serviceStopMethod } from "shared/services/primatives";
+
+const POLL_INTERVAL = 5000; // Polling interval for accent color changes
 
 /**
  * Desktop implementation of SystemService using Electron APIs for system interactions.
  */
 class DesktopSystemService extends SystemService {
-    
+
     /**
      * Gets device information using cached values.
      * @returns {Promise<DeviceInfo>} Device information including OS, OS flavor, and form factor.
@@ -33,7 +36,7 @@ class DesktopSystemService extends SystemService {
      */
     public alert(title: string, description?: string): void {
         const focusedWindow = BrowserWindow.getFocusedWindow();
-        
+
         dialog.showMessageBox(focusedWindow || undefined, {
             type: 'info',
             title: title,
@@ -52,7 +55,7 @@ class DesktopSystemService extends SystemService {
      */
     public ask(config: NativeAskConfig): NativeAsk {
         const focusedWindow = BrowserWindow.getFocusedWindow();
-        
+
         // Map button configurations to Electron dialog buttons
         const buttons = config.buttons.map(btn => btn.text);
         let defaultId = 0;
@@ -111,6 +114,30 @@ class DesktopSystemService extends SystemService {
 
     public async openFile(filePath: string): Promise<void> {
         await shell.openPath(filePath);
+    }
+
+    public getAccentColorHex(): string {
+        return systemPreferences.getAccentColor(); // RGBA hexadecimal form
+    }
+
+    @serviceStartMethod
+    public async start() {
+        // We will only poll on windows
+        if (process.platform === 'win32') {
+            systemPreferences.on('accent-color-changed', (_ev, newColor: string) => {
+                console.log('Accent color changed:', newColor);
+                this.accentColorChangeSignal.dispatch(newColor);
+            });
+        }
+    }
+
+    @serviceStopMethod
+    public async stop() {
+        // Remove the accent color change listener
+        if (process.platform === 'win32') {
+            systemPreferences.removeAllListeners('accent-color-changed');
+        }
+        this.accentColorChangeSignal.detachAll();
     }
 }
 

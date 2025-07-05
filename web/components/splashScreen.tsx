@@ -14,23 +14,23 @@ const SplashScreen = () => {
                 HomeCloud
             </title>
         </Head>
-        <div className='w-full h-full min-h-screen bg-slate-100 p-4 flex flex-col justify-center items-center'>
+        <div className='w-full h-full min-h-screen p-4 flex flex-col justify-center items-center'>
             <div>
                 <Image src='/icons/icon.png' priority alt='HomeCloud logo' width={appError ? 90 : 180} height={appError ? 90 : 180} />
             </div>
-            <div className='mt-10 text-gray-500'>
+            <div className='mt-10 text-foreground'>
                 {
                     appError ? (<div className='flex flex-col justify-center items-center'>
-                        <div className='text-xl mb-2 text-gray-700 font-medium'>
+                        <div className='text-xl mb-2 font-medium'>
                             {"Something went wrong :("}
                         </div>
-                        <div className='text-slate-400 font-mono text-xs'>{appError}</div>
+                        <div className='text-foreground/70 font-mono text-xs'>{appError}</div>
                         <div className='mt-3'>
-                            <Button size='lg' variant='default' onClick={() => window.location.reload()}>Reload page</Button>
+                            <Button size='lg' variant='default' onClick={() => window.location.reload()}>Try again</Button>
                         </div>
                     </div>) :
-                        <div className='text-xl mb-2 text-gray-700 font-medium'>
-                            Just a moment.
+                        <div className='text-xl mb-2 font-medium'>
+                            Setting things up..
                         </div>
                 }
             </div>

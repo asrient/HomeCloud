@@ -60,8 +60,9 @@ function Page() {
                 <PageBar icon={getUrlFromIconKey(peer.iconKey)} title={peer.deviceName || 'Device'}>
                 </PageBar>
                 <PageContainer>
-                    <div className='mt-6 mb-10 flex justify-center'>
-                        <Image src={getUrlFromIconKey(peer.iconKey)} priority alt='device icon' width={80} height={80} />
+                    <div className='mt-6 mb-10 flex justify-center flex-col items-center gap-2'>
+                        <Image src={getUrlFromIconKey(peer.iconKey)} priority alt='device icon' width={120} height={120} />
+                        <div className='text-2xl font-light text-center'>{peer.deviceName}</div>
                     </div>
 
                     <Section title='About'>

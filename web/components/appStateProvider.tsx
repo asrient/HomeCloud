@@ -6,6 +6,7 @@ import { useAppDispatch } from './hooks/useAppState';
 import { ConnectionInfo, PeerInfo } from 'shared/types';
 import { SignalNodeRef } from 'shared/signals';
 import { SignalEvent } from '@/lib/enums';
+import { rgbHexToHsl, setPrimaryColorHsl } from '@/lib/utils';
 
 function WithInitialState({ children }: {
     children: React.ReactNode;
@@ -15,15 +16,26 @@ function WithInitialState({ children }: {
     const bindingRef = useRef<SignalNodeRef<[boolean], string> | null>(null);
     const peerSignalRef = useRef<SignalNodeRef<[SignalEvent, PeerInfo], string> | null>(null);
     const connectionSignalRef = useRef<SignalNodeRef<[SignalEvent, ConnectionInfo], string> | null>(null);
+    const accentColorSignalRef = useRef<SignalNodeRef<[string], string> | null>(null);
 
     const initializeApp = useCallback(async () => {
         console.log("Initializing app state...");
         const localSc = window.modules.getLocalServiceController();
         const peers = localSc.app.getPeers();
         const connections = await localSc.net.getConnectedDevices();
+        const accentColor = localSc.system.getAccentColorHex();
+        console.log('Accent color:', accentColor);
+        setPrimaryColorHsl(...rgbHexToHsl(accentColor));
         dispatch(ActionTypes.INITIALIZE, {
             peers,
             connections,
+        });
+
+        // Setup signals
+
+        accentColorSignalRef.current = localSc.system.accentColorChangeSignal.add((newColor: string) => {
+            console.log("Accent color changed:", newColor);
+            setPrimaryColorHsl(...rgbHexToHsl(newColor));
         });
 
         peerSignalRef.current = localSc.app.peerSignal.add((event: SignalEvent, peer: PeerInfo) => {
@@ -61,6 +73,10 @@ function WithInitialState({ children }: {
         if (connectionSignalRef.current) {
             localSc.net.connectionSignal.detach(connectionSignalRef.current);
             connectionSignalRef.current = null;
+        }
+        if (accentColorSignalRef.current) {
+            localSc.system.accentColorChangeSignal.detach(accentColorSignalRef.current);
+            accentColorSignalRef.current = null;
         }
     }, []);
 

@@ -20,6 +20,10 @@ export default function AppHeader() {
         router.back();
     }
 
+    const isDev = useMemo(() => {
+        return window.modules.config.IS_DEV;
+    }, [])
+
     const onTabChange = useCallback(async (value: string) => {
         if (value === 'home') value = '';
         if (isRouterBusy) return;
@@ -33,17 +37,15 @@ export default function AppHeader() {
     }, [router, isRouterBusy]);
 
     return (<>
-        <div className="flex items-center px-2 py-1 h-[2.6rem] text-sm top-0 z-20 relative md:fixed w-full app-dragable">
-            <div className="grow max-w-[8rem] md:flex items-center justify-center hidden">
-                <Button size='sm' variant='ghost' className="text-primary app-nodrag" onClick={onBack}>
+        <div className="flex items-center px-2 py-1 h-[2.6rem] text-sm app-titlebar select-none">
+            <div className="flex items-center">
+                <Button size='sm' variant='ghost' className="text-primary" onClick={onBack}>
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
                     </svg>
                     Back
                 </Button>
-            </div>
-            <div className="flex items-center md:pl-3">
-                <Tabs value={activeTab} onValueChange={onTabChange} className="h-full space-y-6 app-nodrag">
+                <Tabs value={activeTab} onValueChange={onTabChange} className="h-full space-y-6 ml-2">
                     <TabsList className="bg-transparent">
                         <TabsTrigger className={tabClass} value="home">
                             Home
@@ -57,11 +59,13 @@ export default function AppHeader() {
                         <TabsTrigger className={tabClass} value="settings">
                             Settings
                         </TabsTrigger>
-                        <TabsTrigger className={tabClass} value="dev">
+                        {isDev && (<TabsTrigger className={tabClass} value="dev">
                             Debug
-                        </TabsTrigger>
+                        </TabsTrigger>)}
                     </TabsList>
                 </Tabs>
+            </div>
+            <div className="grow h-full w-full app-dragable">
             </div>
         </div>
         <div className="md:h-[2.6rem]"></div>

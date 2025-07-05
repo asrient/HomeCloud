@@ -32,27 +32,28 @@ function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }
     }, [item.deviceFingerprint, item.path, openingInApp]);
 
     return (
-        <div className='bg-background text-s border-b bottom-1'>
-            <div className='flex items-center p-1 px-3 space-x-2 pl-10 no-drag'>
-                <Button variant='secondary' size='icon' className='rounded-full p-1' onClick={close}>
-                    <ArrowLeftIcon className="h-5 w-5" />
-                </Button>
-                <div className='pl-[5rem]'></div>
-                <Button onClick={openInApp} variant='default' disabled={openingInApp} size='sm'>
-                    {
-                        openingInApp ?
-                            <LoadingIcon className='h-5 w-5 mr-1' />
-                            :
-                            <ArrowUpOnSquareIcon className='h-5 w-5 mr-1' />
-                    }
-                    Open
-                </Button>
-                <div className='flex items-center space-x-2 pl-[3rem]'>
+        <>
+            <div className='text-s app-titlebar min-h-[2.6rem] flex'>
+                <div className='flex items-center p-1 px-3 space-x-2'>
+                    <Button variant='secondary' size='sm' className='rounded-full' onClick={close}>
+                        <ArrowLeftIcon className="h-5 w-5" />
+                    </Button>
+                    <Button onClick={openInApp} variant='default' disabled={openingInApp} size='sm'>
+                        {
+                            openingInApp ?
+                                <LoadingIcon className='h-5 w-5' />
+                                :
+                                <ArrowUpOnSquareIcon className='h-5 w-5' />
+                        }
+                    </Button>
+                </div>
+                <div className='flex items-center space-x-2 h-full w-full app-dragable'>
                     <Image height={20} width={20} src={icon} alt='Item icon' />
                     <div className='text-foreground font-medium'>{item.name}</div>
                 </div>
             </div>
-        </div>
+            <div className='bg-background h-[2.7rem] w-full border-b bottom-1'></div>
+        </>
     )
 }
 

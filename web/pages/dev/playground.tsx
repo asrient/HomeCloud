@@ -83,12 +83,12 @@ function FunctionPlayground({ fqn, serviceController }:
         Execute
       </Button>
       {result && (
-        <div className='mt-4 p-2 bg-green-100 text-green-800 rounded-md overflow-y-auto'>
+        <div className='mt-4 p-2 bg-green-100 text-green-800 rounded-md overflow-y-auto select-text'>
           <pre>{JSON.stringify(result, null, 2)}</pre>
         </div>
       )}
       {error && (
-        <div className='mt-4 p-2 bg-red-100 text-red-800 rounded-md overflow-y-auto'>
+        <div className='mt-4 p-2 bg-red-100 text-red-800 rounded-md overflow-y-auto select-text'>
           <pre>{error}</pre>
         </div>
       )}

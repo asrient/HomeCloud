@@ -1,5 +1,6 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./primatives";
 import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "../types";
+import Signal from "../signals";
 
 
 export abstract class SystemService extends Service {
@@ -13,6 +14,12 @@ export abstract class SystemService extends Service {
     public abstract alert(title: string, description?: string): void;
 
     public abstract ask(config: NativeAskConfig): NativeAsk;
+
+    public getAccentColorHex(): string {
+        return "0078D4"; // Default accent color, can be overridden by subclasses
+    }
+
+    public accentColorChangeSignal = new Signal<[string]>();
 
     @exposed
     public async openUrl(url: string) {

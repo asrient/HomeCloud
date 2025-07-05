@@ -36,7 +36,7 @@ export function Line({ children, title }: {
                     {title}
                 </div>
             }
-            <div className='ml-2 text-xs text-foreground text-right'>{children}</div>
+            <div className='ml-2 text-xs text-foreground text-right select-text'>{children}</div>
         </div>
     )
 }
