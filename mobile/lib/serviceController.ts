@@ -11,7 +11,6 @@ import MobileThumbService from "./services/thumbService";
 const TCP_PORT = 7736;
 
 export default class MobileServiceController extends ServiceController {
-
     public override net = NetService.getInstance<NetService>();
     public override app = AppService.getInstance<AppService>();
     public override system = MobileSystemService.getInstance<MobileSystemService>();

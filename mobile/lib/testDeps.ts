@@ -131,7 +131,7 @@ const encryptMessage = async () => {
 // 'file:///storage/emulated/0'
 
 const readExternalStorage = async () => {
-    const dir = new Directory('file:///storage/emulated/0'); // Adjust path as needed
+    const dir = new Directory('file:///storage/emulated/0/Download'); // Adjust path as needed
     console.log('Reading external storage directory:', dir);
     const files = dir.list();
     files.forEach(file => {

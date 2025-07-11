@@ -1,11 +1,6 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-  ext {
-    // Added for rn-tcp-socket library
-    // https://github.com/Rapsssito/react-native-tcp-socket
-    minSdkVersion = 24
-  }
   repositories {
     google()
     mavenCentral()

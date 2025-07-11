@@ -15,6 +15,17 @@ import java.nio.ByteBuffer
 
 
 class SupermanModule : Module() {
+  
+  // Helper function to get MIME type
+  private fun getMimeType(filePath: String): String? {
+    val extension = filePath.substringAfterLast('.', "")
+    return if (extension.isNotEmpty()) {
+      MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase())
+    } else {
+      null
+    }
+  }
+
   // Each module class must implement the definition function. The definition consists of components
   // that describes the module's functionality and behavior.
   // See https://docs.expo.dev/modules/module-api for more details about available components.
@@ -75,16 +86,6 @@ class SupermanModule : Module() {
         return@AsyncFunction jpegData
       } catch (e: Exception) {
         throw Exception("Failed to generate thumbnail: ${e.message}", e)
-      }
-    }
-    
-    // Helper function to get MIME type
-    private fun getMimeType(filePath: String): String? {
-      val extension = filePath.substringAfterLast('.', "")
-      return if (extension.isNotEmpty()) {
-        MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase())
-      } else {
-        null
       }
     }
   }

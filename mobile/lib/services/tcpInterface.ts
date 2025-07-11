@@ -113,7 +113,10 @@ export default class TCPInterface extends ConnectionInterface {
                     this.handleIncomingConnection(socket);
                 });
 
-                this.server.listen(this.port, async () => {
+                this.server.listen({
+                    port: this.port,
+                    reuseAddress: true,
+                }, async () => {
                     console.log(`TCP server listening on port ${this.port}`);
 
                     // Start discovery service

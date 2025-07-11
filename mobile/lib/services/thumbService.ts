@@ -1,16 +1,8 @@
 import { ThumbService } from "shared/services/thumbService";
-import { serviceStartMethod, serviceStopMethod } from "shared/services/primatives";
 import superman from '@/modules/superman';
+import { Buffer } from 'buffer';
 
 export default class MobileThumbService extends ThumbService {
-  @serviceStartMethod
-  async start() {
-  }
-
-  @serviceStopMethod
-  async stop() {
-  }
-
   async generateThumbnailJPEGImpl(filePath: string): Promise<Buffer> {
     const buffer = await superman.generateThumbnailJpeg(filePath);
     if (!buffer || !(buffer instanceof Uint8Array)) {
