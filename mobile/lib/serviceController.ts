@@ -4,7 +4,7 @@ import { AppService } from "shared/services/appService";
 import TCPInterface from "./services/tcpInterface";
 import { ConnectionType } from "shared/types";
 import MobileSystemService from "./services/systemService";
-//import MobileThumbService from "./thumb/thumbService";
+import MobileThumbService from "./services/thumbService";
 //import MobileFilesService from "./files/filesService";
 //import { MobilePhotosService } from "./photos/photosService";
 
@@ -15,7 +15,7 @@ export default class MobileServiceController extends ServiceController {
     public override net = NetService.getInstance<NetService>();
     public override app = AppService.getInstance<AppService>();
     public override system = MobileSystemService.getInstance<MobileSystemService>();
-    // public override thumbnail = MobileThumbService.getInstance<MobileThumbService>();
+    public override thumbnail = MobileThumbService.getInstance<MobileThumbService>();
     // public override files = MobileFilesService.getInstance<MobileFilesService>();
     // public override photos = MobilePhotosService.getInstance<MobilePhotosService>();
 
@@ -24,7 +24,7 @@ export default class MobileServiceController extends ServiceController {
         await this.app.init();
         await this.system.init();
         //await this.files.init();
-        //await this.thumbnail.init();
+        await this.thumbnail.init();
         //await this.photos.init();
         this.net.init(new Map(
             [
@@ -44,7 +44,7 @@ export default class MobileServiceController extends ServiceController {
         await this.net.start();
         await this.system.start();
         //await this.files.start();
-        //await this.thumbnail.start();
+        await this.thumbnail.start();
         //await this.photos.start();
         console.log("All services started.");
     }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import TcpSocket from 'react-native-tcp-socket';
 import Zeroconf from 'react-native-zeroconf';
 import { RSA } from 'react-native-rsa-native';
@@ -127,13 +128,33 @@ const encryptMessage = async () => {
     console.log('Encrypted Message:', encryptedMessage);
 }
 
+// 'file:///storage/emulated/0'
+
 const readExternalStorage = async () => {
     const dir = new Directory('file:///storage/emulated/0'); // Adjust path as needed
     console.log('Reading external storage directory:', dir);
     const files = dir.list();
     files.forEach(file => {
         console.log('File:', file.name, file.uri);
+        if (file instanceof File) {
+            const type = file.type;
+            console.log('File Type:', type);
+            if (type?.startsWith('image/') || type?.startsWith('video/')) {
+                // Example: Generate thumbnail for image files
+                generateThumbnail(file.uri).then(thumbnailUri => {
+                    console.log('Generated Thumbnail URI:', thumbnailUri);
+                }).catch(err => {
+                    console.error('Error generating thumbnail:', err);
+                });
+            }
+        }
     });
+}
+
+const generateThumbnail = async (filePath: string) => {
+    const localSc = modules.getLocalServiceController();
+    const url = await localSc.thumbnail.generateThumbnailURI(filePath);
+    return url;
 }
 
 export const runTests = () => {
