@@ -14,7 +14,7 @@ export default class CryptoImpl extends CryptoModule {
                 } else {
                     resolve({
                         privateKey: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
-                        publicKey: publicKey.export({ type: "spki", format: "pem" }).toString(),
+                        publicKey: publicKey.export({ type: "pkcs1", format: "pem" }).toString(),
                     });
                 }
             });
@@ -32,35 +32,41 @@ export default class CryptoImpl extends CryptoModule {
         return crypto.randomBytes(32).toString("hex");
     }
 
-    encryptPK(data: string | Uint8Array, publicKeyPem: string): Uint8Array {
-        if(typeof data === 'string') {
+    async encryptPK(data: string | Uint8Array, publicKeyPem: string): Promise<Uint8Array> {
+        if (typeof data === 'string') {
             data = Buffer.from(data, 'utf8');
         }
-        const encrypted = crypto.publicEncrypt(publicKeyPem, data);
+        const encrypted = crypto.publicEncrypt({
+            key: publicKeyPem,
+            padding: crypto.constants.RSA_PKCS1_PADDING, // This constant represents PKCS#1 v1.5 padding
+        }, data);
         return encrypted;
     }
 
-    decryptPK(data: string | Uint8Array, privateKeyPem: string) {
-        if(typeof data === 'string') {
+    async decryptPK(data: string | Uint8Array, privateKeyPem: string): Promise<Uint8Array> {
+        if (typeof data === 'string') {
             data = Buffer.from(data, 'base64');
         }
-        const decrypted = crypto.privateDecrypt(privateKeyPem, data);
+        const decrypted = crypto.privateDecrypt({
+            key: privateKeyPem,
+            padding: crypto.constants.RSA_PKCS1_PADDING,
+        }, data);
         return decrypted;
     }
 
-    sign(data: string | Uint8Array, privateKeyPem: string): Uint8Array {
-        const sign = crypto.createSign('SHA256');
+    async sign(data: string | Uint8Array, privateKeyPem: string): Promise<Uint8Array> {
+        const sign = crypto.createSign('RSA-SHA512');
         sign.update(data);
         sign.end();
         const signature = sign.sign(privateKeyPem);
         return signature;
     }
 
-    verifySignature(data: string | Uint8Array, signature: string | Uint8Array, publicKeyPem: string) {
-        if(typeof signature === 'string') {
+    async verifySignature(data: string | Uint8Array, signature: string | Uint8Array, publicKeyPem: string): Promise<boolean> {
+        if (typeof signature === 'string') {
             signature = Buffer.from(signature, 'base64');
         }
-        const verify = crypto.createVerify('SHA256');
+        const verify = crypto.createVerify('RSA-SHA512');
         verify.update(data);
         return verify.verify(publicKeyPem, signature);
     }

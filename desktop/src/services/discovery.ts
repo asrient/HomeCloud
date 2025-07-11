@@ -62,6 +62,7 @@ export default class Discovery {
                 return;
             }
             const txt = service.txt as BonjourTxt;
+            console.log('Addresses found for service:', service.name, service.addresses);
             candidates.push({
                 data: {
                     host: service.addresses[0],

@@ -42,10 +42,10 @@ export default abstract class CryptoModule {
         return Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
     }
 
-    abstract encryptPK(data: string | Uint8Array, publicKeyPem: string): Uint8Array;
-    abstract decryptPK(data: string | Uint8Array, privateKeyPem: string): Uint8Array;
-    abstract sign(data: string, privateKeyPem: string): Uint8Array;
-    abstract verifySignature(data: string | Uint8Array, signature: string | Uint8Array, publicKeyPem: string): boolean;
+    abstract encryptPK(data: string | Uint8Array, publicKeyPem: string): Promise<Uint8Array>;
+    abstract decryptPK(data: string | Uint8Array, privateKeyPem: string): Promise<Uint8Array>;
+    abstract sign(data: string | Uint8Array, privateKeyPem: string): Promise<Uint8Array>;
+    abstract verifySignature(data: string | Uint8Array, signature: string | Uint8Array, publicKeyPem: string): Promise<boolean>;
     abstract encryptString(text: string, secretKey: string): EncryptedData;
     abstract decryptString(encryptedData: EncryptedData, secretKey: string): string;
     abstract hashString(data: string, type: 'sha256' | 'md5'): string;

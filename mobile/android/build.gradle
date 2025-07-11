@@ -4,7 +4,7 @@ buildscript {
   ext {
     // Added for rn-tcp-socket library
     // https://github.com/Rapsssito/react-native-tcp-socket
-    minSdkVersion = 21
+    minSdkVersion = 24
   }
   repositories {
     google()

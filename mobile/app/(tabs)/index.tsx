@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet, View, Text } from 'react-native';
+import { Platform, StyleSheet, View, Text, Button } from 'react-native';
 
 import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
@@ -8,6 +8,7 @@ import { ThemedView } from '@/components/ThemedView';
 
 import Signal from 'shared/signals';
 import { useEffect } from 'react';
+import { runTests, openSettings } from '@/lib/testDeps';
 
 export default function HomeScreen() {
 
@@ -18,9 +19,11 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-      <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: 'white' }}>
+      <ThemedText style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 16 }}>
         Continuity Center
-      </Text>
+      </ThemedText>
+      <Button title="Run Tests" onPress={runTests} />
+      <Button title="Open Settings" onPress={openSettings} />
     </View>
   );
 }

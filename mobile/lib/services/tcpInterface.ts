@@ -1,7 +1,9 @@
 import { ConnectionInterface } from "shared/services/netService";
-import { GenericDataChannel, PeerCandidate, ConnectionType } from "shared/types";
-import net from "node:net";
+import { GenericDataChannel, PeerCandidate } from "shared/types";
 import Discovery from "./discovery";
+import TcpSocket from 'react-native-tcp-socket';
+
+const noop = () => { };
 
 /**
  * TCP-based implementation of ConnectionInterface using Bonjour service discovery.
@@ -9,8 +11,8 @@ import Discovery from "./discovery";
 export default class TCPInterface extends ConnectionInterface {
     isSecure = false;
     discovery: Discovery;
-    private server: net.Server | null = null;
-    private connections: Map<string, net.Socket> = new Map();
+    private server: TcpSocket.Server | null = null;
+    private connections: Map<string, TcpSocket.Socket> = new Map();
     private port: number;
     private onIncomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
 
@@ -39,12 +41,15 @@ export default class TCPInterface extends ConnectionInterface {
      */
     async connect(candidate: PeerCandidate): Promise<GenericDataChannel> {
         return new Promise((resolve, reject) => {
-            const socket = new net.Socket();
+            const socket = new TcpSocket.Socket();
             const host = candidate.data?.host || 'localhost';
             const port = candidate.data?.port || this.port;
             let isResolved = false;
 
-            socket.connect(port, host, () => {
+            socket.connect({
+                host: host,
+                port: port,
+            }, () => {
                 socket.setKeepAlive(true);
                 const connectionId = `${host}:${port}`;
                 this.connections.set(connectionId, socket);
@@ -102,7 +107,7 @@ export default class TCPInterface extends ConnectionInterface {
         return new Promise((resolve, reject) => {
             try {
                 // Start the TCP server
-                this.server = net.createServer({
+                this.server = TcpSocket.createServer({
                     keepAlive: true,
                 }, (socket) => {
                     this.handleIncomingConnection(socket);
@@ -112,7 +117,7 @@ export default class TCPInterface extends ConnectionInterface {
                     console.log(`TCP server listening on port ${this.port}`);
 
                     // Start discovery service
-                    this.discovery.listen();
+                    this.discovery.scan();
 
                     // Publish our service
                     const localSc = modules.getLocalServiceController();
@@ -166,9 +171,9 @@ export default class TCPInterface extends ConnectionInterface {
     /**
      * Handles incoming TCP connections.
      * @private
-     * @param {net.Socket} socket - The incoming socket connection.
+     * @param {TcpSocket.Socket} socket - The incoming socket connection.
      */
-    private handleIncomingConnection(socket: net.Socket): void {
+    private handleIncomingConnection(socket: TcpSocket.Socket): void {
         const connectionId = `${socket.remoteAddress}:${socket.remotePort}`;
         this.connections.set(connectionId, socket);
 
@@ -198,40 +203,44 @@ export default class TCPInterface extends ConnectionInterface {
      * @param {string} connectionId - The connection identifier.
      * @returns {GenericDataChannel} The data channel wrapper.
      */
-    private createDataChannel(socket: net.Socket, connectionId: string): GenericDataChannel {
-        let messageHandler: ((ev: MessageEvent) => void) | null = null;
-        let errorHandler: ((ev: ErrorEvent) => void) | null = null;
-        let disconnectHandler: ((ev: CloseEvent) => void) | null = null;
+    private createDataChannel(socket: TcpSocket.Socket, connectionId: string): GenericDataChannel {
+        let messageHandler: ((ev: MessageEvent) => void) = noop;
+        let errorHandler: ((ev: ErrorEvent) => void) = noop;
+        let disconnectHandler: ((ev: CloseEvent) => void) = noop;
 
         // Set up data parsing for incoming messages
         socket.on('data', (data) => {
-            if (messageHandler) {
-                // Create a MessageEvent-like object
-                const messageEvent = {
-                    data: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
-                } as MessageEvent;
-                messageHandler(messageEvent);
+            // Convert data to buffer if its string
+            if (typeof data === 'string') {
+                data = Buffer.from(data, 'utf8');
+            } else if (!(data instanceof Buffer)) {
+                console.warn(`Received data of unexpected type: ${typeof data}`);
+                return;
             }
+            // Create a MessageEvent-like object
+            const messageEvent = {
+                data: data.slice(data.byteOffset, data.byteOffset + data.byteLength)
+            } as MessageEvent;
+            messageHandler(messageEvent);
+
         });
 
         socket.on('error', (error) => {
-            if (errorHandler) {
-                const errorEvent = {
-                    error: error
-                } as ErrorEvent;
-                errorHandler(errorEvent);
-            }
+            const errorEvent = {
+                error: error
+            } as ErrorEvent;
+            errorHandler(errorEvent);
+
         });
 
         socket.on('close', (hadErr) => {
             console.log(`Socket ${connectionId} closed. Had error: ${hadErr}`);
-            if (disconnectHandler) {
-                const closeEvent = {
-                    code: 1000,
-                    reason: 'Connection closed'
-                } as CloseEvent;
-                disconnectHandler(closeEvent);
-            }
+            const closeEvent = {
+                code: 1000,
+                reason: 'Connection closed'
+            } as CloseEvent;
+            disconnectHandler(closeEvent);
+
             if (this.connections.has(connectionId)) {
                 this.connections.delete(connectionId);
             }
@@ -239,19 +248,15 @@ export default class TCPInterface extends ConnectionInterface {
 
         return {
             send: (data: ArrayBufferView) => {
-                if (socket.writable) {
-                    const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-                    socket.write(buffer);
-                } else {
-                    console.warn(`Attempted to send data on closed socket: ${connectionId}`);
-                }
+                const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+                socket.write(buffer);
             },
 
             get onmessage() {
                 return messageHandler;
             },
 
-            set onmessage(handler: ((ev: MessageEvent) => void) | null) {
+            set onmessage(handler: ((ev: MessageEvent) => void)) {
                 messageHandler = handler;
             },
 
@@ -259,7 +264,7 @@ export default class TCPInterface extends ConnectionInterface {
                 return errorHandler;
             },
 
-            set onerror(handler: ((ev: ErrorEvent) => void) | null) {
+            set onerror(handler: ((ev: ErrorEvent) => void)) {
                 errorHandler = handler;
             },
 
@@ -267,7 +272,7 @@ export default class TCPInterface extends ConnectionInterface {
                 return disconnectHandler;
             },
 
-            set ondisconnect(handler: ((ev: CloseEvent) => void) | null) {
+            set ondisconnect(handler: ((ev: CloseEvent) => void)) {
                 disconnectHandler = handler;
             },
 

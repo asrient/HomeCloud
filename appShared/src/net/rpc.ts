@@ -200,7 +200,7 @@ export class RPCPeer {
         this.opts.onClose?.();
     }
 
-    private onFrame = ({ type, flags, payload }: { type: number, payload: Uint8Array, flags: number }) => {
+    private onFrame = async ({ type, flags, payload }: { type: number, payload: Uint8Array, flags: number }) => {
         if (!this.targetPublicKeyPem && type !== MessageType.HELLO) {
             console.warn('Received message before HELLO', type);
             return;
@@ -230,10 +230,10 @@ export class RPCPeer {
                     this.handleError(payload);
                     break;
                 case MessageType.AUTH_CHALLENGE:
-                    this.onAuthChallenge(payload);
+                    await this.onAuthChallenge(payload);
                     break;
                 case MessageType.AUTH_RESPONSE:
-                    this.onAuthResponse(payload);
+                    await this.onAuthResponse(payload);
                     break;
                 case MessageType.STREAM_CANCEL:
                 case MessageType.STREAM_CHUNK:
@@ -296,11 +296,11 @@ export class RPCPeer {
             otp: this.otp,
             securityKey: this.opts.isSecure ? null : this.decryptionKey,
         };
-        const payload = modules.crypto.encryptPK(JSON.stringify(challenge), this.targetPublicKeyPem);
+        const payload = await modules.crypto.encryptPK(JSON.stringify(challenge), this.targetPublicKeyPem);
         this.sendFrame(MessageType.AUTH_CHALLENGE, payload);
     }
 
-    private onAuthResponse(buf: Uint8Array) {
+    private async onAuthResponse(buf: Uint8Array) {
         if (this.isTargetAuthenticated) {
             console.warn('Already authenticated, ignoring AUTH_RESPONSE');
             return;
@@ -309,7 +309,7 @@ export class RPCPeer {
             console.error('No OTP set, cannot authenticate');
             return;
         }
-        const payload = modules.crypto.decryptPK(buf, modules.config.PRIVATE_KEY_PEM);
+        const payload = await modules.crypto.decryptPK(buf, modules.config.PRIVATE_KEY_PEM);
         const json = new TextDecoder().decode(payload);
         const { otp } = JSON.parse(json);
         if (this.otp !== otp) {
@@ -325,12 +325,12 @@ export class RPCPeer {
         }
     }
 
-    private onAuthChallenge(buf: Uint8Array) {
+    private async onAuthChallenge(buf: Uint8Array) {
         if (this.isTargetReady) {
             console.warn('Already authenticated, ignoring AUTH_CHALLENGE');
             return;
         }
-        const payload = modules.crypto.decryptPK(buf, modules.config.PRIVATE_KEY_PEM);
+        const payload = await modules.crypto.decryptPK(buf, modules.config.PRIVATE_KEY_PEM);
         const json = new TextDecoder().decode(payload);
         const { otp, securityKey } = JSON.parse(json);
         if (!this.opts.isSecure && !securityKey) {
@@ -340,7 +340,7 @@ export class RPCPeer {
         }
         this.encryptionKey = securityKey;
         const response = { otp };
-        const responsePayload = modules.crypto.encryptPK(JSON.stringify(response), this.targetPublicKeyPem);
+        const responsePayload = await modules.crypto.encryptPK(JSON.stringify(response), this.targetPublicKeyPem);
         this.sendFrame(MessageType.AUTH_RESPONSE, responsePayload);
     }
 
