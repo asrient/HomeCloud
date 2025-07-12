@@ -32,9 +32,7 @@ export default abstract class CryptoModule {
     abstract getFingerprintFromBase64(base64PublicKey: string): string;
 
     getFingerprintFromPem(publicKeyPem: string) {
-        console.debug('Getting fingerprint from PEM');
         const publicKey = this.getKeyFromPem(publicKeyPem);
-        console.log('Public key extracted from PEM:', publicKey);
         return this.getFingerprintFromBase64(publicKey);
     }
 

@@ -4,6 +4,7 @@ module.exports = function (api) {
     presets: ['babel-preset-expo'],
     plugins: [
       '@babel/plugin-transform-class-static-block',
+      ['@babel/plugin-proposal-decorators', { 'legacy': true }], // required for @exposed etc
     ]
   };
 };

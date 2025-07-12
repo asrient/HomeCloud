@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "baseUrl": "src",
     "outDir": "dist",
     "allowJs": true,
@@ -7,10 +9,18 @@
     "esModuleInterop": true,
     "target": "ES2022",
     "paths": {
-      "*": ["*"],
-      "@/*": ["*"],
-      "@shared/*": ["shared/*"],
+      "*": [
+        "*"
+      ],
+      "@/*": [
+        "*"
+      ],
+      "@shared/*": [
+        "shared/*"
+      ],
     }
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*"
+  ],
 }

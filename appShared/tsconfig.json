@@ -1,12 +1,16 @@
 {
   "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "baseUrl": "src",
     "outDir": "dist",
     "allowJs": true,
     "module": "nodenext",
     "esModuleInterop": true,
-    "target": "ES2022",
+    "target": "ESNext",
     "declaration": true,
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*"
+  ],
 }

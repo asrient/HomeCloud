@@ -1,19 +1,19 @@
 import { ProxyHandlers, MethodInfo, SignalMetadata } from '../types';
 import Signal from '../signals';
 
-export function exposed(originalMethod: any, context: ClassMethodDecoratorContext) {
-    originalMethod.__isExposed = true; // Mark the method as exposed
-    return originalMethod;
+export function exposed(target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor): PropertyDescriptor {
+    descriptor.value.__isExposed = true; // Mark the method as exposed
+    return descriptor;
 }
 
-export function allowAll(originalMethod: any, context: ClassMethodDecoratorContext) {
-    originalMethod.__allowAll = true; // Mark the method as exposed
-    return originalMethod;
+export function allowAll(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+    descriptor.value.__allowAll = true; // Mark the method as exposed
+    return descriptor;
 }
 
-export function withContext(originalMethod: any, context: ClassMethodDecoratorContext) {
-    originalMethod.__withContext = true;
-    return originalMethod;
+export function withContext(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+    descriptor.value.__withContext = true;
+    return descriptor;
 }
 
 export function getMethodInfo(method: any): MethodInfo {
@@ -23,8 +23,9 @@ export function getMethodInfo(method: any): MethodInfo {
     return { isExposed, isAllowAll, passContext };
 }
 
-export function serviceStartMethod(originalMethod: any, context: ClassMethodDecoratorContext) {
-    async function wrapper(this: any, ...args: any[]) {
+export function serviceStartMethod(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+    const originalMethod = descriptor.value;
+    descriptor.value = async function(this: any, ...args: any[]) {
         if (this.isRunning) {
             console.log("Service is already running.");
             return;
@@ -40,11 +41,12 @@ export function serviceStartMethod(originalMethod: any, context: ClassMethodDeco
             throw error; // Rethrow the error if needed
         }
     }
-    return wrapper;
+    return descriptor;
 }
 
-export function serviceStopMethod(originalMethod: any, context: ClassMethodDecoratorContext) {
-    async function wrapper(this: any, ...args: any[]) {
+export function serviceStopMethod(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+    const originalMethod = descriptor.value;
+    descriptor.value = async function(this: any, ...args: any[]) {
         if (!this.isRunning) {
             console.log("Service is not running.");
             return;
@@ -54,16 +56,18 @@ export function serviceStopMethod(originalMethod: any, context: ClassMethodDecor
         this.isRunning = false;
         console.log("Service stopped.");
     }
-    return wrapper;
+    return descriptor;
 }
 
-export function assertServiceRunning(originalMethod: any, context: ClassMethodDecoratorContext) {
-    return function (this: any, ...args: any[]) {
+export function assertServiceRunning(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+    const originalMethod = descriptor.value;
+    descriptor.value = function (this: any, ...args: any[]) {
         if (!this.isRunning) {
             throw new Error("Service is not running.");
         }
         return originalMethod.call(this, ...args);
     };
+    return descriptor;
 }
 
 export class Service {

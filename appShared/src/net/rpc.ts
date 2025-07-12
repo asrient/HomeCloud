@@ -430,7 +430,7 @@ export class RPCPeer {
         }
         const json = new TextDecoder().decode(buf);
         const { version, publicKeyPem, deviceName } = JSON.parse(json);
-        console.debug('Received HELLO from target', json);
+        // console.debug('Received HELLO from target', json);
         const computedFingerprint = modules.crypto.getFingerprintFromPem(publicKeyPem);
         if (this.opts.fingerprint && computedFingerprint !== this.opts.fingerprint) {
             console.error('Fingerprint mismatch', computedFingerprint, this.opts.fingerprint);
