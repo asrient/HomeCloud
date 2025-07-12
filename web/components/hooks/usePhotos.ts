@@ -53,14 +53,14 @@ const FETCH_LIMIT = 50;
 export const usePhotos = (fetchOpts: PhotosFetchOptions) => {
     const [photos, setPhotos] = useState<PhotoView[]>([]);
     const [hasMore, setHasMore] = useState<boolean>(true);
-    const countRef = useRef(0);
+    const nextCursorRef = useRef<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const isLoadingRef = useRef(isLoading);
     const [error, setError] = useState<string | null>(null);
     const currentLibHashRef = useRef<string | null>(null);
 
     const reset = useCallback(() => {
-        countRef.current = 0;
+        nextCursorRef.current = null;
         setPhotos([]);
         setHasMore(true);
         setIsLoading(false);
@@ -78,14 +78,14 @@ export const usePhotos = (fetchOpts: PhotosFetchOptions) => {
         isLoadingRef.current = true;
         try {
             const serviceController = await getServiceController(fetchOpts.deviceFingerprint);
-            const photos_ = await serviceController.photos.getPhotos(fetchOpts.library.id, {
+            const photosResp = await serviceController.photos.getPhotos(fetchOpts.library.id, {
                 limit: FETCH_LIMIT,
-                offset: countRef.current,
+                cursor: nextCursorRef.current,
                 sortBy: fetchOpts.sortBy,
                 ascending: fetchOpts.ascending ?? true,
             });
 
-            const photoViews: PhotoView[] = photos_.map(photo => ({
+            const photoViews: PhotoView[] = photosResp.photos.map(photo => ({
                 ...photo,
                 libraryId: fetchOpts.library.id,
                 deviceFingerprint: fetchOpts.deviceFingerprint,
@@ -95,8 +95,8 @@ export const usePhotos = (fetchOpts: PhotosFetchOptions) => {
             setPhotos(prev => {
                 return [...prev, ...photoViews];
             });
-            countRef.current += photos_.length;
-            setHasMore(photos_.length === FETCH_LIMIT);
+            nextCursorRef.current = photosResp.nextCursor;
+            setHasMore(photosResp.hasMore ?? photosResp.photos.length === FETCH_LIMIT);
             setError(null);
         } catch (err: any) {
             console.error("Failed to load photos:", err);

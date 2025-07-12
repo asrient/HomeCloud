@@ -285,7 +285,6 @@ export default function PhotosPreview({
                       className={`${photo === currentPhoto
                         ? 'z-20 rounded-md shadow shadow-black/50'
                         : 'z-10'
-                        } ${photo.id === 0 ? 'rounded-l-md' : ''} ${photo.id === images.length - 1 ? 'rounded-r-md' : ''
                         } relative inline-block w-full shrink-0 transform-gpu overflow-hidden focus:outline-none`}
                     >
                       <ThumbnailPhoto

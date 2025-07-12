@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./primatives";
-import { DeletePhotosResponse, GetPhotosParams, Photo, PhotoLibraryLocation, StoreNames } from "../types";
+import { DeletePhotosResponse, GetPhotosParams, GetPhotosResponse, Photo, PhotoLibraryLocation, StoreNames } from "../types";
 import ConfigStorage from "../storage";
 
 
@@ -22,7 +22,7 @@ export abstract class PhotosService extends Service {
 
     @exposed
     async getLocation(id: string): Promise<PhotoLibraryLocation | null> {
-        const locations = this.store.getItem<PhotoLibraryLocation[]>(this.PH_LIBS_KEY) || [];
+        const locations = await this.getLocations();
         const location = locations.find(loc => loc.id === id);
         if (!location) {
             return null;
@@ -85,18 +85,13 @@ export abstract class PhotosService extends Service {
     }
 
     @exposed
-    public async deletePhotos(libraryId: string, ids: number[]): Promise<DeletePhotosResponse> {
+    public async deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> {
         throw new Error("deletePhotos not implemented");
     }
 
     @exposed
-    public async getPhotos(libraryId: string, params: GetPhotosParams): Promise<Photo[]> {
+    public async getPhotos(libraryId: string, params: GetPhotosParams): Promise<GetPhotosResponse> {
         throw new Error("getPhotos not implemented");
-    }
-
-    @exposed
-    public async getPhoto(libraryId: string, photoId: number): Promise<Photo | null> {
-        throw new Error("getPhoto not implemented");
     }
 
     @serviceStartMethod

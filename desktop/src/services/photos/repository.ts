@@ -157,7 +157,7 @@ export class PhotoRepository {
 
     getMinDetails(photo: PhotoModel): Photo {
         return {
-            id: photo.id,
+            id: photo.id.toString(),
             fileId: path.join(this.location, photo.parentDirectory || '', photo.directoryName, photo.filename),
             mimeType: photo.mimeType,
             capturedOn: photo.capturedOn,
@@ -274,9 +274,9 @@ export class PhotoRepository {
         return this.Photo.destroy();
     }
 
-    async getPhotos({ offset, limit, sortBy, ascending = true }: GetPhotosParams): Promise<PhotoModel[]> {
+    async getPhotos({ cursor, limit, sortBy, ascending = true }: GetPhotosParams): Promise<PhotoModel[]> {
         return this.Photo.findAll({
-            offset,
+            offset: cursor ? parseInt(cursor) : 0,
             limit,
             order: [[sortBy, ascending ? "ASC" : "DESC"]],
         });

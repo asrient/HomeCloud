@@ -400,18 +400,26 @@ export class PhotoLibrary {
 
     public async getPhotos(params: GetPhotosParams) {
         this.requireLibraryMounted();
-        return (await this._repo.getPhotos(params)).map((p) => this._repo.getMinDetails(p));
+        const start = params.cursor ? parseInt(params.cursor) : 0;
+        const photos = (await this._repo.getPhotos(params)).map((p) => this._repo.getMinDetails(p));
+        const nextCursor = String(start + photos.length);
+        const hasMore = photos.length === params.limit;
+        return {
+            photos,
+            nextCursor,
+            hasMore
+        }
     }
 
-    public async getPhoto(id: number) {
+    public async getPhoto(id: string) {
         this.requireLibraryMounted();
-        const photo = await this._repo.getPhoto(id);
+        const photo = await this._repo.getPhoto(parseInt(id));
         return photo ? this._repo.getMinDetails(photo) : null;
     }
 
-    public async deletePhotos(ids: number[]): Promise<DeletePhotosResponse> {
+    public async deletePhotos(ids: string[]): Promise<DeletePhotosResponse> {
         this.requireLibraryMounted();
-        const photos = await this._repo.getPhotosByIds(ids);
+        const photos = await this._repo.getPhotosByIds(ids.map((id) => parseInt(id)));
         const promises = photos.map(async (photo) => {
             await this._assetManager.delete(path.join(photo.parentDirectory || '', photo.directoryName), photo.filename);
             return photo.id;
@@ -426,7 +434,7 @@ export class PhotoLibrary {
         const count = await this._repo.deletePhotos(successIds);
         return {
             deleteCount: count,
-            deletedIds: successIds,
+            deletedIds: successIds.map((id) => String(id)),
         };
     }
 }

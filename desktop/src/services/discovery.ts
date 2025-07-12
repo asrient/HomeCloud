@@ -67,6 +67,7 @@ export default class Discovery {
                 data: {
                     host: service.addresses[0],
                     port: service.port,
+                    hosts: service.addresses,
                 },
                 connectionType: ConnectionType.LOCAL,
                 fingerprint: txt.fingerprint,

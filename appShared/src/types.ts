@@ -192,15 +192,21 @@ export enum SignalEvent {
 }
 
 export type GetPhotosParams = {
-    offset: number,
+    cursor: string | null,
     limit: number,
     sortBy: string,
     ascending: boolean,
 };
 
+export type GetPhotosResponse = {
+    photos: Photo[];
+    nextCursor: string | null;
+    hasMore?: boolean;
+};
+
 export type DeletePhotosResponse = {
     deleteCount: number,
-    deletedIds: number[],
+    deletedIds: string[],
 };
 
 export type PhotoLibraryLocation = {
@@ -210,7 +216,7 @@ export type PhotoLibraryLocation = {
 }
 
 export type Photo = {
-    id: number;
+    id: string;
     fileId: string;
     mimeType: string;
     capturedOn: Date;

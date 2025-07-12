@@ -32,18 +32,61 @@ export default class TCPInterface extends ConnectionInterface {
         this.onIncomingConnectionCallback = callback;
     }
 
+    async _isHostReachable(host: string, port: number): Promise<boolean> {
+        return new Promise((resolve) => {
+            const socket = net.createConnection({ host, port }, () => {
+                socket.end();
+                resolve(true);
+            }
+            ).on('error', () => {
+                resolve(false);
+            });
+            socket.setTimeout(3000); // Set a timeout for the connection attempt
+            socket.on('timeout', () => {
+                socket.destroy();
+                resolve(false);
+            });
+        }
+        );
+    }
+
+    async _findReachableHost(hosts: string[], port: number): Promise<string> {
+        // Run simultaneous checks for each host and return the first reachable one
+        return new Promise((resolve, reject) => {
+            let isResolved = false;
+            if (hosts.length === 0) {
+                reject(new Error("No hosts provided for reachability check"));
+                return;
+            }
+            const promises = hosts.map(async (host) => {
+                const isReachable = await this._isHostReachable(host, port);
+                if (isReachable && !isResolved) {
+                    isResolved = true;
+                    resolve(host);
+                }
+            });
+
+            Promise.all(promises).then(() => {
+                if (!isResolved) {
+                    reject(new Error("No reachable hosts found"));
+                }
+            }).catch(reject);
+        });
+    }
+
     /**
      * Connects to a peer candidate and returns a data channel.
      * @param {PeerCandidate} candidate - The peer candidate to connect to.
      * @returns {Promise<GenericDataChannel>} A promise that resolves to a data channel.
      */
     async connect(candidate: PeerCandidate): Promise<GenericDataChannel> {
+        const socket = new net.Socket();
+        const hosts = candidate.data?.hosts || [];
+        const port = candidate.data?.port || this.port;
+        const host = await this._findReachableHost(hosts, port);
+        
         return new Promise((resolve, reject) => {
-            const socket = new net.Socket();
-            const host = candidate.data?.host || 'localhost';
-            const port = candidate.data?.port || this.port;
             let isResolved = false;
-
             socket.connect(port, host, () => {
                 socket.setKeepAlive(true);
                 const connectionId = `${host}:${port}`;

@@ -1,5 +1,5 @@
 import { serviceStartMethod, serviceStopMethod, exposed } from "shared/services/primatives";
-import { DeletePhotosResponse, GetPhotosParams, Photo, PhotoLibraryLocation } from "shared/types";
+import { DeletePhotosResponse, GetPhotosParams, Photo, PhotoLibraryLocation, GetPhotosResponse } from "shared/types";
 import { PhotoLibrary } from "./photoLibrary";
 import { PhotosService } from "shared/services/photosService";
 import fs from "fs";
@@ -78,21 +78,15 @@ export abstract class DesktopPhotosService extends PhotosService {
     }
 
     @exposed
-    public async deletePhotos(libraryId: string, ids: number[]): Promise<DeletePhotosResponse> {
+    public async deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> {
         const lib = this.getLibraryStrict(libraryId);
         return lib.deletePhotos(ids);
     }
 
     @exposed
-    public async getPhotos(libraryId: string, params: GetPhotosParams): Promise<Photo[]> {
+    public async getPhotos(libraryId: string, params: GetPhotosParams): Promise<GetPhotosResponse> {
         const lib = this.getLibraryStrict(libraryId);
         return lib.getPhotos(params);
-    }
-
-    @exposed
-    public async getPhoto(libraryId: string, photoId: number): Promise<Photo | null> {
-        const lib = this.getLibraryStrict(libraryId);
-        return lib.getPhoto(photoId);
     }
 
     @serviceStartMethod
