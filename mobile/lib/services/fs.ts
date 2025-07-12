@@ -3,59 +3,17 @@ import { FileContent, RemoteItem } from "shared/types";
 import { exposed } from "shared/services/primatives";
 import { File, Paths, Directory } from 'expo-file-system/next';
 import * as FileSystem from 'expo-file-system';
-import { MobilePlatform } from "../types";
-import superman from "@/modules/superman";
+import { getDrivesMapping, pathToUri, uriToPath } from "./fileUtils";
 
 
 export default class MobileFsDriver extends FsDriver {
 
-  private getDrivesMapping(): Record<string, string> {
-    if (modules.config.PLATFORM === MobilePlatform.IOS) {
-      return {
-        'Continuity': Paths.document.uri
-      }
-    }
-    // Android
-    const drives: Record<string, string> = {
-      'Phone Storage': superman.getStandardDirectoryUri('Phone Storage') || Paths.document.uri,
-    }
-    const sdCardPath = superman.getStandardDirectoryUri('SD Card');
-    if (sdCardPath) {
-      drives['SD Card'] = sdCardPath;
-    }
-    return drives;
-  }
-
-  private pathToUri(filePath: string) {
-    // return as it is if it does not start with a slash
-    if (!filePath.startsWith('/')) {
-      return filePath; // Return as is if not an absolute path
-    }
-    filePath = filePath.slice(1); // Remove leading slash
-    const drivesMapping = this.getDrivesMapping();
-    const parts = filePath.split('/');
-    if (parts.length > 0 && drivesMapping[parts[0]]) {
-      parts[0] = drivesMapping[parts[0]];
-    }
-    return parts.join('/');
-  }
-
-  private uriToPath(filePath: string): string {
-    const drivesMapping = this.getDrivesMapping();
-    for (const [key, value] of Object.entries(drivesMapping)) {
-      if (filePath.startsWith(key)) {
-        return filePath.replace(key, `/${value}`);
-      }
-    }
-    return filePath; // If no mapping found, return as is
-  }
-
   private getItem(uri: string): File | Directory {
-    if (uri.endsWith('/')) {
-      return new Directory(uri);
-    } else {
-      return new File(uri);
+    const directory = new Directory(uri);
+    if (directory.exists) {
+      return directory;
     }
+    return new File(uri);
   }
 
   async toRemoteItem(options: {
@@ -87,7 +45,7 @@ export default class MobileFsDriver extends FsDriver {
     return {
       type: item instanceof Directory ? "directory" : "file",
       name: name_,
-      path: this.uriToPath(uri),
+      path: uriToPath(uri),
       size,
       lastModified: modificationTime,
       createdAt: modificationTime,
@@ -106,7 +64,7 @@ export default class MobileFsDriver extends FsDriver {
 
   private async listDrives(): Promise<RemoteItem[]> {
     // On mobile, we don't have traditional "drives"
-    const drivesMapping = this.getDrivesMapping();
+    const drivesMapping = getDrivesMapping();
     const items: RemoteItem[] = [];
     for (const [key, value] of Object.entries(drivesMapping)) {
       const remoteItem = await this.toRemoteItem({
@@ -125,7 +83,7 @@ export default class MobileFsDriver extends FsDriver {
     if (dirPath === '') {
       return this.listDrives();
     }
-    dirPath = this.pathToUri(dirPath);
+    dirPath = pathToUri(dirPath);
 
     try {
       const contents = await FileSystem.readDirectoryAsync(dirPath);
@@ -150,7 +108,7 @@ export default class MobileFsDriver extends FsDriver {
 
   @exposed
   public override async mkDir(name: string, baseId: string) {
-    baseId = this.pathToUri(baseId);
+    baseId = pathToUri(baseId);
     const dirPath = Paths.join(baseId, this.normalizeFilename(name));
     const directory = new Directory(dirPath);
     directory.create();
@@ -159,13 +117,13 @@ export default class MobileFsDriver extends FsDriver {
 
   @exposed
   public override async unlink(id: string) {
-    id = this.pathToUri(id);
+    id = pathToUri(id);
     await FileSystem.deleteAsync(id);
   }
 
   @exposed
   public override async rename(id: string, newName: string) {
-    id = this.pathToUri(id);
+    id = pathToUri(id);
     const parentDir = this.pathToParentFolder(id);
     const newPath = Paths.join(parentDir, this.normalizeFilename(newName));
     await FileSystem.moveAsync({ from: id, to: newPath });
@@ -174,20 +132,28 @@ export default class MobileFsDriver extends FsDriver {
 
   @exposed
   public override async writeFile(folderId: string, fileContent: FileContent) {
-    folderId = this.pathToUri(folderId);
+    folderId = pathToUri(folderId);
     const filePath = Paths.join(folderId, this.normalizeFilename(fileContent.name));
 
     // Convert stream to string for writing
     const file = new File(filePath);
+    file.create({
+      intermediates: true,
+      overwrite: true
+    });
     await fileContent.stream.pipeTo(file.writableStream());
     return this.toRemoteItem({ item: file });
   }
 
   @exposed
   public override async readFile(id: string): Promise<FileContent> {
-    id = this.pathToUri(id);
+    id = pathToUri(id);
     const file = new File(id);
-    const filename = this.pathToFilename(id);
+    if (!file.exists) {
+      throw new Error(`File not found: ${id}`);
+    }
+    console.log('Reading file:', id);
+    const filename = file.name;
     const mimeType = file.type;
     const stream = file.readableStream();
     return {
@@ -207,15 +173,15 @@ export default class MobileFsDriver extends FsDriver {
 
   @exposed
   public override async updateFile(id: string, file: FileContent): Promise<RemoteItem> {
-    id = this.pathToUri(id);
+    id = pathToUri(id);
     file.name = this.pathToFilename(id);
     return this.writeFile(this.pathToParentFolder(id), file);
   }
 
   @exposed
   public override async moveFile(id: string, destParentId: string, newFileName: string, deleteSource: boolean): Promise<RemoteItem> {
-    id = this.pathToUri(id);
-    destParentId = this.pathToUri(destParentId);
+    id = pathToUri(id);
+    destParentId = pathToUri(destParentId);
     const destPath = Paths.join(destParentId, this.normalizeFilename(newFileName));
 
     if (deleteSource) {
@@ -228,14 +194,14 @@ export default class MobileFsDriver extends FsDriver {
 
   @exposed
   public override async moveDir(id: string, destParentId: string, newDirName: string, deleteSource: boolean): Promise<RemoteItem> {
-    id = this.pathToUri(id);
-    destParentId = this.pathToUri(destParentId);
+    id = pathToUri(id);
+    destParentId = pathToUri(destParentId);
     return this.moveFile(id, destParentId, newDirName, deleteSource);
   }
 
   @exposed
   public override async getStat(id: string): Promise<RemoteItem> {
-    id = this.pathToUri(id);
+    id = pathToUri(id);
     return this.toRemoteItem({ item: id, loadStat: true });
   }
 }

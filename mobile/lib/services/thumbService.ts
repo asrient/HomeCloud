@@ -1,9 +1,11 @@
 import { ThumbService } from "shared/services/thumbService";
 import superman from '@/modules/superman';
 import { Buffer } from 'buffer';
+import { pathToUri } from "./fileUtils";
 
 export default class MobileThumbService extends ThumbService {
   async generateThumbnailJPEGImpl(filePath: string): Promise<Buffer> {
+    filePath = pathToUri(filePath);
     const buffer = await superman.generateThumbnailJpeg(filePath);
     if (!buffer || !(buffer instanceof Uint8Array)) {
       throw new Error('Failed to generate thumbnail JPEG');

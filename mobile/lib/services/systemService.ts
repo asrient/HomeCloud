@@ -6,6 +6,7 @@ import * as Device from 'expo-device';
 import { Paths } from 'expo-file-system/next';
 import { MobilePlatform } from "../types";
 import superman from "@/modules/superman";
+import { pathToUri } from "./fileUtils";
 
 /**
  * Mobile implementation of SystemService using React Native APIs for system interactions.
@@ -142,6 +143,7 @@ class MobileSystemService extends SystemService {
     }
 
     public async openFile(filePath: string): Promise<void> {
+        filePath = pathToUri(filePath);
         try {
             // For mobile, we try to open the file URL using Linking
             // This will open the file with the default app that can handle it
