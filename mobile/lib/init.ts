@@ -9,6 +9,8 @@ import { File, Paths } from 'expo-file-system/next';
 import { Platform } from 'react-native';
 
 const cryptoModule = new CryptoImpl();
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+global.Buffer = require('buffer').Buffer;
 
 function createOrGetSecretKey(dataDir: string) {
     const secretKeyPath = Paths.join(dataDir, "secret.key");

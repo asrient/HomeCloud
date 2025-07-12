@@ -1,10 +1,8 @@
 import { FilesService } from "shared/services/filesService";
 import LocalFsDriver from "./fs";
 import path from "path";
-import { RemoteItem } from "shared/types";
 import fs from "fs/promises";
 import { getServiceController } from "shared/utils";
-import { getFileContent } from "./fileUtils";
 import { WatchedFile } from "./watchedFile";
 
 export default class DesktopFilesService extends FilesService {
@@ -41,45 +39,5 @@ export default class DesktopFilesService extends FilesService {
 
   async _openRemoteFile(remoteFingerprint: string, remotePath: string): Promise<void> {
     await WatchedFile.start(remoteFingerprint, remotePath);
-  }
-
-  async _moveSingle(
-    remoteFingerprint: string | null,
-    remoteFolderId: string,
-    localFilePath: string,
-    deleteSource: boolean
-  ): Promise<RemoteItem[]> {
-    // walk through the file path if a directory
-    const fileStat = await fs.stat(localFilePath);
-    if (fileStat.isDirectory()) {
-      const files = await fs.readdir(localFilePath);
-      const promises = files.map(async (file, ind) => {
-        const filePath = path.join(localFilePath, file);
-        // delay the next call to avoid too many concurrent requests.
-        if (ind > 0) {
-          await new Promise((resolve) => setTimeout(resolve, ind * 100));
-        }
-        return this._moveSingle(remoteFingerprint, remoteFolderId, filePath, deleteSource);
-      });
-      return Promise.allSettled(promises).then(results => {
-        const items = [];
-        results.forEach(result => {
-          if (result.status === "fulfilled") {
-            items.push(...result.value);
-          } else {
-            console.error("Failed to move file:", result.reason);
-          }
-        });
-        return items;
-      });
-    } else {
-      const serviceController = await getServiceController(remoteFingerprint);
-      const fileContent = getFileContent(localFilePath);
-      const remoteItem = await serviceController.files.fs.writeFile(
-        remoteFolderId,
-        fileContent
-      );
-      return [remoteItem];
-    }
   }
 }

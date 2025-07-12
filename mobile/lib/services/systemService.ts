@@ -3,7 +3,9 @@ import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, Dev
 import { serviceStartMethod, serviceStopMethod } from "shared/services/primatives";
 import { Alert, Platform, Linking } from 'react-native';
 import * as Device from 'expo-device';
-import * as FileSystem from 'expo-file-system';
+import { Paths } from 'expo-file-system/next';
+import { MobilePlatform } from "../types";
+import superman from "@/modules/superman";
 
 /**
  * Mobile implementation of SystemService using React Native APIs for system interactions.
@@ -63,20 +65,44 @@ class MobileSystemService extends SystemService {
         }
     }
 
+    private async getDefaultDirsAndroid(): Promise<DefaultDirectories> {
+        const defaultDirs: DefaultDirectories = {
+            Pictures: superman.getStandardDirectoryUri('Pictures'),
+            Documents: superman.getStandardDirectoryUri('Documents'),
+            Downloads: superman.getStandardDirectoryUri('Downloads'),
+            Videos: superman.getStandardDirectoryUri('Videos'),
+            Movies: superman.getStandardDirectoryUri('Movies'),
+            Music: superman.getStandardDirectoryUri('Music'),
+            Desktop: null // Not available on mobile
+        };
+        return defaultDirs;
+    }
+
+    private async getDefaultDirsIos(): Promise<DefaultDirectories> {
+        const dataDir = Paths.document;
+        const defaultDirs: DefaultDirectories = {
+            Pictures: null,
+            Documents: Paths.join(dataDir, 'Documents'),
+            Downloads: Paths.join(dataDir, 'Downloads'),
+            Videos: null,
+            Movies: null,
+            Music: null,
+            Desktop: null // Not available on mobile
+        };
+        return defaultDirs;
+    }
+
     /**
      * Gets default system directories using cached values.
      * @returns {Promise<DefaultDirectories>} Default directories like Documents, Downloads, etc.
      */
     public async getDefaultDirectories(): Promise<DefaultDirectories> {
-        return {
-            Pictures: FileSystem.documentDirectory,
-            Documents: FileSystem.documentDirectory,
-            Downloads: FileSystem.documentDirectory,
-            Videos: FileSystem.documentDirectory,
-            Movies: FileSystem.documentDirectory,
-            Music: FileSystem.documentDirectory,
-            Desktop: null, // Not available on mobile
-        };
+        if (modules.config.PLATFORM === MobilePlatform.ANDROID) {
+            return this.getDefaultDirsAndroid();
+        } else if (modules.config.PLATFORM === MobilePlatform.IOS) {
+            return this.getDefaultDirsIos();
+        }
+        throw new Error("Unsupported platform for default directories.");
     }
 
     /**

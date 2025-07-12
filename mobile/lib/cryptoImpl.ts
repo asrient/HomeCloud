@@ -17,6 +17,8 @@ export default class CryptoImpl extends CryptoModule {
 
     getFingerprintFromBase64(base64PublicKey: string): string {
         // Generate the hash (fingerprint) of the public key using SHA-256
+        // convert base64 to a string
+        // Use CryptoES to hash the bytes
         const hash = CryptoES.SHA256(base64PublicKey);
         return hash.toString(CryptoES.enc.Hex);
     }

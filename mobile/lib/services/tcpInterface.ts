@@ -2,6 +2,7 @@ import { ConnectionInterface } from "shared/services/netService";
 import { GenericDataChannel, PeerCandidate } from "shared/types";
 import Discovery from "./discovery";
 import TcpSocket from 'react-native-tcp-socket';
+import { Buffer } from 'buffer';
 
 const noop = () => { };
 

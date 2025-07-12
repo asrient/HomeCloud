@@ -12,7 +12,23 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URL
 import java.nio.ByteBuffer
+import expo.modules.kotlin.types.Enumerable
+import android.os.Environment
+import android.content.Context
+import android.os.Build
+import android.os.storage.StorageManager
+import androidx.core.content.ContextCompat
 
+enum class StandardDirectory(val value: String) : Enumerable {
+  DOCUMENTS("Documents"),
+  DOWNLOADS("Downloads"),
+  PICTURES("Pictures"),
+  VIDEOS("Videos"),
+  MUSIC("Music"),
+  MOVIES("Movies"),
+  PHONE_STORAGE("Phone Storage"),
+  SD_CARD("SD Card");
+}
 
 class SupermanModule : Module() {
   
@@ -22,6 +38,66 @@ class SupermanModule : Module() {
     return if (extension.isNotEmpty()) {
       MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase())
     } else {
+      null
+    }
+  }
+
+  // Helper function to get context
+  private fun getContext(): Context {
+    return appContext.reactContext ?: throw IllegalStateException("React context not available")
+  }
+
+  // Helper function to get public directory
+  private fun getPublicDirectory(environmentConstant: String): String? {
+    return try {
+      val publicDir = Environment.getExternalStoragePublicDirectory(environmentConstant)
+        ?: return null
+      
+      if (!publicDir.exists()) {
+        publicDir.mkdirs()
+      }
+      
+      Uri.fromFile(publicDir).toString()
+    } catch (e: Exception) {
+      null
+    }
+  }
+
+  // Helper function to get phone storage root
+  private fun getPhoneStorageRoot(): String? {
+    return try {
+      // DIRECT METHOD: With MANAGE_EXTERNAL_STORAGE permission, this works on all Android versions
+      @Suppress("DEPRECATION")
+      Environment.getExternalStorageDirectory()?.let { Uri.fromFile(it).toString() }
+    } catch (e: Exception) {
+      null
+    }
+  }
+
+  // Helper function to get SD card paths
+  private fun getSDCardPath(): String? {
+    return try {
+      val context = getContext()
+      
+      // DIRECT METHOD: With MANAGE_EXTERNAL_STORAGE permission, use StorageManager
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        val storageManager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+        storageManager.storageVolumes.find { volume ->
+          volume.isRemovable && !volume.isPrimary
+        }?.directory?.let { sdPath ->
+          Uri.fromFile(sdPath).toString()
+        }
+      } else {
+        // For older Android versions, use the fallback method
+        val externalDirs = ContextCompat.getExternalFilesDirs(context, null)
+        externalDirs.find { dir ->
+          dir != null && Environment.isExternalStorageRemovable(dir)
+        }?.let { sdCardDir ->
+          val sdCardRoot = sdCardDir.parentFile?.parentFile?.parentFile?.parentFile
+          sdCardRoot?.let { Uri.fromFile(it).toString() }
+        }
+      }
+    } catch (e: Exception) {
       null
     }
   }
@@ -38,6 +114,37 @@ class SupermanModule : Module() {
     // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
     Function("hello") {
       "Hello world! 👋"
+    }
+
+    Function("getStandardDirectoryUri") { standardDirectory: StandardDirectory ->
+      // Get the standard directory URI based on the provided enum value
+      val directoryUri = when (standardDirectory) {
+        StandardDirectory.DOCUMENTS -> {
+          getPublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+        }
+        StandardDirectory.DOWNLOADS -> {
+          getPublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        }
+        StandardDirectory.PICTURES -> {
+          getPublicDirectory(Environment.DIRECTORY_PICTURES)
+        }
+        StandardDirectory.VIDEOS -> {
+          getPublicDirectory(Environment.DIRECTORY_MOVIES)
+        }
+        StandardDirectory.MUSIC -> {
+          getPublicDirectory(Environment.DIRECTORY_MUSIC)
+        }
+        StandardDirectory.MOVIES -> {
+          getPublicDirectory(Environment.DIRECTORY_MOVIES)
+        }
+        StandardDirectory.PHONE_STORAGE -> {
+          getPhoneStorageRoot()
+        }
+        StandardDirectory.SD_CARD -> {
+          getSDCardPath()
+        }
+      }
+      directoryUri
     }
 
     // Defines a JavaScript function that always returns a Promise and whose native code

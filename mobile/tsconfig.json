@@ -1,6 +1,7 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    "target": "ES2022",
     "strict": true,
     "paths": {
       "@/*": [

@@ -22,7 +22,40 @@ export abstract class FilesService extends Service {
 
     public separator = "/";
 
-    protected abstract _moveSingle(remoteFingerprint: string | null, remoteFolderId: string, localFilePath: string, deleteSource: boolean): Promise<RemoteItem[]>
+    protected async _moveSingle(remoteFingerprint: string | null, remoteFolderId: string, localFilePath: string, deleteSource: boolean): Promise<RemoteItem[]> {
+        // walk through the file path if a directory
+        const fileStat = await this.fs.getStat(localFilePath);
+        if (fileStat.type === "directory") {
+            const files = await this.fs.readDir(localFilePath);
+            const promises = files.map(async (file, ind) => {
+                const filePath = file.path;
+                // delay the next call to avoid too many concurrent requests.
+                if (ind > 0) {
+                    await new Promise((resolve) => setTimeout(resolve, ind * 100));
+                }
+                return this._moveSingle(remoteFingerprint, remoteFolderId, filePath, deleteSource);
+            });
+            return Promise.allSettled(promises).then(results => {
+                const items = [];
+                results.forEach(result => {
+                    if (result.status === "fulfilled") {
+                        items.push(...result.value);
+                    } else {
+                        console.error("Failed to move file:", result.reason);
+                    }
+                });
+                return items;
+            });
+        } else {
+            const serviceController = await getServiceController(remoteFingerprint);
+            const fileContent = await this.fs.readFile(localFilePath);
+            const remoteItem = await serviceController.files.fs.writeFile(
+                remoteFolderId,
+                fileContent
+            );
+            return [remoteItem];
+        }
+    }
 
     @exposed
     public async move(remoteFingerprint: string | null, remoteFolderId: string, localFilePaths: string[], deleteSource = false): Promise<RemoteItem[]> {
