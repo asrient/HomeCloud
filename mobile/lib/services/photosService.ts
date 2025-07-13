@@ -16,7 +16,7 @@ export abstract class MobilePhotosService extends PhotosService {
     }
 
     async checkPermissions(request = true): Promise<boolean> {
-        const { status } = await MediaLibrary.requestPermissionsAsync();
+        const { status } = await MediaLibrary.getPermissionsAsync();
         if (status !== 'granted') {
             if (!request) {
                 return false;
