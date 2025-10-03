@@ -5,8 +5,6 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { usePhotoLibrary } from '@/components/hooks/usePhotos';
 import LoadingIcon from '@/components/ui/loadingIcon';
-import { usePeer } from '@/components/hooks/usePeerState';
-import { Flower } from 'lucide-react';
 import { ThemedIconName } from '@/lib/enums';
 
 export default function Page() {
@@ -15,8 +13,6 @@ export default function Page() {
   const fingerprint = useMemo(() => fingerprintStr ? fingerprintStr : null, [fingerprintStr]);
 
   const { photoLibrary, isLoading } = usePhotoLibrary(fingerprint, lib);
-
-  const peer = usePeer(fingerprint);
 
   const fetchOptions: PhotosFetchOptions | null = useMemo(() => {
     if (!photoLibrary) {

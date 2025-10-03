@@ -15,7 +15,6 @@ const ThemedIcons: Record<ThemedIconName, [string, React.ElementType]> = {
 export function ThemedIcon({ name, alt, size, type, className }: { name: ThemedIconName, alt?: string, size?: number, type?: 'image' | 'symbol' | 'auto', className?: string }) {
     const shouldUseImage = (isMacosTheme() && type !== 'symbol') || type === 'image';
     if (shouldUseImage) {
-        console.log('Using image for icon:', name, ThemedIcons[name][0]);
         return (<Image
             alt={alt || name}
             src={ThemedIcons[name][0]}

@@ -1,7 +1,8 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { PageUIConfig } from "./types";
-import { UITheme } from "./enums";
+import { OSType, UITheme } from "./enums";
+import { DeviceInfo } from "shared/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -42,6 +43,22 @@ export function getGreetings() {
 export function getUrlFromIconKey(iconKey?: string | null) {
   iconKey = iconKey || 'pc';
   return `/icons/d/${iconKey}.png`;
+}
+
+export function getOSIconUrl(deviceInfo: DeviceInfo) {
+  let iconKey = 'icon';
+  switch (deviceInfo.os) {
+    case OSType.Windows:
+      iconKey = 'windows';
+      break;
+    case OSType.MacOS:
+      iconKey = 'macos';
+      break;
+    case OSType.Linux:
+      iconKey = 'linux';
+      break;
+  }
+  return `/icons/${iconKey}.png`;
 }
 
 export function printFingerprint(fingerprint: string, full = false) {

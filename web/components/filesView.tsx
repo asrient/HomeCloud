@@ -11,7 +11,7 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion"
-import { RemoteItemWithPeer } from "@/lib/types";
+import { FileRemoteItem } from "@/lib/types";
 
 export enum SortBy {
     Name = 'Name',
@@ -26,11 +26,6 @@ export enum GroupBy {
     AddedOn = 'AddedOn',
     Type = 'Type',
     ModifiedOn = 'ModifiedOn',
-}
-
-export type FileRemoteItem = RemoteItemWithPeer & {
-    isSelected: boolean;
-    assetUrl?: string;
 }
 
 function ThumbnailImage({ item, className }: { item: FileRemoteItem, className?: string }) {

@@ -17,6 +17,11 @@ export type RemoteItemWithPeer = RemoteItem & {
     deviceFingerprint: string | null;
 }
 
+export type FileRemoteItem = RemoteItemWithPeer & {
+    isSelected: boolean;
+    assetUrl?: string;
+}
+
 export type NextUrl = {
     pathname: string;
     query?: { [key: string]: any };

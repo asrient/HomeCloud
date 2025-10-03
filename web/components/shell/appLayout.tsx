@@ -33,7 +33,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             )}>
                 {isMacosTheme() && <div className="app-dragable h-[3rem] w-full"></div>}
                 <ScrollArea className={cn(
-                    "py-6 pl-1 lg:pr-2",
+                    "py-6",
+                    isMacosTheme() && " px-1 lg:pr-2",
                     isMacosTheme() ? "h-[calc(100vh-7rem)]" : "h-[calc(100vh-2.6rem)]",
                     )}>
                     <div className='flex justify-start items-center pl-4'>

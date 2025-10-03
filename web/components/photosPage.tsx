@@ -1,6 +1,6 @@
 import { PhotoView, PhotosFetchOptions } from "@/lib/types";
 import Head from "next/head";
-import {PageBar, PageContent} from "./pagePrimatives";
+import {MenuButton, MenuGroup, PageBar, PageContent} from "./pagePrimatives";
 import { Button } from "./ui/button";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Loading from "./ui/loading";
@@ -126,10 +126,14 @@ function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridPr
             {
                 sections.map((section) => (
                     <div key={section.title}>
-                        <div className={cn('font-medium sticky top-0 z-10',
-                            isMacosTheme() ? 'text-lg py-4 bg-gradient-to-b from-background to-transparent' : 'text-sm py-3 bg-background px-3'
-                        )}>{section.title}</div>
-                        <div className={'grid gap-1 ' + gridClasses}>
+                        <div className={cn('font-medium sticky z-10 top-0',
+                            isMacosTheme() ? 'text-md p-1 max-w-max' : 'text-sm py-3 bg-background px-3'
+                        )}>
+                            <div className={cn(isMacosTheme() && 'px-3 py-2 backdrop-blur-xl rounded-lg')} >
+                            {section.title}
+                            </div>
+                        </div>
+                        <div className={'relative grid gap-1 ' + gridClasses}>
                             {section.photos.map((photo) => (
                                 <div className='w-full aspect-square' key={`${photo.id}_${photo.libraryId}`}>
                                     <ThumbnailPhoto item={photo} {...clickProps} />
@@ -264,21 +268,25 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                     changePhoto={(photo) => setPhotoForPreview(photo)}
                 />
                 <PageBar title={pageTitle} icon={pageIcon}>
-                    <Button title='Toggle select mode' onClick={toggleSelectMode} variant={selectMode ? 'secondary' : 'ghost'} size='icon'>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    <MenuGroup>
+                    <MenuButton title='Toggle select mode' onClick={toggleSelectMode} selected={selectMode}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                    </Button>
-                    <Button variant='ghost' title='Zoom In' size='icon' disabled={zoom >= 4} onClick={zoomIn}>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    </MenuButton>
+                    </MenuGroup>
+                    <MenuGroup>
+                    <MenuButton title='Zoom In' disabled={zoom >= 4} onClick={zoomIn}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
                         </svg>
-                    </Button>
-                    <Button variant='ghost' title='Zoom Out' size='icon' disabled={zoom <= 1} onClick={zoomOut}>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    </MenuButton>
+                    <MenuButton title='Zoom Out' disabled={zoom <= 1} onClick={zoomOut}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM13.5 10.5h-6" />
                         </svg>
-                    </Button>
+                    </MenuButton>
+                    </MenuGroup>
                 </PageBar>
                 <PageContent>
                 <ContextMenu>

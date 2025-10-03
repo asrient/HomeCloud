@@ -15,14 +15,14 @@ export function PageBar({ children, title, icon }: {
     return (
         <div className={cn(
             'w-full flex justify-between items-center z-20 relative',
-            isMacosTheme() && 'bg-background shadow-xl h-[3rem] py-1 px-3',
+            isMacosTheme() && 'bg-background h-[3rem] py-1 px-3',
             !isMacosTheme() && 'h-[4rem] pt-4 px-8'
         )}>
 
             <div className='flex items-center space-x-2 py-2 px-1 min-w-max'>
                 {
-                    isMacosTheme() && <Button size='icon'
-                        disabled={!canGoBack} variant='secondary' className="text-primary mr-2"
+                    isMacosTheme() && <Button size='sm'
+                        disabled={!canGoBack} variant='secondary' className="text-foreground p-2 border-none rounded-full shadow-xl"
                         title="Back" onClick={goBack}>
                         <ChevronLeft size={20} />
                     </Button>
@@ -30,10 +30,11 @@ export function PageBar({ children, title, icon }: {
                 {icon && <ThemedIcon name={icon}
                     size={isMacosTheme() ? 20 : 30}
                 />}
-                <span className={cn(
+                <div className={cn(
                     'truncate text-sm text-foreground font-medium',
-                    !isMacosTheme() && 'md:text-2xl font-medium'
-                )}>{title}</span>
+                    !isMacosTheme() && 'md:text-2xl',
+                    isMacosTheme() && 'app-dragable'
+                )}>{title}</div>
             </div>
             <div className={cn('grow w-full h-full', isMacosTheme() && 'app-dragable')}></div>
             {children && (<div className='flex justify-center items-center md:space-x-1 text-primary/90 p-1'>{children}</div>)}
@@ -54,32 +55,36 @@ export function PageContent({ children, className }: { children: React.ReactNode
     )
 }
 
-export const MenuButton = ({ children, onClick, disabled, title, className, selected, ref }:
-    {
-        children: React.ReactNode,
-        onClick?: MouseEventHandler<HTMLButtonElement>,
-        disabled?: boolean,
-        title?: string,
-        className?: string,
-        selected?: boolean,
-        ref?: React.Ref<HTMLButtonElement>
-    }) => {
-    return (
-        <Button size='sm' variant={selected ? 'default' : 'ghost'}
-            className={cn(isMacosTheme() ? 'rounded-full': 'rounded-md', className)}
-            title={title} onClick={onClick} disabled={disabled} ref={ref}>
-            {children}
-        </Button>
-    )
+interface MenuButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+    selected?: boolean;
 }
+
+export const MenuButton = forwardRef<HTMLButtonElement, MenuButtonProps>(
+    ({ children, onClick, disabled, title, className, selected, ...rest }, ref) => {
+        return (
+            <Button
+                size={'default'}
+                variant={selected ? 'default' : 'ghost'}
+                className={cn(isMacosTheme() ? 'rounded-full' : 'rounded-md', className)}
+                title={title}
+                onClick={onClick}
+                disabled={disabled}
+                ref={ref}
+                {...rest}
+            >
+                {children}
+            </Button>
+        )
+    }
+)
+MenuButton.displayName = 'MenuButton'
 
 export function MenuGroup({ children }: {
     children: React.ReactNode
 }) {
     return (
-            <div className={cn('flex flex-row items-center text-xs space-x-1 mx-2',
-                isMacosTheme() ? 'text-primary': 'text-foreground',
-                isMacosTheme() && 'bg-background/50 dark:bg-foreground/5 border rounded-full'
+            <div className={cn('flex flex-row items-center text-xs mx-2 text-foreground',
+                isMacosTheme() && 'bg-muted/80 dark:bg-foreground/5 rounded-full shadow-xl'
             )}>
                 {children}
             </div>

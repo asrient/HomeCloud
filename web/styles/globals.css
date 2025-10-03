@@ -91,6 +91,22 @@
     width: calc(100% - env(titlebar-area-x, 0) - env(titlebar-area-width, 100%));
   }
 
+  .win11-selected {
+    position: relative;
+    border: none;
+  }
+
+  .win11-selected::after {
+    content: '';
+    position: absolute;
+    top: 20%;
+    left: 3px;
+    height: 60%;
+    width: 3px;
+    background-color: hsl(var(--primary));
+    border-radius: 10px;
+  }
+
   button,
   a {
     cursor: default;

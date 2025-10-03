@@ -1,5 +1,5 @@
 import { DeviceInfo, PinnedFolder, RemoteItem, PeerInfo } from "shared/types";
-import { RemoteItemWithPeer } from "./types";
+import { FileRemoteItem, RemoteItemWithPeer } from "./types";
 import { OSType } from "@/lib/enums";
 import mime from 'mime';
 import { getServiceController } from "./utils";
@@ -281,6 +281,14 @@ export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder, fingerprint
         createdAt: new Date(),
         etag: '',
         thumbnail: '',
+        deviceFingerprint: fingerprint,
+    }
+}
+
+export const remoteItemToFileRemoteItem = (item: RemoteItem, fingerprint: string | null): FileRemoteItem => {
+    return {
+        ...item,
+        isSelected: false,
         deviceFingerprint: fingerprint,
     }
 }

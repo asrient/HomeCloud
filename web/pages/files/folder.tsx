@@ -1,16 +1,15 @@
 import { useRouter } from 'next/router'
-import { buildPageConfig, getServiceController, isMacosTheme, isMobile } from '@/lib/utils'
-import { FileList_ } from "@/lib/types"
-import { RemoteItem, PeerInfo } from 'shared/types'
+import { buildPageConfig, cn, getServiceController, isMacosTheme, isMobile } from '@/lib/utils'
+import { FileList_, FileRemoteItem } from "@/lib/types"
+import { RemoteItem } from 'shared/types'
 import { NextPageWithConfig } from '@/pages/_app'
-import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
+import FilesView, { SortBy, GroupBy } from '@/components/filesView'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Head from 'next/head'
 import LoadingIcon from '@/components/ui/loadingIcon'
 import Image from 'next/image'
-import {MenuButton, MenuGroup, PageBar, PageContent} from "@/components/pagePrimatives";
+import { MenuButton, MenuGroup, PageBar, PageContent } from "@/components/pagePrimatives";
 import { canPreview, getDefaultIcon, getNativeFilesAppIcon, getNativeFilesAppName, hasItemsToCopy, setItemsToCopy, performCopyItems } from '@/lib/fileUtils'
-import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -35,7 +34,6 @@ import PreviewModal from '@/components/preview'
 import DeviceSelectorModal, { Device } from '@/components/deviceSelectorModal'
 import { useFolder, useStat } from '@/components/hooks/useFolders'
 import { useAppState } from '@/components/hooks/useAppState'
-import { Folder } from 'lucide-react'
 import { ThemedIconName } from '@/lib/enums'
 
 function OpenInDevice({ file, reset }: {
@@ -413,50 +411,50 @@ const Page: NextPageWithConfig = () => {
           }
         </title>
       </Head>
-      
-        <PageBar title={folderStat?.name || peerName} icon={ThemedIconName.Folder}>
-          <MenuGroup>
+
+      <PageBar title={folderStat?.name || peerName} icon={ThemedIconName.Folder}>
+        <MenuGroup>
           <MenuButton onClick={toggleSelectMode} selected={selectMode}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </MenuButton>
           <Select defaultValue={view} onValueChange={onViewChange}>
-            <SelectTrigger className="border-none hover:bg-muted shadow-none rounded-lg">
+            <SelectTrigger className={cn("border-none hover:bg-muted px-2 shadow-none", isMacosTheme() ? 'rounded-full' : 'rounded-md')}>
               <SelectValue placeholder="view" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="list">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                 </svg>
               </SelectItem>
               <SelectItem value="grid">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
                 </svg>
               </SelectItem>
             </SelectContent>
           </Select>
-          </MenuGroup>
-          <MenuGroup>
+        </MenuGroup>
+        <MenuGroup>
           <UploadFileSelector onUpload={onUpload} title='Upload files'>
             <MenuButton>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
               </svg>
             </MenuButton>
           </UploadFileSelector>
           <TextModal onOpenChange={setNewFolderDialogOpen} isOpen={newFolderDialogOpen} onDone={onNewFolder} title='New Folder' buttonText='Create'>
             <MenuButton>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
               </svg>
             </MenuButton>
           </TextModal>
-          </MenuGroup>
-        </PageBar>
-        <PageContent>
+        </MenuGroup>
+      </PageBar>
+      <PageContent>
         <ContextMenu>
           <ContextMenuTrigger>
             <div onClick={onClickOutside} className='min-h-[90vh]' onContextMenu={onRightClickOutside}>

@@ -32,3 +32,8 @@ export enum ThemedIconName {
     Tool = 'Tool',
     Home = 'Home',
 }
+
+export enum ConnectionType {
+    WEB = "web",
+    LOCAL = "local"
+}
