@@ -151,6 +151,7 @@ export function setPrimaryColorHsl(h: number, s: number, l: number) {
   l = normalizeNumber(l, 55, 70);
   const color = `${h} ${s}% ${l}%`;
   setCssVariable('primary', color);
+  setCssVariable('ring', color);
 }
 
 let uiThemeCache: UITheme | null = null;

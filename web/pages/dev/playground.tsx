@@ -18,6 +18,7 @@ import { printFingerprint, getUrlFromIconKey } from '@/lib/utils'
 import { ConnectionInfo, PeerInfo, ServiceDocTree, ServiceDoc, MethodInfo } from 'shared/types'
 import ServiceController from 'shared/services/controller'
 import { ThemedIconName } from '@/lib/enums';
+import { Input } from '@/components/ui/input';
 
 // Take parameters for the func call from userand execute the function located by the FQN and display the result.
 function FunctionPlayground({ fqn, serviceController }:
@@ -292,7 +293,7 @@ function DeviceSelector({ setDeviceCandidate }: {
       }
       <hr />
       <div className='flex items-center space-x-2 my-4'>
-        <input
+        <Input
           type='text'
           placeholder='Fingerprint'
           value={fingerprint}
