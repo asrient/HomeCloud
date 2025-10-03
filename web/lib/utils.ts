@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { PageUIConfig, SidebarType } from "./types";
+import { PageUIConfig } from "./types";
+import { UITheme } from "./enums";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -15,9 +16,8 @@ export function openExternalLink(url: string) {
   window.open(url, "_blank")
 }
 
-export function buildPageConfig(sidebarType?: SidebarType, noAppShell = false): PageUIConfig {
+export function buildPageConfig(noAppShell = false): PageUIConfig {
   return {
-    sidebarType,
     noAppShell,
   }
 }
@@ -135,3 +135,46 @@ export function setPrimaryColorHsl(h: number, s: number, l: number) {
   const color = `${h} ${s}% ${l}%`;
   setCssVariable('primary', color);
 }
+
+let uiThemeCache: UITheme | null = null;
+
+const DEV_THEME_KEY = 'dev-ui-theme';
+
+export function getUITheme(): UITheme {
+  if (uiThemeCache) {
+    return uiThemeCache;
+  }
+  if (window.modules.config.IS_DEV) {
+    const devTheme = localStorage.getItem(DEV_THEME_KEY);
+    if (!!devTheme) {
+      uiThemeCache = devTheme as UITheme;
+    } else {
+      uiThemeCache = window.modules.config.UI_THEME;
+    }
+  } else {
+    uiThemeCache = window.modules.config.UI_THEME;
+  }
+  return uiThemeCache;
+}
+
+export function DEV_OverrideUITheme(theme: UITheme | null) {
+  if (!window.modules.config.IS_DEV) {
+    throw new Error('Can only override theme in dev mode');
+  }
+  if (theme) {
+    localStorage.setItem(DEV_THEME_KEY, theme);
+  } else {
+    localStorage.removeItem(DEV_THEME_KEY);
+  }
+  window.location.reload();
+}
+
+export function isWin11Theme(): boolean {
+  return getUITheme() === UITheme.Win11;
+}
+
+export function isMacosTheme(): boolean {
+  return getUITheme() === UITheme.Macos;
+}
+
+export const UI_THEMES = [UITheme.Macos, UITheme.Win11];

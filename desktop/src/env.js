@@ -9,6 +9,7 @@ const env = {
     NODE_ENV: process.env.NODE_ENV || 'development',
     ONEAUTH_APP_ID: process.env.ONEAUTH_APP_ID,
     USE_WEB_APP_SERVER: true,
+    UI_THEME: process.env.UI_THEME || null,
 };
 
 module.exports = env;

@@ -1,11 +1,11 @@
-import { cn, isMobile } from "@/lib/utils"
+import { cn, isMacosTheme, isMobile } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import Link from "next/link";
 import { SidebarItem, SidebarList, SidebarSection } from "@/lib/types";
 import { useCallback } from "react";
 import Image from "next/image";
 import { useUrlMatch } from "../hooks/useUrlMatch";
-import useHideSidebar from "../hooks/useHideSidebar";
+import { ThemedIcon } from "../themedIcons";
 
 
 function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
@@ -14,7 +14,6 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
     onRightClick?: (item: SidebarItem) => void,
     onClick?: (item: SidebarItem, e: React.MouseEvent) => void,
 }) {
-    const hideSidebar = useHideSidebar();
     const onRightClick_ = useCallback((e: React.MouseEvent) => {
         if (onRightClick && item.rightClickable) {
             onRightClick(item);
@@ -27,12 +26,8 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
     const onClick_ = useCallback((e: React.MouseEvent) => {
         if (onClick) {
             onClick(item, e);
-        } else {
-            if (isMobile()) {
-                hideSidebar();
-            }
         }
-    }, [hideSidebar, item, onClick]);
+    }, [item, onClick]);
 
     return (<Link href={item.href || ''} onContextMenu={onRightClick_} onClick={onClick_}>
         <Button variant={isMatch ? 'secondary' : 'ghost'}
@@ -40,14 +35,7 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick }: {
                 isMatch && "bg-foreground/10",
                 "rounded-md sidebarItem w-full justify-start text-xs text-left text-ellipsis text-foreground/80 truncate font-medium h-8")}
         >
-            {item.icon && <Image
-                alt={item.title}
-                src={item.icon}
-                loading="eager"
-                height={23}
-                width={23}
-                className="mr-2"
-            />}
+            {item.icon && <ThemedIcon name={item.icon} size={20} className={cn("mr-2", isMacosTheme() && 'text-primary/80')} type={isMacosTheme() ? "symbol" : "image"} />}
             {item.title}
         </Button>
     </Link>)

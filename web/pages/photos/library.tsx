@@ -1,11 +1,13 @@
-import { SidebarType, PhotosFetchOptions, PhotosSortOption } from '@/lib/types'
-import { buildPageConfig } from '@/lib/utils'
+import { PhotosFetchOptions, PhotosSortOption } from '@/lib/types'
+import { buildPageConfig, isMacosTheme } from '@/lib/utils'
 import PhotosPage from '@/components/photosPage'
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { usePhotoLibrary } from '@/components/hooks/usePhotos';
 import LoadingIcon from '@/components/ui/loadingIcon';
 import { usePeer } from '@/components/hooks/usePeerState';
+import { Flower } from 'lucide-react';
+import { ThemedIconName } from '@/lib/enums';
 
 export default function Page() {
   const router = useRouter();
@@ -47,10 +49,10 @@ export default function Page() {
   return (
     <PhotosPage
       fetchOptions={fetchOptions}
-      pageTitle={`${peer ? peer.deviceName : 'This Device'} - ${photoLibrary?.name}`}
-      pageIcon='/icons/photos.png'
+      pageTitle={photoLibrary?.name || 'Collection'}
+      pageIcon={ThemedIconName.Photos}
     />
   )
 }
 
-Page.config = buildPageConfig(SidebarType.Photos)
+Page.config = buildPageConfig()

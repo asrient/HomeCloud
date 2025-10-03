@@ -83,6 +83,14 @@
     width: env(titlebar-area-width, 100%);
   }
 
+  .app-titlebar-space-start {
+    width: env(titlebar-area-x, 0);
+  }
+
+  .app-titlebar-space-end {
+    width: calc(100% - env(titlebar-area-x, 0) - env(titlebar-area-width, 100%));
+  }
+
   button,
   a {
     cursor: default;

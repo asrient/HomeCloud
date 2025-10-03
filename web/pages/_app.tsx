@@ -4,7 +4,7 @@ import AppStateProvider from '@/components/appStateProvider';
 import SplashScreen from '@/components/splashScreen';
 import AppErrorModal from '@/components/appErrorModal';
 import AppShell from '@/components/appShell';
-import { AppLayout, MainContent } from '@/components/shell/appLayout';
+import { AppLayout } from '@/components/shell/appLayout';
 import type { NextPage } from 'next'
 import { PageUIConfig } from '@/lib/types';
 import { Toaster } from "@/components/ui/toaster";
@@ -20,7 +20,7 @@ type AppPropsWithConfig = AppProps & {
 }
 
 function App({ Component, pageProps }: AppPropsWithConfig) {
-  const { sidebarType, noAppShell } = Component.config || {};
+  const { noAppShell } = Component.config || {};
   const { isInitalized } = useAppState();
 
   if (!isInitalized) {
@@ -33,15 +33,9 @@ function App({ Component, pageProps }: AppPropsWithConfig) {
           ? <Component {...pageProps} />
           : (
             <AppShell>
-              {
-                !sidebarType
-                  ? <MainContent>
-                    <Component {...pageProps} />
-                  </MainContent>
-                  : (<AppLayout sidebarType={sidebarType}>
-                    <Component {...pageProps} />
-                  </AppLayout>)
-              }
+              <AppLayout>
+                <Component {...pageProps} />
+              </AppLayout>
             </AppShell>
           )
       }

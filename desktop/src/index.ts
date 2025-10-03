@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import DesktopConfigStorage from './configStorage';
 import { getServiceController } from 'shared/utils';
+import { UITheme } from 'shared/types';
 
 const WEB_APP_SERVER = 'http://localhost:3000';
 
@@ -75,6 +76,16 @@ async function getConfig() {
   const dataDir = app.getPath('userData');
   const { privateKeyPem, publicKeyPem } = await getOrGenerateKeys(dataDir);
   const fingerprint = cryptoModule.getFingerprintFromPem(publicKeyPem);
+  let uiTheme: UITheme =  process.platform === 'darwin' ? UITheme.Macos : UITheme.Win11;
+  if (!!env.UI_THEME) {
+    if (env.UI_THEME === UITheme.Macos) {
+      uiTheme = UITheme.Macos;
+    } else if (env.UI_THEME === UITheme.Win11) {
+      uiTheme = UITheme.Win11;
+    } else {
+      console.warn('Invalid UI_THEME value:', env.UI_THEME);
+    }
+  }
   const desktopConfig: DesktopConfigType = {
     IS_DESKTOP_PACKED: isPackaged,
     IS_DEV: env.NODE_ENV === 'development',
@@ -87,6 +98,7 @@ async function getConfig() {
     PRIVATE_KEY_PEM: privateKeyPem,
     FINGERPRINT: fingerprint,
     APP_NAME: app.getName(),
+    UI_THEME: uiTheme,
   };
   return desktopConfig;
 }
@@ -124,9 +136,9 @@ const createWindow = () => {
     // remove the default titlebar
     titleBarStyle: 'hidden',
     backgroundMaterial: 'mica',
-    vibrancy: 'sidebar',
     // expose window controls in Windows/Linux
     ...(process.platform !== 'darwin' ? {
+      vibrancy: 'sidebar',
       titleBarOverlay: {
         // make controls transparent
         color: '#00000000',
@@ -145,10 +157,10 @@ const createWindow = () => {
   // and load the index.html of the app.
   if ((modules.config as DesktopConfigType).USE_WEB_APP_SERVER) {
     console.log('Loading web app from server:', WEB_APP_SERVER);
-    mainWindow.loadURL(WEB_APP_SERVER);
+    mainWindow.loadURL(`${WEB_APP_SERVER}?back=off`);
   } else {
     // Load the app from the local assets/web directory
-    mainWindow.loadURL(`app://-/index.html`);
+    mainWindow.loadURL(`app://-/index.html?back=off`);
   }
 
   // Open the DevTools.
@@ -220,7 +232,7 @@ function handleProtocols() {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
   await initModules();
-  console.log('Modules initialized:', global.modules);
+  // console.log('Modules initialized:', global.modules);
   handleProtocols();
   // Create the main window
   createWindow();

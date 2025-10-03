@@ -1,7 +1,7 @@
 import { setModules, ModulesType } from "shared/modules";
 import CryptoImpl from "./cryptoImpl";
 import MobileServiceController from "./serviceController";
-import { MobileConfigType, MobilePlatform } from "./types";
+import { MobileConfigType, MobilePlatform, UITheme } from "./types";
 import MobileConfigStorage from "./configStorage";
 import * as Device from 'expo-device';
 import { applicationName, nativeApplicationVersion } from 'expo-application';
@@ -63,6 +63,7 @@ async function getConfig() {
         PRIVATE_KEY_PEM: privateKeyPem,
         FINGERPRINT: fingerprint,
         APP_NAME: applicationName || 'Continuity',
+        UI_THEME: mobilePlatform === MobilePlatform.IOS ? UITheme.Ios : UITheme.Android,
     };
     return mobileConfig;
 }

@@ -1,10 +1,12 @@
 import Head from 'next/head'
-import { SidebarType } from '@/lib/types'
-import { buildPageConfig } from '@/lib/utils'
-import PageBar from '@/components/pageBar'
-import { PageContainer, Section, Line } from '@/components/settingsView'
-import { useEffect, useState } from 'react'
+import { buildPageConfig, DEV_OverrideUITheme, getUITheme, UI_THEMES } from '@/lib/utils'
+import { PageBar, PageContent } from "@/components/pagePrimatives";
+import { FormContainer, Section, Line } from '@/components/formPrimatives'
+import { useEffect, useMemo, useState } from 'react'
 import { staticConfig } from '@/lib/staticConfig'
+import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { ThemedIconName } from '@/lib/enums';
 
 function convertToString(value: any): string {
   if (typeof value === 'object') {
@@ -37,17 +39,53 @@ function Page() {
     }
   }, []);
 
+  const uiTheme = useMemo(() => {
+    return getUITheme();
+  }, []);
+
   return (
     <>
       <Head>
         <title>Dev Info</title>
       </Head>
-      <main>
-        <PageBar icon='/icons/computer.png' title='Dev Information'>
-        </PageBar>
 
-        <PageContainer>
-          <Section>
+      <PageBar icon={ThemedIconName.Tool} title='Configuration'>
+      </PageBar>
+      <PageContent>
+        <FormContainer>
+          <Section title='Debug Settings'>
+            <Line title='Current Theme'>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" size='sm'>
+                    {uiTheme}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center">
+                  {
+                    UI_THEMES.map(theme => (
+                      <DropdownMenuCheckboxItem
+                        key={theme}
+                        checked={uiTheme === theme}
+                        onSelect={() => {
+                          DEV_OverrideUITheme(theme);
+                        }}
+                      >
+                        {theme}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      DEV_OverrideUITheme(null);
+                    }}
+                  >
+                    Reset...
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </Line>
+          </Section>
+          <Section title='App Config'>
             {
               configList.map((item, index) => (
                 <Line key={index} title={item.key}>
@@ -58,19 +96,19 @@ function Page() {
           </Section>
           <Section title='Web Config'>
             {
-                staticConfigList.map((item, index) => (
-                  <Line key={index} title={item.key}>
-                    {item.value}
-                  </Line>
-                ))
-              }
+              staticConfigList.map((item, index) => (
+                <Line key={index} title={item.key}>
+                  {item.value}
+                </Line>
+              ))
+            }
           </Section>
-        </PageContainer>
-      </main>
+        </FormContainer>
+      </PageContent>
     </>
   )
 }
 
-Page.config = buildPageConfig(SidebarType.Dev)
+Page.config = buildPageConfig()
 
 export default Page

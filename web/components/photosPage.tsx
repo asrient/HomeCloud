@@ -1,11 +1,11 @@
 import { PhotoView, PhotosFetchOptions } from "@/lib/types";
 import Head from "next/head";
-import PageBar from "./pageBar";
+import {PageBar, PageContent} from "./pagePrimatives";
 import { Button } from "./ui/button";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Loading from "./ui/loading";
 import LazyImage from "./lazyImage";
-import { cn, getServiceController, isMobile } from "@/lib/utils";
+import { cn, getServiceController, isMacosTheme, isMobile } from "@/lib/utils";
 import { dateToTitle } from "@/lib/photoUtils";
 import Image from "next/image";
 import {
@@ -17,10 +17,11 @@ import {
 import ConfirmModal from "./confirmModal";
 import PhotosPreviewModal from "./photosPreviewModal";
 import { usePhotos } from "./hooks/usePhotos";
+import { ThemedIconName } from "@/lib/enums";
 
 export type PhotosPageProps = {
     pageTitle: string;
-    pageIcon: string;
+    pageIcon: ThemedIconName;
     fetchOptions: PhotosFetchOptions;
 }
 
@@ -121,11 +122,13 @@ function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridPr
     }, [photos, dateKey, size]);
 
     return (
-        <>
+        <div  className='px-3 select-none'>
             {
                 sections.map((section) => (
-                    <div key={section.title} className='p-3 select-none'>
-                        <div className='pb-2 text-md font-bold'>{section.title}</div>
+                    <div key={section.title}>
+                        <div className={cn('font-medium sticky top-0 z-10',
+                            isMacosTheme() ? 'text-lg py-4 bg-gradient-to-b from-background to-transparent' : 'text-sm py-3 bg-background px-3'
+                        )}>{section.title}</div>
                         <div className={'grid gap-1 ' + gridClasses}>
                             {section.photos.map((photo) => (
                                 <div className='w-full aspect-square' key={`${photo.id}_${photo.libraryId}`}>
@@ -136,7 +139,7 @@ function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridPr
                     </div>
                 ))
             }
-        </>
+        </div>
     )
 }
 
@@ -254,7 +257,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             <Head>
                 <title>{pageTitle}</title>
             </Head>
-            <main>
+            
                 <PhotosPreviewModal
                     photos={photos}
                     photo={photoForPreview}
@@ -277,6 +280,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                         </svg>
                     </Button>
                 </PageBar>
+                <PageContent>
                 <ContextMenu>
                     <ContextMenuTrigger>
                         <div
@@ -284,6 +288,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                             onContextMenu={onRightClickOutside}
                             className='min-h-[90vh]'
                         >
+                            <div className={cn(!isMacosTheme() && 'px-7')}>
                             <TimeBasedGrid
                                 dateKey={fetchOptions.sortBy}
                                 photos={photos}
@@ -292,6 +297,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                                 onDoubleClick={onDoubleClick}
                                 onRightClick={onRightClick}
                             />
+                            </div>
                             {
                                 !error && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
                                     <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' priority width={0} height={0} />
@@ -350,7 +356,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                     buttonVariant='destructive'
                     onConfirm={deleteSelected}>
                 </ConfirmModal>
-            </main>
+            </PageContent>
         </>
     )
 }

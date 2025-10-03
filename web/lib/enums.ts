@@ -16,3 +16,19 @@ export enum OSType {
     iOS = "ios",
     Unknown = "unknown"
 }
+
+export enum UITheme {
+    Win11 = "win11",
+    Macos = "macos",
+    Android = "android",
+    Ios = "ios",
+}
+
+export enum ThemedIconName {
+    Folder = 'Folder',
+    Photos = 'Photos',
+    Settings = 'Settings',
+    Disk = 'Disk',
+    Tool = 'Tool',
+    Home = 'Home',
+}

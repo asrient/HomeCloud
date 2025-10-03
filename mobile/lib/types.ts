@@ -5,6 +5,13 @@ export enum MobilePlatform {
     IOS = "ios",
 }
 
+export enum UITheme {
+    Win11 = "win11",
+    Macos = "macos",
+    Android = "android",
+    Ios = "ios",
+}
+
 export type MobileConfigType = AppConfigType & {
     PLATFORM: MobilePlatform;
 }

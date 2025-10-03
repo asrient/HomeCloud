@@ -4,20 +4,20 @@ import { PeerInfo, ConnectionInfo } from 'shared/types';
 export type AppStateType = {
     isInitalized: boolean;
     appError: string | null;
-    showSidebar: boolean;
     peers: PeerInfo[];
     connections: ConnectionInfo[];
+    selectedFingerprint: string | null;
 };
 
 export enum ActionTypes {
     INITIALIZE = 'INITIALIZE',
     ERROR = 'ERROR',
-    TOGGLE_SIDEBAR = 'TOGGLE_SIDEBAR',
     ADD_PEER = 'ADD_PEER',
     REMOVE_PEER = 'REMOVE_PEER',
     UPDATE_PEER = 'UPDATE_PEER',
     ADD_CONNECTION = 'ADD_CONNECTION',
     REMOVE_CONNECTION = 'REMOVE_CONNECTION',
+    SELECT_DEVICE = 'SELECT_DEVICE',
 }
 
 export type AppDispatchType = {
@@ -29,9 +29,9 @@ export type AppDispatchType = {
 export const initialAppState: AppStateType = {
     isInitalized: false,
     appError: null,
-    showSidebar: true,
     peers: [],
     connections: [],
+    selectedFingerprint: null,
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
@@ -49,13 +49,6 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
         }
         case ActionTypes.ERROR: {
             draft.appError = payload;
-            return draft;
-        }
-        case ActionTypes.TOGGLE_SIDEBAR: {
-            const { showSidebar }: {
-                showSidebar: boolean;
-            } = payload;
-            draft.showSidebar = showSidebar || !draft.showSidebar;
             return draft;
         }
         case ActionTypes.ADD_PEER: {
@@ -82,6 +75,11 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
         case ActionTypes.REMOVE_CONNECTION: {
             const removedConnection = payload;
             draft.connections = draft.connections.filter(conn => conn.fingerprint !== removedConnection.fingerprint);
+            return draft;
+        }
+        case ActionTypes.SELECT_DEVICE: {
+            const { fingerprint }: { fingerprint: string | null } = payload;
+            draft.selectedFingerprint = fingerprint;
             return draft;
         }
         default:

@@ -1,8 +1,7 @@
 import Head from 'next/head'
 import Image from 'next/image'
-import { SidebarType } from '@/lib/types'
 import { buildPageConfig } from '@/lib/utils'
-import PageBar from '@/components/pageBar'
+import { PageBar, PageContent } from "@/components/pagePrimatives";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion'
 import { useMemo, useState, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
@@ -18,6 +17,7 @@ import LoadingIcon from '@/components/ui/loadingIcon'
 import { printFingerprint, getUrlFromIconKey } from '@/lib/utils'
 import { ConnectionInfo, PeerInfo, ServiceDocTree, ServiceDoc, MethodInfo } from 'shared/types'
 import ServiceController from 'shared/services/controller'
+import { ThemedIconName } from '@/lib/enums';
 
 // Take parameters for the func call from userand execute the function located by the FQN and display the result.
 function FunctionPlayground({ fqn, serviceController }:
@@ -341,31 +341,32 @@ function Page() {
       <Head>
         <title>Playground</title>
       </Head>
-      <PageBar icon='/icons/program.png' title='Debug Services'>
-        <div className='text-sm text-foreground mr-3'>
-          {deviceCandidate ? deviceCandidate.deviceName || printFingerprint(deviceCandidate.fingerprint) : 'This Device'}
-        </div>
-        <Button
-          size='sm'
-          variant='secondary'
-          disabled={!serviceController && !error}
-          onClick={() => setShowDeviceSelector(true)}
-        >
-          {
-            (serviceController || error) ? 'Switch' : (
-              <LoadingIcon className='text-sm' />
-            )
-          }
-        </Button>
-      </PageBar>
-      <main className='p-6'>
+      
+        <PageBar icon={ThemedIconName.Tool} title='Debug Services'>
+          <div className='text-sm text-foreground mr-3'>
+            {deviceCandidate ? deviceCandidate.deviceName || printFingerprint(deviceCandidate.fingerprint) : 'This Device'}
+          </div>
+          <Button
+            size='sm'
+            variant='secondary'
+            disabled={!serviceController && !error}
+            onClick={() => setShowDeviceSelector(true)}
+          >
+            {
+              (serviceController || error) ? 'Switch' : (
+                <LoadingIcon className='text-sm' />
+              )
+            }
+          </Button>
+        </PageBar>
+        <PageContent className='container py-5'>
         {
           error && (<div className='text-xs text-red-700 bg-red-300 rounded-md p-2 mb-4'>
             {error}
           </div>)
         }
         <ServiceFragment docTree={servicesDoc} serviceController={serviceController} name='Local Service Controller' />
-      </main>
+      </PageContent>
       <Sheet
         open={showDeviceSelector}
         onOpenChange={setShowDeviceSelector}>
@@ -389,6 +390,6 @@ function Page() {
   )
 }
 
-Page.config = buildPageConfig(SidebarType.Dev)
+Page.config = buildPageConfig()
 
 export default Page

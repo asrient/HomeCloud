@@ -1,6 +1,6 @@
 import { useRouter } from 'next/router'
-import { buildPageConfig, getServiceController, isMobile } from '@/lib/utils'
-import { FileList_, SidebarType } from "@/lib/types"
+import { buildPageConfig, getServiceController, isMacosTheme, isMobile } from '@/lib/utils'
+import { FileList_ } from "@/lib/types"
 import { RemoteItem, PeerInfo } from 'shared/types'
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy, FileRemoteItem } from '@/components/filesView'
@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Head from 'next/head'
 import LoadingIcon from '@/components/ui/loadingIcon'
 import Image from 'next/image'
-import PageBar from '@/components/pageBar'
+import {MenuButton, MenuGroup, PageBar, PageContent} from "@/components/pagePrimatives";
 import { canPreview, getDefaultIcon, getNativeFilesAppIcon, getNativeFilesAppName, hasItemsToCopy, setItemsToCopy, performCopyItems } from '@/lib/fileUtils'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,6 +35,8 @@ import PreviewModal from '@/components/preview'
 import DeviceSelectorModal, { Device } from '@/components/deviceSelectorModal'
 import { useFolder, useStat } from '@/components/hooks/useFolders'
 import { useAppState } from '@/components/hooks/useAppState'
+import { Folder } from 'lucide-react'
+import { ThemedIconName } from '@/lib/enums'
 
 function OpenInDevice({ file, reset }: {
   file: FileRemoteItem | null,
@@ -374,6 +376,8 @@ const Page: NextPageWithConfig = () => {
   if (isLoading || error) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
+      <PageBar title={folderStat?.name || 'Folder'} icon={ThemedIconName.Folder}>
+      </PageBar>
       <div className='container h-full flex flex-col justify-center items-center min-h-[90vh] p-5 text-slate-400'>
         {
           isLoading ? (
@@ -409,15 +413,16 @@ const Page: NextPageWithConfig = () => {
           }
         </title>
       </Head>
-      <main>
-        <PageBar title={folderStat?.name || peerName} icon={defaultIcon}>
-          <Button onClick={toggleSelectMode} variant={selectMode ? 'outline' : 'ghost'}>
+      
+        <PageBar title={folderStat?.name || peerName} icon={ThemedIconName.Folder}>
+          <MenuGroup>
+          <MenuButton onClick={toggleSelectMode} selected={selectMode}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-          </Button>
+          </MenuButton>
           <Select defaultValue={view} onValueChange={onViewChange}>
-            <SelectTrigger className="px-1 border-none hover:bg-muted shadow-none">
+            <SelectTrigger className="border-none hover:bg-muted shadow-none rounded-lg">
               <SelectValue placeholder="view" />
             </SelectTrigger>
             <SelectContent>
@@ -433,21 +438,25 @@ const Page: NextPageWithConfig = () => {
               </SelectItem>
             </SelectContent>
           </Select>
+          </MenuGroup>
+          <MenuGroup>
           <UploadFileSelector onUpload={onUpload} title='Upload files'>
-            <Button variant='ghost'>
+            <MenuButton>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
               </svg>
-            </Button>
+            </MenuButton>
           </UploadFileSelector>
           <TextModal onOpenChange={setNewFolderDialogOpen} isOpen={newFolderDialogOpen} onDone={onNewFolder} title='New Folder' buttonText='Create'>
-            <Button variant='ghost'>
+            <MenuButton>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
               </svg>
-            </Button>
+            </MenuButton>
           </TextModal>
+          </MenuGroup>
         </PageBar>
+        <PageContent>
         <ContextMenu>
           <ContextMenuTrigger>
             <div onClick={onClickOutside} className='min-h-[90vh]' onContextMenu={onRightClickOutside}>
@@ -551,9 +560,9 @@ const Page: NextPageWithConfig = () => {
             <FolderPath peer={peer} folder={folderStat} />
           </div>
         }
-      </main>
+      </PageContent>
     </>)
 }
 
-Page.config = buildPageConfig(SidebarType.Files)
+Page.config = buildPageConfig()
 export default Page

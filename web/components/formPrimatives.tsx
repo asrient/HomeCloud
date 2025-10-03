@@ -15,11 +15,11 @@ export function Section({ title, children }: {
     )
 }
 
-export function PageContainer({ children }: {
+export function FormContainer({ children }: {
     children: React.ReactNode
 }) {
     return (
-        <div className='px-4 py-3 min-h-[90vh]'>
+        <div className='px-4 py-3 min-h-full'>
             {children}
         </div>
     )

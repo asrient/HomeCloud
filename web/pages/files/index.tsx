@@ -1,14 +1,14 @@
 import { Inter } from 'next/font/google'
 import Head from 'next/head'
 import { buildPageConfig } from '@/lib/utils'
-import { SidebarType } from "@/lib/types"
 import { RemoteItem, PinnedFolder, PeerInfo } from 'shared/types'
 import type { NextPageWithConfig } from '../_app'
-import PageBar from '@/components/pageBar'
+import {PageBar, PageContent} from "@/components/pagePrimatives";
 import { Group, SortBy, FileRemoteItem } from '@/components/filesView'
 import { useMemo } from 'react'
 import { useFolder } from '@/components/hooks/useFolders'
 import { usePeerState } from '@/components/hooks/usePeerState'
+import { ThemedIconName } from '@/lib/enums'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -51,19 +51,19 @@ const Page: NextPageWithConfig = () => {
       <Head>
         <title>My Files</title>
       </Head>
-      <PageBar icon='/icons/folder.png' title='My Files'>
+      <PageBar icon={ThemedIconName.Folder} title='My Files'>
       </PageBar>
-      <main
+      <PageContent
         className={inter.className}
       >
         <DeviceSectionView/>
         {onlinePeers.map(peer => (
           <DeviceSectionView key={peer.fingerprint} peer={peer} />
         ))}
-      </main>
+      </PageContent>
     </>
   )
 }
 
-Page.config = buildPageConfig(SidebarType.Files)
+Page.config = buildPageConfig()
 export default Page

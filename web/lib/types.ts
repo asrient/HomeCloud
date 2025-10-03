@@ -1,4 +1,5 @@
-import { RemoteItem, PeerInfo, ConnectionInfo, Photo, PhotoLibraryLocation } from "shared/types";
+import { RemoteItem, PeerInfo, ConnectionInfo, Photo, PhotoLibraryLocation, AppConfigType } from "shared/types";
+import { ThemedIconName } from "./enums";
 
 export type PeerState = PeerInfo & {
     connection: ConnectionInfo | null;
@@ -16,16 +17,6 @@ export type RemoteItemWithPeer = RemoteItem & {
     deviceFingerprint: string | null;
 }
 
-export enum AppName {
-    Photos = 'photos',
-    Files = 'files',
-}
-
-export const AppNames = [
-    AppName.Photos,
-    AppName.Files,
-]
-
 export type NextUrl = {
     pathname: string;
     query?: { [key: string]: any };
@@ -33,7 +24,7 @@ export type NextUrl = {
 
 export type SidebarItem = {
     title: string;
-    icon?: string;
+    icon?: ThemedIconName;
     href?: NextUrl;
     isDisabled?: boolean;
     key: string;
@@ -43,20 +34,13 @@ export type SidebarItem = {
 
 export type SidebarSection = {
     title?: string;
+    icon?: ThemedIconName;
     items: SidebarItem[];
 };
 
 export type SidebarList = SidebarSection[];
 
-export enum SidebarType {
-    Files = "files",
-    Settings = "settings",
-    Photos = "photos",
-    Dev = "dev",
-}
-
 export type PageUIConfig = {
-    sidebarType?: SidebarType;
     noAppShell: boolean;
 }
 

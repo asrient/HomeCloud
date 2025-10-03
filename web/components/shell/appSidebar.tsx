@@ -1,4 +1,4 @@
-import { SidebarSectionView, SidebarView } from "./sidebar";
+import { SidebarSectionView, SidebarView } from "./sidebarPrimatives";
 import {
     ContextMenu,
     ContextMenuContent,
@@ -9,24 +9,29 @@ import { useCallback, useMemo, useState } from "react";
 import { SidebarItem, SidebarSection } from "@/lib/types";
 import { useRouter } from "next/router";
 import { useAppState } from "../hooks/useAppState";
-import { PeerInfo } from "shared/types";
 import { useFolder, usePinnedFolders } from "../hooks/useFolders";
 import { getDefaultIcon, pinnedFolderToRemoteItem } from "@/lib/fileUtils";
 import { buildNextUrl, folderViewUrl } from "@/lib/urls";
 import { getServiceController } from "@/lib/utils";
+import { usePhotoLibraries } from "../hooks/usePhotos";
+import { photosLibraryUrl } from "@/lib/urls";
+import { ThemedIconName } from "@/lib/enums";
+import { RemoteItem } from "shared/types";
 
 type FilesSidebarData = {
     path?: string;
     deviceFingerprint: string | null;
 }
 
-const DeviceSectionView = ({
-    peer
-}: {
-    peer?: PeerInfo
-}) => {
+type FileItem = RemoteItem & {
+    themedIcon: ThemedIconName;
+}
 
-    const fingerprint = useMemo(() => !!peer ? peer.fingerprint : null, [peer]);
+const FilesSection = ({
+    fingerprint
+}: {
+    fingerprint: string | null
+}) => {
 
     const { remoteItems: disks } = useFolder(fingerprint, '');
     const { pinnedFolders } = usePinnedFolders(fingerprint);
@@ -58,17 +63,22 @@ const DeviceSectionView = ({
 
     const section = useMemo((): SidebarSection => {
         const pinnedRemoteItems = pinnedFolders.map((pinned) => {
-            return pinnedFolderToRemoteItem(pinned, fingerprint);
+            return { ...pinnedFolderToRemoteItem(pinned, fingerprint), themedIcon: ThemedIconName.Folder };
         });
+        const diskItems = disks.map(disk => ({
+            ...disk,
+            themedIcon: ThemedIconName.Disk,
+        }));
+        const fileItems: FileItem[] = [...pinnedRemoteItems, ...diskItems];
         const items: SidebarItem[] = [];
-        [...pinnedRemoteItems, ...disks].forEach((disk) => {
+        fileItems.forEach((disk) => {
             const sidebarData: FilesSidebarData = {
                 path: disk.path,
                 deviceFingerprint: fingerprint
             };
             items.push({
                 title: disk.name,
-                icon: getDefaultIcon(disk),
+                icon: disk.themedIcon,
                 href: folderViewUrl(fingerprint, disk.path),
                 key: disk.path,
                 data: sidebarData,
@@ -76,10 +86,10 @@ const DeviceSectionView = ({
             });
         });
         return {
-            title: peer ? peer.deviceName : 'This Device',
+            title: 'Files',
             items
         };
-    }, [disks, fingerprint, peer, pinnedFolders]);
+    }, [disks, fingerprint, pinnedFolders]);
 
     const folderPath = (selectedSidebarItem?.data as FilesSidebarData)?.path;
 
@@ -105,8 +115,77 @@ const DeviceSectionView = ({
     </ContextMenu>);
 }
 
-export function FilesSidebar() {
-    const { peers } = useAppState();
+const PhotosSection = ({
+    fingerprint
+}: {
+    fingerprint: string | null
+}) => {
+    const { photoLibraries } = usePhotoLibraries(fingerprint);
+
+    const section = useMemo((): SidebarSection => {
+        const items: SidebarItem[] = [];
+        photoLibraries.forEach((library) => {
+            items.push({
+                title: library.name,
+                icon: ThemedIconName.Photos,
+                href: photosLibraryUrl(fingerprint, library.id),
+                key: library.id,
+                rightClickable: false,
+            });
+        });
+        return {
+            title: 'Photos',
+            items
+        };
+    }, [photoLibraries, fingerprint]);
+
+    return (<SidebarSectionView section={section} />);
+}
+
+export function SettingsSection() {
+    const section: SidebarSection = {
+        items: [
+            {
+                title: 'Settings',
+                href: buildNextUrl('/settings'),
+                icon: ThemedIconName.Settings,
+                key: 'settings',
+            },
+        ]
+    }
+    return (
+        <SidebarSectionView section={section} />
+    );
+}
+
+export function DevSection() {
+    const section: SidebarSection = {
+        title: 'Develop',
+        items: [
+            {
+                title: 'Config',
+                href: buildNextUrl('/dev'),
+                icon: ThemedIconName.Tool,
+                key: 'info',
+            },
+            {
+                title: 'Services',
+                href: buildNextUrl('/dev/playground'),
+                icon: ThemedIconName.Tool,
+                key: 'playground',
+            },
+        ]
+    }
+    return (
+        <SidebarSectionView section={section} />
+    );
+}
+
+export function AppSidebar() {
+    const { selectedFingerprint } = useAppState();
+    const isDev = useMemo(() => {
+        return window.modules.config.IS_DEV;
+    }, [])
 
     return (
         <SidebarView>
@@ -114,17 +193,17 @@ export function FilesSidebar() {
                 section={
                     {
                         items: [{
-                            title: 'All Files',
-                            icon: '/icons/stack.png',
-                            href: buildNextUrl('/files'),
-                            key: 'files'
+                            title: 'Home',
+                            icon: ThemedIconName.Home,
+                            href: buildNextUrl('/'),
+                            key: 'home'
                         }]
                     }
                 } />
-            <DeviceSectionView />
-            {peers.map((peer) => (
-                <DeviceSectionView key={peer.fingerprint} peer={peer} />
-            ))}
+            <PhotosSection fingerprint={selectedFingerprint} />
+            <FilesSection fingerprint={selectedFingerprint} />
+            {isDev && <DevSection />}
+            <SettingsSection />
         </SidebarView>
     )
 }

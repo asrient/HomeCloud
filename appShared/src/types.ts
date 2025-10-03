@@ -87,6 +87,13 @@ export type PeerCandidate = {
     connectionType: ConnectionType;
 }
 
+export enum UITheme {
+    Win11 = "win11",
+    Macos = "macos",
+    Android = "android",
+    Ios = "ios",
+}
+
 export type AppConfigType = {
     DATA_DIR: string;
     IS_DEV: boolean;
@@ -97,6 +104,7 @@ export type AppConfigType = {
     PRIVATE_KEY_PEM: string;
     FINGERPRINT: string;
     APP_NAME: string;
+    UI_THEME: UITheme;
 }
 
 export type PeerInfo = {

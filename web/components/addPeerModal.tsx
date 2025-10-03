@@ -131,7 +131,7 @@ export default function AddPeerModal({
     isOpen,
     onOpenChange,
 }: {
-    children: React.ReactNode;
+    children?: React.ReactNode;
     isOpen?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
 }) {
