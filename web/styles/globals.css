@@ -37,7 +37,7 @@
     --foreground: 28 40% 98%;
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-    --popover: 13 12.8% 4.9%;
+    --popover: 27 5.7% 10%;
     --popover-foreground: 210 40% 98%;
     --primary: 217.2 91.2% 59.8%;
     --primary-foreground: 222.2 5% 11.2%;
@@ -49,7 +49,7 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 20 2.6% 29.9%;
+    --border: 20 2.6% 20%;
     --input: 20 2.6% 29.9%;
     --ring: 224.3 76.3% 48%;
     --chart-1: 220 70% 50%;

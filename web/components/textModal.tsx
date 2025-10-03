@@ -130,7 +130,10 @@ export default function TextModal({ title, buttonText, children, onDone, default
                         <span className='ml-2'>Loading...</span>
                     </div>}
 
-                    <div className="flex justify-center items-center">
+                    <div className="space-x-2 flex justify-center items-center">
+                        <Button variant='secondary' size='lg' disabled={isLoading} onClick={() => handleOpenChange(false)}>
+                            Cancel
+                        </Button>
                         <Button type='submit' variant='default' size='lg' disabled={isLoading || !text} onClick={handleSubmit}>
                             {buttonText || 'Save'}
                         </Button>
