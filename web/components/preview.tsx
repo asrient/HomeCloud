@@ -4,7 +4,7 @@ import { getDefaultIcon, getFileUrl } from '@/lib/fileUtils';
 import Image from 'next/image';
 import { Button } from './ui/button';
 import { ArrowUpOnSquareIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
-import { FileRemoteItem } from './filesView';
+import { FileRemoteItem } from '@/lib/types';
 import { toast } from './ui/use-toast';
 import LoadingIcon from './ui/loadingIcon';
 
