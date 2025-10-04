@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn, isMacosTheme } from "@/lib/utils"
 import { ChevronRightIcon } from "@heroicons/react/24/outline"
 
 export function Section({ title, children }: {
@@ -7,8 +7,11 @@ export function Section({ title, children }: {
 }) {
     return (
         <div className="m-2 mb-4 p-1 mx-auto max-w-2xl">
-        {title && <h3 className='text-s font-light mb-2'>{title}</h3>}
-        <div className='p-1 rounded-lg shadow-sm bg-muted/30 dark:bg-foreground/5'>
+        {title && <h3 className='text-xs font-semibold mb-2'>{title}</h3>}
+        <div className={cn('p-1 border',
+            isMacosTheme() ? 'rounded-lg border-border/30' : 'rounded-sm border-border/70 dark:border-border/20',
+            isMacosTheme() ? 'bg-muted/40 dark:bg-muted/20' : 'bg-background dark:bg-muted/20'
+        )}>
             {children}
         </div>
         </div>
@@ -30,13 +33,15 @@ export function Line({ children, title }: {
     title?: string,
 }) {
     return (
-        <div className='flex items-center justify-between border-b p-1 min-h-[2.4rem] last-of-type:border-none border-border text-sm'>
+        <div className={cn('flex items-center justify-between border-b last-of-type:border-none border-border',
+            isMacosTheme() ? 'text-xs min-h-[2.4rem] p-1' : 'text-sm min-h-[3.5rem] p-3 dark:border-black/30',
+        )}>
             {
                 title && <div className='font-regular'>
                     {title}
                 </div>
             }
-            <div className='ml-2 text-xs text-foreground text-right select-text'>{children}</div>
+            <div className='ml-2 text-foreground text-right select-text'>{children}</div>
         </div>
     )
 }
@@ -66,3 +71,5 @@ export function LineLink({ text, color }: {
         </div>
     )
 }
+
+//export function 

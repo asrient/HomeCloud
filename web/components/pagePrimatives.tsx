@@ -22,7 +22,7 @@ export function PageBar({ children, title, icon }: {
             <div className='flex items-center space-x-2 py-2 px-1 min-w-max'>
                 {
                     isMacosTheme() && <Button size='sm'
-                        disabled={!canGoBack} variant='secondary' className="text-foreground p-2 border-none rounded-full shadow-xl"
+                        disabled={!canGoBack} variant='secondary' className="text-foreground bg-white/80 dark:bg-foreground/5 p-2 border-none rounded-full shadow-xl"
                         title="Back" onClick={goBack}>
                         <ChevronLeft size={20} />
                     </Button>
@@ -84,7 +84,7 @@ export function MenuGroup({ children }: {
 }) {
     return (
             <div className={cn('flex flex-row items-center text-xs mx-2 text-foreground',
-                isMacosTheme() && 'bg-muted/80 dark:bg-foreground/5 rounded-full shadow-xl'
+                isMacosTheme() && 'bg-white/80 dark:bg-foreground/5 rounded-full shadow-xl'
             )}>
                 {children}
             </div>

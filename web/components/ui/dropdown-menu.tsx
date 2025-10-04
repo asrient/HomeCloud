@@ -1,6 +1,6 @@
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
-import { cn } from "@/lib/utils"
+import { cn, isWin11Theme } from "@/lib/utils"
 import { CheckIcon, ChevronRightIcon, DotFilledIcon } from "@radix-ui/react-icons"
 
 const DropdownMenu = DropdownMenuPrimitive.Root
@@ -62,7 +62,8 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border border-border/50 bg-background p-1 text-popover-foreground shadow-md",
+        "z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden border border-border/50 bg-background p-1 text-popover-foreground shadow-md",
+        isWin11Theme() ? 'rounded-sm' : 'rounded-2xl',
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[--radix-dropdown-menu-content-transform-origin]",
         className
       )}

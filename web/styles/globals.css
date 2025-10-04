@@ -6,17 +6,17 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
+    --card: 0 0% 98%;
     --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
+    --popover: 0 0% 98%;
     --popover-foreground: 222.2 84% 4.9%;
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 240 5% 96%;
+    --secondary: 240 5% 90%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 240 5% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 240 5% 96%;
+    --accent: 240 5% 88%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -29,6 +29,14 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+  }
+
+  /* Apply macOS light theme tweaks only in light mode */
+  .macos:not(.dark) {
+    --background: 0 0% 97%;
+    --border: 214.3 31.8% 90%;
+    --input: 214.3 31.8% 90%;
+    --muted: 240 5% 90%;
   }
 
   .dark {
@@ -57,6 +65,15 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+  }
+
+  .dark.macos {
+    --background: 0 0% 15%;
+  }
+
+  .macos {
+    --accent: var(--primary);
+    --accent-foreground: 210 40% 100%;
   }
 
   .home-bg {
