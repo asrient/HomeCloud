@@ -7,7 +7,7 @@ export function Section({ title, children }: {
 }) {
     return (
         <div className="m-2 mb-4 p-1 mx-auto max-w-2xl">
-        {title && <h3 className='text-xs font-semibold mb-2'>{title}</h3>}
+        {title && <h3 className='text-xs font-semibold my-3'>{title}</h3>}
         <div className={cn('p-1 border',
             isMacosTheme() ? 'rounded-lg border-border/30' : 'rounded-sm border-border/70 dark:border-border/20',
             isMacosTheme() ? 'bg-muted/40 dark:bg-muted/20' : 'bg-background dark:bg-muted/20'

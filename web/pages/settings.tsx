@@ -1,16 +1,27 @@
 import { PageBar, PageContent } from "@/components/pagePrimatives";
 import { FormContainer, Section, Line } from '@/components/formPrimatives'
-import { buildPageConfig, isMacosTheme } from '@/lib/utils'
+import { buildPageConfig, getOSIconUrl, isMacosTheme } from '@/lib/utils'
 import Head from 'next/head'
 import Image from 'next/image'
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { staticConfig } from '@/lib/staticConfig'
 import ConfirmModal from '@/components/confirmModal'
 import { Button } from '@/components/ui/button'
 import { Settings } from "lucide-react";
 import { ThemedIconName } from "@/lib/enums";
+import { DeviceInfo } from "shared/types";
 
 function Page() {
+
+  const [deviceInfo, setDeviceInfo] = useState<null | DeviceInfo>(null);
+
+  useEffect(() => {
+    const fetchDeviceInfo = async () => {
+      const info = await window.modules.getLocalServiceController().system.getDeviceInfo();
+      setDeviceInfo(info);
+    };
+    fetchDeviceInfo();
+  }, []);
 
   return (
     <>
@@ -22,40 +33,18 @@ function Page() {
       </PageBar>
       <PageContent>
         <FormContainer>
-          <div className='mt-6 mb-10 flex flex-col items-center justify-center font-light text-foreground/40'>
-            <Image src='/icons/icon.png' priority alt='HomeCloud' width={80} height={80} />
-            <div className='pt-4 text-lg'>
-              HomeCloud Desktop
-            </div>
-            <div className='text-xs font-semibold'>
-              {staticConfig.webVersion}
-            </div>
-          </div>
-          <Section>
-            <Line title='Web Version'>
-              {staticConfig.webVersion}
+          <Section title="About">
+            <Line title='Version'>
+              {window.modules.config.VERSION}
             </Line>
-            {
-              // serverConfig?.version && (
-              //   <Line title='Backend Version'>
-              //     {serverConfig.version}
-              //   </Line>
-              // )
-            }
-            {
-              staticConfig.isDev && (
-                <Line title='Web Mode'>
-                  <div className='text-yellow-500'>Development</div>
-                </Line>
-              )
-            }
-            {
-              // serverConfig?.isDev && (
-              //   <Line title='Backend Mode'>
-              //     <div className='text-yellow-500'>Development</div>
-              //   </Line>
-              // )
-            }
+            <Line title='Device Info'>
+              {deviceInfo && (
+                <div className="flex items-center">
+                  <Image src={getOSIconUrl(deviceInfo)} alt={deviceInfo.os} width={20} height={20} className="mr-1" />
+                  {`${deviceInfo.os} ${deviceInfo.osFlavour} (${deviceInfo.formFactor})`}
+                </div>
+                )}
+            </Line>
           </Section>
           <Section>
             <Line>
@@ -72,6 +61,12 @@ function Page() {
               </ConfirmModal>
             </Line>
           </Section>
+          <div className='mt-6 mb-5 flex items-center justify-center font-base text-foreground/70'>
+            <Image src='/icons/icon.png' priority alt='HomeCloud' width={25} height={25} />
+            <div className='pl-2 text-sm'>
+              Media Center. Asrient's Studio, 2025.
+            </div>
+          </div>
         </FormContainer>
       </PageContent>
     </>
