@@ -1,4 +1,14 @@
 /** @type {import('tailwindcss').Config} */
+
+const env = process.env.UI_THEME;
+
+const isMacos = env === 'macos';
+const isWindows = env === 'windows';
+
+console.log("UI Theme:", env);
+console.log("Is macOS:", isMacos);
+console.log("Is Windows:", isWindows);
+
 module.exports = {
 	darkMode: ["class"],
 	content: [
@@ -16,6 +26,22 @@ module.exports = {
 				'2xl': '1400px'
 			}
 		},
+		...(isMacos ? {
+			fontSize: {
+				'xs': '0.6rem',
+				'sm': '0.75rem',
+				'base': '0.875rem',
+				'lg': '1rem',
+				'xl': '1.125rem',
+				'2xl': '1.25rem',
+				'3xl': '1.5rem',
+				'4xl': '1.875rem',
+				'5xl': '2.25rem',
+				'6xl': '3rem',
+				'7xl': '4rem'
+			}
+		} : {}
+		),
 		extend: {
 			colors: {
 				border: 'hsl(var(--border))',

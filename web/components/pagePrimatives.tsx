@@ -22,7 +22,7 @@ export function PageBar({ children, title, icon }: {
             <div className='flex items-center space-x-2 py-2 px-1 min-w-max'>
                 {
                     isMacosTheme() && <Button size='sm'
-                        disabled={!canGoBack} variant='secondary' className="text-foreground bg-white/80 dark:bg-foreground/5 p-2 border-none rounded-full shadow-xl"
+                        disabled={!canGoBack} variant='secondary' className="text-foreground bg-white/80 dark:bg-foreground/5 p-2 border-none rounded-full shadow-2xl"
                         title="Back" onClick={goBack}>
                         <ChevronLeft size={20} />
                     </Button>
@@ -31,7 +31,7 @@ export function PageBar({ children, title, icon }: {
                     size={isMacosTheme() ? 20 : 30}
                 />}
                 <div className={cn(
-                    'truncate text-sm text-foreground font-medium',
+                    'truncate text-base text-foreground font-medium',
                     !isMacosTheme() && 'md:text-2xl',
                     isMacosTheme() && 'app-dragable'
                 )}>{title}</div>
@@ -65,7 +65,7 @@ export const MenuButton = forwardRef<HTMLButtonElement, MenuButtonProps>(
             <Button
                 size={'default'}
                 variant={selected ? 'default' : 'ghost'}
-                className={cn(isMacosTheme() ? 'rounded-full' : 'rounded-md', className)}
+                className={cn(isMacosTheme() ? 'rounded-full hover:bg-muted hover:text-foreground' : 'rounded-md', className)}
                 title={title}
                 onClick={onClick}
                 disabled={disabled}
@@ -84,7 +84,7 @@ export function MenuGroup({ children }: {
 }) {
     return (
             <div className={cn('flex flex-row items-center text-xs mx-2 text-foreground',
-                isMacosTheme() && 'bg-white/80 dark:bg-foreground/5 rounded-full shadow-xl'
+                isMacosTheme() && 'bg-white/80 dark:bg-foreground/5 rounded-full shadow-2xl'
             )}>
                 {children}
             </div>

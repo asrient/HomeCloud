@@ -14,7 +14,7 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline:
-          "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
+          "border border-input bg-transparent hover:bg-muted hover:text-muted-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
@@ -50,7 +50,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           size,
           className: cn(
             isWin11Theme() ? 'rounded-sm' : 'rounded-md',
-            isMacosTheme() && 'rounded-lg focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
+            isMacosTheme() && 'rounded-lg focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset font-medium',
             className
           )
         }),

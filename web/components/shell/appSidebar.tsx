@@ -93,26 +93,28 @@ const FilesSection = ({
 
     const folderPath = (selectedSidebarItem?.data as FilesSidebarData)?.path;
 
-    return (<ContextMenu>
-        <ContextMenuTrigger>
-            <SidebarSectionView onRightClick={setSelectedSidebarItem} section={section} />
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-            {folderPath && (
-                <>
-                    <ContextMenuItem onClick={openItem}>
-                        Open
-                    </ContextMenuItem>
-                    <ContextMenuItem>
-                        Get info
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={removePinnedFolder} className='text-red-500'>
-                        Remove
-                    </ContextMenuItem>
-                </>
-            )}
-        </ContextMenuContent>
-    </ContextMenu>);
+    return (<div>
+        <ContextMenu>
+            <ContextMenuTrigger>
+                <SidebarSectionView onRightClick={setSelectedSidebarItem} section={section} />
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+                {folderPath && (
+                    <>
+                        <ContextMenuItem onClick={openItem}>
+                            Open
+                        </ContextMenuItem>
+                        <ContextMenuItem>
+                            Get info
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={removePinnedFolder} className='text-red-500'>
+                            Remove
+                        </ContextMenuItem>
+                    </>
+                )}
+            </ContextMenuContent>
+        </ContextMenu>
+    </div>);
 }
 
 const PhotosSection = ({
@@ -200,6 +202,7 @@ export function AppSidebar() {
                         }]
                     }
                 } />
+
             <PhotosSection fingerprint={selectedFingerprint} />
             <FilesSection fingerprint={selectedFingerprint} />
             {isDev && <DevSection />}

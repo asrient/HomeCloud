@@ -1,6 +1,6 @@
 import { ConnectionInfo } from "shared/types";
 import { usePeerState } from "./hooks/usePeerState";
-import { getUrlFromIconKey, printFingerprint } from "@/lib/utils";
+import { cn, getUrlFromIconKey, isMacosTheme, printFingerprint } from "@/lib/utils";
 import Image from 'next/image';
 import { useCallback, useState } from "react";
 import { useAppState } from "./hooks/useAppState";
@@ -79,7 +79,9 @@ export function DeviceSwitcher({
             <AddPeerModal isOpen={isAddPeerModalOpen} onOpenChange={(val) => setIsAddPeerModalOpen(val)} />
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="secondary" size='sm' className="h-7 bg-background flex items-center justify-between relative" style={{ width }}>
+                    <Button variant="secondary" size='sm' 
+                    className={cn("h-7 bg-background flex items-center justify-between relative", isMacosTheme() && 'shadow-2xl border border-border/80')}
+                    style={{ width }}>
                         <div>{!!selectedFingerprint && <ConnectionIcon connection={selectedPeer?.connection || null} size={14} />}</div>
                         <div className="flex items-center justify-center text-ellipsis truncate max-w-[70%]">
                             <Image src={getUrlFromIconKey(selectedPeer?.iconKey)} width={16} height={16} alt="Device icon" className='mr-2' />

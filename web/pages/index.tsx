@@ -45,7 +45,7 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
       <div className='w-full flex items-center space-x-4'>
         <div><Image src={getUrlFromIconKey(peer.iconKey)} width={150} height={150} alt="Peer icon" /></div>
         <div className="flex flex-col text-base">
-          <div className={cn("text-foreground", isWin11Theme() ? 'font-light text-2xl' : 'font-semibold text-2xl')}>{peer.deviceName || 'Anonymous device'}</div>
+          <div className={cn("text-foreground", isWin11Theme() ? 'font-light text-xl' : 'font-semibold text-lg')}>{peer.deviceName || 'Anonymous device'}</div>
           <div className="flex flex-col text-foreground/80 text-base space-y-2">
             <div>
               <Image src={getOSIconUrl(peer.deviceInfo)} alt="OS icon" width={20} height={20} className='inline-block mr-1' />

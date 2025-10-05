@@ -6,6 +6,7 @@ import mime from "mime";
 import DesktopSystemService from "../system/systemService";
 import { FileContent } from 'shared/types';
 import { Readable } from 'stream';
+import { ReadableStream } from 'stream/web';
 
 const execAsync = promisify(exec);
 const fsPromises = fs.promises;
@@ -137,13 +138,13 @@ export function getMimeType(filePath: string, isDirectory = false): string {
 }
 
 export function getFileContent(filePath: string): FileContent {
-    const fileStream = Readable.toWeb(createReadStream(filePath));
+    const fileStream: ReadableStream<any> = Readable.toWeb(createReadStream(filePath));
     const fileName = path.basename(filePath);
     const mimeType = mime.getType(filePath) || "application/octet-stream";
     // Create a FileContent object
     const fileContentObj: FileContent = {
         name: fileName,
-        stream: fileStream,
+        stream: fileStream as globalThis.ReadableStream<any>, // Hack to shut up TS as it confuses Node and Web ReadableStream types
         mime: mimeType
     };
     return fileContentObj;

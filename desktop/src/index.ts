@@ -129,16 +129,17 @@ const createWindow = () => {
   const isSystemDarkMode = nativeTheme.shouldUseDarkColors;
   console.log('System dark mode:', isSystemDarkMode);
   const mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 860,
+    width: process.platform === 'darwin' ? 950 : 1200,
+    height: process.platform === 'darwin' ? 600 : 860,
     minWidth: 900,
     minHeight: 600,
     // remove the default titlebar
     titleBarStyle: 'hidden',
     backgroundMaterial: 'mica',
+    vibrancy: 'titlebar',
+    trafficLightPosition: { x: 20, y: 20 },
     // expose window controls in Windows/Linux
     ...(process.platform !== 'darwin' ? {
-      vibrancy: 'sidebar',
       titleBarOverlay: {
         // make controls transparent
         color: '#00000000',

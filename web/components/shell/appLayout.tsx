@@ -24,25 +24,40 @@ function DeviceBar() {
     </div>)
 }
 
+function SidebarArea() {
+    return (<aside className={cn(
+        `sidebar z-20 h-full w-full shrink-0`,
+    )}>
+        {isMacosTheme() && <div className="app-dragable h-[3rem] w-full"></div>}
+        <ScrollArea className={cn(
+            "py-6",
+            isMacosTheme() && " px-1 lg:pr-2",
+            isMacosTheme() ? "h-[calc(100vh-8rem)]" : "h-[calc(100vh-2.6rem)]",
+        )}>
+            <div className='flex justify-start items-center pl-4'>
+            </div>
+            <AppSidebar />
+        </ScrollArea>
+        {isMacosTheme() && <DeviceBar />}
+    </aside>)
+}
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
 
     return (<>
         <div className={`flex-1 items-start md:grid md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)]`}>
-            <aside className={cn(
-                `sidebar z-20 h-full w-full shrink-0`,
-            )}>
-                {isMacosTheme() && <div className="app-dragable h-[3rem] w-full"></div>}
-                <ScrollArea className={cn(
-                    "py-6",
-                    isMacosTheme() && " px-1 lg:pr-2",
-                    isMacosTheme() ? "h-[calc(100vh-7rem)]" : "h-[calc(100vh-2.6rem)]",
-                    )}>
-                    <div className='flex justify-start items-center pl-4'>
+            {
+                isMacosTheme() ?
+                    <div className="h-full w-full p-[0.4rem]">
+                        <div className="macos-sidebar-backdrop rounded-[1.2rem]"></div>
+                        <div className="fixed top-0 left-0 h-full w-[220px] lg:w-[240px] p-[0.4rem] z-30">
+                            <div className="macos-sidebar-strip rounded-[1.2rem] h-full w-full">
+                                <SidebarArea />
+                            </div>
+                        </div>
                     </div>
-                    <AppSidebar />
-                </ScrollArea>
-                {isMacosTheme() && <DeviceBar />}
-            </aside>
+                    : <SidebarArea />
+            }
             <MainContent>
                 {children}
             </MainContent>

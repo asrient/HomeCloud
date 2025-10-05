@@ -7,7 +7,7 @@ export function Section({ title, children }: {
 }) {
     return (
         <div className="m-2 mb-4 p-1 mx-auto max-w-2xl">
-        {title && <h3 className='text-xs font-semibold my-3'>{title}</h3>}
+        {title && <h3 className='text-sm font-semibold my-3'>{title}</h3>}
         <div className={cn('p-1 border',
             isMacosTheme() ? 'rounded-lg border-border/30' : 'rounded-sm border-border/70 dark:border-border/20',
             isMacosTheme() ? 'bg-muted/40 dark:bg-muted/20' : 'bg-background dark:bg-muted/20'
@@ -33,8 +33,8 @@ export function Line({ children, title }: {
     title?: string,
 }) {
     return (
-        <div className={cn('flex items-center justify-between border-b last-of-type:border-none border-border',
-            isMacosTheme() ? 'text-xs min-h-[2.4rem] p-1' : 'text-sm min-h-[3.5rem] p-3 dark:border-black/30',
+        <div className={cn('flex items-center justify-between border-b last-of-type:border-none border-border text-sm',
+            isMacosTheme() ? 'min-h-[2.4rem] p-1' : 'min-h-[3.5rem] p-3 dark:border-black/30',
         )}>
             {
                 title && <div className='font-regular'>
