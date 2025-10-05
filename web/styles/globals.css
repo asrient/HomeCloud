@@ -69,6 +69,7 @@
 
   .dark.macos {
     --background: 0 0% 15%;
+    --border: 20 2.6% 30%;
   }
 
   .macos {
