@@ -43,7 +43,10 @@
           "libraries": ["-framework QuickLookThumbnailing", "-framework Foundation"],
           "xcode_settings": {
             "CLANG_ENABLE_OBJC_ARC": "YES"
-          }
+          },
+          "dependencies": [
+            "<!(node -p \"require('node-addon-api').targets\"):node_addon_api"
+          ]
         }]
       ]
     },

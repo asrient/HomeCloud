@@ -1,6 +1,9 @@
 #include <napi.h>
 #import <QuickLookThumbnailing/QuickLookThumbnailing.h>
 #import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
+#import <QuickLook/QuickLook.h>
+
 
 // Async Worker to handle thumbnail generation
 class ThumbnailWorker : public Napi::AsyncWorker {
@@ -9,55 +12,36 @@ public:
         : Napi::AsyncWorker(callback), filePath(filePath), thumbnailSize(thumbnailSize) {}
 
     void Execute() override {
-        @autoreleasepool {
-            // Convert file path to NSString
-            NSString *filePathNSString = [NSString stringWithUTF8String:filePath.c_str()];
-            NSURL *fileURL = [NSURL fileURLWithPath:filePathNSString];
+    @autoreleasepool {
+        NSString *filePathNSString = [NSString stringWithUTF8String:filePath.c_str()];
+        NSURL *fileURL = [NSURL fileURLWithPath:filePathNSString];
+        CGRect thumbnailRect = CGRectMake(0, 0, thumbnailSize.width, thumbnailSize.height);
+        NSDictionary *options = @{
+            (__bridge NSString *)kQLThumbnailOptionIconModeKey: @NO
+        };
 
-            // Create thumbnail generator and request
-            QLThumbnailGenerator *generator = [QLThumbnailGenerator sharedGenerator];
-            QLThumbnailGenerationRequest *request = [[QLThumbnailGenerationRequest alloc] initWithFileAtURL:fileURL
-                                                                                                       size:thumbnailSize
-                                                                                                      scale:1.0
-                                                                                          representationTypes:QLThumbnailGenerationRequestRepresentationTypeThumbnail];
+        // Create thumbnail using older API
+        CGImageRef thumbnailRef = QLThumbnailImageCreate(kCFAllocatorDefault, (__bridge CFURLRef)fileURL, thumbnailSize, (__bridge CFDictionaryRef)options);
 
-            // Semaphore to wait for asynchronous generation
-            dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
-
-            // Generate thumbnail
-            [generator generateBestRepresentationForRequest:request completion:^(QLThumbnailRepresentation * _Nullable thumbnail, NSError * _Nullable error) {
-                if (thumbnail) {
-                    CGImageRef imageRef = thumbnail.CGImage;
-                    if (imageRef) {
-                        // Convert CGImage to JPEG data
-                        NSBitmapImageRep *imageRep = [[NSBitmapImageRep alloc] initWithCGImage:imageRef];
-                        NSDictionary *jpegProperties = @{NSImageCompressionFactor: @(0.8)};
-                        NSData *jpegData = [imageRep representationUsingType:NSBitmapImageFileTypeJPEG properties:jpegProperties];
-                        if (jpegData) {
-                            outputData = [jpegData mutableCopy];
-                        }
-                    }
-                }
-
-                if (error) {
-                    errorMessage = error.localizedDescription.UTF8String;
-                }
-
-                dispatch_semaphore_signal(semaphore);
-            }];
-
-            // Wait for completion
-            dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
-
-            // Cleanup
-            [request release];
+        if (thumbnailRef) {
+            NSBitmapImageRep *imageRep = [[NSBitmapImageRep alloc] initWithCGImage:thumbnailRef];
+            NSDictionary *jpegProperties = @{NSImageCompressionFactor: @(0.8)};
+            NSData *jpegData = [imageRep representationUsingType:NSBitmapImageFileTypeJPEG properties:jpegProperties];
+            if (jpegData) {
+                outputData = [jpegData mutableCopy];
+            }
+            CGImageRelease(thumbnailRef);
+        } else {
+            errorMessage = "Failed to create thumbnail (QLThumbnailImageCreate returned NULL)";
         }
     }
+}
+
 
     void OnOK() override {
         Napi::HandleScope scope(Env());
         if (outputData) {
-            Callback().Call({Env().Null(), Napi::Buffer<uint8_t>::Copy(Env(), outputData.bytes, outputData.length)});
+            Callback().Call({Env().Null(), Napi::Buffer<uint8_t>::Copy(Env(), (const uint8_t *)outputData.bytes, outputData.length)});
         } else {
             Callback().Call({Napi::Error::New(Env(), errorMessage).Value()});
         }
