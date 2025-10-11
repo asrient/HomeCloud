@@ -8,8 +8,6 @@ const ACK_BATCH_SIZE = 6;
 const RETRANSMIT_TIMEOUT = 600; // ms
 const MAX_RETRANSMITS = 5;
 const MAX_BUFFERED_PACKETS = 256;
-// sequence space: 16 bits
-const MAX_SEQ = 0x10000; // 65536
 
 const MAX_PACKET_PAYLOAD = MAX_PACKET_SIZE - HEADER_SIZE;
 
@@ -53,21 +51,6 @@ export class ReliableDatagram {
         };
     }
 
-    // --- sequence helpers ---
-    private seqAdd(a: number, b: number): number {
-        return (a + b) & 0xFFFF; // modulo 65536
-    }
-
-    private seqDiff(a: number, b: number): number {
-        // returns signed diff between a and b modulo MAX_SEQ
-        return ((a - b + MAX_SEQ) & 0xFFFF);
-    }
-
-    private seqLess(a: number, b: number): boolean {
-        // true if a < b (modular comparison)
-        return this.seqDiff(b, a) < MAX_SEQ / 2;
-    }
-
     private encodeHeader(type: number, seq: number): Uint8Array {
         const buf = new Uint8Array(HEADER_SIZE);
         buf[0] = type;
@@ -79,7 +62,7 @@ export class ReliableDatagram {
         const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
         return {
             type: view.getUint8(0),
-            seq: view.getUint32(1) & 0xFFFF,
+            seq: view.getUint32(1),
         };
     }
 
@@ -98,7 +81,7 @@ export class ReliableDatagram {
         if (!this.remote) throw new Error('Remote not set');
 
         const seq = this.sendSeq;
-        this.sendSeq = this.seqAdd(this.sendSeq, 1);
+        this.sendSeq = this.sendSeq + 1;
 
         const header = this.encodeHeader(FLAG_DATA, seq);
         const packet = new Uint8Array(header.length + data.length);
@@ -132,12 +115,12 @@ export class ReliableDatagram {
 
     private handleDataPacket(seq: number, payload: Uint8Array) {
         if (seq === this.recvSeq) {
-            this.recvSeq = this.seqAdd(this.recvSeq, 1);
+            this.recvSeq = this.recvSeq + 1;
             this.ackPending++;
             this.onMessage?.(payload);
             // send ACKs every few packets
             if (this.ackPending >= ACK_BATCH_SIZE) {
-                this.sendAck(this.seqAdd(this.recvSeq, -1));
+                this.sendAck(this.recvSeq - 1);
                 this.ackPending = 0;
             }
             // Process next contiguous buffered packet if available
@@ -148,7 +131,7 @@ export class ReliableDatagram {
             }
         }
         // Future packet, buffer it
-        else if (this.seqLess(this.recvSeq, seq) && this.reorderBuffer.size < MAX_BUFFERED_PACKETS) {
+        else if (this.recvSeq < seq && this.reorderBuffer.size < MAX_BUFFERED_PACKETS) {
             this.reorderBuffer.set(seq, payload);
         } // else: old packet, ignore
     }
@@ -164,15 +147,15 @@ export class ReliableDatagram {
         }
         else if (type === FLAG_ACK) {
             const ackSeq = seq;
-            const nextAck = this.seqAdd(ackSeq, 1);
-            // Remove all cached packets from sendBase up to ackSeq (inclusive)
-            while (this.seqLess(this.sendBase, nextAck)) {
+            const nextAck = ackSeq + 1;
+            // Remove all cached packets from sendBase up to ackSeq
+            while (this.sendBase < nextAck) {
                 if (this.sendWindow.has(this.sendBase)) {
                     clearTimeout(this.retransmitTimers.get(this.sendBase));
                     this.retransmitTimers.delete(this.sendBase);
                     this.sendWindow.delete(this.sendBase);
                 }
-                this.sendBase = this.seqAdd(this.sendBase, 1);
+                this.sendBase++;
             }
         }
     }
