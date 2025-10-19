@@ -3,7 +3,7 @@
  * Provides methods for creating, sending, receiving data, and closing the socket.
  */
 export abstract class DatagramCompat {
-    abstract bind(port: number, address?: string): Promise<void>;
+    abstract bind(port?: number, address?: string): Promise<void>;
     abstract address(): { address: string; family: string; port: number };
 
     onListen?: () => void;

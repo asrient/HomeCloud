@@ -1,40 +1,47 @@
 import { DatagramCompat } from "./compat";
 
 const HEADER_SIZE = 5; // 1 byte type + 4 bytes seq
-const FLAG_DATA = 0;
-const FLAG_ACK = 1;
 const MAX_PACKET_SIZE = 1200;
 const ACK_BATCH_SIZE = 6;
 const RETRANSMIT_TIMEOUT = 600; // ms
-const MAX_RETRANSMITS = 5;
+const MAX_RETRANSMITS = 8;
 const MAX_BUFFERED_PACKETS = 256;
+
+// Flags
+const FLAG_DATA = 0;
+const FLAG_ACK = 1;
+const FLAG_HELLO = 2;
+const FLAG_HELLO_ACK = 3;
+const FLAG_BYE = 4;
 
 const MAX_PACKET_PAYLOAD = MAX_PACKET_SIZE - HEADER_SIZE;
 
-/*
-Note: The window size must be less than half the sequence space (W < MAX_SEQ / 2) to avoid ambiguity.
-With a 16-bit sequence space (0-65535), the maximum window size is 32767.
-We use a sliding window with selective ACKs and retransmissions.
-*/
 
 export class ReliableDatagram {
     private socket: DatagramCompat;
-    private remote?: { address: string; port: number };
+    private remote: { address: string; port: number };
 
-    private sendSeq = 0;
-    private recvSeq = 0;
+    private sendSeq = 1;
+    private recvSeq = 1;
 
     private sendWindow = new Map<number, Uint8Array>();
     private ackPending = 0;
 
     private retransmitTimers = new Map<number, number>();
 
-    onMessage?: (data: Uint8Array) => void;
-    onError?: (err: Error) => void;
-    onClose?: () => void;
+    private isMyHelloAcked = false;
+    private isRemoteClosed = false;
+    private isClosing = false;
 
-    constructor(socket: DatagramCompat) {
+    onMessage?: (data: Uint8Array) => void;
+    onClose?: (err: Error | null) => void;
+    private onReady?: () => void;
+
+    constructor(socket: DatagramCompat, address: string, port: number, onReady?: () => void) {
         this.socket = socket;
+
+        this.onReady = onReady;
+        this.remote = { address, port };
 
         this.socket.onMessage = (msg, rinfo) => {
             if (!this.remote) this.remote = { address: rinfo.address, port: rinfo.port };
@@ -42,12 +49,17 @@ export class ReliableDatagram {
         };
 
         this.socket.onError = (err) => {
-            this.onError?.(err);
-            this.cleanup();
+            if (this.isClosing) {
+                this.isRemoteClosed = true;
+            } else {
+                console.error('Socket error:', err);
+                this.close();
+            }
         };
 
         this.socket.onClose = () => {
             this.cleanup();
+            if (this.isClosing) this.onClose?.(null);
         };
     }
 
@@ -66,6 +78,18 @@ export class ReliableDatagram {
         };
     }
 
+    private sendHello(attempt = 1) {
+        if (this.isMyHelloAcked) return;
+        if (attempt > MAX_RETRANSMITS) {
+            this.onClose?.(new Error('Failed to establish connection: no HELLO_ACK received'));
+            this.socket.close();
+            return;
+        }
+        const header = this.encodeHeader(FLAG_HELLO, 0);
+        this.socket.send(header, this.remote.port, this.remote.address);
+        setTimeout(() => this.sendHello(attempt + 1), RETRANSMIT_TIMEOUT);
+    }
+
     async send(data: Uint8Array) {
         let offset = 0;
         while (offset < data.length) {
@@ -78,8 +102,6 @@ export class ReliableDatagram {
     }
 
     private async sendPacket(data: Uint8Array) {
-        if (!this.remote) throw new Error('Remote not set');
-
         const seq = this.sendSeq;
         this.sendSeq = this.sendSeq + 1;
 
@@ -136,7 +158,7 @@ export class ReliableDatagram {
         } // else: old packet, ignore
     }
 
-    private sendBase = 0; // first un-ACKed sequence
+    private sendBase = 1; // first un-ACKed sequence
 
     private handlePacket(buf: Uint8Array) {
         const { type, seq } = this.decodeHeader(buf);
@@ -146,9 +168,8 @@ export class ReliableDatagram {
             this.handleDataPacket(seq, payload);
         }
         else if (type === FLAG_ACK) {
-            const ackSeq = seq;
-            const nextAck = ackSeq + 1;
-            // Remove all cached packets from sendBase up to ackSeq
+            const nextAck = seq + 1;
+            // Remove all cached packets from sendBase up to nextAck
             while (this.sendBase < nextAck) {
                 if (this.sendWindow.has(this.sendBase)) {
                     clearTimeout(this.retransmitTimers.get(this.sendBase));
@@ -158,16 +179,25 @@ export class ReliableDatagram {
                 this.sendBase++;
             }
         }
+        else if (type === FLAG_HELLO) {
+            const header = this.encodeHeader(FLAG_HELLO_ACK, 0);
+            this.socket.send(header, this.remote.port, this.remote.address);
+        }
+        else if (type === FLAG_HELLO_ACK) {
+            if (!this.isMyHelloAcked) {
+                this.isMyHelloAcked = true;
+                if (this.onReady) this.onReady();
+            }
+        }
+        else if (type === FLAG_BYE) {
+            this.isRemoteClosed = true;
+            this.close();
+        }
     }
 
     private sendAck(seq: number) {
-        if (!this.remote) return;
         const header = this.encodeHeader(FLAG_ACK, seq);
         this.socket.send(header, this.remote.port, this.remote.address);
-    }
-
-    setRemote(address: string, port: number) {
-        this.remote = { address, port };
     }
 
     private cleanup() {
@@ -176,13 +206,20 @@ export class ReliableDatagram {
         this.sendWindow.clear();
         this.retransmitTimers.clear();
         this.reorderBuffer.clear();
-        this.sendSeq = 0;
-        this.recvSeq = 0;
-        this.ackPending = 0;
-        this.sendBase = 0;
     }
 
+    private closeAttempt = 1;
+
     close() {
+        if (this.isClosing && this.closeAttempt === 1) return;
+        this.isClosing = true;
+        if (!this.isRemoteClosed && this.closeAttempt <= MAX_RETRANSMITS && this.isMyHelloAcked) {
+            // Try to notify remote for graceful close
+            const header = this.encodeHeader(FLAG_BYE, 0);
+            this.socket.send(header, this.remote.port, this.remote.address);
+            setTimeout(() => this.close(), RETRANSMIT_TIMEOUT);
+            return;
+        }
         this.cleanup();
         this.socket.close();
     }
