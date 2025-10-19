@@ -1,7 +1,7 @@
-import { serviceStartMethod, serviceStopMethod, exposed } from "shared/services/primatives";
+import { serviceStartMethod, serviceStopMethod, exposed } from "shared/servicePrimatives";
 import { DeletePhotosResponse, GetPhotosParams, Photo, PhotoLibraryLocation, GetPhotosResponse } from "shared/types";
 import { PhotoLibrary } from "./photoLibrary";
-import { PhotosService } from "shared/services/photosService";
+import { PhotosService } from "shared/photosService";
 import fs from "fs";
 import os from "os";
 

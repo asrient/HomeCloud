@@ -1,4 +1,4 @@
-import {getMethodInfo} from './services/primatives';
+import {getMethodInfo} from './servicePrimatives';
 import { MethodInfo, ServiceDoc, ServiceDocTree } from './types';
 
 const geProps = (obj: any): any[] => {

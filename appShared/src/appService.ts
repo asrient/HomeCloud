@@ -1,8 +1,8 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, allowAll, withContext } from "./primatives";
-import { MethodContext, MethodInfo, PeerInfo, StoreNames, SignalEvent } from "../types";
-import ConfigStorage from "../storage";
-import { getIconKey } from "../utils";
-import Signal from "../signals";
+import { Service, serviceStartMethod, serviceStopMethod, exposed, allowAll, withContext } from "./servicePrimatives";
+import { MethodContext, MethodInfo, PeerInfo, StoreNames, SignalEvent } from "./types";
+import ConfigStorage from "./storage";
+import { getIconKey } from "./utils";
+import Signal from "./signals";
 
 export class AppService extends Service {
     protected store: ConfigStorage;

@@ -17,7 +17,7 @@ const FLAG_BYE = 4;
 const MAX_PACKET_PAYLOAD = MAX_PACKET_SIZE - HEADER_SIZE;
 
 
-export class ReliableDatagram {
+export class ReDatagram {
     private socket: DatagramCompat;
     private remote: { address: string; port: number };
 

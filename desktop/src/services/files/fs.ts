@@ -1,9 +1,9 @@
 import fs from "fs/promises";
 import path from "path";
-import { FsDriver } from "shared/files/fsDriver";
+import { FsDriver } from "shared/fsDriver";
 import { FileContent, RemoteItem } from "shared/types";
 import { getMimeType, getNativeDrives, getFileContent } from "./fileUtils";
-import { exposed } from "shared/services/primatives";
+import { exposed } from "shared/servicePrimatives";
 
 export default class LocalFsDriver extends FsDriver {
 

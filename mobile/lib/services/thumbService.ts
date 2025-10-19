@@ -1,4 +1,4 @@
-import { ThumbService } from "shared/services/thumbService";
+import { ThumbService } from "shared/thumbService";
 import superman from '@/modules/superman';
 import { Buffer } from 'buffer';
 import { pathToUri } from "./fileUtils";

@@ -1,6 +1,6 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./primatives";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "../types";
-import Signal from "../signals";
+import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "./types";
+import Signal from "./signals";
 
 
 export abstract class SystemService extends Service {

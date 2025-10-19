@@ -1,5 +1,5 @@
-import { exposed } from "../services/primatives";
-import { RemoteItem, FileContent } from "../types";
+import { exposed } from "./servicePrimatives";
+import { RemoteItem, FileContent } from "./types";
 
 export class FsDriver {
 

@@ -1,11 +1,11 @@
-import { RPCController } from "./primatives";
+import { RPCController } from "./servicePrimatives";
 import { NetService } from "./netService";
 import { AppService } from "./appService";
 import { SystemService } from "./systemService";
 import { ThumbService } from "./thumbService";
 import { FilesService } from "./filesService";
-import Signal from "../signals";
-import { generateServicesDoc } from "../doc";
+import Signal from "./signals";
+import { generateServicesDoc } from "./doc";
 import { PhotosService } from "./photosService";
 
 export default class ServiceController extends RPCController {

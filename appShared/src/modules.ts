@@ -1,5 +1,5 @@
 import { AppConfigType } from "./types";
-import ServiceController from "./services/controller";
+import ServiceController from "./controller";
 import CryptoModule from "./crypto";
 import ConfigStorage from "./storage";
 

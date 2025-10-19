@@ -1,4 +1,4 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./primatives";
+import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
 
 
 export abstract class ThumbService extends Service {

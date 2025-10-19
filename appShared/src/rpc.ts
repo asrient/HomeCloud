@@ -1,5 +1,5 @@
 import { DataChannelParser } from './DataChannelParser';
-import { ProxyHandlers, GenericDataChannel } from '../types';
+import { ProxyHandlers, GenericDataChannel } from './types';
 
 // ----- Message Types -----
 export enum MessageType {

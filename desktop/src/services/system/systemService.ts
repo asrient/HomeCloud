@@ -1,10 +1,10 @@
-import { SystemService } from "shared/services/systemService";
+import { SystemService } from "shared/systemService";
 import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
 import { dialog, BrowserWindow, shell, systemPreferences } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails } from "../../types";
-import { serviceStartMethod, serviceStopMethod } from "shared/services/primatives";
+import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 
 const POLL_INTERVAL = 5000; // Polling interval for accent color changes
 

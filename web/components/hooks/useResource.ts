@@ -1,6 +1,6 @@
 import { getServiceController } from "@/lib/utils";
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
-import ServiceController from "shared/services/controller";
+import ServiceController from "shared/controller";
 import { useAppState } from "./useAppState";
 
 

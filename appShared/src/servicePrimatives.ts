@@ -1,5 +1,5 @@
-import { ProxyHandlers, MethodInfo, SignalMetadata } from '../types';
-import Signal from '../signals';
+import { ProxyHandlers, MethodInfo, SignalMetadata } from './types';
+import Signal from './signals';
 
 export function exposed(target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor): PropertyDescriptor {
     descriptor.value.__isExposed = true; // Mark the method as exposed

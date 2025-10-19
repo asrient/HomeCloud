@@ -1,9 +1,9 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed } from "./primatives";
-import { FsDriver } from "../files/fsDriver";
-import ConfigStorage from "../storage";
-import { StoreNames, PinnedFolder, SignalEvent, RemoteItem } from "../types";
-import Signal from "../signals";
-import { getServiceController } from "../utils"
+import { Service, serviceStartMethod, serviceStopMethod, exposed } from "./servicePrimatives";
+import { FsDriver } from "./fsDriver";
+import ConfigStorage from "./storage";
+import { StoreNames, PinnedFolder, SignalEvent, RemoteItem } from "./types";
+import Signal from "./signals";
+import { getServiceController } from "./utils"
 
 const PINNED_FOLDERS_KEY = "pinnedFolders";
 
@@ -146,4 +146,4 @@ export abstract class FilesService extends Service {
     }
 }
 
-export { FsDriver } from "../files/fsDriver";
+export { FsDriver } from "./fsDriver";

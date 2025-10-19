@@ -16,7 +16,7 @@ import {
 import LoadingIcon from '@/components/ui/loadingIcon'
 import { printFingerprint, getUrlFromIconKey } from '@/lib/utils'
 import { ConnectionInfo, PeerInfo, ServiceDocTree, ServiceDoc, MethodInfo } from 'shared/types'
-import ServiceController from 'shared/services/controller'
+import ServiceController from 'shared/controller'
 import { ThemedIconName } from '@/lib/enums';
 import { Input } from '@/components/ui/input';
 

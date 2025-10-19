@@ -1,7 +1,7 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, RPCController, getMethodInfo, assertServiceRunning, RPCControllerProxy } from "./primatives";
-import { ProxyHandlers, GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo, SignalEvent } from "../types";
-import { RPCPeer, RPCPeerOptions } from "../net/rpc";
-import Signal, { SignalNodeRef } from "../signals";
+import { Service, serviceStartMethod, serviceStopMethod, exposed, RPCController, getMethodInfo, assertServiceRunning, RPCControllerProxy } from "./servicePrimatives";
+import { ProxyHandlers, GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo, SignalEvent } from "./types";
+import { RPCPeer, RPCPeerOptions } from "./rpc";
+import Signal, { SignalNodeRef } from "./signals";
 
 
 export abstract class ConnectionInterface {

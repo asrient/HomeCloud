@@ -1,6 +1,6 @@
-import { exposed } from "shared/services/primatives";
+import { exposed } from "shared/servicePrimatives";
 import { DeletePhotosResponse, GetPhotosParams, Photo, PhotoLibraryLocation, GetPhotosResponse } from "shared/types";
-import { PhotosService } from "shared/services/photosService";
+import { PhotosService } from "shared/photosService";
 import * as MediaLibrary from 'expo-media-library';
 import mime from 'mime';
 

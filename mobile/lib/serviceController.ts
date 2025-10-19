@@ -1,6 +1,6 @@
-import ServiceController from "shared/services/controller";
-import { NetService } from "shared/services/netService";
-import { AppService } from "shared/services/appService";
+import ServiceController from "shared/controller";
+import { NetService } from "shared/netService";
+import { AppService } from "shared/appService";
 import TCPInterface from "./services/tcpInterface";
 import { ConnectionType } from "shared/types";
 import MobileSystemService from "./services/systemService";

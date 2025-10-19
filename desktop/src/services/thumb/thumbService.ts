@@ -3,8 +3,8 @@ import { platform } from "os";
 import ThumbGeneratorWin from "./generators/win";
 import ThumbGeneratorMac from "./generators/mac";
 import ThumbGeneratorLinux from "./generators/linux";
-import { ThumbService } from "shared/services/thumbService";
-import { serviceStartMethod, serviceStopMethod } from "shared/services/primatives";
+import { ThumbService } from "shared/thumbService";
+import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { Buffer } from "buffer";
 
 export default class DesktopThumbService extends ThumbService {

@@ -1,6 +1,6 @@
-import { SystemService } from "shared/services/systemService";
+import { SystemService } from "shared/systemService";
 import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType } from "shared/types";
-import { serviceStartMethod, serviceStopMethod } from "shared/services/primatives";
+import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { Alert, Platform, Linking } from 'react-native';
 import * as Device from 'expo-device';
 import { Paths } from 'expo-file-system/next';

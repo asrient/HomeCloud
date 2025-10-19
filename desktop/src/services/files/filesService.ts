@@ -1,4 +1,4 @@
-import { FilesService } from "shared/services/filesService";
+import { FilesService } from "shared/filesService";
 import LocalFsDriver from "./fs";
 import path from "path";
 import fs from "fs/promises";

@@ -1,4 +1,4 @@
-import { FilesService } from "shared/services/filesService";
+import { FilesService } from "shared/filesService";
 import MobileFsDriver from "./fs";
 import { getServiceController } from "shared/utils";
 import { Paths, File } from 'expo-file-system/next';

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import ServiceController from "shared/services/controller";
+import ServiceController from "shared/controller";
 import { useResource } from "./useResource";
 import { PhotoLibraryLocation } from "shared/types";
 import { PhotosFetchOptions, PhotoView } from "@/lib/types";

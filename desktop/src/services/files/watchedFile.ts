@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { getPartionedTmpDir } from "../../utils";
 import { watch, FSWatcher } from 'chokidar';
-import ServiceController from "shared/services/controller";
+import ServiceController from "shared/controller";
 import { getServiceController } from "shared/utils";
 import { getFileContent } from "./fileUtils";
 

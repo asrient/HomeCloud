@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PinnedFolder, RemoteItem } from "shared/types";
 import { SignalNodeRef } from "shared/signals";
-import ServiceController from "shared/services/controller";
+import ServiceController from "shared/controller";
 import { useResource } from "./useResource";
 import { SignalEvent } from "@/lib/enums";
 

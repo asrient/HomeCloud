@@ -1,6 +1,6 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./primatives";
-import { DeletePhotosResponse, GetPhotosParams, GetPhotosResponse, Photo, PhotoLibraryLocation, StoreNames } from "../types";
-import ConfigStorage from "../storage";
+import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
+import { DeletePhotosResponse, GetPhotosParams, GetPhotosResponse, Photo, PhotoLibraryLocation, StoreNames } from "./types";
+import ConfigStorage from "./storage";
 
 
 export abstract class PhotosService extends Service {

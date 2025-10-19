@@ -1,6 +1,6 @@
-import { FsDriver } from "shared/files/fsDriver";
+import { FsDriver } from "shared/fsDriver";
 import { FileContent, RemoteItem } from "shared/types";
-import { exposed } from "shared/services/primatives";
+import { exposed } from "shared/servicePrimatives";
 import { File, Paths, Directory } from 'expo-file-system/next';
 import * as FileSystem from 'expo-file-system';
 import { getDrivesMapping, pathToUri, uriToPath } from "./fileUtils";
