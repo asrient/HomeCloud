@@ -42,6 +42,7 @@ export default abstract class CryptoModule {
         return Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
     }
 
+    abstract bufferToBase64(data: Uint8Array): Promise<string>;
     abstract encryptPK(data: string | Uint8Array, publicKeyPem: string): Promise<Uint8Array>;
     abstract decryptPK(data: string | Uint8Array, privateKeyPem: string): Promise<Uint8Array>;
     abstract sign(data: string | Uint8Array, privateKeyPem: string): Promise<Uint8Array>;

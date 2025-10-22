@@ -51,9 +51,10 @@ async function getConfig() {
     const dataDir = Paths.document.uri;
     const { privateKeyPem, publicKeyPem } = await getOrGenerateKeys(dataDir);
     const fingerprint = cryptoModule.getFingerprintFromPem(publicKeyPem);
+    const isDev = Platform.isTesting || __DEV__;
     const mobilePlatform: MobilePlatform = Platform.OS === 'ios' ? MobilePlatform.IOS : MobilePlatform.ANDROID;
     const mobileConfig: MobileConfigType = {
-        IS_DEV: Platform.isTesting || __DEV__,
+        IS_DEV: isDev,
         PLATFORM: mobilePlatform,
         DATA_DIR: dataDir,
         SECRET_KEY: createOrGetSecretKey(dataDir),
@@ -64,6 +65,8 @@ async function getConfig() {
         FINGERPRINT: fingerprint,
         APP_NAME: applicationName || 'Continuity',
         UI_THEME: mobilePlatform === MobilePlatform.IOS ? UITheme.Ios : UITheme.Android,
+        SERVER_URL: process.env.EXPO_PUBLIC_SERVER_URL || "http://localhost:4000",
+        WS_SERVER_URL: process.env.EXPO_PUBLIC_WS_SERVER_URL || "ws://localhost:4000/ws",
     };
     return mobileConfig;
 }
@@ -78,7 +81,7 @@ export async function initModules() {
         getLocalServiceController: () => MobileServiceController.getLocalInstance<MobileServiceController>(),
         getRemoteServiceController: async (fingerprint: string) => {
             return MobileServiceController.getRemoteInstance(fingerprint);
-        }
+        },
     };
     setModules(modules, global);
     const serviceController = MobileServiceController.getLocalInstance<MobileServiceController>();

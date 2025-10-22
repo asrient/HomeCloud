@@ -7,7 +7,7 @@ import Discovery from "./discovery";
  * TCP-based implementation of ConnectionInterface using Bonjour service discovery.
  */
 export default class TCPInterface extends ConnectionInterface {
-    isSecure = false;
+    isSecure = true; // TCP connections are only established over local networks only so we are avoiding encryption overhead.
     discovery: Discovery;
     private server: net.Server | null = null;
     private connections: Map<string, net.Socket> = new Map();

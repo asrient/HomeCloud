@@ -6,6 +6,7 @@ const ACK_BATCH_SIZE = 6;
 const RETRANSMIT_TIMEOUT = 600; // ms
 const MAX_RETRANSMITS = 8;
 const MAX_BUFFERED_PACKETS = 256;
+const MAX_ACK_DELAY_MS = 200;
 
 // Flags
 const FLAG_DATA = 0;
@@ -61,6 +62,8 @@ export class ReDatagram {
             this.cleanup();
             if (this.isClosing) this.onClose?.(null);
         };
+
+        this.sendHello();
     }
 
     private encodeHeader(type: number, seq: number): Uint8Array {
@@ -135,15 +138,33 @@ export class ReDatagram {
 
     private reorderBuffer = new Map<number, Uint8Array>();
 
+    private ackDelayTimeout: number | null = null;
+
+    private sendPendingAcks() {
+        if (this.ackPending > 0) {
+            this.sendAck(this.recvSeq - 1);
+            this.ackPending = 0;
+        }
+        this.ackDelayTimeout = null;
+    }
+
     private handleDataPacket(seq: number, payload: Uint8Array) {
         if (seq === this.recvSeq) {
             this.recvSeq = this.recvSeq + 1;
             this.ackPending++;
             this.onMessage?.(payload);
+            // Schedule delayed ACK
+            if (!this.ackDelayTimeout) {
+                this.ackDelayTimeout = setTimeout(() => this.sendPendingAcks(), MAX_ACK_DELAY_MS);
+            }
             // send ACKs every few packets
             if (this.ackPending >= ACK_BATCH_SIZE) {
                 this.sendAck(this.recvSeq - 1);
                 this.ackPending = 0;
+                if (this.ackDelayTimeout) {
+                    clearTimeout(this.ackDelayTimeout);
+                    this.ackDelayTimeout = null;
+                }
             }
             // Process next contiguous buffered packet if available
             if (this.reorderBuffer.has(this.recvSeq)) {
@@ -165,6 +186,7 @@ export class ReDatagram {
 
         if (type === FLAG_DATA) {
             const payload = buf.subarray(HEADER_SIZE);
+            console.log(`[ReUDP] Received DATA seq=${seq}, size=${payload.length}`);
             this.handleDataPacket(seq, payload);
         }
         else if (type === FLAG_ACK) {
@@ -180,22 +202,26 @@ export class ReDatagram {
             }
         }
         else if (type === FLAG_HELLO) {
+            console.log("[ReUDP] Received HELLO, sending HELLO_ACK");
             const header = this.encodeHeader(FLAG_HELLO_ACK, 0);
             this.socket.send(header, this.remote.port, this.remote.address);
         }
         else if (type === FLAG_HELLO_ACK) {
+            console.log("[ReUDP] Received HELLO_ACK");
             if (!this.isMyHelloAcked) {
                 this.isMyHelloAcked = true;
                 if (this.onReady) this.onReady();
             }
         }
         else if (type === FLAG_BYE) {
+            console.log("[ReUDP] Received BYE from remote, closing connection.");
             this.isRemoteClosed = true;
             this.close();
         }
     }
 
     private sendAck(seq: number) {
+        console.log(`[ReUDP] Sending ACK for seq=${seq}`);
         const header = this.encodeHeader(FLAG_ACK, seq);
         this.socket.send(header, this.remote.port, this.remote.address);
     }

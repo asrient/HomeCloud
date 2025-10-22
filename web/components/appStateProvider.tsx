@@ -65,6 +65,9 @@ function WithInitialState({ children }: {
         if (bindingRef.current) {
             localSc.readyStateSignal.detach(bindingRef.current);
             bindingRef.current = null;
+            if (loadingStateRef.current === 'loading') {
+                loadingStateRef.current = 'initial';
+            }
         }
         if (peerSignalRef.current) {
             localSc.app.peerSignal.detach(peerSignalRef.current);
@@ -106,6 +109,7 @@ function WithInitialState({ children }: {
                 }
             });
         }
+        console.log('current loading state:', loadingStateRef.current);
         if (loadingStateRef.current === 'initial') {
             if (localSc && localSc.readyState) {
                 console.log("Service controller is already up:", localSc.readyState);

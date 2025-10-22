@@ -125,4 +125,8 @@ export default class CryptoImpl extends CryptoModule {
     uuid() {
         return crypto.randomUUID();
     }
+
+    async bufferToBase64(data: Uint8Array): Promise<string> {
+        return Buffer.from(data).toString('base64');
+    }
 }

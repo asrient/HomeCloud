@@ -7,6 +7,8 @@ import MobileSystemService from "./services/systemService";
 import MobileThumbService from "./services/thumbService";
 import MobileFilesService from "./services/filesService";
 import { MobilePhotosService } from "./services/photosService";
+import { AccountService } from "shared/accountService";
+import { HttpClient_, WebSocket_ } from "./mobileCompat";
 
 const TCP_PORT = 7736;
 
@@ -17,9 +19,14 @@ export default class MobileServiceController extends ServiceController {
     public override thumbnail = MobileThumbService.getInstance<MobileThumbService>();
     public override files = MobileFilesService.getInstance<MobileFilesService>();
     public override photos = MobilePhotosService.getInstance<MobilePhotosService>();
+    public override account = AccountService.getInstance<AccountService>();
 
     async setup() {
         console.log("Setting up services...");
+        await this.account.init({
+            httpClient: new HttpClient_(),
+            webSocket: new WebSocket_()
+        });
         await this.app.init();
         await this.system.init();
         await this.files.init();
@@ -39,6 +46,7 @@ export default class MobileServiceController extends ServiceController {
     private async startAll() {
         // Start services.
         console.log("Starting services...");
+        await this.account.start();
         await this.app.start();
         await this.net.start();
         await this.system.start();

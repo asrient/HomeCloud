@@ -90,6 +90,8 @@ async function getConfig() {
     IS_DESKTOP_PACKED: isPackaged,
     IS_DEV: env.NODE_ENV === 'development',
     USE_WEB_APP_SERVER: env.USE_WEB_APP_SERVER,
+    SERVER_URL: env.SERVER_URL,
+    WS_SERVER_URL: env.WS_SERVER_URL,
     DATA_DIR: dataDir,
     SECRET_KEY: createOrGetSecretKey(dataDir),
     VERSION: app.getVersion(),
@@ -233,7 +235,6 @@ function handleProtocols() {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
   await initModules();
-  // console.log('Modules initialized:', global.modules);
   handleProtocols();
   // Create the main window
   createWindow();

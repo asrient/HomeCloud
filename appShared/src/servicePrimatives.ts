@@ -87,6 +87,10 @@ export class Service {
         return "pong";
     }
 
+    protected isServiceRunning(): boolean {
+        return this.isRunning;
+    }
+
     protected _init() {
         if (this.isInitialized) {
             throw new Error("Service is already initialized.");

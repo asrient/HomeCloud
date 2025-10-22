@@ -105,6 +105,8 @@ export type AppConfigType = {
     FINGERPRINT: string;
     APP_NAME: string;
     UI_THEME: UITheme;
+    SERVER_URL: string;
+    WS_SERVER_URL: string;
 }
 
 export type PeerInfo = {
@@ -120,13 +122,6 @@ export type BonjourTxt = {
     iconKey: string;
     deviceName: string;
     fingerprint: string;
-}
-
-export type PairingRequest = {
-    clientDeviceName: string;
-    clientFinerprint: string;
-    targetFingerprint: string;
-    expireAt: number;
 }
 
 export type NativeButtonConfig = {
@@ -151,6 +146,7 @@ export enum StoreNames {
     APP = "app",
     FILES = "files",
     PHOTOS = "photos",
+    ACCOUNT = "account",
 }
 
 export type DefaultDirectories = {
@@ -233,3 +229,29 @@ export type Photo = {
     height: number;
     width: number;
 }
+
+export type WebcInit = {
+    fingerprint: string;
+    pin: string;
+    serverAddress?: string;
+    serverPort?: number;
+}
+
+export type WebcPeerData = {
+    pin: string;
+    peerAddress: string;
+    peerPort: number;
+}
+
+export type AccountLinkResponse = {
+    requestId: string;
+    isEmailChange: boolean;
+    requiresVerification: boolean;
+}
+
+export type AccountLinkVerifyResponse = {
+    authToken: string;
+    tokenExpiry: number;
+    email: string | null;
+    accountId: string;
+};

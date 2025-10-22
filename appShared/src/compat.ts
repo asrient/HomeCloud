@@ -15,3 +15,23 @@ export abstract class DatagramCompat {
 
     onMessage?: (msg: Uint8Array, rinfo: { address: string; family: string; port: number }) => void;
 }
+
+export interface HttpClientCompat {
+    setDefaultHeader(name: string, value: string): void;
+    get(url: string | URL, headers?: Record<string, string>): Promise<Response>;
+    post(url: string | URL, body: any, headers?: Record<string, string>): Promise<Response>;
+}
+
+export abstract class WsClientCompat {
+    abstract onopen?: (event: Event) => void;
+    abstract onmessage?: (event: MessageEvent) => void;
+    abstract onclose?: (event: CloseEvent) => void;
+    abstract onerror?: (event: Event) => void;
+
+    abstract isConnected(): boolean;
+
+    abstract send(data: string | ArrayBuffer | Blob | ArrayBufferView): void;
+    abstract close(code?: number, reason?: string): void;
+
+    abstract connect(url: string, protocols?: string | string[]): void;
+}

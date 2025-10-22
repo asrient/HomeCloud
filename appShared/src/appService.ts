@@ -8,10 +8,81 @@ export class AppService extends Service {
     protected store: ConfigStorage;
     protected allowPairing: boolean = true;
 
+    private lastPeerListSync: number = 0;
+    private isPeerInfoPushed: boolean = false;
+
     public async init() {
         this._init();
         this.store = modules.ConfigStorage.getInstance(StoreNames.APP);
         await this.store.load();
+
+        // Setup account hooks
+        const localSc = modules.getLocalServiceController();
+        localSc.account.accountLinkedSignal.add(async () => {
+            console.log("Account linked - resyncing peer list...");
+            await this.resyncPeerList();
+        });
+
+        localSc.account.accountUnlinkedSignal.add(async () => {
+            console.log("Account unlinked - resetting peer list...");
+            await this.resetPeersInStore();
+        });
+
+        localSc.account.websocketConnectedSignal.add(async () => {
+            console.log("WebSocket connected - resyncing peer list...");
+            await this.resyncPeerListIfNeeded();
+            await this.pushPeerInfoIfNeeded();
+        });
+
+        localSc.account.peerAddedSignal.add(async (peer: PeerInfo) => {
+            console.log("Account peer added - adding to peer list...", peer.fingerprint);
+            await this.addPeerToStore(peer);
+        });
+
+        localSc.account.peerRemovedSignal.add(async (peer: PeerInfo) => {
+            console.log("Account peer removed - removing from peer list...", peer.fingerprint);
+            await this.removePeerFromStore(peer.fingerprint);
+        });
+    }
+
+    public async resyncPeerListIfNeeded() {
+        const now = Date.now();
+        if (now - this.lastPeerListSync > 60 * 1000) { // 1 min
+            return this.resyncPeerList();
+        }
+    }
+
+    public async resyncPeerList() {
+        const localSc = modules.getLocalServiceController();
+        if (!localSc.account.isLinked()) {
+            console.log("Account not linked. Skipping peer list resync.");
+            return;
+        }
+        console.log("Resyncing peer list from server...");
+        let remotePeers: PeerInfo[] = [];
+        try {
+            remotePeers = await localSc.account.getPeerList();
+        } catch (err) {
+            console.error("Failed to fetch peer list from server:", err);
+            return;
+        }
+        this.lastPeerListSync = Date.now();
+        const localPeers = this.getPeers();
+        const localPeerMap = new Map<string, PeerInfo>();
+        localPeers.forEach((peer) => {
+            localPeerMap.set(peer.fingerprint, peer);
+        });
+        // Add or update peers
+        for (const remotePeer of remotePeers) {
+            console.log("Adding/updating peer from server:", remotePeer);
+            await this.addPeerToStore(remotePeer);
+            localPeerMap.delete(remotePeer.fingerprint);
+        }
+        // Remove peers that are no longer present
+        for (const [fingerprint,] of localPeerMap) {
+            await this.removePeerFromStore(fingerprint);
+        }
+        console.log("Peer list resynced.");
     }
 
     public isPairingAllowed(): boolean {
@@ -43,10 +114,21 @@ export class AppService extends Service {
         const peer = peers.splice(ind, 1)[0];
         this.store.setItem('peers', peers);
         await this.store.save();
+        this.peerSignal.dispatch(SignalEvent.REMOVE, peer);
         return peer;
     }
 
+    protected async resetPeersInStore() {
+        this.store.setItem('peers', []);
+        await this.store.save();
+    }
+
     protected async addPeerToStore(peer: PeerInfo) {
+        // skip self in production
+        if (peer.fingerprint === modules.config.FINGERPRINT && !modules.config.IS_DEV) {
+            console.log("Skipping self peer during resync.", peer);
+            return null;
+        }
         const peers = this.getPeers();
         const existingPeer = peers.find((p) => p.fingerprint === peer.fingerprint);
         if (existingPeer) {
@@ -66,29 +148,31 @@ export class AppService extends Service {
         return peer;
     }
 
-    public async removePeer(fingerprint: string) {
-        const peer = await this.removePeerFromStore(fingerprint);
-        this.peerSignal.dispatch(SignalEvent.REMOVE, peer);
-        // notify the removal
+    public async pushPeerInfoUpdate() {
+        const localSc = modules.getLocalServiceController();
+        if (!localSc.account.isLinked()) {
+            console.log("Account not linked. Skipping peer info update.");
+            return;
+        }
         try {
-            const remoteService = await modules.ServiceController.getRemoteInstance(fingerprint);
-            await remoteService.app.notifyRemoval();
-        } catch (error) {
-            console.error(`Error notifying ${fingerprint} about removal:`, error);
+            await localSc.account.updatePeerInfo(await this.peerInfo());
+            this.isPeerInfoPushed = true;
+        } catch (err) {
+            console.error("Failed to update peer info:", err);
         }
     }
 
-    @exposed
-    @withContext
-    public async notifyRemoval(ctx?: MethodContext) {
-        if (!ctx) {
-            throw new Error("Context is required.");
+    public async pushPeerInfoIfNeeded() {
+        if (!this.isPeerInfoPushed) {
+            await this.pushPeerInfoUpdate();
+            this.isPeerInfoPushed = true;
         }
-        console.log(`Notify Removal: Peer ${ctx.fingerprint} removed.`);
-        // remove the peer from the store
-        await this.removePeerFromStore(ctx.fingerprint);
-        // notify the peer
-        // this.emit('peerRemoved', fingerprint);
+    }
+
+    public async linkAccount(email: string) {
+        const localSc = modules.getLocalServiceController();
+        const peerInfo = await this.peerInfo();
+        return localSc.account.initiateLink(email, peerInfo);
     }
 
     @exposed
@@ -105,72 +189,8 @@ export class AppService extends Service {
         return peer;
     }
 
-    public async initiatePairing(fingerprint: string): Promise<PeerInfo> {
-        const remotePeer = await modules.ServiceController.getRemoteInstance(fingerprint);
-        // Get the peer info from the remote service
-        console.log(`Initiating pairing with peer:`, fingerprint);
-        const peerInfo = await remotePeer.app.requestPairing(null, await this.peerInfo());
-        // make sure fingerprint matches
-        if (peerInfo.fingerprint !== fingerprint) {
-            throw new Error("Fingerprint mismatch.");
-        }
-        // Add the peer to the store
-        await this.addPeerToStore(peerInfo);
-        // Alert the user about the new peer
-        const localSc = modules.getLocalServiceController();
-        localSc.system.alert("New Device Paired", `Device ${peerInfo.deviceName} (${peerInfo.fingerprint}) has been paired successfully.`);
-        return peerInfo;
-    }
-
-    @exposed
-    @allowAll
-    @withContext
-    public async requestPairing(ctx: MethodContext | null, remotePeerInfo: PeerInfo): Promise<PeerInfo> {
-        // Check if pairing is allowed
-        if (!this.isPairingAllowed()) {
-            throw new Error("Pairing is not allowed.");
-        }
-        // make sure fingerprint matches with context
-        if (ctx.fingerprint !== remotePeerInfo.fingerprint) {
-            throw new Error("Fingerprint mismatch.");
-        }
-        // Ask the user if they want to pair with the peer
-        const deviceName = remotePeerInfo.deviceName || "Unknown Device";
-        const os = remotePeerInfo.deviceInfo.os || "Unknown OS";
-        const fingerprint = remotePeerInfo.fingerprint;
-        const localSc = modules.getLocalServiceController();
-        return new Promise<PeerInfo>((resolve, reject) => {
-            localSc.system.ask({
-                title: `Pair with ${deviceName}?`,
-                description: `A device with fingerprint ${fingerprint} (${os}) wants to pair with this device.`,
-                buttons: [
-                    {
-                        text: "Cancel",
-                        type: "default",
-                        isDefault: true,
-                        onPress: () => {
-                            console.log("Pairing cancelled by user.");
-                            reject(new Error("Pairing cancelled by user."));
-                        }
-                    },
-                    {
-                        text: "Pair",
-                        type: "primary",
-                        isHighlighted: true,
-                        onPress: async () => {
-                            console.log(`Pairing with ${deviceName} (${fingerprint})...`);
-                            // Add the peer to the store
-                            await this.addPeerToStore(remotePeerInfo);
-                            resolve(this.peerInfo());
-                        }
-                    }
-                ]
-            })
-        });
-    }
-
     public checkAccess(fingerprint: string, fqn: string, info: MethodInfo): [boolean, string | null] {
-        console.log('checkAccess', fingerprint, fqn, info);
+        // console.log('checkAccess', fingerprint, fqn, info);
         if (!info.isExposed) {
             return [false, `Method ${fqn} is not exposed.`];
         }
@@ -185,6 +205,10 @@ export class AppService extends Service {
 
     @serviceStartMethod
     public async start() {
+        this.resyncPeerListIfNeeded();
+        this.pushPeerInfoIfNeeded();
+        // dummy await for 6 sec
+        // await new Promise((resolve) => setTimeout(resolve, 6 * 1000));
     }
 
     @serviceStopMethod

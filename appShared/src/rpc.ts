@@ -202,7 +202,7 @@ export class RPCPeer {
 
     private onFrame = async ({ type, flags, payload }: { type: number, payload: Uint8Array, flags: number }) => {
         if (!this.targetPublicKeyPem && type !== MessageType.HELLO) {
-            console.warn('Received message before HELLO', type);
+            console.warn('Received message before HELLO', type, new TextDecoder().decode(payload));
             return;
         }
         if (!this.isReady() && !SETUP_AUTH_TYPES.includes(type)) {

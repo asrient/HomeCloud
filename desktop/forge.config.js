@@ -10,6 +10,16 @@ const ALLOWED_NODE_ENVS = ['development', 'production'];
 function getEnvFileContent() {
   const NODE_ENV = process.env.NODE_ENV || 'production';
   const USE_WEB_APP_SERVER = process.env.USE_WEB_APP_SERVER === 'true';
+  const SERVER_URL = process.env.SERVER_URL;
+  const WS_SERVER_URL = process.env.WS_SERVER_URL;
+
+  if (!SERVER_URL) {
+    throw new Error(`SERVER_URL is not set`);
+  }
+
+  if (!WS_SERVER_URL) {
+    throw new Error(`WS_SERVER_URL is not set`);
+  }
 
   if (!ALLOWED_NODE_ENVS.includes(NODE_ENV)) {
     throw new Error(`NODE_ENV should be one of ${ALLOWED_NODE_ENVS.join(', ')}. Received: ${NODE_ENV}`);
@@ -17,13 +27,17 @@ function getEnvFileContent() {
 
   console.log('NODE_ENV:', NODE_ENV);
   console.log('USE_WEB_APP_SERVER:', USE_WEB_APP_SERVER ? 'true' : 'false');
-  console.log('ONEAUTH_APP_ID:', !!process.env.ONEAUTH_APP_ID ? '**hidden**' : 'NOT SET');
+  console.log('APP_ID:', !!process.env.APP_ID ? '**hidden**' : 'NOT SET');
+  console.log('SERVER_URL:', SERVER_URL || 'NOT SET');
+  console.log('WS_SERVER_URL:', WS_SERVER_URL || 'NOT SET');
 
   const env = {
     NODE_ENV,
-    ONEAUTH_APP_ID: process.env.ONEAUTH_APP_ID,
+    APP_ID: process.env.APP_ID,
     USE_WEB_APP_SERVER,
     UI_THEME: null,
+    SERVER_URL,
+    WS_SERVER_URL,
   };
   const txt = `
 // BY ASRIENT

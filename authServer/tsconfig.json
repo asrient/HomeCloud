@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "baseUrl": "src",
+    "outDir": "dist",
+    "allowJs": true,
+    "module": "nodenext",
+    "esModuleInterop": true,
+    "target": "ESNext",
+    "declaration": true,
+  },
+  "include": [
+    "src/**/*"
+  ],
+}
