@@ -67,18 +67,33 @@ export class ReDatagram {
     }
 
     private encodeHeader(type: number, seq: number): Uint8Array {
+        if (type < 0 || type > 255) {
+            throw new Error(`Invalid packet type: ${type}`);
+        }
+        if (seq < 0 || seq > 0xFFFFFFFF) {
+            throw new Error(`Invalid sequence number: ${seq}`);
+        }
+        
         const buf = new Uint8Array(HEADER_SIZE);
         buf[0] = type;
-        new DataView(buf.buffer).setUint32(1, seq);
+        new DataView(buf.buffer).setUint32(1, seq, false); // false = big-endian
         return buf;
     }
 
     private decodeHeader(buf: Uint8Array): { type: number; seq: number } {
-        const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-        return {
-            type: view.getUint8(0),
-            seq: view.getUint32(1),
-        };
+        if (buf.length < HEADER_SIZE) {
+            throw new Error(`Invalid packet: too short (${buf.length} < ${HEADER_SIZE})`);
+        }
+        
+        const view = new DataView(buf.buffer, buf.byteOffset, HEADER_SIZE);
+        const type = view.getUint8(0);
+        const seq = view.getUint32(1, false); // false = big-endian
+        
+        if (type > FLAG_BYE) {
+            throw new Error(`Invalid packet type: ${type}`);
+        }
+        
+        return { type, seq };
     }
 
     private sendHello(attempt = 1) {
@@ -94,10 +109,15 @@ export class ReDatagram {
     }
 
     async send(data: Uint8Array) {
+        if (data.length === 0) {
+            console.warn('[ReUDP] Attempting to send empty data');
+            return;
+        }
+        
         let offset = 0;
         while (offset < data.length) {
             const chunkSize = Math.min(MAX_PACKET_PAYLOAD, data.length - offset);
-            const chunk = data.subarray(offset, offset + chunkSize);
+            const chunk = data.slice(offset, offset + chunkSize);
 
             await this.sendPacket(chunk);
             offset += chunkSize;
@@ -105,6 +125,10 @@ export class ReDatagram {
     }
 
     private async sendPacket(data: Uint8Array) {
+        if (data.length > MAX_PACKET_PAYLOAD) {
+            throw new Error(`Packet payload too large: ${data.length} > ${MAX_PACKET_PAYLOAD}`);
+        }
+        
         const seq = this.sendSeq;
         this.sendSeq = this.sendSeq + 1;
 
@@ -113,12 +137,17 @@ export class ReDatagram {
         packet.set(header);
         packet.set(data, header.length);
 
-        this.socket.send(packet, this.remote.port, this.remote.address);
-        this.sendWindow.set(seq, packet);
+        try {
+            this.socket.send(packet, this.remote.port, this.remote.address);
+            this.sendWindow.set(seq, packet);
 
-        // schedule retransmit
-        const timer = setTimeout(() => this.retransmit(seq), RETRANSMIT_TIMEOUT);
-        this.retransmitTimers.set(seq, timer);
+            // schedule retransmit
+            const timer = setTimeout(() => this.retransmit(seq), RETRANSMIT_TIMEOUT);
+            this.retransmitTimers.set(seq, timer);
+        } catch (error) {
+            console.error(`[ReUDP] Failed to send packet seq=${seq}:`, error);
+            throw error;
+        }
     }
 
     private retransmit(seq: number, attempt = 1) {
@@ -149,6 +178,11 @@ export class ReDatagram {
     }
 
     private handleDataPacket(seq: number, payload: Uint8Array) {
+        if (seq < 1 || seq > 0xFFFFFFFF) {
+            console.warn(`[ReUDP] Invalid sequence number: ${seq}`);
+            return;
+        }
+        
         if (seq === this.recvSeq) {
             this.recvSeq = this.recvSeq + 1;
             this.ackPending++;
@@ -182,13 +216,23 @@ export class ReDatagram {
     private sendBase = 1; // first un-ACKed sequence
 
     private handlePacket(buf: Uint8Array) {
-        const { type, seq } = this.decodeHeader(buf);
+        try {
+            if (buf.length === 0) {
+                console.warn('[ReUDP] Received empty packet, ignoring');
+                return;
+            }
+            
+            const { type, seq } = this.decodeHeader(buf);
 
-        if (type === FLAG_DATA) {
-            const payload = buf.subarray(HEADER_SIZE);
-            console.log(`[ReUDP] Received DATA seq=${seq}, size=${payload.length}`);
-            this.handleDataPacket(seq, payload);
-        }
+            if (type === FLAG_DATA) {
+                if (buf.length < HEADER_SIZE) {
+                    console.warn(`[ReUDP] DATA packet too short: ${buf.length}`);
+                    return;
+                }
+                const payload = buf.slice(HEADER_SIZE);
+                // console.log(`[ReUDP] Received DATA seq=${seq}, size=${payload.length}`);
+                this.handleDataPacket(seq, payload);
+            }
         else if (type === FLAG_ACK) {
             const nextAck = seq + 1;
             // Remove all cached packets from sendBase up to nextAck
@@ -202,12 +246,12 @@ export class ReDatagram {
             }
         }
         else if (type === FLAG_HELLO) {
-            console.log("[ReUDP] Received HELLO, sending HELLO_ACK");
+            // console.log("[ReUDP] Received HELLO, sending HELLO_ACK");
             const header = this.encodeHeader(FLAG_HELLO_ACK, 0);
             this.socket.send(header, this.remote.port, this.remote.address);
         }
         else if (type === FLAG_HELLO_ACK) {
-            console.log("[ReUDP] Received HELLO_ACK");
+            // console.log("[ReUDP] Received HELLO_ACK");
             if (!this.isMyHelloAcked) {
                 this.isMyHelloAcked = true;
                 if (this.onReady) this.onReady();
@@ -218,10 +262,17 @@ export class ReDatagram {
             this.isRemoteClosed = true;
             this.close();
         }
+        else {
+            console.warn(`[ReUDP] Unknown packet type: ${type}`);
+        }
+        } catch (error) {
+            console.error('[ReUDP] Error handling packet:', error);
+            // Don't close connection for malformed packets, just ignore them
+        }
     }
 
     private sendAck(seq: number) {
-        console.log(`[ReUDP] Sending ACK for seq=${seq}`);
+        // console.log(`[ReUDP] Sending ACK for seq=${seq}`);
         const header = this.encodeHeader(FLAG_ACK, seq);
         this.socket.send(header, this.remote.port, this.remote.address);
     }
