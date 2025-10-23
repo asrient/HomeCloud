@@ -1,19 +1,19 @@
 import { PageBar, PageContent } from "@/components/pagePrimatives";
 import { FormContainer, Section, Line } from '@/components/formPrimatives'
-import { buildPageConfig, getOSIconUrl, isMacosTheme } from '@/lib/utils'
+import { buildPageConfig, getOSIconUrl } from '@/lib/utils'
 import Head from 'next/head'
 import Image from 'next/image'
 import React, { useEffect, useMemo, useState } from 'react'
-import { staticConfig } from '@/lib/staticConfig'
 import ConfirmModal from '@/components/confirmModal'
 import { Button } from '@/components/ui/button'
-import { Settings } from "lucide-react";
 import { ThemedIconName } from "@/lib/enums";
 import { DeviceInfo } from "shared/types";
+import { useOnboardingStore } from "@/lib/onboardingState";
 
 function Page() {
 
   const [deviceInfo, setDeviceInfo] = useState<null | DeviceInfo>(null);
+  const { openDialog } = useOnboardingStore();
 
   useEffect(() => {
     const fetchDeviceInfo = async () => {
@@ -21,6 +21,16 @@ function Page() {
       setDeviceInfo(info);
     };
     fetchDeviceInfo();
+  }, []);
+
+  const isLinked = useMemo(() => {
+    const localSc = window.modules.getLocalServiceController();
+    return localSc.account.isLinked();
+  }, []);
+
+  const accountEmail = useMemo(() => {
+    const localSc = window.modules.getLocalServiceController();
+    return localSc.account.getAccountEmail();
   }, []);
 
   return (
@@ -43,23 +53,43 @@ function Page() {
                   <Image src={getOSIconUrl(deviceInfo)} alt={deviceInfo.os} width={20} height={20} className="mr-1" />
                   {`${deviceInfo.os} ${deviceInfo.osFlavour} (${deviceInfo.formFactor})`}
                 </div>
-                )}
+              )}
             </Line>
           </Section>
-          <Section>
-            <Line>
+          <Section title="Account">
+            {
+              !isLinked && <Line>
+                <Button variant='ghost' className="text-primary" size={'sm'} onClick={() => {
+                  openDialog('login', { reloadOnFinish: true });
+                }}>
+                  Login to account...
+                </Button>
+              </Line>
+            }
+            {
+              isLinked && <Line title='Email'>
+                {accountEmail}
+              </Line>
+            }
+            {
+            isLinked && <Line>
               <ConfirmModal
-                title='Logout'
-                description='Are you sure you want to logout from this browser?'
-                onConfirm={async () => { }}
+                title='Unlink Device'
+                description='Are you sure you want to unlink this device from your account?'
+                onConfirm={async () => {
+                  const localSc = window.modules.getLocalServiceController();
+                  await localSc.account.removePeer(null);
+                  window.location.reload();
+                }}
                 buttonVariant='destructive'
-                buttonText='Logout'
+                buttonText='Confirm'
               >
                 <Button variant='ghost' className='text-red-500' size='sm'>
-                  Logout..
+                  Unlink device...
                 </Button>
               </ConfirmModal>
             </Line>
+            }
           </Section>
           <div className='mt-6 mb-5 flex items-center justify-center font-base text-foreground/70'>
             <Image src='/icons/icon.png' priority alt='HomeCloud' width={25} height={25} />

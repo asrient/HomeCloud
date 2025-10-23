@@ -40,18 +40,18 @@ export const DeviceInfoSchema = z.object({
 
 // PeerInfo schema
 export const PeerInfoSchema = z.object({
-    deviceName: z.string(),
-    fingerprint: z.string(),
-    version: z.string(),
+    deviceName: z.string().min(1).max(255),
+    fingerprint: z.string().min(6),
+    version: z.string().min(1).max(64),
     deviceInfo: DeviceInfoSchema,
     iconKey: z.string().nullable(),
 }).strict();
 
 // AccountLinkSignedPayload schema
 export const AccountLinkSignedPayloadSchema = z.object({
-    email: z.string().nullable(),
+    email: z.email().nullable(),
     accountId: z.string().nullable(),
-    fingerprint: z.string(),
+    fingerprint: z.string().min(6),
     peerInfo: PeerInfoSchema.nullable(),
 }).strict();
 
@@ -60,8 +60,8 @@ export const AccountLinkRequestSchema = z.object({
     data: z.string(),
     signature: z.string(),
     publicKeyPem: z.string(),
-    expireAt: z.number(),
-    nonce: z.string(),
+    expireAt: z.number().min(0),
+    nonce: z.string().min(16).max(64),
 }).strict();
 
 // AccountLinkVerifyRequest schema
@@ -73,6 +73,11 @@ export const AccountLinkVerifyRequestSchema = z.object({
 // Peer fingerprint schema
 export const PeerFingerprintSchema = z.object({
     fingerprint: z.string(),
+}).strict();
+
+// Peer fingerprint schema
+export const PeerFingerprintOptionalSchema = z.object({
+    fingerprint: z.string().nullable(),
 }).strict();
 
 // WebcInit schema

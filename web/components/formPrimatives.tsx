@@ -41,7 +41,7 @@ export function Line({ children, title }: {
                     {title}
                 </div>
             }
-            <div className='ml-2 text-foreground text-right select-text'>{children}</div>
+            <div className='ml-2 text-foreground text-right select-text break-all'>{children}</div>
         </div>
     )
 }

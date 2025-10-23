@@ -2,7 +2,7 @@ import { ConnectionInfo } from "shared/types";
 import { usePeerState } from "./hooks/usePeerState";
 import { cn, getUrlFromIconKey, isMacosTheme, printFingerprint } from "@/lib/utils";
 import Image from 'next/image';
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAppState } from "./hooks/useAppState";
 import { useNavigation } from "./hooks/useNavigation";
 import { Button } from "@/components/ui/button"
@@ -14,7 +14,7 @@ import {
     DropdownMenuTrigger,
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
-import AddPeerModal from "./addPeerModal";
+import { useOnboardingStore } from "@/lib/onboardingState";
 import { CircleSlash2, Wifi, Signal, ChevronsUpDown } from "lucide-react";
 import { ConnectionType } from "@/lib/enums";
 
@@ -46,10 +46,7 @@ export const DeviceItem = ({
         <div
             className="w-max flex items-center justify-center">
             <Image src={getUrlFromIconKey(iconKey)} width={16} height={16} alt="Device icon" className='mr-2' />
-            <div className="text-sm text-foreground/70 text-ellipsis truncate">{deviceName || 'Anonymous device'}</div>
-            {fingerprint && <div className="text-sm text-foreground/40 text-ellipsis truncate ml-2">
-                {printFingerprint(fingerprint)}
-            </div>}
+            <div className={cn("text-ellipsis truncate", isMacosTheme() ? 'text-xs' : 'text-sm')}>{deviceName || 'Anonymous device'}</div>
         </div>
     );
 };
@@ -62,7 +59,12 @@ export function DeviceSwitcher({
     const peers = usePeerState();
     const { selectedFingerprint } = useAppState();
     const { openDevicePage } = useNavigation();
-    const [isAddPeerModalOpen, setIsAddPeerModalOpen] = useState(false);
+    const { openDialog } = useOnboardingStore();
+
+    const isLinked = () => {
+        const localSc = window.modules.getLocalServiceController();
+        return localSc.account.isLinked();
+    };
 
     const selectedPeer = peers.find(peer => peer.fingerprint === selectedFingerprint);
 
@@ -76,18 +78,17 @@ export function DeviceSwitcher({
 
     return (
         <>
-            <AddPeerModal isOpen={isAddPeerModalOpen} onOpenChange={(val) => setIsAddPeerModalOpen(val)} />
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="secondary" size='sm' 
-                    className={cn("h-7 bg-background flex items-center justify-between relative", isMacosTheme() && 'shadow-2xl border border-border/80')}
-                    style={{ width }}>
+                    <Button variant="secondary" size='sm'
+                        className={cn("h-7 bg-background flex items-center justify-between relative", isMacosTheme() && 'shadow-2xl border border-border/80')}
+                        style={{ width }}>
                         <div>{!!selectedFingerprint && <ConnectionIcon connection={selectedPeer?.connection || null} size={14} />}</div>
                         <div className="flex items-center justify-center text-ellipsis truncate max-w-[70%]">
                             <Image src={getUrlFromIconKey(selectedPeer?.iconKey)} width={16} height={16} alt="Device icon" className='mr-2' />
                             {selectedPeer ? (selectedPeer.deviceName || 'Anonymous device') : 'This Device'}
                         </div>
-                        <div><ChevronsUpDown className='text-foreground/80' size={14}/></div>
+                        <div><ChevronsUpDown className='text-foreground/80' size={14} /></div>
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent style={{ width }} align="center">
@@ -110,10 +111,15 @@ export function DeviceSwitcher({
                             />
                         </DropdownMenuCheckboxItem>
                     ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => setIsAddPeerModalOpen(true)}>
-                        Add device...
-                    </DropdownMenuItem>
+                    {
+                        !isLinked() &&
+                        <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => openDialog('login')}>
+                                Show more devices...
+                            </DropdownMenuItem>
+                        </>
+                    }
                 </DropdownMenuContent>
             </DropdownMenu>
         </>

@@ -84,6 +84,16 @@ function Page() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </Line>
+            <Line title='Reset Onboarding'>
+              <Button size='sm' variant={'secondary'} onClick={() => {
+                const localSc = window.modules.getLocalServiceController();
+                localSc.app.setOnboarded(false).then(() => {
+                  window.location.reload();
+                });
+              }}>
+                Reset
+              </Button>
+            </Line>
           </Section>
           <Section title='App Config'>
             {

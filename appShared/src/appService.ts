@@ -93,6 +93,15 @@ export class AppService extends Service {
         this.allowPairing = allowed;
     }
 
+    public isOnboarded(): boolean {
+        return this.store.getItem<boolean>('onboarded') || false;
+    }
+
+    public async setOnboarded(onboarded = true) {
+        this.store.setItem('onboarded', onboarded);
+        await this.store.save();
+    }
+
     public getPeers(): PeerInfo[] {
         return this.store.getItem<PeerInfo[]>('peers') || [];
     }

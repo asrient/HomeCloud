@@ -15,6 +15,7 @@ import {
     AccountLinkRequestSchema,
     AccountLinkVerifyRequestSchema,
     PeerFingerprintSchema,
+    PeerFingerprintOptionalSchema,
 } from './schema';
 import { ObjectId } from 'mongodb';
 
@@ -34,6 +35,7 @@ export type TokenType = z.infer<typeof TokenSchema>;
 export type AccountLinkRequest = z.infer<typeof AccountLinkRequestSchema>;
 export type AccountLinkVerifyRequest = z.infer<typeof AccountLinkVerifyRequestSchema>;
 export type PeerFingerprint = z.infer<typeof PeerFingerprintSchema>;
+export type PeerFingerprintOptional = z.infer<typeof PeerFingerprintOptionalSchema>;
 
 /* Database Types */
 

@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { getFn, getTokenContextOrThrow, postFn } from './expressHelper';
-import { assertAccountPeer, createWebcInit, getPeersForAccount, healthCheck, linkPeer, removePeer, updatePeer, verifyLink } from './lib';
-import { AccountLinkRequest, AccountLinkVerifyRequest, PeerInfo, PeerFingerprint } from './types';
-import { AccountLinkRequestSchema, AccountLinkVerifyRequestSchema, PeerInfoSchema, PeerFingerprintSchema } from './schema';
+import { assertAccountPeer, assertPeerById, createWebcInit, getPeersForAccount, healthCheck, linkPeer, removePeer, updatePeer, verifyLink } from './lib';
+import { AccountLinkRequest, AccountLinkVerifyRequest, PeerInfo, PeerFingerprint, PeerFingerprintOptional, Peer } from './types';
+import { AccountLinkRequestSchema, AccountLinkVerifyRequestSchema, PeerInfoSchema, PeerFingerprintSchema, PeerFingerprintOptionalSchema } from './schema';
 import { auth, requireAuth } from './middlewares';
 
 
@@ -29,11 +29,16 @@ appRouter.post('/peer/update', postFn<PeerInfo>(async (data, req) => {
     return updatePeer(data);
 }, PeerInfoSchema));
 
-appRouter.post('/peer/remove', postFn<PeerFingerprint>(async (data, req) => {
-    const { accountId } = getTokenContextOrThrow(req);
-    const peer = await assertAccountPeer(accountId, data.fingerprint);
+appRouter.post('/peer/remove', postFn<PeerFingerprintOptional>(async (data, req) => {
+    const { accountId, peerId } = getTokenContextOrThrow(req);
+    let peer: Peer;
+    if (data.fingerprint) {
+        peer = await assertAccountPeer(accountId, data.fingerprint);
+    } else {
+        peer = await assertPeerById(peerId);
+    }
     return removePeer(peer);
-}, PeerFingerprintSchema));
+}, PeerFingerprintOptionalSchema));
 
 appRouter.get('/peer', getFn((data, req) => {
     const { accountId } = getTokenContextOrThrow(req);

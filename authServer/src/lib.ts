@@ -60,6 +60,11 @@ export async function linkAccount(payload: AccountLinkSignedPayload): Promise<Ac
         throw CustomError.validationSingle('peerInfo', 'peerInfo must be provided for new peers');
     }
 
+    // avoid accidental email sending if user has not explicitly provided email via ui
+    if (isAccountChange && accountId && !email) {
+        throw CustomError.validationSingle('email', 'Account change requires email to be provided');
+    }
+
     const requestId = uniqueCode();
     const pin = requiresVerification ? generatePin(6) : null;
 
@@ -258,6 +263,14 @@ export async function assertAccountPeer(accountId: string | ObjectId, fingerprin
     const peer = await mcdb.getPeerForAccount(accountId, fingerprint);
     if (!peer) {
         throw CustomError.security('Peer not found for this account with the given fingerprint');
+    }
+    return peer;
+}
+
+export async function assertPeerById(peerId: string | ObjectId): Promise<Peer> {
+    const peer = await mcdb.getPeerById(peerId);
+    if (!peer) {
+        throw CustomError.security('Peer not found with the given id');
     }
     return peer;
 }

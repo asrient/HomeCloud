@@ -7,11 +7,13 @@ import { ConnectionInfo, PeerInfo } from 'shared/types';
 import { SignalNodeRef } from 'shared/signals';
 import { SignalEvent } from '@/lib/enums';
 import { rgbHexToHsl, setPrimaryColorHsl } from '@/lib/utils';
+import { useOnboardingStore } from '@/lib/onboardingState';
 
 function WithInitialState({ children }: {
     children: React.ReactNode;
 }) {
     const dispatch = useAppDispatch();
+    const { openDialog } = useOnboardingStore();
     const loadingStateRef = useRef<'initial' | 'loading' | 'loaded'>('initial');
     const bindingRef = useRef<SignalNodeRef<[boolean], string> | null>(null);
     const peerSignalRef = useRef<SignalNodeRef<[SignalEvent, PeerInfo], string> | null>(null);
@@ -57,7 +59,13 @@ function WithInitialState({ children }: {
                 dispatch(ActionTypes.REMOVE_CONNECTION, connection);
             }
         });
-    }, [dispatch]);
+
+        // Open onboarding if required
+        if (localSc.app.isOnboarded() === false) {
+            console.log("App is not onboarded, opening onboarding dialog...");
+            openDialog('welcome');
+        }
+    }, [dispatch, openDialog]);
 
     const clearSignals = useCallback(() => {
         console.log("Clearing signals...");
