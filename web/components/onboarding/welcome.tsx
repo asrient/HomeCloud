@@ -3,7 +3,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { useOnboardingStore } from "@/lib/onboardingState";
+import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { Button } from "../ui/button";
 import { cn, isMacosTheme } from "@/lib/utils";
 import Image from "next/image";
@@ -35,7 +35,7 @@ function IntroHero() {
             <Bulletin
                 icon="/icons/folder.png"
                 title="Browse documents"
-                description="Quickly find and open your documents saved on this or any another device."
+                description="Quickly find, open and edit your files saved on this or any another device."
             />
             <Bulletin
                 icon="/icons/nocloud.png"

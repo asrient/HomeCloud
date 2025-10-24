@@ -3,7 +3,7 @@ import {
     DialogContent
 } from "@/components/ui/dialog";
 import React, { useCallback } from "react";
-import { useOnboardingStore } from "@/lib/onboardingState";
+import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { WelcomePage } from "./welcome";
 import { LoginPage } from "./login";
 

@@ -18,17 +18,18 @@ export class AppService extends Service {
 
         // Setup account hooks
         const localSc = modules.getLocalServiceController();
-        localSc.account.accountLinkedSignal.add(async () => {
-            console.log("Account linked - resyncing peer list...");
-            await this.resyncPeerList();
+        localSc.account.accountLinkSignal.add(async (linked) => {
+            if (linked) {
+                console.log("Account linked - resyncing peer list...");
+                await this.resyncPeerList();
+            } else {
+                console.log("Account unlinked - resetting peer list...");
+                await this.resetPeersInStore();
+            }
         });
 
-        localSc.account.accountUnlinkedSignal.add(async () => {
-            console.log("Account unlinked - resetting peer list...");
-            await this.resetPeersInStore();
-        });
-
-        localSc.account.websocketConnectedSignal.add(async () => {
+        localSc.account.websocketConnectionSignal.add(async (connected) => {
+            if (!connected) return;
             console.log("WebSocket connected - resyncing peer list...");
             await this.resyncPeerListIfNeeded();
             await this.pushPeerInfoIfNeeded();

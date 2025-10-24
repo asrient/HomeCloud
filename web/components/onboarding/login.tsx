@@ -4,7 +4,7 @@ import {
     DialogTitle,
     DialogDescription
 } from "@/components/ui/dialog";
-import { useOnboardingStore } from "@/lib/onboardingState";
+import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { Button } from "../ui/button";
 import { cn, isMacosTheme } from "@/lib/utils";
 import { Input } from "@/components/ui/input";

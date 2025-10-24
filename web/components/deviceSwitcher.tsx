@@ -1,8 +1,8 @@
 import { ConnectionInfo } from "shared/types";
 import { usePeerState } from "./hooks/usePeerState";
-import { cn, getUrlFromIconKey, isMacosTheme, printFingerprint } from "@/lib/utils";
+import { cn, getUrlFromIconKey, isMacosTheme } from "@/lib/utils";
 import Image from 'next/image';
-import { useCallback, useMemo, useState } from "react";
+import { useCallback } from "react";
 import { useAppState } from "./hooks/useAppState";
 import { useNavigation } from "./hooks/useNavigation";
 import { Button } from "@/components/ui/button"
@@ -14,9 +14,10 @@ import {
     DropdownMenuTrigger,
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
-import { useOnboardingStore } from "@/lib/onboardingState";
+import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { CircleSlash2, Wifi, Signal, ChevronsUpDown } from "lucide-react";
 import { ConnectionType } from "@/lib/enums";
+import { useAccountState } from "./hooks/useAccountState";
 
 export const ConnectionIcon = ({ connection, size }: { connection: ConnectionInfo | null, size?: number }) => {
     if (!connection) {
@@ -60,11 +61,7 @@ export function DeviceSwitcher({
     const { selectedFingerprint } = useAppState();
     const { openDevicePage } = useNavigation();
     const { openDialog } = useOnboardingStore();
-
-    const isLinked = () => {
-        const localSc = window.modules.getLocalServiceController();
-        return localSc.account.isLinked();
-    };
+    const { isLinked } = useAccountState();
 
     const selectedPeer = peers.find(peer => peer.fingerprint === selectedFingerprint);
 
@@ -112,7 +109,7 @@ export function DeviceSwitcher({
                         </DropdownMenuCheckboxItem>
                     ))}
                     {
-                        !isLinked() &&
+                        !isLinked &&
                         <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onSelect={() => openDialog('login')}>

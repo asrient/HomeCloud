@@ -3,12 +3,13 @@ import { FormContainer, Section, Line } from '@/components/formPrimatives'
 import { buildPageConfig, getOSIconUrl } from '@/lib/utils'
 import Head from 'next/head'
 import Image from 'next/image'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import ConfirmModal from '@/components/confirmModal'
 import { Button } from '@/components/ui/button'
 import { ThemedIconName } from "@/lib/enums";
 import { DeviceInfo } from "shared/types";
-import { useOnboardingStore } from "@/lib/onboardingState";
+import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
+import { useAccountState } from "@/components/hooks/useAccountState";
 
 function Page() {
 
@@ -23,15 +24,7 @@ function Page() {
     fetchDeviceInfo();
   }, []);
 
-  const isLinked = useMemo(() => {
-    const localSc = window.modules.getLocalServiceController();
-    return localSc.account.isLinked();
-  }, []);
-
-  const accountEmail = useMemo(() => {
-    const localSc = window.modules.getLocalServiceController();
-    return localSc.account.getAccountEmail();
-  }, []);
+  const { isLinked, accountEmail } = useAccountState();
 
   return (
     <>
@@ -60,7 +53,7 @@ function Page() {
             {
               !isLinked && <Line>
                 <Button variant='ghost' className="text-primary" size={'sm'} onClick={() => {
-                  openDialog('login', { reloadOnFinish: true });
+                  openDialog('login');
                 }}>
                   Login to account...
                 </Button>
@@ -79,7 +72,6 @@ function Page() {
                 onConfirm={async () => {
                   const localSc = window.modules.getLocalServiceController();
                   await localSc.account.removePeer(null);
-                  window.location.reload();
                 }}
                 buttonVariant='destructive'
                 buttonText='Confirm'

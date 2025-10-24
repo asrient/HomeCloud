@@ -37,11 +37,9 @@ export class AccountService extends Service {
     public peerAddedSignal = new Signal<[PeerInfo]>();
     public peerRemovedSignal = new Signal<[PeerInfo]>();
 
-    public accountLinkedSignal = new Signal<[]>();
-    public accountUnlinkedSignal = new Signal<[]>();
+    public accountLinkSignal = new Signal<[boolean]>();
 
-    public websocketConnectedSignal = new Signal<[]>();
-    public websocketDisconnectedSignal = new Signal<[]>();
+    public websocketConnectionSignal = new Signal<[boolean]>();
 
     private buildApiUrl(path: string, params?: Record<string, string | number>): URL {
         const baseUrl = modules.config.SERVER_URL;
@@ -52,6 +50,10 @@ export class AccountService extends Service {
             });
         }
         return url;
+    }
+
+    public isServerConnected(): boolean {
+        return this.webSocket.isConnected();
     }
 
     public isLinked(): boolean {
@@ -126,7 +128,7 @@ export class AccountService extends Service {
         };
     }
 
-    private async assertSuccess(resp: Response, type: 'string' | 'json' | null = null ): Promise<void> {
+    private async assertSuccess(resp: Response, type: 'string' | 'json' | null = null): Promise<void> {
         if (resp.ok) {
             if (!type) return;
             // validate content type
@@ -196,7 +198,7 @@ export class AccountService extends Service {
         if (!this.webSocket.isConnected()) {
             this.connectWebSocket();
         }
-        this.accountLinkedSignal.dispatch();
+        this.accountLinkSignal.dispatch(true);
         return {
             accountId: respData.accountId,
             authToken: respData.authToken,
@@ -258,11 +260,18 @@ export class AccountService extends Service {
     }
 
     public async removePeer(fingerprint: string | null): Promise<void> {
-        const resp = await this.postWithAuth("/api/peer/remove", { fingerprint });
-        await this.assertSuccess(resp);
-        if (fingerprint === null) {
-            console.log("Removed self from account; resetting account data.");
-            await this.resetAccountData();
+        try {
+            const resp = await this.postWithAuth("/api/peer/remove", { fingerprint });
+            await this.assertSuccess(resp);
+        } catch (err) {
+            throw err;
+        } finally {
+            // Regardless of success or failure, if we its a removal of self, reset account data
+            // This helps when server is having issues and we still want the user to remove account link locally
+            if (fingerprint === null) {
+                console.log("Removed self from account; resetting account data.");
+                await this.resetAccountData();
+            }
         }
     }
 
@@ -343,7 +352,7 @@ export class AccountService extends Service {
     private handleWebsocketClose = async () => {
         if (!this.isServiceRunning()) return;
         if (this.isActive) {
-            this.websocketDisconnectedSignal.dispatch();
+            this.websocketConnectionSignal.dispatch(false);
             this.isActive = false;
         }
         this.retryConnect();
@@ -367,10 +376,11 @@ export class AccountService extends Service {
         this.retryDelay = 1000; // Reset delay
         // Send initial auth token
         this.isActive = true;
-        this.websocketConnectedSignal.dispatch();
+        this.websocketConnectionSignal.dispatch(true);
     };
 
     private async resetAccountData() {
+        this.accountLinkSignal.dispatch(false);
         this.store.clear();
         await this.store.save();
         this.webSocket.isConnected() && this.webSocket.close();

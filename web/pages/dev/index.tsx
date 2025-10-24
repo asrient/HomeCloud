@@ -7,6 +7,7 @@ import { staticConfig } from '@/lib/staticConfig'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ThemedIconName } from '@/lib/enums';
+import { useAccountState } from '@/components/hooks/useAccountState';
 
 function convertToString(value: any): string {
   if (typeof value === 'object') {
@@ -18,6 +19,7 @@ function convertToString(value: any): string {
 function Page() {
   const [configList, setConfigList] = useState<any[]>([]);
   const [staticConfigList, setStaticConfigList] = useState<any[]>([]);
+  const { serverConnected } = useAccountState();
 
   useEffect(() => {
     const configObj = window.modules.config;
@@ -93,6 +95,9 @@ function Page() {
               }}>
                 Reset
               </Button>
+            </Line>
+            <Line title='Server Connection'>
+              {serverConnected ? 'Connected' : 'Disconnected'}
             </Line>
           </Section>
           <Section title='App Config'>
