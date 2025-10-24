@@ -1,7 +1,6 @@
 import CryptoModule, { EncryptedData } from "shared/crypto";
 import { RSA } from 'react-native-rsa-native';
 import CryptoES from 'crypto-es';
-import * as Crypto from 'expo-crypto';
 
 export default class CryptoImpl extends CryptoModule {
     async generateKeyPair(): Promise<{
@@ -159,7 +158,7 @@ export default class CryptoImpl extends CryptoModule {
     }
 
     uuid(): string {
-        return Crypto.randomUUID();
+        return CryptoES.lib.WordArray.random(16).toString(CryptoES.enc.Hex);
     }
 
     async bufferToBase64(data: Uint8Array): Promise<string> {

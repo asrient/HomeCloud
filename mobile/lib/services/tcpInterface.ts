@@ -10,12 +10,10 @@ const noop = () => { };
  * TCP-based implementation of ConnectionInterface using Bonjour service discovery.
  */
 export default class TCPInterface extends ConnectionInterface {
-    isSecure = false;
+    isSecure = true;
     discovery: Discovery;
-    private server: TcpSocket.Server | null = null;
     private connections: Map<string, TcpSocket.Socket> = new Map();
     private port: number;
-    private onIncomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
 
     /**
      * Creates an instance of TCPInterface.
@@ -24,7 +22,7 @@ export default class TCPInterface extends ConnectionInterface {
     constructor(port: number) {
         super();
         this.port = port;
-        this.discovery = new Discovery(port);
+        this.discovery = new Discovery();
     }
 
     /**
@@ -32,7 +30,7 @@ export default class TCPInterface extends ConnectionInterface {
      * @param {function} callback - Callback function to handle incoming data channels.
      */
     onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void): void {
-        this.onIncomingConnectionCallback = callback;
+        // ignoring since we do not start a server on mobile
     }
 
     /**
@@ -105,41 +103,6 @@ export default class TCPInterface extends ConnectionInterface {
      * @returns {Promise<void>} A promise that resolves when the service is started.
      */
     async start(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            try {
-                // Start the TCP server
-                this.server = TcpSocket.createServer({
-                    keepAlive: true,
-                }, (socket) => {
-                    this.handleIncomingConnection(socket);
-                });
-
-                this.server.listen({
-                    port: this.port,
-                    reuseAddress: true,
-                }, async () => {
-                    console.log(`TCP server listening on port ${this.port}`);
-
-                    // Start discovery service
-                    this.discovery.scan();
-
-                    // Publish our service
-                    const localSc = modules.getLocalServiceController();
-                    const deviceInfo = await localSc.system.getDeviceInfo();
-                    this.discovery.hello(deviceInfo);
-
-                    resolve();
-                });
-
-                this.server.on('error', (err) => {
-                    console.error('TCP server error:', err);
-                    reject(err);
-                });
-
-            } catch (error) {
-                reject(error);
-            }
-        });
     }
 
     /**
@@ -155,49 +118,10 @@ export default class TCPInterface extends ConnectionInterface {
             this.connections.delete(connectionId);
         }
 
-        // Stop the server
-        if (this.server) {
-            promises.push(new Promise<void>((resolve) => {
-                this.server!.close(() => {
-                    console.log('TCP server stopped');
-                    resolve();
-                });
-            }));
-        }
-
         // Stop discovery
         promises.push(this.discovery.goodbye());
 
         await Promise.all(promises);
-        this.server = null;
-    }
-
-    /**
-     * Handles incoming TCP connections.
-     * @private
-     * @param {TcpSocket.Socket} socket - The incoming socket connection.
-     */
-    private handleIncomingConnection(socket: TcpSocket.Socket): void {
-        const connectionId = `${socket.remoteAddress}:${socket.remotePort}`;
-        this.connections.set(connectionId, socket);
-
-        console.log(`New TCP connection from ${connectionId}`);
-
-        const dataChannel = this.createDataChannel(socket, connectionId);
-
-        if (this.onIncomingConnectionCallback) {
-            this.onIncomingConnectionCallback(dataChannel);
-        }
-
-        socket.on('close', (hasErr) => {
-            console.log(`TCP connection closed: ${connectionId}. Had error: ${hasErr}`);
-            this.connections.delete(connectionId);
-        });
-
-        socket.on('error', (error) => {
-            console.error(`TCP connection error for ${connectionId}:`, error);
-            this.connections.delete(connectionId);
-        });
     }
 
     /**

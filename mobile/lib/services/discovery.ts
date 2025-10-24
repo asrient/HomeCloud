@@ -1,15 +1,12 @@
-import { getIconKey } from 'shared/utils';
-import { PeerCandidate, BonjourTxt, DeviceInfo, ConnectionType } from 'shared/types';
+import { PeerCandidate, BonjourTxt, ConnectionType } from 'shared/types';
 import Zeroconf, { Service } from 'react-native-zeroconf';
 
 const SERVICE_TYPE = 'hc-agent';
 
 export default class Discovery {
-    public port: number;
     private zeroconf: Zeroconf;
 
-    constructor(port: number) {
-        this.port = port;
+    constructor() {
         this.zeroconf = new Zeroconf();
     }
 
@@ -62,25 +59,7 @@ export default class Discovery {
         return candidates;
     }
 
-    hello(deviceInfo: DeviceInfo) {
-        const name = modules.config.FINGERPRINT.slice(0, 8);
-        this.zeroconf.publishService(
-            SERVICE_TYPE,
-            'tcp',
-            'local.',
-            name,
-            this.port,
-            {
-                version: modules.config.VERSION || 'dev',
-                iconKey: getIconKey(deviceInfo),
-                deviceName: modules.config.DEVICE_NAME,
-                fingerprint: modules.config.FINGERPRINT,
-            } as BonjourTxt,
-        );
-    }
-
     async goodbye() {
-        this.zeroconf.unpublishService(SERVICE_TYPE);
         this.zeroconf.stop();
     }
 }
