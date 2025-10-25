@@ -5,7 +5,7 @@ import { MobileConfigType, MobilePlatform, UITheme } from "./types";
 import MobileConfigStorage from "./configStorage";
 import * as Device from 'expo-device';
 import { applicationName, nativeApplicationVersion } from 'expo-application';
-import { File, Paths } from 'expo-file-system/next';
+import { File, Paths, Directory } from 'expo-file-system/next';
 import { Platform } from 'react-native';
 
 const cryptoModule = new CryptoImpl();
@@ -48,7 +48,14 @@ async function getOrGenerateKeys(dataDir: string) {
 
 async function getConfig() {
     // Set the modules for the app
-    const dataDir = Paths.document.uri;
+    let dataDir = Paths.join(Paths.document.uri);
+    if (Platform.OS === 'ios') {
+        dataDir = Paths.join(Paths.document.uri, '.MediaCenter');
+        const dir = new Directory(dataDir);
+        if (!dir.exists) {
+            dir.create();
+        }
+    }
     const { privateKeyPem, publicKeyPem } = await getOrGenerateKeys(dataDir);
     const fingerprint = cryptoModule.getFingerprintFromPem(publicKeyPem);
     const isDev = Platform.isTesting || __DEV__;
@@ -59,11 +66,11 @@ async function getConfig() {
         DATA_DIR: dataDir,
         SECRET_KEY: createOrGetSecretKey(dataDir),
         VERSION: nativeApplicationVersion || 'unknown',
-        DEVICE_NAME: Device.deviceName || Device.modelName || 'Lil Device',
+        DEVICE_NAME: Device.deviceName || Device.modelName || 'My Mobile',
         PUBLIC_KEY_PEM: publicKeyPem,
         PRIVATE_KEY_PEM: privateKeyPem,
         FINGERPRINT: fingerprint,
-        APP_NAME: applicationName || 'Continuity',
+        APP_NAME: applicationName || 'Media Center',
         UI_THEME: mobilePlatform === MobilePlatform.IOS ? UITheme.Ios : UITheme.Android,
         SERVER_URL: process.env.EXPO_PUBLIC_SERVER_URL || "http://localhost:4000",
         WS_SERVER_URL: process.env.EXPO_PUBLIC_WS_SERVER_URL || "ws://localhost:4000/ws",

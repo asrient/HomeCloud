@@ -17,7 +17,7 @@ export default function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
       <ThemedText style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 16 }}>
-        Continuity Center
+        Media Center
       </ThemedText>
       <Button title="Run Tests" onPress={runTests} />
       <Button title="Open Settings" onPress={openSettings} />

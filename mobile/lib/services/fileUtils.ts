@@ -6,7 +6,7 @@ import { Paths } from 'expo-file-system/next';
 export function getDrivesMapping(): Record<string, string> {
     if (modules.config.PLATFORM === MobilePlatform.IOS) {
         return {
-            'Continuity': Paths.document.uri
+            'Media Center': Paths.document.uri
         }
     }
     // Android
