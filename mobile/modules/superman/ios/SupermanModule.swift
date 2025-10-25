@@ -1,8 +1,18 @@
 import ExpoModulesCore
 import QuickLookThumbnailing
 import UIKit
+import Network
 
 public class SupermanModule: Module {
+  // TCP connection management
+  private var tcpConnections: [String: TcpConnection] = [:]
+  private var connectionIdCounter = 0
+  private let queue = DispatchQueue(label: "superman.tcp", qos: .userInitiated)
+  
+  struct TcpConnection {
+    let connection: NWConnection
+    let connectionId: String
+  }
   // Each module class must implement the definition function. The definition consists of components
   // that describes the module's functionality and behavior.
   // See https://docs.expo.dev/modules/module-api for more details about available components.
@@ -65,6 +75,94 @@ public class SupermanModule: Module {
         // Resolve the promise with the JPEG data
         promise.resolve(jpegData)
       }
+    }
+
+    // TCP Client functions
+    AsyncFunction("tcpConnect") { (host: String, port: Int, promise: Promise) in
+      connectionIdCounter += 1
+      let connectionId = "tcp_\(connectionIdCounter)"
+      
+      let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: NWEndpoint.Port(integerLiteral: UInt16(port)))
+      let connection = NWConnection(to: endpoint, using: .tcp)
+      
+      let tcpConnection = TcpConnection(connection: connection, connectionId: connectionId)
+      tcpConnections[connectionId] = tcpConnection
+      
+      connection.stateUpdateHandler = { [weak self] state in
+        switch state {
+        case .ready:
+          promise.resolve(connectionId)
+          self?.startReceiving(for: tcpConnection)
+        case .failed(let error):
+          self?.tcpConnections.removeValue(forKey: connectionId)
+          promise.reject("TCP_CONNECT_FAILED", "Failed to connect: \(error.localizedDescription)")
+        case .cancelled:
+          self?.tcpConnections.removeValue(forKey: connectionId)
+          self?.sendEvent("tcpClose", ["connectionId": connectionId])
+        default:
+          break
+        }
+      }
+      
+      connection.start(queue: queue)
+    }
+
+    AsyncFunction("tcpSend") { (connectionId: String, data: Data, promise: Promise) in
+      guard let tcpConnection = tcpConnections[connectionId] else {
+        promise.reject("TCP_CONNECTION_NOT_FOUND", "Connection not found: \(connectionId)")
+        return
+      }
+      
+      tcpConnection.connection.send(content: data, completion: .contentProcessed { error in
+        if let error = error {
+          promise.reject("TCP_SEND_FAILED", "Failed to send data: \(error.localizedDescription)")
+        } else {
+          promise.resolve(true)
+        }
+      })
+    }
+
+    AsyncFunction("tcpClose") { (connectionId: String, promise: Promise) in
+      guard let tcpConnection = tcpConnections[connectionId] else {
+        promise.reject("TCP_CONNECTION_NOT_FOUND", "Connection not found: \(connectionId)")
+        return
+      }
+      
+      tcpConnection.connection.cancel()
+      tcpConnections.removeValue(forKey: connectionId)
+      promise.resolve(true)
+    }
+
+    // Events
+    Events("tcpData", "tcpError", "tcpClose")
+  }
+  
+  private func startReceiving(for tcpConnection: TcpConnection) {
+    tcpConnection.connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self] data, _, isComplete, error in
+      if let data = data, !data.isEmpty {
+        self?.sendEvent("tcpData", [
+          "connectionId": tcpConnection.connectionId,
+          "data": data
+        ])
+      }
+      
+      if let error = error {
+        self?.sendEvent("tcpError", [
+          "connectionId": tcpConnection.connectionId,
+          "error": error.localizedDescription
+        ])
+        self?.tcpConnections.removeValue(forKey: tcpConnection.connectionId)
+        return
+      }
+      
+      if isComplete {
+        self?.sendEvent("tcpClose", ["connectionId": tcpConnection.connectionId])
+        self?.tcpConnections.removeValue(forKey: tcpConnection.connectionId)
+        return
+      }
+      
+      // Continue receiving
+      self?.startReceiving(for: tcpConnection)
     }
   }
 }

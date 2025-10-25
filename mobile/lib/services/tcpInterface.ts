@@ -1,18 +1,22 @@
 import { ConnectionInterface } from "shared/netService";
 import { GenericDataChannel, PeerCandidate } from "shared/types";
 import Discovery from "./discovery";
-import TcpSocket from 'react-native-tcp-socket';
-import { Buffer } from 'buffer';
+import SupermanModule from "../../modules/superman";
 
 const noop = () => { };
 
+interface TCPConnection {
+    connectionId: string;
+    dataChannel: GenericDataChannel;
+}
+
 /**
- * TCP-based implementation of ConnectionInterface using Bonjour service discovery.
+ * TCP-based implementation of ConnectionInterface using Bonjour service discovery and Superman native module.
  */
 export default class TCPInterface extends ConnectionInterface {
     isSecure = true;
     discovery: Discovery;
-    private connections: Map<string, TcpSocket.Socket> = new Map();
+    private connections: Map<string, TCPConnection> = new Map();
     private port: number;
 
     /**
@@ -23,6 +27,44 @@ export default class TCPInterface extends ConnectionInterface {
         super();
         this.port = port;
         this.discovery = new Discovery();
+        this.setupEventListeners();
+    }
+
+    /**
+     * Sets up event listeners for Superman module TCP events.
+     */
+    private setupEventListeners(): void {
+        SupermanModule.addListener('tcpData', (params: { connectionId: string; data: Uint8Array }) => {
+            const connection = this.connections.get(params.connectionId);
+            if (connection && connection.dataChannel.onmessage) {
+                const messageEvent = {
+                    data: params.data
+                } as MessageEvent;
+                connection.dataChannel.onmessage(messageEvent);
+            }
+        });
+
+        SupermanModule.addListener('tcpError', (params: { connectionId: string; error: string }) => {
+            const connection = this.connections.get(params.connectionId);
+            if (connection && connection.dataChannel.onerror) {
+                const errorEvent = {
+                    error: new Error(params.error)
+                } as ErrorEvent;
+                connection.dataChannel.onerror(errorEvent);
+            }
+        });
+
+        SupermanModule.addListener('tcpClose', (params: { connectionId: string }) => {
+            const connection = this.connections.get(params.connectionId);
+            if (connection && connection.dataChannel.ondisconnect) {
+                const closeEvent = {
+                    code: 1000,
+                    reason: 'Connection closed'
+                } as CloseEvent;
+                connection.dataChannel.ondisconnect(closeEvent);
+            }
+            this.connections.delete(params.connectionId);
+        });
     }
 
     /**
@@ -39,39 +81,24 @@ export default class TCPInterface extends ConnectionInterface {
      * @returns {Promise<GenericDataChannel>} A promise that resolves to a data channel.
      */
     async connect(candidate: PeerCandidate): Promise<GenericDataChannel> {
-        return new Promise((resolve, reject) => {
-            const socket = new TcpSocket.Socket();
-            const host = candidate.data?.host || 'localhost';
-            const port = candidate.data?.port || this.port;
-            let isResolved = false;
+        const host = candidate.data?.host || 'localhost';
+        const port = candidate.data?.port || this.port;
 
-            socket.connect({
-                host: host,
-                port: port,
-            }, () => {
-                socket.setKeepAlive(true);
-                const connectionId = `${host}:${port}`;
-                this.connections.set(connectionId, socket);
-
-                const dataChannel = this.createDataChannel(socket, connectionId);
-                resolve(dataChannel);
-                isResolved = true;
-            });
-
-            socket.on('error', (error) => {
-                if (isResolved) return; // Avoid resolving/rejecting multiple times
-                console.error('TCP connection error:', error);
-                reject(error);
-            });
-
-            socket.on('timeout', () => {
-                socket.destroy();
-                reject(new Error('Connection timeout'));
-            });
-
-            // Set connection timeout
-            socket.setTimeout(10000);
-        });
+        try {
+            const connectionId = await SupermanModule.tcpConnect(host, port);
+            const dataChannel = this.createDataChannel(connectionId);
+            
+            const connection: TCPConnection = {
+                connectionId,
+                dataChannel
+            };
+            
+            this.connections.set(connectionId, connection);
+            return dataChannel;
+        } catch (error) {
+            console.error('TCP connection error:', error);
+            throw error;
+        }
     }
 
     /**
@@ -113,8 +140,12 @@ export default class TCPInterface extends ConnectionInterface {
         const promises: Promise<void>[] = [];
 
         // Close all connections
-        for (const [connectionId, socket] of this.connections) {
-            socket.destroy();
+        for (const [connectionId] of this.connections) {
+            try {
+                await SupermanModule.tcpClose(connectionId);
+            } catch (error) {
+                console.error(`Error closing connection ${connectionId}:`, error);
+            }
             this.connections.delete(connectionId);
         }
 
@@ -122,62 +153,33 @@ export default class TCPInterface extends ConnectionInterface {
         promises.push(this.discovery.goodbye());
 
         await Promise.all(promises);
+        
+        // Remove event listeners
+        SupermanModule.removeAllListeners('tcpData');
+        SupermanModule.removeAllListeners('tcpError');
+        SupermanModule.removeAllListeners('tcpClose');
     }
 
     /**
-     * Creates a GenericDataChannel wrapper for a TCP socket.
+     * Creates a GenericDataChannel wrapper for a TCP connection.
      * @private
-     * @param {net.Socket} socket - The TCP socket.
      * @param {string} connectionId - The connection identifier.
      * @returns {GenericDataChannel} The data channel wrapper.
      */
-    private createDataChannel(socket: TcpSocket.Socket, connectionId: string): GenericDataChannel {
+    private createDataChannel(connectionId: string): GenericDataChannel {
         let messageHandler: ((ev: MessageEvent) => void) = noop;
         let errorHandler: ((ev: ErrorEvent) => void) = noop;
         let disconnectHandler: ((ev: CloseEvent) => void) = noop;
 
-        // Set up data parsing for incoming messages
-        socket.on('data', (data) => {
-            // Convert data to buffer if its string
-            if (typeof data === 'string') {
-                data = Buffer.from(data, 'utf8');
-            } else if (!(data instanceof Buffer)) {
-                console.warn(`Received data of unexpected type: ${typeof data}`);
-                return;
-            }
-            // Create a MessageEvent-like object
-            const messageEvent = {
-                data: data.slice(data.byteOffset, data.byteOffset + data.byteLength)
-            } as MessageEvent;
-            messageHandler(messageEvent);
-
-        });
-
-        socket.on('error', (error) => {
-            const errorEvent = {
-                error: error
-            } as ErrorEvent;
-            errorHandler(errorEvent);
-
-        });
-
-        socket.on('close', (hadErr) => {
-            console.log(`Socket ${connectionId} closed. Had error: ${hadErr}`);
-            const closeEvent = {
-                code: 1000,
-                reason: 'Connection closed'
-            } as CloseEvent;
-            disconnectHandler(closeEvent);
-
-            if (this.connections.has(connectionId)) {
-                this.connections.delete(connectionId);
-            }
-        });
-
         return {
-            send: (data: ArrayBufferView) => {
-                const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-                socket.write(buffer);
+            send: async (data: ArrayBufferView) => {
+                try {
+                    const uint8Array = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+                    await SupermanModule.tcpSend(connectionId, uint8Array);
+                } catch (error) {
+                    console.error(`Error sending data on connection ${connectionId}:`, error);
+                    throw error;
+                }
             },
 
             get onmessage() {
@@ -204,10 +206,14 @@ export default class TCPInterface extends ConnectionInterface {
                 disconnectHandler = handler;
             },
 
-            disconnect: () => {
-                console.log(`Disconnecting socket: ${connectionId}`);
-                socket.end();
-                this.connections.delete(connectionId);
+            disconnect: async () => {
+                console.log(`Disconnecting connection: ${connectionId}`);
+                try {
+                    await SupermanModule.tcpClose(connectionId);
+                    this.connections.delete(connectionId);
+                } catch (error) {
+                    console.error(`Error disconnecting connection ${connectionId}:`, error);
+                }
             }
         };
     }

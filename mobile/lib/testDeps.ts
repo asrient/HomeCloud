@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import TcpSocket from 'react-native-tcp-socket';
 import Zeroconf from 'react-native-zeroconf';
 import { RSA } from 'react-native-rsa-native';
 import { Platform, Linking } from 'react-native';
@@ -52,52 +51,6 @@ class BonjourServiceTest {
         this.zeroconf.unpublishService('ContinuityCenter');
     }
 }
-
-const createServer = () => {
-    const server = TcpSocket.createServer((socket) => {
-        socket.on('data', (data) => {
-            console.log('Received data:', data.toString());
-        });
-
-        socket.on('error', (error) => {
-            console.log('An error ocurred with client socket ', error);
-        });
-
-        socket.on('close', (error) => {
-            console.log('Closed connection with ', socket.address());
-        });
-    });
-
-    server.listen({ port: 12345, host: '0.0.0.0' }, () => {
-        console.log('Server listening on port 12345');
-    });
-    return server;
-};
-
-const createClient = (host: string, port: number) => {
-    const client = TcpSocket.createConnection({ port, host }, () => {
-        console.log('Connected to server');
-        // Write on the socket
-        client.write('Hello server!');
-
-        // Close socket
-        client.destroy();
-    });
-
-    client.on('data', (data) => {
-        console.log('Received data from server:', data.toString());
-    });
-
-    client.on('error', (error) => {
-        console.log('An error occurred with client socket:', error);
-    });
-
-    client.on('close', () => {
-        console.log('Connection with server closed');
-    });
-
-    return client;
-};
 
 const signatureBase64 = 'iqsSMNLQXZlxnf7YoOF+VXnMA7uGF3mdemM0Xc2B9wZYZxT5WZBfuI4C5AYeRwm4mFbbPsDHSsmOflDhPsmx0+dYdJ0KzUDblgfnQdU+247HCmolRpiajV7feYWZd9T03+6EJNmVB/c6FaKi1B4NaABr5fHlPErg46O04h38+p4668XHPq5zYkqeI3yGRy87sCamC7X6GvdIDGBNRtLAKK0Ofiw+WTH99VErX1KM4MLPYN7WlBRhrnraHGYm665fKVygKV1BUWFsxwt6tnZlo5jxEjugudjRBt+86Q+Bbicyi8ZwTVPOxEukXuayQCqrYdmz+4k681mWwILjiXJtLQ==';
 const publicKey = '-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAyWo2wV3n7XlwDK6OcpAoCrZu65DPxJtfHJR5k6fT6dfTBSZ/3Dyu\nKoEq5IQZ4+ifmWzIFmsfOhKEYxAcfOeFGUvuPpu6qosNxCLXEty4g4zjUnYYisYc\n9ru2i2Sw6lkvvhTHpUhQ7oCQ84mXIIR4STV/lqnZvGRAIOf0ynJdnAQPG622ehH5\nOsLaXtH+Q/SA480DuxeOxkPp1pMTDlXSNcpTf+2din6j4EjVaObThnxpPPxLi7oY\nh+KqGuY3+RLTY7PAWZKXyvJEnCDZ3rHmEm5JAEzjenGTeOQc6RKe5+lGZaEDP+rZ\nuTSETcDa3a2P9Us0zFLbG0KRit7RuAeHnQIDAQAB\n-----END RSA PUBLIC KEY-----\n';

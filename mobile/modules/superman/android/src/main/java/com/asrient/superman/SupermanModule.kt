@@ -18,6 +18,17 @@ import android.content.Context
 import android.os.Build
 import android.os.storage.StorageManager
 import androidx.core.content.ContextCompat
+import java.net.Socket
+import java.net.InetSocketAddress
+import java.io.InputStream
+import java.io.OutputStream
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.*
+import expo.modules.kotlin.Promise
+import java.nio.channels.SocketChannel
+import java.nio.ByteBuffer
+import java.nio.channels.SelectionKey
+import java.nio.channels.Selector
 
 enum class StandardDirectory(val value: String) : Enumerable {
   DOCUMENTS("Documents"),
@@ -31,6 +42,15 @@ enum class StandardDirectory(val value: String) : Enumerable {
 }
 
 class SupermanModule : Module() {
+  
+  // TCP connection management
+  private val tcpConnections = ConcurrentHashMap<String, TcpConnection>()
+  private val connectionIdCounter = java.util.concurrent.atomic.AtomicInteger(0)
+  
+  data class TcpConnection(
+    val socketChannel: SocketChannel,
+    val job: Job
+  )
   
   // Helper function to get MIME type
   private fun getMimeType(filePath: String): String? {
@@ -193,6 +213,138 @@ class SupermanModule : Module() {
         return@AsyncFunction jpegData
       } catch (e: Exception) {
         throw Exception("Failed to generate thumbnail: ${e.message}", e)
+      }
+    }
+
+    // TCP Client functions
+    AsyncFunction("tcpConnect") { host: String, port: Int ->
+      val connectionId = "tcp_${connectionIdCounter.incrementAndGet()}"
+      
+      // Run connection establishment on IO dispatcher to avoid blocking
+      withContext(Dispatchers.IO) {
+        try {
+          val socketChannel = SocketChannel.open()
+          socketChannel.configureBlocking(false)
+          
+          val address = InetSocketAddress(host, port)
+          val connected = socketChannel.connect(address)
+          
+          if (!connected) {
+            // Connection is in progress, wait for it to complete
+            val selector = Selector.open()
+            socketChannel.register(selector, SelectionKey.OP_CONNECT)
+            
+            val timeout = 10000L // 10 seconds
+            val ready = selector.select(timeout)
+            
+            if (ready == 0) {
+              socketChannel.close()
+              selector.close()
+              throw Exception("Connection timeout")
+            }
+            
+            if (!socketChannel.finishConnect()) {
+              socketChannel.close()
+              selector.close()
+              throw Exception("Failed to complete connection")
+            }
+            
+            selector.close()
+          }
+          
+          // Create a job for handling incoming data
+          val job = CoroutineScope(Dispatchers.IO).launch {
+            val buffer = ByteBuffer.allocate(4096)
+            val selector = Selector.open()
+            socketChannel.register(selector, SelectionKey.OP_READ)
+            
+            try {
+              while (socketChannel.isConnected && socketChannel.isOpen) {
+                val ready = selector.select(1000) // 1 second timeout
+                
+                if (ready > 0) {
+                  buffer.clear()
+                  val bytesRead = socketChannel.read(buffer)
+                  
+                  if (bytesRead > 0) {
+                    buffer.flip()
+                    val data = ByteArray(bytesRead)
+                    buffer.get(data)
+                    
+                    // Send event to JavaScript with received data
+                    sendEvent("tcpData", mapOf(
+                      "connectionId" to connectionId,
+                      "data" to data
+                    ))
+                  } else if (bytesRead == -1) {
+                    // End of stream
+                    break
+                  }
+                }
+              }
+            } catch (e: Exception) {
+              // Connection closed or error occurred
+              sendEvent("tcpError", mapOf(
+                "connectionId" to connectionId,
+                "error" to e.message
+              ))
+            } finally {
+              selector.close()
+              sendEvent("tcpClose", mapOf(
+                "connectionId" to connectionId
+              ))
+              tcpConnections.remove(connectionId)
+            }
+          }
+          
+          val connection = TcpConnection(socketChannel, job)
+          tcpConnections[connectionId] = connection
+          
+          return@withContext connectionId
+        } catch (e: Exception) {
+          throw Exception("Failed to connect: ${e.message}", e)
+        }
+      }
+    }
+
+    AsyncFunction("tcpSend") { connectionId: String, data: ByteArray ->
+      withContext(Dispatchers.IO) {
+        try {
+          val connection = tcpConnections[connectionId]
+            ?: throw IllegalArgumentException("Connection not found: $connectionId")
+          
+          val buffer = ByteBuffer.wrap(data)
+          var totalWritten = 0
+          
+          while (buffer.hasRemaining()) {
+            val written = connection.socketChannel.write(buffer)
+            totalWritten += written
+            
+            if (written == 0) {
+              // Socket buffer is full, wait a bit
+              delay(10)
+            }
+          }
+          
+          return@withContext true
+        } catch (e: Exception) {
+          throw Exception("Failed to send data: ${e.message}", e)
+        }
+      }
+    }
+
+    AsyncFunction("tcpClose") { connectionId: String ->
+      try {
+        val connection = tcpConnections[connectionId]
+          ?: throw IllegalArgumentException("Connection not found: $connectionId")
+        
+        connection.job.cancel()
+        connection.socketChannel.close()
+        tcpConnections.remove(connectionId)
+        
+        return@AsyncFunction true
+      } catch (e: Exception) {
+        throw Exception("Failed to close connection: ${e.message}", e)
       }
     }
   }
