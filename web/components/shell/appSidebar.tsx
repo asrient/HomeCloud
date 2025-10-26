@@ -33,8 +33,8 @@ const FilesSection = ({
     fingerprint: string | null
 }) => {
 
-    const { remoteItems: disks } = useFolder(fingerprint, '');
-    const { pinnedFolders } = usePinnedFolders(fingerprint);
+    const { remoteItems: disks, isLoading, error } = useFolder(fingerprint, '');
+    const { pinnedFolders, isLoading: isPinnedFoldersLoading, error: pinnedFoldersError } = usePinnedFolders(fingerprint);
     const [selectedSidebarItem, setSelectedSidebarItem] = useState<SidebarItem | null>(null);
     const router = useRouter();
 
@@ -87,16 +87,21 @@ const FilesSection = ({
         });
         return {
             title: 'Files',
-            items
+            items,
+            isRefreshing: isLoading || isPinnedFoldersLoading || !!error || !!pinnedFoldersError,
         };
-    }, [disks, fingerprint, pinnedFolders]);
+    }, [disks, error, fingerprint, isLoading, isPinnedFoldersLoading, pinnedFolders, pinnedFoldersError]);
 
     const folderPath = (selectedSidebarItem?.data as FilesSidebarData)?.path;
 
     return (<div>
         <ContextMenu>
             <ContextMenuTrigger>
-                <SidebarSectionView onRightClick={setSelectedSidebarItem} section={section} />
+                {
+                    section.items.length > 0 && (
+                        <SidebarSectionView onRightClick={setSelectedSidebarItem} section={section} />
+                    )
+                }
             </ContextMenuTrigger>
             <ContextMenuContent>
                 {folderPath && (
@@ -122,7 +127,7 @@ const PhotosSection = ({
 }: {
     fingerprint: string | null
 }) => {
-    const { photoLibraries } = usePhotoLibraries(fingerprint);
+    const { photoLibraries, isLoading, error } = usePhotoLibraries(fingerprint);
 
     const section = useMemo((): SidebarSection => {
         const items: SidebarItem[] = [];
@@ -137,9 +142,14 @@ const PhotosSection = ({
         });
         return {
             title: 'Photos',
-            items
+            items,
+            isRefreshing: isLoading || !!error,
         };
-    }, [photoLibraries, fingerprint]);
+    }, [photoLibraries, isLoading, error, fingerprint]);
+
+    if (photoLibraries.length === 0) {
+        return null;
+    }
 
     return (<SidebarSectionView section={section} />);
 }

@@ -9,8 +9,12 @@ import { libraryHashFromId } from "@/lib/photoUtils";
 export const usePhotoLibraries = (deviceFingerprint: string | null) => {
     const [photoLibraries, setPhotoLibraries] = useState<PhotoLibraryLocation[]>([]);
 
-    const load = useCallback(async (serviceController: ServiceController) => {
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        setPhotoLibraries([]);
         const libs = await serviceController.photos.getLocations();
+        if (shouldAbort()) {
+            return;
+        }
         setPhotoLibraries(libs);
     }, []);
 
@@ -30,8 +34,12 @@ export const usePhotoLibraries = (deviceFingerprint: string | null) => {
 export const usePhotoLibrary = (deviceFingerprint: string | null, libraryId: string) => {
     const [photoLibrary, setPhotoLibrary] = useState<PhotoLibraryLocation | null>(null);
 
-    const load = useCallback(async (serviceController: ServiceController) => {
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        setPhotoLibrary(null);
         const lib = await serviceController.photos.getLocation(libraryId);
+        if (shouldAbort()) {
+            return;
+        }
         setPhotoLibrary(lib);
     }, [libraryId]);
 

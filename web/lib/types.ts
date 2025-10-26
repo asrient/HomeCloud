@@ -41,6 +41,7 @@ export type SidebarSection = {
     title?: string;
     icon?: ThemedIconName;
     items: SidebarItem[];
+    isRefreshing?: boolean;
 };
 
 export type SidebarList = SidebarSection[];

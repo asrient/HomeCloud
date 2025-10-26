@@ -7,10 +7,11 @@ import { useUrlMatch } from "../hooks/useUrlMatch";
 import { ThemedIcon } from "../themedIcons";
 
 
-function SidebarItemView({ item, isMatch, onRightClick, onClick, isParent }: {
+function SidebarItemView({ item, isMatch, onRightClick, onClick, isParent, isRefreshing }: {
     item: SidebarItem,
     isMatch: boolean,
     isParent?: boolean,
+    isRefreshing?: boolean,
     onRightClick?: (item: SidebarItem) => void,
     onClick?: (item: SidebarItem, e: React.MouseEvent) => void,
 }) {
@@ -31,6 +32,7 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick, isParent }: {
 
     return (<Link href={item.href || ''} onContextMenu={onRightClick_} onClick={onClick_}>
         <Button variant={isMatch ? 'secondary' : 'ghost'}
+            disabled={item.isDisabled || isRefreshing}
             className={cn(
                 isMatch && "bg-foreground/10",
                 isMatch && isWin11Theme() ? 'win11-selected' : 'border-none',
@@ -66,7 +68,7 @@ export function SidebarSectionView({ section, onRightClick, onClick }: {
         )}>
             {
                 section.title && (<div className={cn(
-                    "mb-1 px-4",
+                    "mb-1 px-4 flex items-center",
                     isMacosTheme() && 'tracking-tight text-muted-foreground/90',
                 )}>
                     {section.title}
@@ -79,6 +81,7 @@ export function SidebarSectionView({ section, onRightClick, onClick }: {
                         <div key={item.key}>
                             <SidebarItemView
                                 item={item}
+                                isRefreshing={section.isRefreshing ?? false}
                                 isMatch={!!item.href && isMatch(item.href)}
                                 onRightClick={onRightClick}
                                 isParent={section.title === undefined}

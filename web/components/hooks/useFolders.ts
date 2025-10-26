@@ -9,8 +9,12 @@ export const usePinnedFolders = (deviceFingerprint: string | null) => {
     const [pinnedFolders, setPinnedFolders] = useState<PinnedFolder[]>([]);
     const signalRef = useRef<SignalNodeRef<[SignalEvent, PinnedFolder], string> | null>(null);
 
-    const load = useCallback(async (serviceController: ServiceController) => {
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        setPinnedFolders([]);
         const pins = await serviceController.files.listPinnedFolders();
+        if (shouldAbort()) {
+            return;
+        }
         setPinnedFolders(pins);
     }, []);
 
@@ -53,8 +57,12 @@ export const usePinnedFolders = (deviceFingerprint: string | null) => {
 export function useFolder<T extends RemoteItem>(deviceFingerprint: string | null, path: string, mapFunction?: (item: RemoteItem) => T) {
     const [remoteItems, setRemoteItems] = useState<T[]>([]);
 
-    const load = useCallback(async (serviceController: ServiceController) => {
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        setRemoteItems([]);
         const items = await serviceController.files.fs.readDir(path);
+        if (shouldAbort()) {
+            return;
+        }
         setRemoteItems(items.map(item => mapFunction ? mapFunction(item) : item as T));
     }, [path, mapFunction]);
 
@@ -75,8 +83,12 @@ export function useFolder<T extends RemoteItem>(deviceFingerprint: string | null
 export function useStat(deviceFingerprint: string | null, path: string) {
     const [remoteItem, setRemoteItem] = useState<RemoteItem | null>(null);
 
-    const load = useCallback(async (serviceController: ServiceController) => {
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        setRemoteItem(null);
         const item = await serviceController.files.fs.getStat(path);
+        if (shouldAbort()) {
+            return;
+        }
         setRemoteItem(item);
     }, [path]);
 
