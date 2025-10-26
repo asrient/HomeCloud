@@ -196,7 +196,7 @@ export abstract class WebcInterface extends ConnectionInterface {
         return {
             send: (data: ArrayBufferView) => {
                 const uint8Data = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-                reDgram.send(uint8Data);
+                return reDgram.send(uint8Data);
             },
 
             get onmessage() {

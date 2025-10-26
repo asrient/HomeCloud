@@ -281,13 +281,23 @@ export default class TCPInterface extends ConnectionInterface {
         });
 
         return {
-            send: (data: ArrayBufferView) => {
-                if (socket.writable) {
-                    const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-                    socket.write(buffer);
-                } else {
-                    console.warn(`Attempted to send data on closed socket: ${connectionId}`);
-                }
+            send: (data: ArrayBufferView): Promise<void> => {
+                return new Promise((resolve, reject) => {
+                    if (socket.writable) {
+                        const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+                        socket.write(buffer, (err) => {
+                            if (err) {
+                                console.error(`Error sending data on socket ${connectionId}:`, err);
+                                reject(err);
+                            } else {
+                                resolve();
+                            }
+                        });
+                    } else {
+                        console.warn(`Attempted to send data on closed socket: ${connectionId}`);
+                        reject(new Error(`Socket ${connectionId} is not writable`));
+                    }
+                });
             },
 
             get onmessage() {

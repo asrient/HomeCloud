@@ -10,7 +10,7 @@ export abstract class DatagramCompat {
     onError?: (err: Error) => void;
     onClose?: () => void;
 
-    abstract send(data: Uint8Array, port: number, address: string): void;
+    abstract send(data: Uint8Array, port: number, address: string): Promise<void>;
     abstract close(): void;
 
     onMessage?: (msg: Uint8Array, rinfo: { address: string; family: string; port: number }) => void;

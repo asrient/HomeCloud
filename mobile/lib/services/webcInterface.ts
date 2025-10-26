@@ -79,17 +79,21 @@ class Datagram_ extends DatagramCompat {
         };
     }
 
-    send(data: Uint8Array, port: number, address: string): void {
+    async send(data: Uint8Array, port: number, address: string): Promise<void> {
         if (!this.socketId) {
             throw new Error('Socket not created. Call bind() first.');
         }
 
-        // Fire and forget - no await since interface expects void return
-        SupermanModule.udpSend(this.socketId, data, port, address).catch(error => {
+        try {
+            const resp = await SupermanModule.udpSend(this.socketId, data, port, address);
+            if (!resp) {
+                throw new Error('UDP send failed');
+            }
+        } catch (error) {
             if (this.onError) {
                 this.onError(new Error(`Failed to send UDP data: ${error}`));
             }
-        });
+        }
     }
 
     close(): void {

@@ -96,7 +96,7 @@ export class ReDatagram {
         return { type, seq };
     }
 
-    private sendHello(attempt = 1) {
+    private async sendHello(attempt = 1) {
         if (this.isMyHelloAcked) return;
         if (attempt > MAX_RETRANSMITS) {
             this.onClose?.(new Error('Failed to establish connection: no HELLO_ACK received'));
@@ -104,7 +104,7 @@ export class ReDatagram {
             return;
         }
         const header = this.encodeHeader(FLAG_HELLO, 0);
-        this.socket.send(header, this.remote.port, this.remote.address);
+        await this.socket.send(header, this.remote.port, this.remote.address);
         setTimeout(() => this.sendHello(attempt + 1), RETRANSMIT_TIMEOUT);
     }
 
@@ -138,7 +138,7 @@ export class ReDatagram {
         packet.set(data, header.length);
 
         try {
-            this.socket.send(packet, this.remote.port, this.remote.address);
+            await this.socket.send(packet, this.remote.port, this.remote.address);
             this.sendWindow.set(seq, packet);
 
             // schedule retransmit
@@ -150,11 +150,11 @@ export class ReDatagram {
         }
     }
 
-    private retransmit(seq: number, attempt = 1) {
+    private async retransmit(seq: number, attempt = 1) {
         const pkt = this.sendWindow.get(seq);
         if (!pkt || !this.remote) return;
         console.warn(`Retransmitting seq=${seq}`);
-        this.socket.send(pkt, this.remote.port, this.remote.address);
+        await this.socket.send(pkt, this.remote.port, this.remote.address);
         if (attempt >= MAX_RETRANSMITS) {
             console.error(`Max retransmits reached for seq=${seq}, giving up`);
             this.sendWindow.delete(seq);
@@ -177,7 +177,7 @@ export class ReDatagram {
         this.ackDelayTimeout = null;
     }
 
-    private handleDataPacket(seq: number, payload: Uint8Array) {
+    private async handleDataPacket(seq: number, payload: Uint8Array) {
         if (seq < 1 || seq > 0xFFFFFFFF) {
             console.warn(`[ReUDP] Invalid sequence number: ${seq}`);
             return;
@@ -193,7 +193,7 @@ export class ReDatagram {
             }
             // send ACKs every few packets
             if (this.ackPending >= ACK_BATCH_SIZE) {
-                this.sendAck(this.recvSeq - 1);
+                await this.sendAck(this.recvSeq - 1);
                 this.ackPending = 0;
                 if (this.ackDelayTimeout) {
                     clearTimeout(this.ackDelayTimeout);
@@ -215,7 +215,7 @@ export class ReDatagram {
 
     private sendBase = 1; // first un-ACKed sequence
 
-    private handlePacket(buf: Uint8Array) {
+    private async handlePacket(buf: Uint8Array) {
         try {
             if (buf.length === 0) {
                 console.warn('[ReUDP] Received empty packet, ignoring');
@@ -231,7 +231,7 @@ export class ReDatagram {
                 }
                 const payload = buf.slice(HEADER_SIZE);
                 // console.log(`[ReUDP] Received DATA seq=${seq}, size=${payload.length}`);
-                this.handleDataPacket(seq, payload);
+                await this.handleDataPacket(seq, payload);
             }
         else if (type === FLAG_ACK) {
             const nextAck = seq + 1;
@@ -248,7 +248,7 @@ export class ReDatagram {
         else if (type === FLAG_HELLO) {
             // console.log("[ReUDP] Received HELLO, sending HELLO_ACK");
             const header = this.encodeHeader(FLAG_HELLO_ACK, 0);
-            this.socket.send(header, this.remote.port, this.remote.address);
+            await this.socket.send(header, this.remote.port, this.remote.address);
         }
         else if (type === FLAG_HELLO_ACK) {
             // console.log("[ReUDP] Received HELLO_ACK");
@@ -271,10 +271,10 @@ export class ReDatagram {
         }
     }
 
-    private sendAck(seq: number) {
+    private async sendAck(seq: number) {
         // console.log(`[ReUDP] Sending ACK for seq=${seq}`);
         const header = this.encodeHeader(FLAG_ACK, seq);
-        this.socket.send(header, this.remote.port, this.remote.address);
+        await this.socket.send(header, this.remote.port, this.remote.address);
     }
 
     private cleanup() {
@@ -287,13 +287,13 @@ export class ReDatagram {
 
     private closeAttempt = 1;
 
-    close() {
+    async close() {
         if (this.isClosing && this.closeAttempt === 1) return;
         this.isClosing = true;
         if (!this.isRemoteClosed && this.closeAttempt <= MAX_RETRANSMITS && this.isMyHelloAcked) {
             // Try to notify remote for graceful close
             const header = this.encodeHeader(FLAG_BYE, 0);
-            this.socket.send(header, this.remote.port, this.remote.address);
+            await this.socket.send(header, this.remote.port, this.remote.address);
             setTimeout(() => this.close(), RETRANSMIT_TIMEOUT);
             return;
         }

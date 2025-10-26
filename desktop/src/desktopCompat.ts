@@ -151,7 +151,7 @@ export class Datagram_ extends DatagramCompat {
         throw new Error('Socket is not bound');
     }
 
-    send(data: Uint8Array, port: number, address: string): void {
+    async send(data: Uint8Array, port: number, address: string): Promise<void> {
         if (this.socket) {
             this.socket.send(Buffer.from(data), port, address);
         }

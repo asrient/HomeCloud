@@ -130,7 +130,7 @@ export class RPCPeer {
         return { encoded, streams };
     }
 
-    public call(method: string, params: any[]): Promise<any> {
+    public async call(method: string, params: any[]): Promise<any> {
         const callId = this.nextCallId++;
 
         const { encoded, streams } = this.stringify(params);
@@ -146,10 +146,10 @@ export class RPCPeer {
         };
 
         const payload = new TextEncoder().encode(JSON.stringify(request));
-        this.sendFrame(MessageType.REQUEST, payload);
+        await this.sendFrame(MessageType.REQUEST, payload);
 
         for (const { id, stream } of streams) {
-            this.sendStream(id, stream);
+            await this.sendStream(id, stream);
         }
 
         let resolve!: (v: any) => void;
@@ -167,19 +167,19 @@ export class RPCPeer {
         return promise;
     }
 
-    public subscribeSignal(fqn: string) {
+    public async subscribeSignal(fqn: string) {
         const payload = new TextEncoder().encode(JSON.stringify({ fqn }));
-        this.sendFrame(MessageType.SIGNAL_SUBSCRIBE, payload);
+        await this.sendFrame(MessageType.SIGNAL_SUBSCRIBE, payload);
     }
 
-    public unsubscribeSignal(fqn: string) {
+    public async unsubscribeSignal(fqn: string) {
         const payload = new TextEncoder().encode(JSON.stringify({ fqn }));
-        this.sendFrame(MessageType.SIGNAL_UNSUBSCRIBE, payload);
+        await this.sendFrame(MessageType.SIGNAL_UNSUBSCRIBE, payload);
     }
 
-    public sendSignal(fqn: string, data: any[]) {
+    public async sendSignal(fqn: string, data: any[]) {
         const payload = new TextEncoder().encode(JSON.stringify({ fqn, data }));
-        this.sendFrame(MessageType.SIGNAL_EVENT, payload);
+        await this.sendFrame(MessageType.SIGNAL_EVENT, payload);
     }
 
     private onError(error: Error) {
@@ -297,7 +297,7 @@ export class RPCPeer {
             securityKey: this.opts.isSecure ? null : this.decryptionKey,
         };
         const payload = await modules.crypto.encryptPK(JSON.stringify(challenge), this.targetPublicKeyPem);
-        this.sendFrame(MessageType.AUTH_CHALLENGE, payload);
+        await this.sendFrame(MessageType.AUTH_CHALLENGE, payload);
     }
 
     private async onAuthResponse(buf: Uint8Array) {
@@ -319,7 +319,7 @@ export class RPCPeer {
         }
         this.otp = null;
         this.isTargetAuthenticated = true;
-        this.sendFrame(MessageType.READY, new Uint8Array(0));
+        await this.sendFrame(MessageType.READY, new Uint8Array(0));
         if (this.isReady()) {
             this.opts.onReady?.(this);
         }
@@ -341,7 +341,7 @@ export class RPCPeer {
         this.encryptionKey = securityKey;
         const response = { otp };
         const responsePayload = await modules.crypto.encryptPK(JSON.stringify(response), this.targetPublicKeyPem);
-        this.sendFrame(MessageType.AUTH_RESPONSE, responsePayload);
+        await this.sendFrame(MessageType.AUTH_RESPONSE, responsePayload);
     }
 
     private handleTargetReady(buf: Uint8Array) {
@@ -388,7 +388,7 @@ export class RPCPeer {
             }
         } catch (e) {
             console.error('Failed to decode parameters from incoming request', e);
-            this.sendError(callId, 'Failed to decode parameters');
+            await this.sendError(callId, 'Failed to decode parameters');
             return;
         }
 
@@ -397,14 +397,14 @@ export class RPCPeer {
             const { encoded, streams } = this.stringify(result);
             const response = { callId, result: encoded };
             const payload = new TextEncoder().encode(JSON.stringify(response));
-            this.sendFrame(MessageType.RESPONSE, payload);
+            await this.sendFrame(MessageType.RESPONSE, payload);
 
             for (const { id, stream } of streams) {
-                this.sendStream(id, stream);
+                await this.sendStream(id, stream);
             }
         } catch (e) {
             console.error('Error handling request', e);
-            this.sendError(callId, e.message || 'Unknown error');
+            await this.sendError(callId, e.message || 'Unknown error');
         }
     }
 
@@ -444,19 +444,19 @@ export class RPCPeer {
         }
     }
 
-    private sendHello() {
+    private async sendHello() {
         const hello = {
             version: '1.0',
             deviceName: modules.config.DEVICE_NAME,
             publicKeyPem: modules.config.PUBLIC_KEY_PEM,
         };
         const payload = new TextEncoder().encode(JSON.stringify(hello));
-        this.sendFrame(MessageType.HELLO, payload);
+        await this.sendFrame(MessageType.HELLO, payload);
     }
 
-    public sendPing() {
+    public async sendPing() {
         const pingPayload = new Uint8Array(0);
-        this.sendFrame(MessageType.PING, pingPayload);
+        await this.sendFrame(MessageType.PING, pingPayload);
     }
 
     private handleError(buf: Uint8Array) {
@@ -489,12 +489,12 @@ export class RPCPeer {
         }
     }
 
-    private sendError(callId: number, error: string) {
+    private async sendError(callId: number, error: string) {
         const payload = new TextEncoder().encode(JSON.stringify({ callId, error }));
-        this.sendFrame(MessageType.ERROR, payload);
+        await this.sendFrame(MessageType.ERROR, payload);
     }
 
-    private sendStream(streamId: number, source: ReadableStream<Uint8Array>) {
+    private async sendStream(streamId: number, source: ReadableStream<Uint8Array>) {
         const reader = source.getReader();
 
         const pump = async () => {
@@ -504,25 +504,25 @@ export class RPCPeer {
                 const payload = new Uint8Array(4 + value.byteLength);
                 new DataView(payload.buffer).setUint32(0, streamId, false);
                 payload.set(value, 4);
-                this.sendFrame(MessageType.STREAM_CHUNK, payload);
+                await this.sendFrame(MessageType.STREAM_CHUNK, payload);
             }
 
             const end = new Uint8Array(4);
             new DataView(end.buffer).setUint32(0, streamId, false);
-            this.sendFrame(MessageType.STREAM_END, end);
+            await this.sendFrame(MessageType.STREAM_END, end);
         };
 
         pump();
     }
 
-    private cancelStream(streamId: number) {
+    private async cancelStream(streamId: number) {
         const buf = new Uint8Array(4);
         new DataView(buf.buffer).setUint32(0, streamId, false);
-        this.sendFrame(MessageType.STREAM_CANCEL, buf);
+        await this.sendFrame(MessageType.STREAM_CANCEL, buf);
     }
 
-    private sendFrame(type: MessageType, payload: Uint8Array) {
+    private async sendFrame(type: MessageType, payload: Uint8Array) {
         const framed = DataChannelParser.encode(type, 0x00, payload);
-        this.opts.dataChannel.send(framed);
+        await this.opts.dataChannel.send(framed);
     }
 }
