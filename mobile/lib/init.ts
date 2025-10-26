@@ -79,6 +79,10 @@ async function getConfig() {
 }
 
 export async function initModules() {
+    if ((global as any).modules) {
+        console.log("Modules already initialized. skipping...");
+        return;
+    }
     const config = await getConfig();
     const modules: ModulesType = {
         crypto: cryptoModule,
