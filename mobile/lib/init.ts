@@ -12,7 +12,7 @@ const cryptoModule = new CryptoImpl();
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 global.Buffer = require('buffer').Buffer;
 
-function createOrGetSecretKey(dataDir: string) {
+async function createOrGetSecretKey(dataDir: string) {
     const secretKeyPath = Paths.join(dataDir, "secret.key");
     const file = new File(secretKeyPath);
     if (!file.exists) {
@@ -38,8 +38,8 @@ async function getOrGenerateKeys(dataDir: string) {
         console.log("✅ Key pair written to files:", privateKeyPath, publicKeyPath);
         return { privateKeyPem: privateKey, publicKeyPem: publicKey };
     }
-    const privateKeyText = privateKeyFile.text();
-    const publicKeyText = publicKeyFile.text();
+    const privateKeyText = await privateKeyFile.text();
+    const publicKeyText = await publicKeyFile.text();
     return {
         privateKeyPem: privateKeyText,
         publicKeyPem: publicKeyText,
@@ -64,7 +64,7 @@ async function getConfig() {
         IS_DEV: isDev,
         PLATFORM: mobilePlatform,
         DATA_DIR: dataDir,
-        SECRET_KEY: createOrGetSecretKey(dataDir),
+        SECRET_KEY: await createOrGetSecretKey(dataDir),
         VERSION: nativeApplicationVersion || 'unknown',
         DEVICE_NAME: Device.deviceName || Device.modelName || 'My Mobile',
         PUBLIC_KEY_PEM: publicKeyPem,
