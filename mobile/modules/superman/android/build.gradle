@@ -41,3 +41,23 @@ android {
     abortOnError false
   }
 }
+
+repositories {
+  // Ensure Maven Central is available for Ktor artifacts
+  mavenCentral()
+}
+
+def ktorVersion = "2.3.8"
+
+dependencies {
+  // Ktor core networking for TCP/UDP sockets
+  implementation "io.ktor:ktor-network:$ktorVersion"
+  // Ktor IO utilities (ByteReadChannel/ByteWriteChannel)
+  implementation "io.ktor:ktor-io:$ktorVersion"
+  // Ktor utilities (ByteReadPacket et al)
+  implementation "io.ktor:ktor-utils:$ktorVersion"
+  // Coroutines (if not already provided transitively)
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+  // Android specific coroutine dispatcher
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+}
