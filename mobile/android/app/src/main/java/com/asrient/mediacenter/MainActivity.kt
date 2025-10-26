@@ -1,4 +1,4 @@
-package com.asrient.continuitycenter
+package com.asrient.mediacenter
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

@@ -24,7 +24,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.asrient.continuitycenter"
+      "package": "com.asrient.mediacenter"
     },
     "web": {
       "bundler": "metro",
