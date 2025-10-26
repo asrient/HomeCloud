@@ -29,6 +29,10 @@ import java.nio.channels.SocketChannel
 import java.nio.ByteBuffer
 import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
+import java.net.DatagramSocket
+import java.net.DatagramPacket
+import java.net.InetAddress
+import java.net.InetSocketAddress
 
 enum class StandardDirectory(val value: String) : Enumerable {
   DOCUMENTS("Documents"),
@@ -47,9 +51,19 @@ class SupermanModule : Module() {
   private val tcpConnections = ConcurrentHashMap<String, TcpConnection>()
   private val connectionIdCounter = java.util.concurrent.atomic.AtomicInteger(0)
   
+  // UDP socket management
+  private val udpSockets = ConcurrentHashMap<String, UdpSocket>()
+  private val socketIdCounter = java.util.concurrent.atomic.AtomicInteger(0)
+  
   data class TcpConnection(
     val socketChannel: SocketChannel,
     val job: Job
+  )
+  
+  data class UdpSocket(
+    val socket: DatagramSocket,
+    val job: Job,
+    val socketId: String
   )
   
   // Helper function to get MIME type
@@ -347,5 +361,101 @@ class SupermanModule : Module() {
         throw Exception("Failed to close connection: ${e.message}", e)
       }
     }
+
+    // UDP Socket functions
+    AsyncFunction("udpCreateSocket") {
+      val socketId = "udp_${socketIdCounter.incrementAndGet()}"
+      return@AsyncFunction socketId
+    }
+
+    AsyncFunction("udpBind") { socketId: String, port: Int?, address: String? ->
+      try {
+        val bindPort = port ?: 0
+        val bindAddress = address ?: "0.0.0.0"
+        
+        val socket = DatagramSocket()
+        val inetAddress = if (bindAddress == "0.0.0.0") null else InetAddress.getByName(bindAddress)
+        socket.bind(InetSocketAddress(inetAddress, bindPort))
+        
+        val actualAddress = socket.localAddress?.hostAddress ?: "127.0.0.1"
+        val actualPort = socket.localPort
+        
+        val job = GlobalScope.launch(Dispatchers.IO) {
+          try {
+            val buffer = ByteArray(4096)
+            while (!socket.isClosed && isActive) {
+              val packet = DatagramPacket(buffer, buffer.size)
+              socket.receive(packet)
+              
+              val data = packet.data.copyOfRange(0, packet.length)
+              sendEvent("udpMessage", mapOf(
+                "socketId" to socketId,
+                "data" to data,
+                "address" to packet.address.hostAddress,
+                "port" to packet.port
+              ))
+            }
+          } catch (e: Exception) {
+            if (!socket.isClosed) {
+              sendEvent("udpError", mapOf(
+                "socketId" to socketId,
+                "error" to e.message
+              ))
+            }
+          } finally {
+            sendEvent("udpClose", mapOf("socketId" to socketId))
+            udpSockets.remove(socketId)
+          }
+        }
+        
+        val udpSocket = UdpSocket(socket, job, socketId)
+        udpSockets[socketId] = udpSocket
+        
+        sendEvent("udpListening", mapOf(
+          "socketId" to socketId,
+          "address" to actualAddress,
+          "port" to actualPort
+        ))
+        
+        return@AsyncFunction mapOf(
+          "address" to actualAddress,
+          "port" to actualPort
+        )
+      } catch (e: Exception) {
+        throw Exception("Failed to bind UDP socket: ${e.message}", e)
+      }
+    }
+
+    AsyncFunction("udpSend") { socketId: String, data: ByteArray, port: Int, address: String ->
+      try {
+        val socket = udpSockets[socketId]?.socket
+          ?: throw IllegalArgumentException("Socket not found: $socketId")
+        
+        val inetAddress = InetAddress.getByName(address)
+        val packet = DatagramPacket(data, data.size, inetAddress, port)
+        socket.send(packet)
+        
+        return@AsyncFunction true
+      } catch (e: Exception) {
+        throw Exception("Failed to send UDP data: ${e.message}", e)
+      }
+    }
+
+    AsyncFunction("udpClose") { socketId: String ->
+      try {
+        val udpSocket = udpSockets[socketId]
+          ?: throw IllegalArgumentException("Socket not found: $socketId")
+        
+        udpSocket.job.cancel()
+        udpSocket.socket.close()
+        udpSockets.remove(socketId)
+        
+        return@AsyncFunction true
+      } catch (e: Exception) {
+        throw Exception("Failed to close UDP socket: ${e.message}", e)
+      }
+    }
+
+    Events("tcpData", "tcpError", "tcpClose", "udpMessage", "udpError", "udpListening", "udpClose")
   }
 }

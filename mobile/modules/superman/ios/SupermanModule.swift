@@ -9,9 +9,21 @@ public class SupermanModule: Module {
   private var connectionIdCounter = 0
   private let queue = DispatchQueue(label: "superman.tcp", qos: .userInitiated)
   
+  // UDP socket management
+  private var udpSockets: [String: UdpSocket] = [:]
+  private var socketIdCounter = 0
+  private let udpQueue = DispatchQueue(label: "superman.udp", qos: .userInitiated)
+  
   struct TcpConnection {
     let connection: NWConnection
     let connectionId: String
+  }
+  
+  struct UdpSocket {
+    let listener: NWListener?
+    let socketId: String
+    let isBound: Bool
+    var sendConnections: [String: NWConnection] = [:]
   }
   // Each module class must implement the definition function. The definition consists of components
   // that describes the module's functionality and behavior.
@@ -133,8 +145,149 @@ public class SupermanModule: Module {
       promise.resolve(true)
     }
 
+    // UDP Socket functions
+    AsyncFunction("udpCreateSocket") { (promise: Promise) in
+      socketIdCounter += 1
+      let socketId = "udp_\(socketIdCounter)"
+      
+      let udpSocket = UdpSocket(listener: nil, socketId: socketId, isBound: false)
+      udpSockets[socketId] = udpSocket
+      
+      promise.resolve(socketId)
+    }
+
+    AsyncFunction("udpBind") { (socketId: String, port: Int?, address: String?, promise: Promise) in
+      guard udpSockets[socketId] != nil else {
+        promise.reject("UDP_SOCKET_NOT_FOUND", "Socket not found: \(socketId)")
+        return
+      }
+      
+      let bindPort = port ?? 0
+      let bindAddress = address ?? "0.0.0.0"
+      
+      do {
+        let listener = try NWListener(using: .udp, on: NWEndpoint.Port(integerLiteral: UInt16(bindPort)))
+        
+        listener.stateUpdateHandler = { [weak self] state in
+          switch state {
+          case .ready:
+            if let actualPort = listener.port {
+              let boundAddress = bindAddress == "0.0.0.0" ? "127.0.0.1" : bindAddress
+              self?.udpSockets[socketId] = UdpSocket(listener: listener, socketId: socketId, isBound: true)
+              self?.sendEvent("udpListening", [
+                "socketId": socketId,
+                "address": boundAddress,
+                "port": Int(actualPort.rawValue)
+              ])
+              promise.resolve([
+                "address": boundAddress,
+                "port": Int(actualPort.rawValue)
+              ])
+            }
+          case .failed(let error):
+            self?.udpSockets.removeValue(forKey: socketId)
+            promise.reject("UDP_BIND_FAILED", "Failed to bind: \(error.localizedDescription)")
+          case .cancelled:
+            self?.udpSockets.removeValue(forKey: socketId)
+            self?.sendEvent("udpClose", ["socketId": socketId])
+          default:
+            break
+          }
+        }
+        
+        listener.newConnectionHandler = { [weak self] connection in
+          self?.startUdpReceiving(for: socketId, connection: connection)
+        }
+        
+        listener.start(queue: udpQueue)
+        
+      } catch {
+        udpSockets.removeValue(forKey: socketId)
+        promise.reject("UDP_BIND_FAILED", "Failed to create listener: \(error.localizedDescription)")
+      }
+    }
+
+    AsyncFunction("udpSend") { (socketId: String, data: Data, port: Int, address: String, promise: Promise) in
+      guard var udpSocket = udpSockets[socketId] else {
+        promise.reject("UDP_SOCKET_NOT_FOUND", "Socket not found: \(socketId)")
+        return
+      }
+      
+      let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(address), port: NWEndpoint.Port(integerLiteral: UInt16(port)))
+      let connectionKey = "\(address):\(port)"
+      
+      // Reuse existing connection or create new one
+      let connection: NWConnection
+      if let existingConnection = udpSocket.sendConnections[connectionKey],
+         existingConnection.state == .ready {
+        connection = existingConnection
+        
+        // Send immediately since connection is ready
+        connection.send(content: data, completion: .contentProcessed { error in
+          if let error = error {
+            promise.reject("UDP_SEND_FAILED", "Failed to send data: \(error.localizedDescription)")
+          } else {
+            promise.resolve(true)
+          }
+        })
+      } else {
+        // Create new connection
+        connection = NWConnection(to: endpoint, using: .udp)
+        udpSocket.sendConnections[connectionKey] = connection
+        udpSockets[socketId] = udpSocket
+        
+        connection.stateUpdateHandler = { [weak self] state in
+          switch state {
+          case .ready:
+            connection.send(content: data, completion: .contentProcessed { error in
+              if let error = error {
+                promise.reject("UDP_SEND_FAILED", "Failed to send data: \(error.localizedDescription)")
+              } else {
+                promise.resolve(true)
+              }
+            })
+          case .failed(let error):
+            // Remove failed connection
+            if var socket = self?.udpSockets[socketId] {
+              socket.sendConnections.removeValue(forKey: connectionKey)
+              self?.udpSockets[socketId] = socket
+            }
+            promise.reject("UDP_SEND_FAILED", "Failed to connect: \(error.localizedDescription)")
+          case .cancelled:
+            // Remove cancelled connection
+            if var socket = self?.udpSockets[socketId] {
+              socket.sendConnections.removeValue(forKey: connectionKey)
+              self?.udpSockets[socketId] = socket
+            }
+          default:
+            break
+          }
+        }
+        
+        connection.start(queue: udpQueue)
+      }
+    }
+
+    AsyncFunction("udpClose") { (socketId: String, promise: Promise) in
+      guard let udpSocket = udpSockets[socketId] else {
+        promise.reject("UDP_SOCKET_NOT_FOUND", "Socket not found: \(socketId)")
+        return
+      }
+      
+      // Close listener
+      udpSocket.listener?.cancel()
+      
+      // Close all send connections
+      for (_, connection) in udpSocket.sendConnections {
+        connection.cancel()
+      }
+      
+      udpSockets.removeValue(forKey: socketId)
+      promise.resolve(true)
+    }
+
     // Events
-    Events("tcpData", "tcpError", "tcpClose")
+    Events("tcpData", "tcpError", "tcpClose", "udpMessage", "udpError", "udpListening", "udpClose")
   }
   
   private func startReceiving(for tcpConnection: TcpConnection) {
@@ -164,5 +317,65 @@ public class SupermanModule: Module {
       // Continue receiving
       self?.startReceiving(for: tcpConnection)
     }
+  }
+  
+  private func startUdpReceiving(for socketId: String, connection: NWConnection) {
+    connection.stateUpdateHandler = { [weak self] state in
+      switch state {
+      case .ready:
+        break
+      case .failed(let error):
+        self?.sendEvent("udpError", [
+          "socketId": socketId,
+          "error": error.localizedDescription
+        ])
+      case .cancelled:
+        break
+      default:
+        break
+      }
+    }
+    
+    connection.start(queue: udpQueue)
+    
+    func receiveNextMessage() {
+      connection.receiveMessage { [weak self] data, context, isComplete, error in
+        if let data = data, !data.isEmpty {
+          let remoteEndpoint = connection.endpoint
+          var address = ""
+          var port = 0
+          
+          switch remoteEndpoint {
+          case .hostPort(let host, let hostPort):
+            address = "\(host)"
+            port = Int(hostPort.rawValue)
+          default:
+            address = "unknown"
+            port = 0
+          }
+          
+          self?.sendEvent("udpMessage", [
+            "socketId": socketId,
+            "data": data,
+            "address": address,
+            "port": port
+          ])
+        }
+        
+        if let error = error {
+          self?.sendEvent("udpError", [
+            "socketId": socketId,
+            "error": error.localizedDescription
+          ])
+          return
+        }
+        
+        if !isComplete {
+          receiveNextMessage()
+        }
+      }
+    }
+    
+    receiveNextMessage()
   }
 }

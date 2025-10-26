@@ -1,5 +1,5 @@
 import ServiceController from "shared/controller";
-import { NetService } from "shared/netService";
+import { ConnectionInterface, NetService } from "shared/netService";
 import { AppService } from "shared/appService";
 import TCPInterface from "./services/tcpInterface";
 import { ConnectionType } from "shared/types";
@@ -9,6 +9,7 @@ import MobileFilesService from "./services/filesService";
 import { MobilePhotosService } from "./services/photosService";
 import { AccountService } from "shared/accountService";
 import { HttpClient_, WebSocket_ } from "./mobileCompat";
+import MobileWebcInterface from "./services/webcInterface";
 
 const TCP_PORT = 7736;
 
@@ -32,9 +33,10 @@ export default class MobileServiceController extends ServiceController {
         await this.files.init();
         await this.thumbnail.init();
         await this.photos.init();
-        this.net.init(new Map(
+        this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
                 [ConnectionType.LOCAL, new TCPInterface(TCP_PORT)],
+                [ConnectionType.WEB, new MobileWebcInterface()],
             ]
         ));
 
