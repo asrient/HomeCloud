@@ -17,7 +17,7 @@ export default class MobileConfigStorage extends ConfigStorage {
             return null;
         }
         // read the file
-        const data = file.text();
+        const data = await file.text();
         // parse the json
         return JSON.parse(data);
     }

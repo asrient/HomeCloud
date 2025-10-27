@@ -2,50 +2,74 @@ import { WebcInterface } from "shared/webcInterface";
 import { DatagramCompat } from "shared/compat";
 import SupermanModule from "../../modules/superman";
 
+// Global registry of active sockets
+const activeSockets = new Map<string, Datagram_>();
+let listenersSetup = false;
+
+// Setup global event listeners once
+function setupGlobalListeners() {
+    if (listenersSetup) return;
+    listenersSetup = true;
+
+    SupermanModule.addListener('udpMessage', (params: { socketId: string; data: Uint8Array; address: string; port: number }) => {
+        console.log('Received UDP message event:', params);
+        const socket = activeSockets.get(params.socketId);
+        if (socket && socket.onMessage) {
+            socket.onMessage(params.data, {
+                address: params.address,
+                family: 'IPv4',
+                port: params.port
+            });
+        }
+    });
+
+    SupermanModule.addListener('udpError', (params: { socketId: string; error: string }) => {
+        const socket = activeSockets.get(params.socketId);
+        if (socket && socket.onError) {
+            socket.onError(new Error(params.error));
+        }
+    });
+
+    SupermanModule.addListener('udpListening', (params: { socketId: string; address: string; port: number }) => {
+        const socket = activeSockets.get(params.socketId);
+        if (socket) {
+            socket.setListening(true);
+            if (socket.onListen) {
+                socket.onListen();
+            }
+        }
+    });
+
+    SupermanModule.addListener('udpClose', (params: { socketId: string }) => {
+        const socket = activeSockets.get(params.socketId);
+        if (socket) {
+            socket.handleClose();
+        }
+    });
+}
+
 class Datagram_ extends DatagramCompat {
     private socketId: string | null = null;
     private isListening = false;
 
     constructor() {
         super();
-        this.setupEventListeners();
+        setupGlobalListeners();
     }
 
-    private setupEventListeners() {
-        SupermanModule.addListener('udpMessage', (params: { socketId: string; data: Uint8Array; address: string; port: number }) => {
-            if (params.socketId === this.socketId && this.onMessage) {
-                this.onMessage(params.data, {
-                    address: params.address,
-                    family: 'IPv4',
-                    port: params.port
-                });
-            }
-        });
+    setListening(listening: boolean) {
+        this.isListening = listening;
+    }
 
-        SupermanModule.addListener('udpError', (params: { socketId: string; error: string }) => {
-            if (params.socketId === this.socketId && this.onError) {
-                this.onError(new Error(params.error));
-            }
-        });
-
-        SupermanModule.addListener('udpListening', (params: { socketId: string; address: string; port: number }) => {
-            if (params.socketId === this.socketId) {
-                this.isListening = true;
-                if (this.onListen) {
-                    this.onListen();
-                }
-            }
-        });
-
-        SupermanModule.addListener('udpClose', (params: { socketId: string }) => {
-            if (params.socketId === this.socketId) {
-                this.isListening = false;
-                this.socketId = null;
-                if (this.onClose) {
-                    this.onClose();
-                }
-            }
-        });
+    handleClose() {
+        this.isListening = false;
+        if (this.socketId) {
+            activeSockets.delete(this.socketId);
+            this.socketId = null;
+        }
+        if (this.onClose) {
+            this.onClose();
+        }
     }
 
     async bind(port?: number, address?: string): Promise<void> {
@@ -53,12 +77,15 @@ class Datagram_ extends DatagramCompat {
             // Create socket if not already created
             if (!this.socketId) {
                 this.socketId = await SupermanModule.udpCreateSocket();
+                // Register this socket in the global registry
+                activeSockets.set(this.socketId, this);
             }
 
             // Bind the socket
             const result = await SupermanModule.udpBind(this.socketId, port, address);
             this.boundAddress = result.address;
             this.boundPort = result.port;
+            console.log(`UDP socket bound to ${this.boundAddress}:${this.boundPort}`);
         } catch (error) {
             throw new Error(`Failed to bind UDP socket: ${error}`);
         }
@@ -91,14 +118,16 @@ class Datagram_ extends DatagramCompat {
             }
         } catch (error) {
             if (this.onError) {
-                this.onError(new Error(`Failed to send UDP data: ${error}`));
+                this.onError(new Error(`Failed to send UDP data to remote ${address}:${port} - ${error}`));
             }
         }
     }
 
     close(): void {
+        console.log("Closing UDP socket");
         if (this.socketId) {
             const socketId = this.socketId;
+            activeSockets.delete(socketId);
             this.socketId = null;
             this.isListening = false;
             
@@ -107,13 +136,6 @@ class Datagram_ extends DatagramCompat {
                 console.warn(`Error closing UDP socket: ${error}`);
             });
         }
-    }
-
-    removeEventListeners() {
-        SupermanModule.removeAllListeners('udpMessage');
-        SupermanModule.removeAllListeners('udpError');
-        SupermanModule.removeAllListeners('udpListening');
-        SupermanModule.removeAllListeners('udpClose');
     }
 }
 

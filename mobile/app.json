@@ -10,7 +10,13 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.asrient.mediacenter"
+      "bundleIdentifier": "com.asrient.mediacenter",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
       "permissions": [

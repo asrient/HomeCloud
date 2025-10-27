@@ -1,46 +1,25 @@
-import { StyleSheet, View, Button } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { ThemedText } from '@/components/ThemedText';
-import { requestGroupPermission } from '@/lib/permissions';
-
-import Signal from 'shared/signals';
-import { useEffect } from 'react';
-import { runTests, openSettings } from '@/lib/testDeps';
+import { UIText } from '@/components/ui/UIText';
+import { Link } from 'expo-router';
 
 export default function HomeScreen() {
-
-  useEffect(() => {
-    const signal = new Signal();
-    console.log('Signal created:', signal);
-  }, []);
-
   return (
-    <View style={{ flex: 1, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-      <ThemedText style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 16 }}>
+    <View style={styles.container}>
+      <UIText style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 16 }}>
         Media Center
-      </ThemedText>
-      <Button title="Run Tests" onPress={runTests} />
-      <Button title="Open Settings" onPress={openSettings} />
-      <Button title="Request Storage Permissions" onPress={() => requestGroupPermission('MANAGE_STORAGE')} />
+      </UIText>
+      <Link href="/settings">
+        Settings
+      </Link>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
     alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+    justifyContent: 'center',
   },
 });

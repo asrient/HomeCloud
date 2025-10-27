@@ -174,6 +174,7 @@ public class SupermanModule: Module {
             if let actualPort = listener.port {
               let boundAddress = bindAddress == "0.0.0.0" ? "127.0.0.1" : bindAddress
               self?.udpSockets[socketId] = UdpSocket(listener: listener, socketId: socketId, isBound: true)
+              print("UDP socket bound to \(boundAddress):\(Int(actualPort.rawValue))")
               self?.sendEvent("udpListening", [
                 "socketId": socketId,
                 "address": boundAddress,
@@ -185,9 +186,11 @@ public class SupermanModule: Module {
               ])
             }
           case .failed(let error):
+            print("UDP bind failed: \(error.localizedDescription)")
             self?.udpSockets.removeValue(forKey: socketId)
             promise.reject("UDP_BIND_FAILED", "Failed to bind: \(error.localizedDescription)")
           case .cancelled:
+            print("UDP listener cancelled for socket: \(socketId)")
             self?.udpSockets.removeValue(forKey: socketId)
             self?.sendEvent("udpClose", ["socketId": socketId])
           default:
@@ -196,12 +199,14 @@ public class SupermanModule: Module {
         }
         
         listener.newConnectionHandler = { [weak self] connection in
+          print("New UDP connection received for socket: \(socketId)")
           self?.startUdpReceiving(for: socketId, connection: connection)
         }
         
         listener.start(queue: udpQueue)
         
       } catch {
+        print("Failed to create UDP listener: \(error.localizedDescription)")
         udpSockets.removeValue(forKey: socketId)
         promise.reject("UDP_BIND_FAILED", "Failed to create listener: \(error.localizedDescription)")
       }
@@ -320,27 +325,32 @@ public class SupermanModule: Module {
   }
   
   private func startUdpReceiving(for socketId: String, connection: NWConnection) {
+    print("Starting UDP receiving for socket: \(socketId)")
+    
     connection.stateUpdateHandler = { [weak self] state in
       switch state {
       case .ready:
-        break
+        print("UDP connection ready for socket: \(socketId)")
       case .failed(let error):
+        print("UDP connection failed for socket \(socketId): \(error.localizedDescription)")
         self?.sendEvent("udpError", [
           "socketId": socketId,
           "error": error.localizedDescription
         ])
       case .cancelled:
-        break
+        print("UDP connection cancelled for socket: \(socketId)")
       default:
-        break
+        print("UDP connection state changed for socket \(socketId): \(state)")
       }
     }
     
     connection.start(queue: udpQueue)
     
     func receiveNextMessage() {
+      print("Waiting for next UDP message on socket: \(socketId)")
       connection.receiveMessage { [weak self] data, context, isComplete, error in
         if let data = data, !data.isEmpty {
+          print("Received UDP message on socket \(socketId): \(data.count) bytes")
           let remoteEndpoint = connection.endpoint
           var address = ""
           var port = 0
@@ -349,9 +359,11 @@ public class SupermanModule: Module {
           case .hostPort(let host, let hostPort):
             address = "\(host)"
             port = Int(hostPort.rawValue)
+            print("UDP message from \(address):\(port)")
           default:
             address = "unknown"
             port = 0
+            print("UDP message from unknown endpoint")
           }
           
           self?.sendEvent("udpMessage", [
@@ -363,6 +375,7 @@ public class SupermanModule: Module {
         }
         
         if let error = error {
+          print("UDP receive error for socket \(socketId): \(error.localizedDescription)")
           self?.sendEvent("udpError", [
             "socketId": socketId,
             "error": error.localizedDescription
@@ -372,6 +385,8 @@ public class SupermanModule: Module {
         
         if !isComplete {
           receiveNextMessage()
+        } else {
+          print("UDP receive completed for socket: \(socketId)")
         }
       }
     }

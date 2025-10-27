@@ -1,45 +1,34 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
+import { useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
+import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
 
-import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const router = useRouter();
+
+  useEffect(() => {
+    const localSc = modules.getLocalServiceController();
+    if (!localSc.app.isOnboarded()) {
+      // Navigate to the welcome screen
+      console.log('Navigating to welcome screen');
+      router.navigate('/welcome');
+    }
+  }, [router]);
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({
-          ios: {
-            // Use a transparent background on iOS to show the blur effect
-            position: 'absolute',
-          },
-          default: {},
-        }),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-    </Tabs>
+    <NativeTabs>
+      <NativeTabs.Trigger name="index">
+        <Label>Home</Label>
+        <Icon sf="house.fill" drawable="custom_android_drawable" />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="photos">
+        <Icon sf="photo.stack" drawable="custom_photos_drawable" />
+        <Label>Photos</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="files">
+        <Icon sf="folder.fill" drawable="custom_folder_drawable" />
+        <Label>Files</Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

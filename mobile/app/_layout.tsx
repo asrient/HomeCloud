@@ -62,7 +62,22 @@ export default function RootLayout() {
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
+          <Stack.Screen name="settings" options={{
+            title: 'Settings',
+            headerBackButtonDisplayMode: 'minimal',
+            headerLargeTitle: true,
+            headerShadowVisible: false,
+            headerTransparent: true,
+          }} />
+          <Stack.Screen name="welcome" options={{
+            headerShown: false,
+            presentation: 'modal',
+          }} />
+          <Stack.Screen name="login" options={{
+            headerShown: false,
+            presentation: 'modal',
+          }} />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="auto" />

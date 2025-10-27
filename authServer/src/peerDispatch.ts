@@ -78,8 +78,8 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
 
     ws.on('close', function close() {
         console.log('Client disconnected');
-        !!peerId && globalComms.unsubscribeEvent(`ws_peer_${peerId}`, handleEvent);
-        !!accountId && globalComms.unsubscribeEvent(`ws_account_${accountId}`, handleEvent);
+        !!peerId && globalComms.unsubscribeEvent(`peer_${peerId}`, handleEvent);
+        !!accountId && globalComms.unsubscribeEvent(`account_${accountId}`, handleEvent);
     });
 
     ws.on('error', function error(err) {

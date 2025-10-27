@@ -30,11 +30,12 @@ export class UdpConnection {
 
     public startConnection(serverAddress: string, serverPort: number, pin: string) {
         const helloMsg = new TextEncoder().encode(`PIN=${pin}`);
-
+        console.log("Starting UDP connection to server:", serverAddress, serverPort, "with PIN:", pin);
         const interval = setInterval(() => {
             if (this.isServerAcked || this.isError || this.retryAttempts > MAX_RETRY_ATTEMPTS) {
                 clearInterval(interval);
                 if (this.retryAttempts >= MAX_RETRY_ATTEMPTS && !this.isServerAcked) {
+                    this.dgram.close();
                     this.onErrorCallback?.(new Error("Failed to connect to server: Max retry attempts reached."));
                 }
                 return;
@@ -87,7 +88,7 @@ export class UdpConnection {
 
     private checkConnectionEstablished() {
         if (this.peerAddress && this.peerPort && this.isServerAcked && !this.isError && !this.reDatagram) {
-            console.log("UDP handshake complete with:", this.peerAddress, this.peerPort);
+            console.log("UDP server handshake complete with:", this.peerAddress, this.peerPort);
             this.reDatagram = new ReDatagram(this.dgram, this.peerAddress, this.peerPort, () => {
                 console.log("UDP connection established to peer.");
                 this.onConnectedCallback?.(this.reDatagram);
@@ -139,6 +140,8 @@ export abstract class WebcInterface extends ConnectionInterface {
                 if (!this.waitingForPeerData.has(webcInit.pin)) {
                     return;
                 }
+                const entry = this.waitingForPeerData.get(webcInit.pin);
+                entry.connection.getReDatagram()?.close();
                 this.waitingForPeerData.delete(webcInit.pin);
                 reject(new Error("Timeout waiting for peer data"));
             }, 60000); // 60 seconds timeout
