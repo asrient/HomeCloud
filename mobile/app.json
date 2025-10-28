@@ -17,7 +17,9 @@
           "NSAllowsLocalNetworking": true
         },
         "NSBonjourServices": [
-          "hc-agent._tcp."
+          "mcservice._tcp.",
+          "_mcservice._tcp.",
+          "mcservice._tcp"
         ],
         "NSLocalNetworkUsageDescription": "Find and connect to your other Media Center devices over wifi."
       }

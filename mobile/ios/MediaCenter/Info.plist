@@ -45,6 +45,13 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSBonjourServices</key>
+    <array>
+      <string>hc-agent._tcp.</string>
+      <string>_hc-agent._tcp.</string>
+    </array>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Find and connect to your other Media Center devices over wifi.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to save photos</string>
     <key>NSPhotoLibraryUsageDescription</key>

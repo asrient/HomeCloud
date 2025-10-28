@@ -1,7 +1,7 @@
 import { PeerCandidate, BonjourTxt, ConnectionType } from 'shared/types';
 import Zeroconf, { Service } from 'react-native-zeroconf';
 
-const SERVICE_TYPE = 'hc-agent';
+const SERVICE_TYPE = 'mcservice';
 
 export default class Discovery {
     private zeroconf: Zeroconf;
@@ -12,13 +12,6 @@ export default class Discovery {
         this.zeroconf.on('error', (err) => {
             console.error('Zeroconf error:', err);
         });
-    }
-
-    onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
-        this.onFoundCallback = callback;
-    }
-
-    scan() {
         this.zeroconf.on('resolved', (service) => {
             console.log('Found service:', service);
             if (this.onFoundCallback) {
@@ -28,6 +21,13 @@ export default class Discovery {
                 }
             }
         });
+    }
+
+    onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
+        this.onFoundCallback = callback;
+    }
+
+    scan() {
         this.zeroconf.scan(SERVICE_TYPE, 'tcp');
     }
 
