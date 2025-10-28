@@ -2,7 +2,7 @@ import Bonjour, { Browser, Service } from 'bonjour-service';
 import { getIconKey } from 'shared/utils';
 import { PeerCandidate, BonjourTxt, DeviceInfo, ConnectionType } from 'shared/types';
 
-const SERVICE_TYPE = 'hc-agent';
+const SERVICE_TYPE = 'mcservice';
 
 export default class Discovery {
     private bonjour: Bonjour;
