@@ -176,7 +176,13 @@ class SupermanModule : Module() {
       val connectionId = "tcp_${connectionIdCounter.incrementAndGet()}"
       moduleScope.launch {
         try {
-          val socket = aSocket(ktorSelector).tcp().connect(io.ktor.network.sockets.InetSocketAddress(host, port))
+          android.util.Log.d("SupermanModule", "Attempting TCP connection to $host:$port")
+          val socket = aSocket(ktorSelector).tcp().connect(
+            io.ktor.network.sockets.InetSocketAddress(host, port)
+          ) {
+            socketTimeout = 30000L // 30 second timeout
+          }
+          android.util.Log.d("SupermanModule", "TCP connection established: $connectionId")
           val readChannel = socket.openReadChannel()
           val writeChannel = socket.openWriteChannel(autoFlush = true)
           val writerQueue = Channel<ByteArray>(Channel.UNLIMITED)
@@ -189,6 +195,7 @@ class SupermanModule : Module() {
               }
             } catch (e: kotlinx.coroutines.CancellationException) {
             } catch (e: Exception) {
+              android.util.Log.e("SupermanModule", "TCP write error: ${e.message}", e)
               sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to e.message))
             }
           }
@@ -209,6 +216,7 @@ class SupermanModule : Module() {
               }
             } catch (e: kotlinx.coroutines.CancellationException) {
             } catch (e: Exception) {
+              android.util.Log.e("SupermanModule", "TCP read error: ${e.message}", e)
               sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to e.message))
             } finally {
               sendEvent("tcpClose", mapOf("connectionId" to connectionId))
@@ -221,6 +229,7 @@ class SupermanModule : Module() {
           tcpConnections[connectionId] = connection
           promise.resolve(connectionId)
         } catch (e: Exception) {
+          android.util.Log.e("SupermanModule", "TCP connection failed to $host:$port - ${e.message}", e)
           promise.reject("TCP_CONNECT", e.message ?: "Unknown error", e)
         }
       }

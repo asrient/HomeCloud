@@ -37,31 +37,21 @@ export default class TCPInterface extends ConnectionInterface {
         SupermanModule.addListener('tcpData', (params: { connectionId: string; data: Uint8Array }) => {
             const connection = this.connections.get(params.connectionId);
             if (connection && connection.dataChannel.onmessage) {
-                const messageEvent = {
-                    data: params.data
-                } as MessageEvent;
-                connection.dataChannel.onmessage(messageEvent);
+                connection.dataChannel.onmessage(params.data);
             }
         });
 
         SupermanModule.addListener('tcpError', (params: { connectionId: string; error: string }) => {
             const connection = this.connections.get(params.connectionId);
             if (connection && connection.dataChannel.onerror) {
-                const errorEvent = {
-                    error: new Error(params.error)
-                } as ErrorEvent;
-                connection.dataChannel.onerror(errorEvent);
+                connection.dataChannel.onerror(params.error);
             }
         });
 
         SupermanModule.addListener('tcpClose', (params: { connectionId: string }) => {
             const connection = this.connections.get(params.connectionId);
             if (connection && connection.dataChannel.ondisconnect) {
-                const closeEvent = {
-                    code: 1000,
-                    reason: 'Connection closed'
-                } as CloseEvent;
-                connection.dataChannel.ondisconnect(closeEvent);
+                connection.dataChannel.ondisconnect();
             }
             this.connections.delete(params.connectionId);
         });
@@ -75,6 +65,10 @@ export default class TCPInterface extends ConnectionInterface {
         // ignoring since we do not start a server on mobile
     }
 
+    onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
+        this.discovery.onCandidateAvailable(callback);
+    }
+
     /**
      * Connects to a peer candidate and returns a data channel.
      * @param {PeerCandidate} candidate - The peer candidate to connect to.
@@ -83,9 +77,15 @@ export default class TCPInterface extends ConnectionInterface {
     async connect(candidate: PeerCandidate): Promise<GenericDataChannel> {
         const host = candidate.data?.host || 'localhost';
         const port = candidate.data?.port || this.port;
-
+        console.log(`[TCPInterface] Connecting to ${host}:${port}`, { candidate });
+        
+        if (host === 'localhost' || host === '127.0.0.1') {
+            console.warn('[TCPInterface] WARNING: Using localhost on Android will not work! Use your computer\'s local IP address instead.');
+        }
+        
         try {
             const connectionId = await SupermanModule.tcpConnect(host, port);
+            console.log(`[TCPInterface] Connection established: ${connectionId}`);
             const dataChannel = this.createDataChannel(connectionId);
             
             const connection: TCPConnection = {
@@ -96,7 +96,7 @@ export default class TCPInterface extends ConnectionInterface {
             this.connections.set(connectionId, connection);
             return dataChannel;
         } catch (error) {
-            console.error('TCP connection error:', error);
+            console.error(`[TCPInterface] TCP connection failed to ${host}:${port}:`, error);
             throw error;
         }
     }
@@ -130,6 +130,7 @@ export default class TCPInterface extends ConnectionInterface {
      * @returns {Promise<void>} A promise that resolves when the service is started.
      */
     async start(): Promise<void> {
+        this.discovery.scan();
     }
 
     /**
@@ -167,15 +168,14 @@ export default class TCPInterface extends ConnectionInterface {
      * @returns {GenericDataChannel} The data channel wrapper.
      */
     private createDataChannel(connectionId: string): GenericDataChannel {
-        let messageHandler: ((ev: MessageEvent) => void) = noop;
-        let errorHandler: ((ev: ErrorEvent) => void) = noop;
-        let disconnectHandler: ((ev: CloseEvent) => void) = noop;
+        let messageHandler: ((data: Uint8Array) => void) = noop;
+        let errorHandler: ((ev: Error | string) => void) = noop;
+        let disconnectHandler: ((ev?: Error) => void) = noop;
 
         return {
-            send: async (data: ArrayBufferView) => {
+            send: async (data: Uint8Array) => {
                 try {
-                    const uint8Array = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-                    await SupermanModule.tcpSend(connectionId, uint8Array);
+                    await SupermanModule.tcpSend(connectionId, data);
                 } catch (error) {
                     console.error(`Error sending data on connection ${connectionId}:`, error);
                     throw error;
@@ -186,7 +186,7 @@ export default class TCPInterface extends ConnectionInterface {
                 return messageHandler;
             },
 
-            set onmessage(handler: ((ev: MessageEvent) => void)) {
+            set onmessage(handler: ((data: Uint8Array) => void)) {
                 messageHandler = handler;
             },
 
@@ -194,7 +194,7 @@ export default class TCPInterface extends ConnectionInterface {
                 return errorHandler;
             },
 
-            set onerror(handler: ((ev: ErrorEvent) => void)) {
+            set onerror(handler: ((ev: Error | string) => void)) {
                 errorHandler = handler;
             },
 
@@ -202,7 +202,7 @@ export default class TCPInterface extends ConnectionInterface {
                 return disconnectHandler;
             },
 
-            set ondisconnect(handler: ((ev: CloseEvent) => void)) {
+            set ondisconnect(handler: (() => void)) {
                 disconnectHandler = handler;
             },
 

@@ -81,6 +81,7 @@ export class UdpConnection {
     }
 
     public addPeerDetails(peerAddress: string, peerPort: number) {
+        console.log("Received peer details:", peerAddress, peerPort);
         this.peerAddress = peerAddress;
         this.peerPort = peerPort;
         this.checkConnectionEstablished();
@@ -88,7 +89,7 @@ export class UdpConnection {
 
     private checkConnectionEstablished() {
         if (this.peerAddress && this.peerPort && this.isServerAcked && !this.isError && !this.reDatagram) {
-            console.log("UDP server handshake complete with:", this.peerAddress, this.peerPort);
+            console.log("UDP server handshake complete. Peer to connect:", this.peerAddress, this.peerPort);
             this.reDatagram = new ReDatagram(this.dgram, this.peerAddress, this.peerPort, () => {
                 console.log("UDP connection established to peer.");
                 this.onConnectedCallback?.(this.reDatagram);
@@ -115,6 +116,10 @@ export abstract class WebcInterface extends ConnectionInterface {
         this.onIncomingConnectionCallback = callback;
     }
 
+    onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
+        // No-op for WebC interface
+    }
+
     private getDefaultServerAddress(): string {
         const serverUrl = new URL(modules.config.SERVER_URL);
         return serverUrl.hostname;
@@ -123,6 +128,7 @@ export abstract class WebcInterface extends ConnectionInterface {
     private async setupConnection(webcInit: WebcInit): Promise<GenericDataChannel> {
         const dgram = this.createDatagramSocket();
         await dgram.bind();
+        console.log("Datagram socket bound for WebC connection:", dgram.address());
         return new Promise<GenericDataChannel>((resolve, reject) => {
             const udpConnection = new UdpConnection(dgram, (reDatagram) => {
                 const dataChannel = this.createDataChannel(reDatagram);
@@ -136,6 +142,18 @@ export abstract class WebcInterface extends ConnectionInterface {
                 webcInit.serverPort || DEFAULT_SERVER_PORT,
                 webcInit.pin
             );
+
+            // check if we already have peer data waiting
+            const waitingEntry = this.waitingPeerData.get(webcInit.pin);
+            if (waitingEntry) {
+                console.log("Found waiting peer data for PIN:", webcInit.pin, waitingEntry.peerData);
+                clearTimeout(waitingEntry.cleanupTimer);
+                udpConnection.addPeerDetails(waitingEntry.peerData.peerAddress, waitingEntry.peerData.peerPort);
+                this.waitingPeerData.delete(webcInit.pin);
+                return;
+            }
+
+            // If not, wait for peer data to arrive
             const timer = setTimeout(() => {
                 if (!this.waitingForPeerData.has(webcInit.pin)) {
                     return;
@@ -174,39 +192,35 @@ export abstract class WebcInterface extends ConnectionInterface {
 
     createDataChannel(reDgram: ReDatagram): GenericDataChannel {
         console.log("Creating data channel");
-        let messageHandler: ((ev: MessageEvent) => void) | null = null;
-        let errorHandler: ((ev: ErrorEvent) => void) | null = null;
-        let disconnectHandler: ((ev: CloseEvent) => void) | null = null;
+        let messageHandler: ((ev: Uint8Array) => void) | null = null;
+        let errorHandler: ((ev: Error | string) => void) | null = null;
+        let disconnectHandler: ((ev?: Error) => void) | null = null;
 
         reDgram.onMessage = (msg: Uint8Array) => {
             if (messageHandler) {
-                const event = new MessageEvent('message', { data: msg.buffer });
-                messageHandler(event);
+                messageHandler(msg);
             }
         };
 
         reDgram.onClose = (err: Error) => {
             if (err && errorHandler) {
-                const event = new ErrorEvent('error', { error: err });
-                errorHandler(event);
+                errorHandler(err);
             }
             if (disconnectHandler) {
-                const event = new CloseEvent('close');
-                disconnectHandler(event);
+                disconnectHandler();
             }
         };
 
         return {
-            send: (data: ArrayBufferView) => {
-                const uint8Data = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-                return reDgram.send(uint8Data);
+            send: (data: Uint8Array) => {
+                return reDgram.send(data);
             },
 
             get onmessage() {
                 return messageHandler;
             },
 
-            set onmessage(handler: ((ev: MessageEvent) => void) | null) {
+            set onmessage(handler: ((ev: ArrayBufferView) => void) | null) {
                 messageHandler = handler;
             },
 
@@ -214,7 +228,7 @@ export abstract class WebcInterface extends ConnectionInterface {
                 return errorHandler;
             },
 
-            set onerror(handler: ((ev: ErrorEvent) => void) | null) {
+            set onerror(handler: ((ev: Error | string) => void) | null) {
                 errorHandler = handler;
             },
 
@@ -222,7 +236,7 @@ export abstract class WebcInterface extends ConnectionInterface {
                 return disconnectHandler;
             },
 
-            set ondisconnect(handler: ((ev: CloseEvent) => void) | null) {
+            set ondisconnect(handler: ((ev: Error | string) => void) | null) {
                 disconnectHandler = handler;
             },
 
@@ -231,6 +245,8 @@ export abstract class WebcInterface extends ConnectionInterface {
             }
         };
     }
+
+    private waitingPeerData = new Map<string, { peerData: WebcPeerData, cleanupTimer: number }>();
 
     async start(): Promise<void> {
         const localSc = modules.getLocalServiceController();
@@ -251,6 +267,12 @@ export abstract class WebcInterface extends ConnectionInterface {
                 clearTimeout(waitingEntry.cleanupTimer);
                 waitingEntry.connection.addPeerDetails(webcPeerData.peerAddress, webcPeerData.peerPort);
                 this.waitingForPeerData.delete(webcPeerData.pin);
+            } else {
+                console.warn("Received WebC peer data before server handshake for PIN:", webcPeerData.pin);
+                const cleanupTimer = setTimeout(() => {
+                    this.waitingPeerData.delete(webcPeerData.pin);
+                }, 2 * 60000); // 2 minutes timeout
+                this.waitingPeerData.set(webcPeerData.pin, { peerData: webcPeerData, cleanupTimer });
             }
         });
     }

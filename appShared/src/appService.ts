@@ -10,9 +10,12 @@ export class AppService extends Service {
 
     private lastPeerListSync: number = 0;
     private isPeerInfoPushed: boolean = false;
+    private autoConnectPeers: boolean = false;
 
-    public async init() {
+    public async init(autoConnectPeers: boolean = false) {
         this._init();
+        this.autoConnectPeers = autoConnectPeers;
+        console.log(`[AppService] autoConnectPeers=${autoConnectPeers}`);
         this.store = modules.ConfigStorage.getInstance(StoreNames.APP);
         await this.store.load();
 
@@ -43,6 +46,17 @@ export class AppService extends Service {
         localSc.account.peerRemovedSignal.add(async (peer: PeerInfo) => {
             console.log("Account peer removed - removing from peer list...", peer.fingerprint);
             await this.removePeerFromStore(peer.fingerprint);
+        });
+
+        this.addPeerListToAutoConnect();
+    }
+
+    private addPeerListToAutoConnect() {
+        if (!this.autoConnectPeers) return;
+        const localSc = modules.getLocalServiceController();
+        const peers = this.getPeers();
+        peers.forEach((peer) => {
+            localSc.net.addAutoConnectFingerprint(peer.fingerprint);
         });
     }
 
@@ -75,7 +89,7 @@ export class AppService extends Service {
         });
         // Add or update peers
         for (const remotePeer of remotePeers) {
-            console.log("Adding/updating peer from server:", remotePeer);
+            // console.log("Adding/updating peer from server:", remotePeer);
             await this.addPeerToStore(remotePeer);
             localPeerMap.delete(remotePeer.fingerprint);
         }
@@ -125,6 +139,10 @@ export class AppService extends Service {
         this.store.setItem('peers', peers);
         await this.store.save();
         this.peerSignal.dispatch(SignalEvent.REMOVE, peer);
+        if (this.autoConnectPeers) {
+            const localSc = modules.getLocalServiceController();
+            localSc.net.removeAutoConnectFingerprint(fingerprint);
+        }
         return peer;
     }
 
@@ -154,6 +172,10 @@ export class AppService extends Service {
             this.peerSignal.dispatch(SignalEvent.UPDATE, peer);
         } else {
             this.peerSignal.dispatch(SignalEvent.ADD, peer);
+        }
+        if (this.autoConnectPeers) {
+            const localSc = modules.getLocalServiceController();
+            localSc.net.addAutoConnectFingerprint(peer.fingerprint);
         }
         return peer;
     }

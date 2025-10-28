@@ -1,6 +1,6 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, RPCController, getMethodInfo, assertServiceRunning, RPCControllerProxy } from "./servicePrimatives";
-import { ProxyHandlers, GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo, SignalEvent } from "./types";
-import { RPCPeer, RPCPeerOptions } from "./rpc";
+import { Service, serviceStartMethod, serviceStopMethod, RPCController, getMethodInfo, assertServiceRunning, RPCControllerProxy } from "./servicePrimatives";
+import { GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo, SignalEvent } from "./types";
+import { RPCPeer } from "./rpc";
 import Signal, { SignalNodeRef } from "./signals";
 
 
@@ -8,6 +8,7 @@ export abstract class ConnectionInterface {
     abstract onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void): void;
     abstract connect(candidate: PeerCandidate): Promise<GenericDataChannel>;
     abstract getCandidates(fingerprint?: string): Promise<PeerCandidate[]>;
+    abstract onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void;
 
     isSecure: boolean;
 
@@ -55,6 +56,16 @@ export class NetService extends Service {
 
     private connectionInterfaces: Map<ConnectionType, ConnectionInterface>;
 
+    private autoConnectFingerprints: Set<string> = new Set();
+
+    public addAutoConnectFingerprint(fingerprint: string) {
+        this.autoConnectFingerprints.add(fingerprint);
+    }
+
+    public removeAutoConnectFingerprint(fingerprint: string) {
+        this.autoConnectFingerprints.delete(fingerprint);
+    }
+
     public init(connectionInterfaces: Map<ConnectionType, ConnectionInterface>) {
         this._init();
         this.connectionInterfaces = connectionInterfaces;
@@ -62,7 +73,31 @@ export class NetService extends Service {
             connectionInterface.onIncomingConnection((dataChannel) => {
                 this.setupConnection(type, null, dataChannel);
             });
+            connectionInterface.onCandidateAvailable((candidate) => {
+                this.handleCandidateAvailable(type, candidate);
+            });
         });
+    }
+
+    private async handleCandidateAvailable(type: ConnectionType, candidate: PeerCandidate) {
+        const fingerprint = candidate.fingerprint;
+        if (fingerprint && this.autoConnectFingerprints.has(fingerprint)) {
+            if (this.connections.has(fingerprint)) {
+                // already connected
+                console.log(`[NetService] Already connected to candidate ${fingerprint} on ${type}, skipping auto-connect.`);
+                return;
+            }
+            try {
+                console.log(`[NetService] Auto-connecting to candidate ${fingerprint} on ${type}`);
+                const connectionInterface = this.connectionInterfaces.get(type);
+                if (connectionInterface) {
+                    const dataChannel = await connectionInterface.connect(candidate);
+                    this.setupConnection(type, fingerprint, dataChannel);
+                }
+            } catch (error) {
+                console.error(`[NetService] Error auto-connecting to candidate ${fingerprint} on ${type}:`, error);
+            }
+        }
     }
 
     @assertServiceRunning
@@ -189,7 +224,7 @@ export class NetService extends Service {
                         });
                         connection.signalSubs.set(fqn, signalRef);
                     },
-                    signalUnsubscribe(fqn) {
+                    signalUnsubscribe: (fqn) => {
                         const fingerprint = rpc.getTargetFingerprint();
                         const connection = this.connections.get(fingerprint);
                         const serviceController = modules.ServiceController.getLocalInstance();

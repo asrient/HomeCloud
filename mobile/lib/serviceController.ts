@@ -28,7 +28,7 @@ export default class MobileServiceController extends ServiceController {
             httpClient: new HttpClient_(),
             webSocket: new WebSocket_()
         });
-        await this.app.init();
+        await this.app.init(true);
         await this.system.init();
         await this.files.init();
         await this.thumbnail.init();

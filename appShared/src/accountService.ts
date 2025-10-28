@@ -86,6 +86,7 @@ export class AccountService extends Service {
     }
 
     private handleWebSocketEvent(event: WebSocketEvent, data: any) {
+        console.log("Received WebSocket event:", event, data);
         switch (event) {
             case WebSocketEvent.WEB_CONNECT_REQUEST:
                 this.webcInitSignal.dispatch(data as WebcInit);

@@ -151,7 +151,10 @@ export default class TCPInterface extends ConnectionInterface {
                     this.handleIncomingConnection(socket);
                 });
 
-                this.server.listen(this.port, async () => {
+                this.server.listen({
+                    port: this.port,
+                    host: '0.0.0.0'
+                }, async () => {
                     console.log(`TCP server listening on port ${this.port}`);
 
                     // Start discovery service
@@ -242,38 +245,28 @@ export default class TCPInterface extends ConnectionInterface {
      * @returns {GenericDataChannel} The data channel wrapper.
      */
     private createDataChannel(socket: net.Socket, connectionId: string): GenericDataChannel {
-        let messageHandler: ((ev: MessageEvent) => void) | null = null;
-        let errorHandler: ((ev: ErrorEvent) => void) | null = null;
-        let disconnectHandler: ((ev: CloseEvent) => void) | null = null;
+        let messageHandler: ((data: Uint8Array) => void) | null = null;
+        let errorHandler: ((ev: Error | string) => void) | null = null;
+        let disconnectHandler: ((ev?: Error) => void) | null = null;
 
         // Set up data parsing for incoming messages
         socket.on('data', (data) => {
             if (messageHandler) {
                 // Create a MessageEvent-like object
-                const messageEvent = {
-                    data: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
-                } as MessageEvent;
-                messageHandler(messageEvent);
+                messageHandler(data);
             }
         });
 
         socket.on('error', (error) => {
             if (errorHandler) {
-                const errorEvent = {
-                    error: error
-                } as ErrorEvent;
-                errorHandler(errorEvent);
+                errorHandler(error);
             }
         });
 
         socket.on('close', (hadErr) => {
             console.log(`Socket ${connectionId} closed. Had error: ${hadErr}`);
             if (disconnectHandler) {
-                const closeEvent = {
-                    code: 1000,
-                    reason: 'Connection closed'
-                } as CloseEvent;
-                disconnectHandler(closeEvent);
+                disconnectHandler(hadErr ? new Error('Socket closed due to error') : undefined);
             }
             if (this.connections.has(connectionId)) {
                 this.connections.delete(connectionId);
@@ -281,11 +274,10 @@ export default class TCPInterface extends ConnectionInterface {
         });
 
         return {
-            send: (data: ArrayBufferView): Promise<void> => {
+            send: (data: Uint8Array): Promise<void> => {
                 return new Promise((resolve, reject) => {
                     if (socket.writable) {
-                        const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-                        socket.write(buffer, (err) => {
+                        socket.write(data, (err) => {
                             if (err) {
                                 console.error(`Error sending data on socket ${connectionId}:`, err);
                                 reject(err);
@@ -304,7 +296,7 @@ export default class TCPInterface extends ConnectionInterface {
                 return messageHandler;
             },
 
-            set onmessage(handler: ((ev: MessageEvent) => void) | null) {
+            set onmessage(handler: ((ev: ArrayBufferView) => void) | null) {
                 messageHandler = handler;
             },
 
@@ -312,7 +304,7 @@ export default class TCPInterface extends ConnectionInterface {
                 return errorHandler;
             },
 
-            set onerror(handler: ((ev: ErrorEvent) => void) | null) {
+            set onerror(handler: ((ev: Error | string) => void) | null) {
                 errorHandler = handler;
             },
 
@@ -320,7 +312,7 @@ export default class TCPInterface extends ConnectionInterface {
                 return disconnectHandler;
             },
 
-            set ondisconnect(handler: ((ev: CloseEvent) => void) | null) {
+            set ondisconnect(handler: ((ev: Error | string) => void) | null) {
                 disconnectHandler = handler;
             },
 
@@ -330,5 +322,9 @@ export default class TCPInterface extends ConnectionInterface {
                 this.connections.delete(connectionId);
             }
         };
+    }
+
+    onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
+        // No-op for TCP interface
     }
 }

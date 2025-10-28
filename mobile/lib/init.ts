@@ -97,4 +97,5 @@ export async function initModules() {
     setModules(modules, global);
     const serviceController = MobileServiceController.getLocalInstance<MobileServiceController>();
     await serviceController.setup();
+    console.log("✅ Modules initialized.");
 }

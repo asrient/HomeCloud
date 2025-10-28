@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import DesktopConfigStorage from './configStorage';
 import { getServiceController } from 'shared/utils';
-import { UITheme } from 'shared/types';
+import { DeviceFormType, UITheme } from 'shared/types';
 
 const WEB_APP_SERVER = 'http://localhost:3000';
 
@@ -76,7 +76,7 @@ async function getConfig() {
   const dataDir = app.getPath('userData');
   const { privateKeyPem, publicKeyPem } = await getOrGenerateKeys(dataDir);
   const fingerprint = cryptoModule.getFingerprintFromPem(publicKeyPem);
-  let uiTheme: UITheme =  process.platform === 'darwin' ? UITheme.Macos : UITheme.Win11;
+  let uiTheme: UITheme = process.platform === 'darwin' ? UITheme.Macos : UITheme.Win11;
   if (!!env.UI_THEME) {
     if (env.UI_THEME === UITheme.Macos) {
       uiTheme = UITheme.Macos;
@@ -238,6 +238,7 @@ app.whenReady().then(async () => {
   handleProtocols();
   // Create the main window
   createWindow();
+  // eagerlyConnectPeers();
 
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
@@ -269,3 +270,22 @@ protocol.registerSchemesAsPrivileged([
     }
   },
 ]);
+
+function eagerlyConnectPeers() {
+  const localSc = modules.getLocalServiceController();
+  localSc.account.peerAddedSignal.add(async (peer) => {
+    // check if we are already connected
+    const connInfo = localSc.net.getConnectionInfo(peer.fingerprint);
+    if (connInfo) {
+      return;
+    }
+    try {
+      console.log('Eagerly connecting to peer:', peer.fingerprint, peer.deviceName);
+      await localSc.net.getRemoteServiceController(peer.fingerprint);
+      console.log('Successfully connected to peer:', peer.fingerprint);
+    } catch (error) {
+      console.error('Error eagerly connecting to peer:', peer.fingerprint, error);
+    }
+
+  });
+}

@@ -68,14 +68,14 @@ export class RPCPeer {
     constructor(private opts: RPCPeerOptions) {
         this.parser = new DataChannelParser({ onFrame: this.onFrame });
         // this.opts.dataChannel.binaryType = 'arraybuffer';
-        this.opts.dataChannel.onmessage = ev => {
-            this.parser.feed(new Uint8Array(ev.data as ArrayBuffer));
+        this.opts.dataChannel.onmessage = data => {
+            this.parser.feed(data);
         };
-        this.opts.dataChannel.onerror = (ev: ErrorEvent) => {
-            this.onError(ev.error);
+        this.opts.dataChannel.onerror = (ev: Error | string) => {
+            this.onError(typeof ev === 'string' ? new Error(ev) : ev);
         };
-        this.opts.dataChannel.ondisconnect = (ev: CloseEvent) => {
-            console.log('Data channel disconnected:', ev);
+        this.opts.dataChannel.ondisconnect = () => {
+            console.log('Data channel disconnected');
             this.close(true);
         };
         this.sendHello();

@@ -13,11 +13,11 @@ export type SignalMetadata = {
 export const DEFAULT_AGENT_PORT = 7736;
 
 export interface GenericDataChannel {
-    send: (data: ArrayBufferView) => Promise<void>;
-    onmessage: (ev: MessageEvent) => void;
+    send: (data: Uint8Array) => Promise<void>;
+    onmessage: (ev: Uint8Array) => void;
     disconnect: () => void;
-    onerror: (ev: ErrorEvent) => void;
-    ondisconnect: (ev: CloseEvent) => void;
+    onerror: (ev: Error | string) => void;
+    ondisconnect: (ev?: Error) => void;
 }
 
 export type MethodInfo = {

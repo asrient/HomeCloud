@@ -12,7 +12,7 @@ function setupGlobalListeners() {
     listenersSetup = true;
 
     SupermanModule.addListener('udpMessage', (params: { socketId: string; data: Uint8Array; address: string; port: number }) => {
-        console.log('Received UDP message event:', params);
+        console.log(`Received UDP message event: ${params.data.byteLength} bytes`);
         const socket = activeSockets.get(params.socketId);
         if (socket && socket.onMessage) {
             socket.onMessage(params.data, {
@@ -20,6 +20,8 @@ function setupGlobalListeners() {
                 family: 'IPv4',
                 port: params.port
             });
+        } else {
+            console.warn(`No active socket found for socketId: ${params.socketId}`);
         }
     });
 
@@ -112,6 +114,7 @@ class Datagram_ extends DatagramCompat {
         }
 
         try {
+            console.log(`Sending UDP data to ${address}:${port}. Size: ${data.byteLength} bytes`);
             const resp = await SupermanModule.udpSend(this.socketId, data, port, address);
             if (!resp) {
                 throw new Error('UDP send failed');

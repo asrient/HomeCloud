@@ -105,7 +105,7 @@ export class Datagram_ extends DatagramCompat {
         
         this.socket.on('message', (msg: Buffer, rinfo: dgram.RemoteInfo) => {
             if (this.onMessage) {
-                this.onMessage(new Uint8Array(msg), {
+                this.onMessage(msg, {
                     address: rinfo.address,
                     family: rinfo.family,
                     port: rinfo.port
@@ -153,7 +153,7 @@ export class Datagram_ extends DatagramCompat {
 
     async send(data: Uint8Array, port: number, address: string): Promise<void> {
         if (this.socket) {
-            this.socket.send(Buffer.from(data), port, address);
+            this.socket.send(data, port, address);
         }
     }
 

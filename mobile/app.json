@@ -15,7 +15,11 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "NSBonjourServices": [
+          "hc-agent._tcp."
+        ],
+        "NSLocalNetworkUsageDescription": "Find and connect to your other Media Center devices over wifi."
       }
     },
     "android": {

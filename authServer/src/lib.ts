@@ -332,6 +332,7 @@ export async function relayWebcPeerData(pin: string, address: string, port: numb
         peerAddress: address,
         peerPort: port,
     };
+    console.log(`Relaying WebC peer data PIN=${pin}`, message);
     await notifyPeer(targetId, 'webc_peer_data', message);
     // Clean up cache to prevent retriggering
     await globalComms.deleteKV(`webc_init_${pin}`);

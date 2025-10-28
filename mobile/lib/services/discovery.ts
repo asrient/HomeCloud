@@ -5,15 +5,29 @@ const SERVICE_TYPE = 'hc-agent';
 
 export default class Discovery {
     private zeroconf: Zeroconf;
+    private onFoundCallback: ((pc: PeerCandidate) => void) | null = null;
 
     constructor() {
         this.zeroconf = new Zeroconf();
+        this.zeroconf.on('error', (err) => {
+            console.error('Zeroconf error:', err);
+        });
+    }
+
+    onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
+        this.onFoundCallback = callback;
     }
 
     scan() {
-        // this.zeroconf.on('found', (service) => {
-        //     console.log('Found service:', service);
-        // });
+        this.zeroconf.on('resolved', (service) => {
+            console.log('Found service:', service);
+            if (this.onFoundCallback) {
+                const pc = this.serviceToPeerCandidate(service);
+                if (pc) {
+                    this.onFoundCallback(pc);
+                }
+            }
+        });
         this.zeroconf.scan(SERVICE_TYPE, 'tcp');
     }
 
@@ -33,6 +47,25 @@ export default class Discovery {
         return true;
     }
 
+    private serviceToPeerCandidate(service: Service): PeerCandidate | null {
+        if (!Discovery.isServiceVaild(service)) {
+            console.warn('Invalid service discovered, skipping:', service.name);
+            return null;
+        }
+        const txt = service.txt as BonjourTxt;
+        console.log('Addresses found for service:', service.name, service.addresses);
+        return {
+            data: {
+                host: service.addresses[0],
+                port: service.port,
+            },
+            connectionType: ConnectionType.LOCAL,
+            fingerprint: txt.fingerprint,
+            deviceName: txt.deviceName,
+            iconKey: txt.iconKey,
+        };
+    }
+
     getCandidates(silent = true): PeerCandidate[] {
         if (!silent) {
             this.scan();
@@ -40,21 +73,10 @@ export default class Discovery {
         const candidates: PeerCandidate[] = [];
         const servicesMap = this.zeroconf.getServices();
         Object.values(servicesMap).forEach((service: Service) => {
-            if (!Discovery.isServiceVaild(service)) {
-                return;
+            const pc = this.serviceToPeerCandidate(service);
+            if (pc) {
+                candidates.push(pc);
             }
-            const txt = service.txt as BonjourTxt;
-            console.log('Addresses found for service:', service.name, service.addresses);
-            candidates.push({
-                data: {
-                    host: service.addresses[0],
-                    port: service.port,
-                },
-                connectionType: ConnectionType.LOCAL,
-                fingerprint: txt.fingerprint,
-                deviceName: txt.deviceName,
-                iconKey: txt.iconKey,
-            });
         });
         return candidates;
     }
