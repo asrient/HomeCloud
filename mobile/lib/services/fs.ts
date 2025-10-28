@@ -2,7 +2,7 @@ import { FsDriver } from "shared/fsDriver";
 import { FileContent, RemoteItem } from "shared/types";
 import { exposed } from "shared/servicePrimatives";
 import { File, Paths, Directory } from 'expo-file-system/next';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getDrivesMapping, pathToUri, uriToPath } from "./fileUtils";
 
 
@@ -32,7 +32,7 @@ export default class MobileFsDriver extends FsDriver {
 
     if (loadStat) {
       try {
-        const stat = await FileSystem.getInfoAsync(uri, { size: true });
+        const stat = await FileSystem.getInfoAsync(uri);
         if (stat.exists) {
           size = stat.size;
           modificationTime = new Date(stat.modificationTime * 1000);
