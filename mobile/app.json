@@ -19,12 +19,14 @@
         "NSBonjourServices": [
           "mcservice._tcp.",
           "_mcservice._tcp.",
+          "_mcservice._tcp",
           "mcservice._tcp"
         ],
         "NSLocalNetworkUsageDescription": "Find and connect to your other Media Center devices over wifi."
       }
     },
     "android": {
+      "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.ACCESS_WIFI_STATE",

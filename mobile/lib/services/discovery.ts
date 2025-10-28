@@ -21,6 +21,7 @@ export default class Discovery {
                 }
             }
         });
+        this.zeroconf.on('start', () => console.log('The bonjour scan has started.'))
     }
 
     onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {

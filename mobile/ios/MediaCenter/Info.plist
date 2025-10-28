@@ -47,8 +47,10 @@
     </dict>
     <key>NSBonjourServices</key>
     <array>
-      <string>hc-agent._tcp.</string>
-      <string>_hc-agent._tcp.</string>
+      <string>mcservice._tcp.</string>
+      <string>_mcservice._tcp.</string>
+      <string>mcservice._tcp</string>
+      <string>_mcservice._tcp</string>
     </array>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Find and connect to your other Media Center devices over wifi.</string>
