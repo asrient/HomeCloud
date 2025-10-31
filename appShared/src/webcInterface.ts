@@ -168,6 +168,7 @@ export abstract class WebcInterface extends ConnectionInterface {
     }
 
     async connect(candidate: PeerCandidate): Promise<GenericDataChannel> {
+        console.log("Connecting to WebC peer:", candidate);
         const data = candidate.data as WebcInit;
         return this.setupConnection(data);
     }

@@ -24,8 +24,8 @@ public class SupermanModule: Module {
   struct UdpSocket {
     let listener: NWListener
     let socketId: String
-    var receiveConnections: [String: NWConnection] = [:]
-    var sendConnections: [String: NWConnection] = [:]
+    let localPort: NWEndpoint.Port
+    var connections: [String: NWConnection] = [:]
   }
   // Each module class must implement the definition function. The definition consists of components
   // that describes the module's functionality and behavior.
@@ -143,48 +143,56 @@ public class SupermanModule: Module {
         let bindAddress = address ?? "0.0.0.0"
         
         do {
-          // Create UDP listener using NWListener
+          // Create UDP parameters
           let udpParams = NWParameters.udp
           udpParams.allowLocalEndpointReuse = true
+          udpParams.includePeerToPeer = true
           udpParams.acceptLocalOnly = false
           
-          let listener = try NWListener(using: udpParams, on: NWEndpoint.Port(integerLiteral: UInt16(bindPort)))
+          // Create listener
+          let nwPort: NWEndpoint.Port?
+          if bindPort == 0 {
+            nwPort = nil // Let system choose port
+          } else {
+            nwPort = NWEndpoint.Port(integerLiteral: UInt16(bindPort))
+          }
+          
+          let listener = try NWListener(using: udpParams, on: nwPort ?? NWEndpoint.Port.any)
           
           listener.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
               if let actualPort = listener.port {
-                let boundAddress = bindAddress == "0.0.0.0" ? "127.0.0.1" : bindAddress
                 
                 self?.networkQueue.async {
                   let udpSocket = UdpSocket(
                     listener: listener,
                     socketId: socketId,
-                    receiveConnections: [:],
-                    sendConnections: [:]
+                    localPort: actualPort,
+                    connections: [:]
                   )
                   self?.udpSockets[socketId] = udpSocket
                 }
                 
-                print("UDP socket bound to \(boundAddress):\(Int(actualPort.rawValue))")
+                print("[UDP] Socket bound to \(bindAddress):\(Int(actualPort.rawValue))")
                 self?.sendEvent("udpListening", [
                   "socketId": socketId,
-                  "address": boundAddress,
+                  "address": bindAddress,
                   "port": Int(actualPort.rawValue)
                 ])
                 promise.resolve([
-                  "address": boundAddress,
+                  "address": bindAddress,
                   "port": Int(actualPort.rawValue)
                 ])
               }
             case .failed(let error):
-              print("UDP bind failed: \(error.localizedDescription)")
+              print("[UDP] Bind failed: \(error)")
               self?.networkQueue.async {
                 self?.udpSockets.removeValue(forKey: socketId)
               }
               promise.reject("UDP_BIND_FAILED", "Failed to bind: \(error.localizedDescription)")
             case .cancelled:
-              print("UDP listener cancelled for socket: \(socketId)")
+              print("[UDP] Listener cancelled for socket: \(socketId)")
               self?.networkQueue.async {
                 self?.udpSockets.removeValue(forKey: socketId)
               }
@@ -194,21 +202,20 @@ public class SupermanModule: Module {
             }
           }
           
-          // Handle incoming UDP connections using NWConnection
+          // Handle incoming UDP connections
           listener.newConnectionHandler = { [weak self] connection in
-            print("New UDP connection received for socket: \(socketId)")
+            print("[UDP] New incoming connection for socket: \(socketId)")
             
-            // Accept the connection immediately
+            // Start the connection immediately
+            connection.start(queue: self?.networkQueue ?? DispatchQueue.global())
+            
             self?.handleIncomingUdpConnection(socketId: socketId, connection: connection)
           }
-          
-          // Set service to accept new connections
-          listener.service = nil
           
           listener.start(queue: self.networkQueue)
           
         } catch {
-          print("Failed to create UDP listener: \(error.localizedDescription)")
+          print("[UDP] Failed to create listener: \(error)")
           promise.reject("UDP_BIND_FAILED", "Failed to create listener: \(error.localizedDescription)")
         }
       }
@@ -225,7 +232,7 @@ public class SupermanModule: Module {
         let connectionKey = "\(address):\(port)"
         
         // Reuse existing NWConnection or create new one
-        if let existingConnection = udpSocket.sendConnections[connectionKey],
+        if let existingConnection = udpSocket.connections[connectionKey],
            existingConnection.state == .ready {
           // Connection is ready, send immediately
           existingConnection.send(content: data, completion: .contentProcessed { error in
@@ -236,12 +243,21 @@ public class SupermanModule: Module {
             }
           })
         } else {
-          // Create new UDP connection for sending
-          let connection = NWConnection(to: endpoint, using: .udp)
+          // Create new UDP connection for sending and receiving
+          // Configure UDP parameters to use the same local port as the listener
+          let udpParams = NWParameters.udp
+          udpParams.allowLocalEndpointReuse = true
+          udpParams.requiredLocalEndpoint = NWEndpoint.hostPort(
+            host: NWEndpoint.Host.ipv4(.any),
+            port: udpSocket.localPort
+          )
+          
+          let connection = NWConnection(to: endpoint, using: udpParams)
           
           connection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
+              print("[UDP] Connection ready to \(connectionKey), starting receive loop")
               // Send the data once connection is ready
               connection.send(content: data, completion: .contentProcessed { error in
                 if let error = error {
@@ -250,20 +266,24 @@ public class SupermanModule: Module {
                   promise.resolve(true)
                 }
               })
+              // Start receiving on this connection
+              self?.startUdpReceiving(socketId: socketId, connection: connection, connectionKey: connectionKey)
             case .failed(let error):
+              print("[UDP] Connection failed to \(connectionKey): \(error.localizedDescription)")
               // Remove failed connection
               self?.networkQueue.async {
                 if var socket = self?.udpSockets[socketId] {
-                  socket.sendConnections.removeValue(forKey: connectionKey)
+                  socket.connections.removeValue(forKey: connectionKey)
                   self?.udpSockets[socketId] = socket
                 }
               }
               promise.reject("UDP_SEND_FAILED", "Failed to connect: \(error.localizedDescription)")
             case .cancelled:
+              print("[UDP] Connection cancelled to \(connectionKey)")
               // Remove cancelled connection
               self?.networkQueue.async {
                 if var socket = self?.udpSockets[socketId] {
-                  socket.sendConnections.removeValue(forKey: connectionKey)
+                  socket.connections.removeValue(forKey: connectionKey)
                   self?.udpSockets[socketId] = socket
                 }
               }
@@ -273,7 +293,7 @@ public class SupermanModule: Module {
           }
           
           // Store the connection and start it
-          udpSocket.sendConnections[connectionKey] = connection
+          udpSocket.connections[connectionKey] = connection
           self.udpSockets[socketId] = udpSocket
           connection.start(queue: self.networkQueue)
         }
@@ -290,13 +310,8 @@ public class SupermanModule: Module {
         // Close listener
         udpSocket.listener.cancel()
         
-        // Close all receive connections
-        for (_, connection) in udpSocket.receiveConnections {
-          connection.cancel()
-        }
-        
-        // Close all send connections
-        for (_, connection) in udpSocket.sendConnections {
+        // Close all connections
+        for (_, connection) in udpSocket.connections {
           connection.cancel()
         }
         
@@ -406,60 +421,48 @@ public class SupermanModule: Module {
       connectionKey = "unknown:\(UUID().uuidString)"
     }
     
-    print("[UDP] Handling connection from: \(connectionKey) for socket: \(socketId)")
+    print("[UDP] Handling incoming connection from: \(connectionKey)")
     
-    // Store the receive connection
+    // Store the connection
     networkQueue.async { [weak self] in
       if var socket = self?.udpSockets[socketId] {
-        socket.receiveConnections[connectionKey] = connection
+        socket.connections[connectionKey] = connection
         self?.udpSockets[socketId] = socket
-        print("[UDP] Stored receive connection for: \(connectionKey)")
+        print("[UDP] Stored incoming connection for: \(connectionKey)")
       }
     }
     
-    // Set up state handler for the connection
+    // Set up state handler
     connection.stateUpdateHandler = { [weak self] state in
-      print("[UDP] Connection state for \(connectionKey): \(state)")
+      print("[UDP] Incoming connection state for \(connectionKey): \(state)")
       switch state {
       case .ready:
-        print("[UDP] Receive connection ready: \(connectionKey)")
+        print("[UDP] Incoming connection ready: \(connectionKey), starting receive")
+        // Start receiving once the connection is ready
+        self?.startUdpReceiving(socketId: socketId, connection: connection, connectionKey: connectionKey)
       case .failed(let error):
-        print("[UDP] Receive connection failed for \(connectionKey): \(error.localizedDescription)")
-        self?.sendEvent("udpError", [
-          "socketId": socketId,
-          "error": error.localizedDescription
-        ])
+        print("[UDP] Incoming connection failed for \(connectionKey): \(error.localizedDescription)")
         self?.networkQueue.async {
           if var socket = self?.udpSockets[socketId] {
-            socket.receiveConnections.removeValue(forKey: connectionKey)
+            socket.connections.removeValue(forKey: connectionKey)
             self?.udpSockets[socketId] = socket
           }
         }
       case .cancelled:
-        print("[UDP] Receive connection cancelled: \(connectionKey)")
+        print("[UDP] Incoming connection cancelled: \(connectionKey)")
         self?.networkQueue.async {
           if var socket = self?.udpSockets[socketId] {
-            socket.receiveConnections.removeValue(forKey: connectionKey)
+            socket.connections.removeValue(forKey: connectionKey)
             self?.udpSockets[socketId] = socket
           }
         }
-      case .preparing:
-        print("[UDP] Connection preparing: \(connectionKey)")
-      case .waiting(let error):
-        print("[UDP] Connection waiting for \(connectionKey): \(error)")
-      case .setup:
-        print("[UDP] Connection setup: \(connectionKey)")
-      @unknown default:
-        print("[UDP] Unknown connection state for: \(connectionKey)")
+      default:
+        break
       }
     }
     
-    // Start the connection FIRST
-    print("[UDP] Starting connection for: \(connectionKey)")
-    connection.start(queue: networkQueue)
-    
-    // Start receiving messages on this connection
-    startUdpReceiving(socketId: socketId, connection: connection, connectionKey: connectionKey)
+    // Connection is already started by the listener's newConnectionHandler
+    print("[UDP] Connection already started for: \(connectionKey), waiting for ready state")
   }
   
   private func startUdpReceiving(socketId: String, connection: NWConnection, connectionKey: String) {
@@ -511,7 +514,7 @@ public class SupermanModule: Module {
         print("[UDP] Receive completed for: \(connectionKey)")
         self?.networkQueue.async {
           if var socket = self?.udpSockets[socketId] {
-            socket.receiveConnections.removeValue(forKey: connectionKey)
+            socket.connections.removeValue(forKey: connectionKey)
             self?.udpSockets[socketId] = socket
           }
         }

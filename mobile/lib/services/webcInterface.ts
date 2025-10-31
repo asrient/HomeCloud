@@ -78,13 +78,14 @@ class Datagram_ extends DatagramCompat {
         try {
             // Create socket if not already created
             if (!this.socketId) {
+                console.log("Creating UDP socket");
                 this.socketId = await SupermanModule.udpCreateSocket();
                 // Register this socket in the global registry
                 activeSockets.set(this.socketId, this);
             }
-
+            console.log(`Binding UDP socket (ID: ${this.socketId}) to ${address || '0.0.0.0'}:${port || 0}`);
             // Bind the socket
-            const result = await SupermanModule.udpBind(this.socketId, port, address);
+            const result = await SupermanModule.udpBind(this.socketId, port, address || '0.0.0.0');
             this.boundAddress = result.address;
             this.boundPort = result.port;
             console.log(`UDP socket bound to ${this.boundAddress}:${this.boundPort}`);

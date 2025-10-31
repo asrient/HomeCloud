@@ -50,7 +50,11 @@ export class ReDatagram {
         this.remote = { address, port };
 
         this.socket.onMessage = (msg, rinfo) => {
-            if (!this.remote) this.remote = { address: rinfo.address, port: rinfo.port };
+            // make sure message is from the expected remote
+            if (rinfo.address !== this.remote.address || rinfo.port !== this.remote.port) {
+                console.warn(`[ReUDP] Ignoring packet from unexpected remote ${rinfo.address}:${rinfo.port}, expected ${this.remote.address}:${this.remote.port}`);
+                return;
+            }
             this.handlePacket(msg);
         };
 
@@ -81,14 +85,12 @@ export class ReDatagram {
                 this.pingIntervalId = null;
                 return;
             }
-            if (this.isMyHelloAcked) {
-                if (Date.now() - this.lastPingReceived > MAX_PING_DELAY_MS) {
-                    console.warn('[ReUDP] No ping received from remote, closing connection.');
-                    this.close();
-                    return;
-                }
-                this.ping();
+            if (Date.now() - this.lastPingReceived > MAX_PING_DELAY_MS) {
+                console.warn('[ReUDP] No ping received from remote, closing connection.');
+                this.close();
+                return;
             }
+            this.ping();
         }, PING_INTERVAL_MS);
     }
 
@@ -96,9 +98,9 @@ export class ReDatagram {
         if (type < 0 || type > 255) {
             throw new Error(`Invalid packet type: ${type}`);
         }
-        if (seq < 0 || seq > 0xFFFFFFFF) {
-            throw new Error(`Invalid sequence number: ${seq}`);
-        }
+        // if (seq < 0 || seq > 0xFFFFFFFF) {
+        //     throw new Error(`Invalid sequence number: ${seq}`);
+        // }
 
         const buf = new Uint8Array(HEADER_SIZE);
         buf[0] = type;

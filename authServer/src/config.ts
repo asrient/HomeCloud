@@ -7,7 +7,7 @@ export const IS_DEV = process.env.NODE_ENV !== 'production';
 export const SECRET_KEY = process.env.SECRET_KEY || defaultSecretKey;
 export const MONGO_DB_URL = process.env.MONGO_DB_URL || '';
 export const DB_NAME = process.env.DB_NAME || ( IS_DEV ? 'mcdev' : 'mcprod' );
-export const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+export const BASE_URL = process.env.BASE_URL || `http://0.0.0.0:${PORT}`;
 export const REDIS_URL = process.env.REDIS_URL || null;
 export const UDP_PORT = process.env.UDP_PORT ? parseInt(process.env.UDP_PORT) : 9669;
 
@@ -24,7 +24,7 @@ export function configSetup() {
     if (!MONGO_DB_URL) {
         throw new Error('env "MONGO_DB_URL" is not set.');
     }
-    if (!IS_DEV && BASE_URL.startsWith('http://localhost')) {
+    if (!IS_DEV && (BASE_URL.startsWith('http://0.0.0.0') || BASE_URL.includes('localhost'))) {
         console.warn('Warning: BASE_URL is set to localhost in production mode.');
     }
     if (!isRedisEnabled()) {
