@@ -126,6 +126,7 @@ export class ReDatagram {
             this.socket.close();
             return;
         }
+        console.log(`[ReUDP] Sending HELLO (attempt ${attempt})`);
         const header = this.encodeHeader(FLAG_HELLO, 0);
         await this.socket.send(header, this.remote.port, this.remote.address);
         setTimeout(() => this.sendHello(attempt + 1), RETRANSMIT_TIMEOUT);
@@ -182,7 +183,7 @@ export class ReDatagram {
     private async retransmit(seq: number, attempt = 1) {
         const pkt = this.sendWindow.get(seq);
         if (!pkt || !this.remote) return;
-        // console.warn(`Retransmitting seq=${seq}`);
+        console.warn(`Retransmitting seq=${seq}`);
         await this.socket.send(pkt, this.remote.port, this.remote.address);
         if (attempt >= MAX_RETRANSMITS) {
             console.error(`Max retransmits reached for seq=${seq}, giving up`);
@@ -258,15 +259,16 @@ export class ReDatagram {
                 return;
             }
 
+            // if (buf.length < HEADER_SIZE) {
+            //     console.warn(`[ReUDP] DATA packet too short: ${buf.length}`);
+            //     return;
+            // }
+
             const { type, seq } = this.decodeHeader(buf);
 
             if (type === FLAG_DATA) {
-                if (buf.length < HEADER_SIZE) {
-                    console.warn(`[ReUDP] DATA packet too short: ${buf.length}`);
-                    return;
-                }
                 const payload = new Uint8Array(buf.buffer, buf.byteOffset + HEADER_SIZE, buf.length - HEADER_SIZE);
-                // console.log(`[ReUDP] Received DATA seq=${seq}, size=${payload.length}`);
+                console.log(`[ReUDP] Received DATA seq=${seq}, size=${payload.length}`);
                 await this.handleDataPacket(seq, payload);
             }
             else if (type === FLAG_ACK) {

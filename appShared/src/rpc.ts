@@ -215,9 +215,11 @@ export class RPCPeer {
                     // Handle ping if needed, currently no-op
                     break;
                 case MessageType.HELLO:
+                    console.log('[RPCPeer] Received HELLO message');
                     this.handleHello(payload);
                     break;
                 case MessageType.READY:
+                    console.log('[RPCPeer] Received READY message');
                     this.handleTargetReady(payload);
                     break;
                 case MessageType.REQUEST:
@@ -230,9 +232,11 @@ export class RPCPeer {
                     this.handleError(payload);
                     break;
                 case MessageType.AUTH_CHALLENGE:
+                    console.log('[RPCPeer] Received AUTH_CHALLENGE message');
                     await this.onAuthChallenge(payload);
                     break;
                 case MessageType.AUTH_RESPONSE:
+                    console.log('[RPCPeer] Received AUTH_RESPONSE message');
                     await this.onAuthResponse(payload);
                     break;
                 case MessageType.STREAM_CANCEL:
@@ -287,6 +291,7 @@ export class RPCPeer {
             console.error('Target public key is not set');
             return;
         }
+        console.log('[RPCPeer] Sending AUTH_CHALLENGE message');
         this.otp = modules.crypto.generateRandomKey();
         if (!this.opts.isSecure) {
             this.decryptionKey = modules.crypto.generateRandomKey();
@@ -309,6 +314,7 @@ export class RPCPeer {
             console.error('No OTP set, cannot authenticate');
             return;
         }
+        console.log('[RPCPeer] Received AUTH_RESPONSE message');
         const payload = await modules.crypto.decryptPK(buf, modules.config.PRIVATE_KEY_PEM);
         const json = new TextDecoder().decode(payload);
         const { otp } = JSON.parse(json);
@@ -330,6 +336,7 @@ export class RPCPeer {
             console.warn('Already authenticated, ignoring AUTH_CHALLENGE');
             return;
         }
+        console.log('[RPCPeer] Received AUTH_CHALLENGE message');
         const payload = await modules.crypto.decryptPK(buf, modules.config.PRIVATE_KEY_PEM);
         const json = new TextDecoder().decode(payload);
         const { otp, securityKey } = JSON.parse(json);
@@ -445,6 +452,7 @@ export class RPCPeer {
     }
 
     private async sendHello() {
+        console.log('[RPCPeer] Sending HELLO message');
         const hello = {
             version: '1.0',
             deviceName: modules.config.DEVICE_NAME,
