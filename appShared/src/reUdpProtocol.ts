@@ -7,8 +7,8 @@ const RETRANSMIT_TIMEOUT = 700; // ms
 const MAX_RETRANSMITS = 20;
 const MAX_BUFFERED_PACKETS = 256;
 const MAX_ACK_DELAY_MS = 400;
-const PING_INTERVAL_MS = 2 * 1000;
-const MAX_PING_DELAY_MS = 20 * 1000;
+const PING_INTERVAL_MS = 10 * 1000;
+const MAX_PING_DELAY_MS = 30 * 1000;
 
 // Flags
 const FLAG_DATA = 0;
