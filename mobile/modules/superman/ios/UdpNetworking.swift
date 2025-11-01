@@ -296,7 +296,7 @@ class UdpNetworking {
           "address": address,
           "port": port
         ])
-      } else {
+      } else if !isComplete {
         print("[UDP] receiveMessage called but no data (isComplete: \(isComplete))")
       }
       
@@ -309,19 +309,10 @@ class UdpNetworking {
         return
       }
       
-      // Continue receiving if not complete
-      if !isComplete {
-        print("[UDP] Continuing receive for: \(connectionKey)")
-        self?.startReceiving(socketId: socketId, connection: connection, connectionKey: connectionKey)
-      } else {
-        print("[UDP] Receive completed for: \(connectionKey)")
-        self?.networkQueue.async {
-          if var socket = self?.sockets[socketId] {
-            socket.connections.removeValue(forKey: connectionKey)
-            self?.sockets[socketId] = socket
-          }
-        }
-      }
+      // For UDP, always continue receiving unless there's an error
+      // Each datagram is complete (isComplete=true), but we want to receive multiple datagrams
+      print("[UDP] Continuing receive for: \(connectionKey)")
+      self?.startReceiving(socketId: socketId, connection: connection, connectionKey: connectionKey)
     }
   }
 }
