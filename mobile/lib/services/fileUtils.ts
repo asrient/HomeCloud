@@ -38,7 +38,8 @@ export function uriToPath(filePath: string): string {
     const drivesMapping = getDrivesMapping();
     for (const [key, value] of Object.entries(drivesMapping)) {
         if (filePath.startsWith(value)) {
-            return filePath.replace(value, `/${key}`);
+            const relativePath = filePath.slice(value.length);
+            return Paths.join('/', key, relativePath);
         }
     }
     return filePath; // If no mapping found, return as is

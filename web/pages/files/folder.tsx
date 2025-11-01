@@ -76,8 +76,10 @@ function OpenInDevice({ file, reset }: {
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
   const { toast } = useToast();
-  const { path, fingerprint: fingerprintStr } = router.query as { fingerprint: string, path: string };
+  const { path: encodedPath, fingerprint: fingerprintStr } = router.query as { fingerprint: string, path: string };
   const fingerprint = useMemo(() => fingerprintStr || null, [fingerprintStr]);
+
+  const path = useMemo(() => decodeURIComponent(encodedPath || '/'), [encodedPath]);
 
   const { peers } = useAppState();
   const peer = useMemo(() => {

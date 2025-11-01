@@ -3,6 +3,7 @@ import { DeletePhotosResponse, GetPhotosParams, Photo, PhotoLibraryLocation, Get
 import { PhotosService } from "shared/photosService";
 import * as MediaLibrary from 'expo-media-library';
 import mime from 'mime';
+import { MobilePlatform } from "../types";
 
 
 export abstract class MobilePhotosService extends PhotosService {
@@ -30,15 +31,15 @@ export abstract class MobilePhotosService extends PhotosService {
 
     async assetToPhoto(asset: MediaLibrary.Asset): Promise<Photo> {
         let uri = asset.uri;
-        if (uri.startsWith('ph://')) {
-            // Handle photo URI
-            const info = await MediaLibrary.getAssetInfoAsync(asset.id);
-            uri = info.localUri || uri;
+        if (!uri.startsWith('ph://') && modules.config.PLATFORM === MobilePlatform.IOS) {
+            uri = `ph://${asset.id}`;
         }
         let mimeType = mime.getType(uri);
         if (!mimeType) {
             if (asset.mediaType === MediaLibrary.MediaType.photo) {
                 mimeType = 'image/jpeg'; // Default to JPEG for photos
+            } else if (asset.mediaType === MediaLibrary.MediaType.video) {
+                mimeType = 'video/mp4'; // Default to MP4 for videos
             }
         }
         const photo: Photo = {

@@ -54,10 +54,10 @@ export class ReDatagram {
 
         this.socket.onMessage = (msg, rinfo) => {
             // make sure message is from the expected remote
-            if (rinfo.address !== this.remote.address || rinfo.port !== this.remote.port) {
-                console.warn(`[ReUDP] Ignoring packet from unexpected remote ${rinfo.address}:${rinfo.port}, expected ${this.remote.address}:${this.remote.port}`);
-                return;
-            }
+            // if (rinfo.address !== this.remote.address || rinfo.port !== this.remote.port) {
+            //     console.warn(`[ReUDP] Ignoring packet from unexpected remote ${rinfo.address}:${rinfo.port}, expected ${this.remote.address}:${this.remote.port}`);
+            //     return;
+            // }
             this.handlePacket(msg);
         };
 
