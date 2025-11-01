@@ -42,6 +42,9 @@ export class ReDatagram {
     private onReady?: () => void;
 
     private lastPingReceived = Date.now();
+    
+    private sendLock = false;
+    private sendBuffer: Uint8Array[] = [];
 
     constructor(socket: DatagramCompat, address: string, port: number, onReady?: () => void) {
         this.socket = socket;
@@ -145,6 +148,31 @@ export class ReDatagram {
             return;
         }
 
+        // If locked, buffer the data and return
+        if (this.sendLock) {
+            this.sendBuffer.push(data);
+            return;
+        }
+
+        // Acquire lock
+        this.sendLock = true;
+
+        try {
+            // Send the current data
+            await this.sendData(data);
+
+            // Process buffered data
+            while (this.sendBuffer.length > 0) {
+                const bufferedData = this.sendBuffer.shift()!;
+                await this.sendData(bufferedData);
+            }
+        } finally {
+            // Release lock
+            this.sendLock = false;
+        }
+    }
+
+    private async sendData(data: Uint8Array) {
         let offset = 0;
         while (offset < data.length) {
             const chunkSize = Math.min(MAX_PACKET_PAYLOAD, data.length - offset);
