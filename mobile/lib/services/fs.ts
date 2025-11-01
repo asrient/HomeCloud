@@ -7,6 +7,7 @@ import { getDrivesMapping, pathToUri, uriToPath } from "./fileUtils";
 import { MobilePlatform } from "../types";
 import * as MediaLibrary from 'expo-media-library';
 import { fetch } from "expo/fetch";
+import mime from 'mime';
 
 
 export default class MobileFsDriver extends FsDriver {
@@ -196,7 +197,11 @@ export default class MobileFsDriver extends FsDriver {
       const urlParts = uri.split('/');
       filename = urlParts[urlParts.length - 1];
     }
-    const mimeType = response.headers.get('Content-Type') || undefined;
+    let mimeType = response.headers.get('Content-Type') || undefined;
+    if (!mimeType) {
+      mimeType = mime.getType(filename) || undefined;
+    }
+    // console.log('Fetched file:', filename, 'with mime type:', mimeType);
     const stream = response.body;
     return {
       name: filename,

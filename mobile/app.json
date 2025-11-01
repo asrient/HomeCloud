@@ -22,7 +22,10 @@
           "_mcservice._tcp",
           "mcservice._tcp"
         ],
-        "NSLocalNetworkUsageDescription": "Find and connect to your other Media Center devices over wifi."
+        "NSLocalNetworkUsageDescription": "Find and connect to your other Media Center devices over wifi.",
+        "UISupportsDocumentBrowser": true,
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true
       }
     },
     "android": {

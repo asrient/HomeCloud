@@ -20,7 +20,12 @@ export function getDrivesMapping(): Record<string, string> {
     return drives;
 }
 
+function uriDecode(string: string) {
+    return decodeURIComponent(string);
+}
+
 export function pathToUri(filePath: string) {
+    filePath = uriDecode(filePath);
     // return as it is if it does not start with a slash
     if (!filePath.startsWith('/')) {
         return filePath; // Return as is if not an absolute path
@@ -38,8 +43,12 @@ export function uriToPath(filePath: string): string {
     const drivesMapping = getDrivesMapping();
     for (const [key, value] of Object.entries(drivesMapping)) {
         if (filePath.startsWith(value)) {
-            const relativePath = filePath.slice(value.length);
-            return Paths.join('/', key, relativePath);
+            let relativePath = uriDecode(filePath.slice(value.length));
+            if (relativePath.startsWith('/')) {
+                relativePath = relativePath.slice(1);
+            }
+            console.log('original path:', filePath, 'mapped to:', `/${key}/${relativePath}`);
+            return `/${key}/${relativePath}`;
         }
     }
     return filePath; // If no mapping found, return as is
