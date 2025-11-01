@@ -221,6 +221,9 @@ export class ReDatagram {
             this.ackPending++;
             try {
                 this.onMessage?.(payload);
+                if (!this.onMessage) {
+                    console.warn('[ReUDP] onMessage handler is not set');
+                }
             } catch (error) {
                 console.error('[ReUDP] Error in onMessage handler:', error);
             }
