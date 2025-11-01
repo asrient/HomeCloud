@@ -417,7 +417,15 @@ export class RPCPeer {
 
     private handleResponse(buf: Uint8Array) {
         const json = new TextDecoder().decode(buf);
-        const { callId, result } = JSON.parse(json);
+        let callId: number;
+        let result: any;
+        try {
+            ({ callId, result } = JSON.parse(json));
+        } catch (e) {
+            console.error('Failed to parse response JSON', e);
+            console.debug('Response buffer:', json);
+            return;
+        }
         const entry = this.pending.get(callId);
         if (!entry) {
             console.debug('Received response for unknown call', callId, result);

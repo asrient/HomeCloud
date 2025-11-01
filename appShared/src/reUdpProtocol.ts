@@ -33,7 +33,7 @@ export class ReDatagram {
 
     private retransmitTimers = new Map<number, number>();
 
-    private isMyHelloAcked = false;
+    private isReady = false;
     private isRemoteClosed = false;
     private isClosing = false;
 
@@ -120,7 +120,7 @@ export class ReDatagram {
     }
 
     private async sendHello(attempt = 1) {
-        if (this.isMyHelloAcked) return;
+        if (this.isReady) return;
         if (attempt > MAX_RETRANSMITS) {
             this.onClose?.(new Error('Failed to establish connection: no HELLO_ACK received'));
             this.socket.close();
@@ -269,7 +269,7 @@ export class ReDatagram {
             // }
 
             const { type, seq } = this.decodeHeader(buf);
-
+            this.markReady();
             if (type === FLAG_DATA) {
                 const payload = new Uint8Array(buf.buffer, buf.byteOffset + HEADER_SIZE, buf.length - HEADER_SIZE);
                 console.log(`[ReUDP] Received DATA seq=${seq}, size=${payload.length}`);
@@ -296,10 +296,7 @@ export class ReDatagram {
             else if (type === FLAG_HELLO_ACK) {
                 console.log("[ReUDP] Received HELLO_ACK");
                 this.lastPingReceived = Date.now();
-                if (!this.isMyHelloAcked) {
-                    this.isMyHelloAcked = true;
-                    if (this.onReady) this.onReady();
-                }
+                // this.markReady();
             }
             else if (type === FLAG_PING) {
                 console.log("[ReUDP] Received PING, sending PING back");
@@ -338,10 +335,16 @@ export class ReDatagram {
         }
     }
 
+    private markReady() {
+        if (this.isReady) return;
+        this.isReady = true;
+        if (this.onReady) this.onReady();
+    }
+
     async close() {
         if (this.isClosing) return;
         this.isClosing = true;
-        if (!this.isRemoteClosed && this.isMyHelloAcked) {
+        if (!this.isRemoteClosed && this.isReady) {
             // Try to notify remote for graceful close
             const header = this.encodeHeader(FLAG_BYE, 0);
             try {
