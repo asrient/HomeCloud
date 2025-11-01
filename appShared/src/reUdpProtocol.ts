@@ -135,6 +135,7 @@ export class ReDatagram {
     private async ping() {
         if (this.isClosing) return;
         const header = this.encodeHeader(FLAG_PING, 0);
+        console.log("[ReUDP] Sending PING");
         await this.socket.send(header, this.remote.port, this.remote.address);
     }
 
@@ -298,7 +299,7 @@ export class ReDatagram {
                 }
             }
             else if (type === FLAG_PING) {
-                // console.log("[ReUDP] Received PING, sending PING back");
+                console.log("[ReUDP] Received PING, sending PING back");
                 this.lastPingReceived = Date.now();
             }
             else if (type === FLAG_BYE) {
