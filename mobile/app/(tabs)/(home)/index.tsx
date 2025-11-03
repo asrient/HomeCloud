@@ -1,10 +1,7 @@
-import { StyleSheet, View, Button } from 'react-native';
-
-import { UIText } from '@/components/ui/UIText';
-import { Link, useRouter } from 'expo-router';
+import { Link, Stack, useRouter } from 'expo-router';
+import { View, StyleSheet, Button } from 'react-native';
 
 export default function HomeScreen() {
-
   const router = useRouter();
 
   const openLogin = () => {
@@ -13,9 +10,13 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <UIText style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 16 }}>
-        Media Center
-      </UIText>
+      <Stack.Screen
+        options={{
+          title: 'Home',
+          headerTitle: 'Media Center',
+          headerTransparent: true,
+        }}
+      />
       <Link href="/settings">
         Settings
       </Link>

@@ -14,7 +14,12 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
-          "NSAllowsLocalNetworking": true
+          "NSAllowsLocalNetworking": true,
+          "NSExceptionDomains": {
+            "20.40.45.225": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
         },
         "NSBonjourServices": [
           "mcservice._tcp.",
