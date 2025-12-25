@@ -131,8 +131,8 @@ const createWindow = () => {
   const isSystemDarkMode = nativeTheme.shouldUseDarkColors;
   console.log('System dark mode:', isSystemDarkMode);
   const mainWindow = new BrowserWindow({
-    width: process.platform === 'darwin' ? 950 : 1200,
-    height: process.platform === 'darwin' ? 600 : 860,
+    width: process.platform === 'darwin' ? 1040 : 1200,
+    height: process.platform === 'darwin' ? 640 : 860,
     minWidth: 900,
     minHeight: 600,
     // remove the default titlebar

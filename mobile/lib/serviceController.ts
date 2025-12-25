@@ -35,7 +35,7 @@ export default class MobileServiceController extends ServiceController {
         await this.photos.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
-                //[ConnectionType.LOCAL, new TCPInterface(TCP_PORT)],
+                [ConnectionType.LOCAL, new TCPInterface(TCP_PORT)],
                 [ConnectionType.WEB, new MobileWebcInterface()],
             ]
         ));
