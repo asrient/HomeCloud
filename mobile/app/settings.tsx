@@ -1,13 +1,18 @@
 
-import { useHeaderHeight } from '@react-navigation/elements';
-import { StyleSheet, Text, View, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Button } from 'react-native';
+import { useRouter } from 'expo-router';
 
 export default function SettingsScreen() {
   //const headerHeight = useHeaderHeight();
+  const router = useRouter();
+    const openLogin = () => {
+    router.navigate('/login');
+  };
   return (
     <View style={styles.container}>
       <ScrollView style={{ backgroundColor: 'pink', padding: 16 }}>
         <View style={{ minHeight: 2000, marginTop: 200 }}>
+          <Button title="Login" onPress={openLogin} />
           <Text>App Settings</Text>
           <Text>
             Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do

@@ -160,6 +160,8 @@ export function useAppState() {
         }
     }, [initializeAppState]);
 
+    const selectedPeer = peers.find(peer => peer.fingerprint === selectedFingerprint) || null;
+
     return {
         isInitialized,
         peers,
@@ -168,5 +170,6 @@ export function useAppState() {
         selectedFingerprint,
         loadAppState,
         clearSignals,
+        selectedPeer,
     };
 }
