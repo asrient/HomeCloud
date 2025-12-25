@@ -42,6 +42,8 @@ export function getGreetings() {
 
 export function getUrlFromIconKey(iconKey?: string | null) {
   iconKey = iconKey || 'pc';
+  // compat: replace - with _
+  iconKey = iconKey.replace(/-/g, '_');
   return `/icons/d/${iconKey}.png`;
 }
 

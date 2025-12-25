@@ -7,5 +7,8 @@ export default function DeviceIcon({
     size: number;
     iconKey: string | null;
 }) {
-    return <Image source={{ uri: iconKey || 'pc' }} style={{ width: size, height: size }} />;
+    iconKey = iconKey || 'pc';
+    // compat: replace - with _
+    iconKey = iconKey.replace(/-/g, '_');
+    return <Image source={{ uri: iconKey }} style={{ width: size, height: size }} />;
 }
