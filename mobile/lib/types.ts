@@ -56,11 +56,16 @@ export enum SignalEvent {
     ERROR = "error"
 }
 
-export declare enum OSType {
+export enum OSType {
     Windows = "windows",
     MacOS = "macos",
     Linux = "linux",
     Android = "android",
     iOS = "ios",
     Unknown = "unknown"
+}
+
+export enum ConnectionType {
+    WEB = "web",
+    LOCAL = "local"
 }

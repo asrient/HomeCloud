@@ -10,5 +10,7 @@ export default function DeviceIcon({
     iconKey = iconKey || 'pc';
     // compat: replace - with _
     iconKey = iconKey.replace(/-/g, '_');
-    return <Image source={{ uri: iconKey }} style={{ width: size, height: size }} />;
+    return <Image source={{ uri: iconKey }} 
+    contentFit='contain'
+    style={{ width: size, height: size }} />;
 }

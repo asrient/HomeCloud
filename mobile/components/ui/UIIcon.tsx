@@ -21,6 +21,8 @@ const MAPPING = {
   'chevron.left': 'chevron-left',
   'gearshape.fill': 'settings',
   'gear': 'settings',
+  'wifi': 'wifi',
+  'cellularbars': 'signal-cellular-4-bar',
 } as IconMapping;
 
 /**
@@ -36,7 +38,7 @@ export function UIIcon({
 }: {
   name: IconSymbolName;
   size?: number;
-  color: string | OpaqueColorValue;
+  color?: string | OpaqueColorValue;
   style?: StyleProp<TextStyle>;
   weight?: SymbolWeight;
 }) {

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { SignalNodeRef } from 'shared/signals'
 import { ConnectionInfo, PeerInfo, SignalEvent } from 'shared/types'
 import { create } from 'zustand'
@@ -162,6 +162,11 @@ export function useAppState() {
 
     const selectedPeer = peers.find(peer => peer.fingerprint === selectedFingerprint) || null;
 
+    const selectedPeerConnection: ConnectionInfo | null = useMemo(() => {
+        if (!selectedFingerprint) return null;
+        return connections.find(conn => conn.fingerprint === selectedFingerprint) || null;
+    }, [connections, selectedFingerprint]);
+
     return {
         isInitialized,
         peers,
@@ -171,5 +176,6 @@ export function useAppState() {
         loadAppState,
         clearSignals,
         selectedPeer,
+        selectedPeerConnection,
     };
 }

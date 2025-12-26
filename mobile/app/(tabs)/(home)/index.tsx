@@ -7,12 +7,15 @@ import { UIIcon } from '@/components/ui/UIIcon';
 import DeviceIcon from '@/components/deviceIcon';
 import { useAppState } from '@/hooks/useAppState';
 import { UIText } from '@/components/ui/UIText';
+import { ConnectionType } from '@/lib/types';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function HomeScreen() {
   const router = useRouter();
   const headerHeight = useHeaderHeight();
 
-  const { selectedPeer } = useAppState();
+  const { selectedPeer, selectedPeerConnection } = useAppState();
+  const themeColor = useThemeColor({}, 'text');
 
   return (
     <UIView style={{ flex: 1 }}>
@@ -23,21 +26,33 @@ export default function HomeScreen() {
             headerTitle: 'Media Center',
             headerTransparent: true,
             headerRight: () =>
-              <UIView>
+              <View>
                 <Pressable style={{ padding: 4 }} onPress={() => router.navigate('/settings')}>
-                  <UIIcon name="gear" size={28} color="#007AFF" />
+                  <UIIcon name="gear" size={28} color={themeColor} />
                 </Pressable>
-              </UIView>
+              </View>
             ,
           }}
         />
         <DeviceSelectorRow />
         <UIView style={styles.container}>
           <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : null} />
-          <UIText style={{ marginTop: 10, fontSize: 18 }}>
-            {selectedPeer ? selectedPeer.deviceName : 'This Device'}
-          </UIText>
+            <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : null} />
+            <UIText style={{ marginTop: 10, fontSize: 20, fontWeight: '600', textAlign: 'center' }}>
+              {selectedPeer ? selectedPeer.deviceName : 'This Device'}
+            </UIText>
+            {
+              !!selectedPeer &&
+              <View style={{ alignItems: 'center', marginTop: 2, flexDirection: 'row', justifyContent: 'center' }}>
+                {
+                  selectedPeerConnection &&
+                  <UIIcon name={selectedPeerConnection.connectionType === ConnectionType.LOCAL ? "wifi" : "cellularbars"} size={16} color="green" style={{ marginRight: 4 }} />
+                }
+                <UIText style={{ fontSize: 16, color: selectedPeerConnection ? 'green' : 'grey' }}>
+                  {selectedPeerConnection ? 'Online' : 'Offline'}
+                </UIText>
+              </View>
+            }
           </View>
         </UIView>
       </ScrollView>
