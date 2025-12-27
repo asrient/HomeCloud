@@ -17,6 +17,7 @@
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
+    "@shopify/flash-list": "2.0.2",
     "crypto-es": "^2.1.0",
     "expo": "^54.0.20",
     "expo-application": "~7.0.7",
