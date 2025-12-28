@@ -3,7 +3,7 @@ import { UIView } from '@/components/ui/UIView';
 import { useAppState } from '@/hooks/useAppState';
 import { Button, useHeaderHeight } from '@react-navigation/elements';
 import { Stack, useRouter } from 'expo-router';
-import { View, ScrollView } from 'react-native';
+import { View } from 'react-native';
 import { HeaderButton } from '@/components/ui/HeaderButton';
 import PhotosLibrarySelectorModal from '@/components/photosLibrarySelectorModal';
 import { useEffect, useState } from 'react';
@@ -21,8 +21,6 @@ export default function PhotosScreen() {
   const {
     photoLibraries,
     isLoading: isLoadingLibraries,
-    error: librariesError,
-    reload: reloadLibraries
   } = usePhotoLibraries(selectedFingerprint);
 
   const [isLibrarySelectorOpen, setIsLibrarySelectorOpen] = useState(false);

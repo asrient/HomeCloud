@@ -84,6 +84,7 @@ export function PhotosGrid({ fetchOpts, headerComponent }: {
             data={photos}
             keyExtractor={(item) => item.id}
             numColumns={3}
+            refreshing={isLoading}
             renderItem={({ item }) => (
                 <View style={{ flex: 1 / 3, aspectRatio: 1, margin: 1 }}>
                     <PhotoThumbnail item={item} />
