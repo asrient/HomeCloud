@@ -1,6 +1,7 @@
 import ExpoModulesCore
 import UIKit
 import Photos
+import QuickLookThumbnailing
 
 class ThumbnailGenerator {
   
@@ -69,7 +70,7 @@ class ThumbnailGenerator {
   }
   
   private func generateFileThumbnail(url: URL, promise: Promise) {
-    // For file:// URLs, use direct image loading for better compatibility
+    // For file:// URLs, use direct path
     var fileUrl = url
     if url.scheme == "file" {
       fileUrl = url
@@ -77,37 +78,41 @@ class ThumbnailGenerator {
       fileUrl = URL(fileURLWithPath: url.path)
     }
     
-    // Try to load image data directly (works better with iOS sandboxing)
-    guard let imageData = try? Data(contentsOf: fileUrl),
-          let image = UIImage(data: imageData) else {
-      promise.reject("FILE_NOT_READABLE", "Cannot read image file at: \(fileUrl.path)")
+    // Check if file exists
+    guard FileManager.default.fileExists(atPath: fileUrl.path) else {
+      promise.reject("FILE_NOT_FOUND", "File not found at: \(fileUrl.path)")
       return
     }
     
     let targetSize = CGSize(width: 256, height: 256)
+    let scale = UIScreen.main.scale
     
-    // Calculate aspect-fit size
-    let aspectRatio = image.size.width / image.size.height
-    var thumbnailSize = targetSize
+    // Create the thumbnail request
+    let request = QLThumbnailGenerator.Request(
+      fileAt: fileUrl,
+      size: targetSize,
+      scale: scale,
+      representationTypes: .thumbnail
+    )
     
-    if aspectRatio > 1 {
-      thumbnailSize.height = targetSize.width / aspectRatio
-    } else {
-      thumbnailSize.width = targetSize.height * aspectRatio
+    // Generate thumbnail using QLThumbnailGenerator
+    QLThumbnailGenerator.shared.generateRepresentations(for: request) { (thumbnail, type, error) in
+      if let error = error {
+        promise.reject("THUMBNAIL_GENERATION_FAILED", "Failed to generate thumbnail: \(error.localizedDescription)")
+        return
+      }
+      
+      guard let thumbnail = thumbnail else {
+        promise.reject("THUMBNAIL_GENERATION_FAILED", "Failed to generate thumbnail")
+        return
+      }
+      
+      guard let jpegData = thumbnail.uiImage.jpegData(compressionQuality: 0.8) else {
+        promise.reject("JPEG_CONVERSION_FAILED", "Failed to convert thumbnail to JPEG data")
+        return
+      }
+      
+      promise.resolve(jpegData)
     }
-    
-    // Generate thumbnail
-    UIGraphicsBeginImageContextWithOptions(thumbnailSize, false, 1.0)
-    image.draw(in: CGRect(origin: .zero, size: thumbnailSize))
-    let thumbnailImage = UIGraphicsGetImageFromCurrentImageContext()
-    UIGraphicsEndImageContext()
-    
-    guard let thumbnail = thumbnailImage,
-          let jpegData = thumbnail.jpegData(compressionQuality: 0.8) else {
-      promise.reject("JPEG_CONVERSION_FAILED", "Failed to convert thumbnail to JPEG data")
-      return
-    }
-    
-    promise.resolve(jpegData)
   }
 }

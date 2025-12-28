@@ -1,15 +1,50 @@
 import { PhotosFetchOptions, PhotoView } from '@/lib/types';
 import { usePhotos } from '@/hooks/usePhotos';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useState } from 'react';
 import { getServiceController } from '@/lib/utils';
 import { FlashList } from "@shopify/flash-list";
 
+function ThumbnailCheckbox({ isSelected }: { isSelected: boolean }) {
+    return (
+        <View style={{
+            position: 'absolute',
+            top: 5,
+            right: 5,
+            width: 24,
+            height: 24,
+            borderRadius: 12,
+            backgroundColor: isSelected ? '#007AFF' : 'rgba(255, 255, 255, 0.7)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: isSelected ? 'white' : '#ccc',
+        }}>
+            {
+                isSelected &&
+                <UIText style={{ color: 'white', fontWeight: 'bold' }}>✓</UIText>
+            }
+        </View>
+    );
+}
 
-export function PhotoThumbnail({ item }: { item: PhotoView }) {
+export function PhotoThumbnail({ item, onPress, isSelectMode }: { item: PhotoView, onPress?: (item: PhotoView) => void, isSelectMode?: boolean }) {
     const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(item.thumbnail || null);
+    const [isSelected, setIsSelected] = useState(item.isSelected || false);
+
+    useEffect(() => {
+        setIsSelected(item.isSelected || false);
+        setThumbnailSrc(item.thumbnail || null);
+    }, [item]);
+
+    useEffect(() => {
+        if (!isSelectMode) {
+            setIsSelected(false);
+            item.isSelected = false;
+        }
+    }, [isSelectMode, item]);
 
     const fetchThumbnailSrc = useCallback(async (item: PhotoView) => {
         if (item.thumbnail) {
@@ -23,43 +58,85 @@ export function PhotoThumbnail({ item }: { item: PhotoView }) {
     useEffect(() => {
         // console.log('Fetching thumbnail for photo', item.id);
         fetchThumbnailSrc(item)
-        .then((src) => {
-            setThumbnailSrc(src || null);
-        })
-        .catch((err) => {
-            console.error('Error fetching thumbnail for photo', item.id, err);
-        });
+            .then((src) => {
+                setThumbnailSrc(src || null);
+            })
+            .catch((err) => {
+                console.error('Error fetching thumbnail for photo', item.id, err);
+            });
     }, [item, fetchThumbnailSrc]);
+
+    const handlePress = useCallback(() => {
+        if (isSelectMode) {
+            const newSelected = !isSelected;
+            setIsSelected(newSelected);
+            item.isSelected = newSelected;
+        }
+        if (onPress) {
+            onPress(item);
+        }
+    }, [isSelectMode, onPress, isSelected, item]);
 
     if (!thumbnailSrc) {
         return (
-            <View style={{ 
-                width: '100%', 
-                height: '100%', 
-            backgroundColor: '#ccc', 
-            justifyContent: 'center', 
-            alignItems: 'center' 
+            <View style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: '#ccc',
+                justifyContent: 'center',
+                alignItems: 'center'
             }}>
             </View>
         );
     }
 
     return (
-        <Image
-            source={{ uri: thumbnailSrc, cacheKey: `${item.deviceFingerprint}-${item.libraryId}-${item.id}` }}
-            style={{ width: '100%', height: '100%' }}
-            contentFit="cover"
-        />
+        <Pressable onPress={handlePress} style={{ width: '100%', height: '100%' }}>
+            <Image
+                source={{ uri: thumbnailSrc, cacheKey: `${item.deviceFingerprint}-${item.libraryId}-${item.id}` }}
+                style={{ width: '100%', height: '100%' }}
+                contentFit="cover"
+            />
+            {
+                isSelectMode &&
+                <ThumbnailCheckbox isSelected={isSelected} />
+            }
+        </Pressable>
     );
 }
 
 
-export function PhotosGrid({ fetchOpts, headerComponent }: {
+export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPhoto, onDeselectPhoto, onPreviewPhoto }: {
     fetchOpts: PhotosFetchOptions;
     headerComponent?: React.ReactElement;
+    selectMode?: boolean;
+    onSelectPhoto?: (photo: PhotoView) => void;
+    onDeselectPhoto?: (photo: PhotoView) => void;
+    onPreviewPhoto?: (photo: PhotoView) => void;
 }) {
 
     const { photos, isLoading, error, load, hasMore } = usePhotos(fetchOpts);
+    const [renderKey, setRenderKey] = useState(0);
+
+    useEffect(() => {
+        // Force re-render when selectMode changes to update thumbnails
+        console.log('Select mode changed:', selectMode);
+        setRenderKey((prev) => prev + 1);
+    }, [selectMode]);
+
+    const handlePhotoPress = useCallback((photo: PhotoView) => {
+        // Handle photo press based on selectMode
+        console.log('Photo pressed:', photo.id, 'selectMode:', selectMode);
+        if (selectMode) {
+            if (photo.isSelected) {
+                onSelectPhoto && onSelectPhoto(photo);
+            } else {
+                onDeselectPhoto && onDeselectPhoto(photo);
+            }
+        } else {
+            onPreviewPhoto && onPreviewPhoto(photo);
+        }
+    }, [selectMode, onSelectPhoto, onDeselectPhoto, onPreviewPhoto]);
 
     if (isLoading && photos.length === 0) {
         return (
@@ -79,24 +156,26 @@ export function PhotosGrid({ fetchOpts, headerComponent }: {
 
     return (
         <View style={{ flex: 1 }} >
-        <FlashList
-            ListHeaderComponent={headerComponent}
-            data={photos}
-            keyExtractor={(item) => item.id}
-            numColumns={3}
-            refreshing={isLoading}
-            renderItem={({ item }) => (
-                <View style={{ flex: 1 / 3, aspectRatio: 1, margin: 1 }}>
-                    <PhotoThumbnail item={item} />
-                </View>
-            )}
-            onEndReached={() => {
-                if (hasMore && !isLoading) {
-                    load();
-                }
-            }}
-            onEndReachedThreshold={0.5}
-        />
+            <FlashList
+                ListHeaderComponent={headerComponent}
+                data={photos}
+                extraData={renderKey}
+                keyExtractor={(item) => item.id}
+                numColumns={3}
+                refreshing={isLoading}
+                renderItem={({ item }) => (
+                    <View style={{ flex: 1 / 3, aspectRatio: 1, margin: 1 }}>
+                        <PhotoThumbnail item={item} isSelectMode={selectMode} onPress={handlePhotoPress} />
+                    </View>
+                )}
+                onEndReached={() => {
+                    if (hasMore && !isLoading) {
+                        console.log('Loading more photos...');
+                        load();
+                    }
+                }}
+                onEndReachedThreshold={0.5}
+            />
         </View>
     );
 }
