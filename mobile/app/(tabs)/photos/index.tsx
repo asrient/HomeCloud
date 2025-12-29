@@ -4,9 +4,9 @@ import { useAppState } from '@/hooks/useAppState';
 import { Button, useHeaderHeight } from '@react-navigation/elements';
 import { Stack } from 'expo-router';
 import { View } from 'react-native';
-import { HeaderButton } from '@/components/ui/HeaderButton';
+import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import PhotosLibrarySelectorModal from '@/components/photosLibrarySelectorModal';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PhotoLibraryLocation } from 'shared/types';
 import { usePhotoLibraries } from '@/hooks/usePhotos';
 import { PhotosGrid } from '@/components/photosGrid';
@@ -23,20 +23,23 @@ export default function PhotosScreen() {
 
   const [isLibrarySelectorOpen, setIsLibrarySelectorOpen] = useState(false);
   const [selectedLibrary, setSelectedLibrary] = useState<null | PhotoLibraryLocation>(null);
+  const currentFingerprintRef = useRef<string | null>(null);
 
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<PhotoView[]>([]);
 
   useEffect(() => {
+    setSelectedLibrary(null);
+    setSelectMode(false);
+    currentFingerprintRef.current = selectedFingerprint;
+  }, [selectedFingerprint]);
+
+  useEffect(() => {
+    if (isLoadingLibraries) return;
     if (photoLibraries.length > 0 && !selectedLibrary) {
       setSelectedLibrary(photoLibraries[0]);
     }
-  }, [photoLibraries, selectedLibrary]);
-
-  useEffect(() => {
-    setSelectedLibrary(null);
-    setSelectMode(false);
-  }, [selectedFingerprint]);
+  }, [photoLibraries, selectedLibrary, isLoadingLibraries]);
 
   const handleSelectPhoto = useCallback((photo: PhotoView) => {
     setSelectedPhotos((prevSelected) => {
@@ -55,6 +58,9 @@ export default function PhotosScreen() {
   }, []);
 
   const fetchOpts = useMemo(() => {
+    if (selectedFingerprint !== currentFingerprintRef.current) {
+      return null;
+    }
     if (!selectedLibrary) {
       return null;
     }
@@ -74,8 +80,8 @@ export default function PhotosScreen() {
           //headerLargeTitle: true
           headerTransparent: true,
           headerLeft: () =>
-            <View>
-              <HeaderButton text={selectMode ? 'Done' : 'Select'} isActive={selectMode} onPress={() => setSelectMode(!selectMode)} />
+            <View style={{ justifyContent: 'center', alignItems: 'center' }}>
+              <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} />
             </View>
           ,
         }}

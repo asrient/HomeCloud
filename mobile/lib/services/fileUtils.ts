@@ -47,7 +47,7 @@ export function uriToPath(filePath: string): string {
             if (relativePath.startsWith('/')) {
                 relativePath = relativePath.slice(1);
             }
-            console.log('original path:', filePath, 'mapped to:', `/${key}/${relativePath}`);
+            // console.log('original path:', filePath, 'mapped to:', `/${key}/${relativePath}`);
             return `/${key}/${relativePath}`;
         }
     }

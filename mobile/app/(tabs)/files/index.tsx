@@ -1,30 +1,47 @@
+import DeviceSelectorRow from '@/components/deviceSelectorRow';
+import { useAppState } from '@/hooks/useAppState';
 import { Stack } from 'expo-router';
-import { Text, View, StyleSheet } from 'react-native';
+import { View, } from 'react-native';
+import { FolderFilesGrid, PinnedFoldersGrid } from '@/components/filesGrid';
+import { UIText } from '@/components/ui/UIText';
+import { UIScrollView } from '@/components/ui/UIScrollView';
 
-export default function FileScreen() {
+export default function FilesScreen() {
+  const { selectedFingerprint } = useAppState();
+
   return (
-    <View style={styles.container}>
+    <UIScrollView style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           title: 'Files',
-        //   headerStyle: { backgroundColor: '#f4511e' },
-        //   headerTintColor: '#fff',
-        //   headerTitleStyle: {
-        //     fontWeight: 'bold',
-        //   },
-
-        //   headerTitle: props => <LogoTitle {...props} />,
+          headerTitle: 'Files',
+          headerLargeTitle: true,
+          headerTransparent: true,
         }}
       />
-      <Text>Files Screen</Text>
-    </View>
+      <DeviceSelectorRow />
+      <View style={{ flex: 1, marginTop: 10 }}>
+        <PinnedFoldersGrid
+          hideEmpty={true}
+          headerComponent={
+            <View style={{ padding: 10 }}>
+              <UIText type='subtitle'>Pinned Folders</UIText>
+            </View>
+          }
+          deviceFingerprint={selectedFingerprint}
+        />
+      </View>
+      <View style={{ flex: 1, marginTop: 10 }}>
+        <FolderFilesGrid
+          headerComponent={
+            <View style={{ padding: 10 }}>
+              <UIText type='subtitle'>Disks</UIText>
+            </View>
+          }
+          deviceFingerprint={selectedFingerprint}
+          path=''
+        />
+      </View>
+    </UIScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

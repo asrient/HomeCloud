@@ -23,6 +23,12 @@ const MAPPING = {
   'gear': 'settings',
   'wifi': 'wifi',
   'cellularbars': 'signal-cellular-4-bar',
+  'checkmark.circle': 'check-circle-outline',
+  'checkmark.circle.fill': 'check-circle',
+  'xmark': 'cancel',
+  'xmark.circle': 'cancel',
+  'folder.fill': 'folder',
+  'trash': 'delete-outline',
 } as IconMapping;
 
 /**
