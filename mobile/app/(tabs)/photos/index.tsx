@@ -1,7 +1,7 @@
 import DeviceSelectorRow from '@/components/deviceSelectorRow';
 import { UIView } from '@/components/ui/UIView';
 import { useAppState } from '@/hooks/useAppState';
-import { Button, useHeaderHeight } from '@react-navigation/elements';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { Stack } from 'expo-router';
 import { View } from 'react-native';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
@@ -11,6 +11,7 @@ import { PhotoLibraryLocation } from 'shared/types';
 import { usePhotoLibraries } from '@/hooks/usePhotos';
 import { PhotosGrid } from '@/components/photosGrid';
 import { PhotosSortOption, PhotoView } from '@/lib/types';
+import { UIButton } from '@/components/ui/UIButton';
 
 export default function PhotosScreen() {
   const headerHeight = useHeaderHeight();
@@ -116,15 +117,16 @@ export default function PhotosScreen() {
 
       {
         !selectMode &&
-        <View style={{ padding: 3, bottom: 90, left: 0, justifyContent: 'center', alignItems: 'center' }}>
-          <Button
-            style={{ paddingHorizontal: 10, borderRadius: 100, width: 200, backgroundColor: 'white' }}
+        <View style={{ position: 'absolute', bottom: 90, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
+          <UIButton
+            size='md'
+            type='secondary'
             disabled={isLoadingLibraries || photoLibraries.length === 0}
             onPress={() => {
               setIsLibrarySelectorOpen(true);
-            }} >
-            {selectedLibrary && !isLoadingLibraries ? selectedLibrary.name : 'Loading...'}
-          </Button>
+            }}
+            title={selectedLibrary && !isLoadingLibraries ? selectedLibrary.name : 'Loading...'}
+          />
         </View>
       }
     </UIView>

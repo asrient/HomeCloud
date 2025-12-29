@@ -1,7 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import DeviceSelectorRow from '@/components/deviceSelectorRow';
-import { UIView } from '@/components/ui/UIView';
 import { UIIcon } from '@/components/ui/UIIcon';
 import DeviceIcon from '@/components/deviceIcon';
 import { useAppState } from '@/hooks/useAppState';
@@ -30,7 +29,6 @@ export default function HomeScreen() {
           ,
         }}
       />
-      <UIView style={{ flex: 1 }}>
         <DeviceSelectorRow />
         <View style={styles.container}>
           <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -51,10 +49,8 @@ export default function HomeScreen() {
               </View>
             }
           </View>
-        </View>
-      </UIView>
+      </View>
     </UIScrollView>
-
   );
 }
 

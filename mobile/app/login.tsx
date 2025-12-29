@@ -1,10 +1,11 @@
-import { StyleSheet, Platform, View, Button, TextInput } from 'react-native';
+import { StyleSheet, Platform, View, TextInput } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { UIView } from '@/components/ui/UIView';
 import { UIText } from '@/components/ui/UIText';
 import { useMemo, useRef, useState } from 'react';
 import { AccountLinkResponse } from 'shared/types';
 import { useRouter } from 'expo-router';
+import { UIButton } from '@/components/ui/UIButton';
 
 
 type OnboardingStep = 'email' | 'otp';
@@ -138,7 +139,7 @@ export default function LoginScreen() {
                 )}
                 {
                     currentStep === 'otp' && (
-                        <Button onPress={backToEmailStep} title="Change Email" disabled={isLoading} />
+                        <UIButton type='link' onPress={backToEmailStep} title="Change Email" disabled={isLoading} />
                     )
                 }
                 </View>
@@ -146,9 +147,9 @@ export default function LoginScreen() {
             <View style={styles.footer}>
                 {
                     currentStep === 'email' ? (
-                        <Button onPress={submitEmail} title='Continue' disabled={!isEmailValid || isLoading} />
+                        <UIButton size='lg' stretch onPress={submitEmail} title='Continue' disabled={!isEmailValid || isLoading} />
                     ) : (
-                        <Button onPress={submitOtp} title={'Verify'} disabled={otpValue.length !== OTP_LENGTH || isLoading} />
+                        <UIButton size='lg' stretch onPress={submitOtp} title='Verify' disabled={otpValue.length !== OTP_LENGTH || isLoading} />
                     )
                 }
             </View>

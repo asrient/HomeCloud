@@ -1,9 +1,10 @@
-import { StyleSheet, Platform, View, Button } from 'react-native';
+import { StyleSheet, Platform, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { UIView } from '@/components/ui/UIView';
 import { UIText } from '@/components/ui/UIText';
 import { useRouter } from 'expo-router';
 import { useAccountState } from '@/hooks/useAccountState';
+import { UIButton } from '@/components/ui/UIButton';
 
 export default function WelcomeScreen() {
 
@@ -24,13 +25,13 @@ export default function WelcomeScreen() {
     };
 
     return (
-        <UIView style={styles.container}>
+        <UIView themeColor='backgroundSecondary' style={styles.container}>
             <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
             <View style={{ padding: 5 }} >
                 <UIText type="title">Welcome to Media Center</UIText>
             </View>
             <View style={styles.footer}>
-                <Button onPress={handleGetStarted} title="Get Started" />
+                <UIButton size='lg' stretch onPress={handleGetStarted} title="Get Started" />
             </View>
         </UIView>
     );

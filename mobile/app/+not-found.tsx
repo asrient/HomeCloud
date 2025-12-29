@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 
 import { UIText } from '@/components/ui/UIText';
 import { UIView } from '@/components/ui/UIView';
+import { UIButton } from '@/components/ui/UIButton';
 
 export default function NotFoundScreen() {
   return (
@@ -11,7 +12,7 @@ export default function NotFoundScreen() {
       <UIView style={styles.container}>
         <UIText type="title">This screen does not exist.</UIText>
         <Link href="/" style={styles.link}>
-          <UIText type="link">Go to home screen!</UIText>
+          <UIButton type="primary" title="Home" />
         </Link>
       </UIView>
     </>
