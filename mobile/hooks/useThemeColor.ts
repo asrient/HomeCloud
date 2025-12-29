@@ -3,8 +3,11 @@
  * https://docs.expo.dev/guides/color-schemes/
  */
 
-import { Colors } from '@/constants/Colors';
+import { ColorsIos, ColorsAndroid } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Platform } from 'react-native';
+
+const Colors = Platform.OS === 'ios' ? ColorsIos : ColorsAndroid;
 
 export function useThemeColor(
   props: { light?: string; dark?: string },

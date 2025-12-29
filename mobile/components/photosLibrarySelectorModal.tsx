@@ -19,7 +19,7 @@ export default function PhotosLibrarySelectorModal({ isOpen, onDone, selectedLib
                 onDone(null);
             }}>
             <UIStatusBar type="sheet" />
-            <UIView style={{ flex: 1 }}>
+            <UIView themeColor='backgroundSecondary' style={{ flex: 1 }}>
 
                 <View style={{ padding: 20 }} >
                     <UIText type="subtitle">Select Library</UIText>

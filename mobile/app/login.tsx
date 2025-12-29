@@ -101,7 +101,7 @@ export default function LoginScreen() {
     };
 
     return (
-        <UIView style={styles.container}>
+        <UIView themeColor='backgroundSecondary' style={styles.container}>
             <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
             <View style={{ padding: 5 }} >
                 <UIText style={{ paddingBottom: 5 }} type="title">{

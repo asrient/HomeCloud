@@ -1,6 +1,6 @@
 import { UIView } from '@/components/ui/UIView';
 import { useAppState } from '@/hooks/useAppState';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { View } from 'react-native';
 import { FolderFilesGrid } from '@/components/filesGrid';
 import { ParamListBase, RouteProp, useRoute } from '@react-navigation/native';
@@ -16,6 +16,7 @@ type Props = RouteProp<ParamListBase, string> & {
 
 export default function FolderScreen() {
   const { selectedFingerprint } = useAppState();
+  const navigation = useNavigation();
   const router = useRouter();
   const route = useRoute<Props>();
   const headerHeight = useHeaderHeight();
@@ -49,25 +50,28 @@ export default function FolderScreen() {
     );
   }, []);
 
+  useEffect(() => {
+    navigation.setOptions({
+      title: folderName,
+      headerTitle: selectMode ? `${selectedFiles.length} selected` : folderName,
+      headerTransparent: true,
+      headerBackButtonDisplayMode: 'minimal',
+      headerRight: () => {
+        if (!selectMode) {
+          return <UIHeaderButton name="checkmark.circle" onPress={() => { setSelectMode(true) }} />;
+        }
+        return (<>
+          <UIHeaderButton name="square.and.arrow.up" onPress={() => { }} />
+          <UIHeaderButton name="trash" onPress={() => { }} />
+          <UIHeaderButton onPress={() => setSelectMode(false)} isHighlight={true} name='xmark' />
+        </>);
+      }
+      ,
+    });
+  }, [navigation, folderName, selectMode, selectedFiles.length]);
+
   return (
     <UIView style={{ flex: 1 }}>
-      <Stack.Screen
-        options={{
-          title: folderName,
-          headerTitle: selectMode ? `${selectedFiles.length} selected` : folderName,
-          headerTransparent: true,
-          headerBackButtonDisplayMode: 'minimal',
-          headerRight: () =>
-            <>
-              {
-                selectMode &&
-                <UIHeaderButton name="trash" onPress={() => {}} />
-              }
-              <UIHeaderButton onPress={() => setSelectMode(!selectMode)} isHighlight={selectMode} name={selectMode ? 'xmark' : 'checkmark.circle'} />
-            </>
-          ,
-        }}
-      />
       {
         !!route && <FolderFilesGrid
           deviceFingerprint={fingerprint}

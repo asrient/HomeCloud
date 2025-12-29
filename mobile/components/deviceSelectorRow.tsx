@@ -1,15 +1,19 @@
 import { useAppState } from "@/hooks/useAppState";
 import { ScrollView, Pressable, View, ViewStyle } from "react-native";
 import { UIText } from "./ui/UIText";
+import { useThemeColor } from "@/hooks/useThemeColor";
 
 // Shows a row for selecting a device from the list of peers
 export default function DeviceSelectorRow({ style }: { style?: ViewStyle }) {
     const { peers, selectedFingerprint, selectDevice } = useAppState();
+    const bgTertiaryColor = useThemeColor({}, 'backgroundTertiary');
+    const highlightColor = useThemeColor({}, 'highlight');
+    const highlightTextColor = useThemeColor({}, 'highlightText');
 
     return (
         <View style={style}>
             <ScrollView horizontal
-                style={{ padding: 5, flexDirection: 'row' }}
+                style={{ padding: 12, flexDirection: 'row' }}
                 showsHorizontalScrollIndicator={false}
             >
                 {[null, ...peers].map((peer) => {
@@ -22,16 +26,14 @@ export default function DeviceSelectorRow({ style }: { style?: ViewStyle }) {
                             key={fingerprint || 'this-device'}
                             onPress={() => selectDevice(fingerprint)}
                             style={{
-                                padding: 10,
-                                paddingHorizontal: 15,
-                                backgroundColor: isSelected ? '#007AFF' : '#dbdbdb',
+                                paddingVertical: 7,
+                                paddingHorizontal: 18,
+                                backgroundColor: isSelected ? highlightColor : bgTertiaryColor,
                                 borderRadius: 20,
-                                marginRight: 5,
+                                marginRight: 6,
                             }}
                         >
-                            <UIText
-                                style={{ color: isSelected ? 'white' : 'black' }}
-                            >
+                            <UIText type='defaultSemiBold' style={isSelected ? { color: highlightTextColor } : {}}>
                                 {name}
                             </UIText>
                         </Pressable>

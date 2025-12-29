@@ -29,6 +29,7 @@ const MAPPING = {
   'xmark.circle': 'cancel',
   'folder.fill': 'folder',
   'trash': 'delete-outline',
+  'square.and.arrow.up': 'share',
 } as IconMapping;
 
 /**

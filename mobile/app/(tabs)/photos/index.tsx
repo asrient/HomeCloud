@@ -79,11 +79,17 @@ export default function PhotosScreen() {
           headerTitle: selectMode ? `${selectedPhotos.length} selected` : 'Photos',
           //headerLargeTitle: true
           headerTransparent: true,
-          headerLeft: () =>
-            <View style={{ justifyContent: 'center', alignItems: 'center' }}>
-              <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} />
-            </View>
+          headerLeft: () => <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} />
           ,
+          headerRight: () => {
+            if (!selectMode) return null;
+            return (
+              <>
+                <UIHeaderButton name="trash" onPress={() => { }} />
+                <UIHeaderButton name="square.and.arrow.up" onPress={() => { }} />
+              </>
+            );
+          }
         }}
       />
       {
@@ -93,7 +99,7 @@ export default function PhotosScreen() {
           selectMode={selectMode}
           onSelectPhoto={handleSelectPhoto}
           onDeselectPhoto={handleDeselectPhoto}
-          headerComponent={<View style={{ paddingTop: headerHeight, left: 0 }} >
+          headerComponent={<View style={{ paddingTop: headerHeight }} >
             <DeviceSelectorRow />
           </View>}
         />
