@@ -126,6 +126,13 @@ function PhotoItem({ photo, isActive, onTap }: { photo: PhotoView; isActive: boo
         .onUpdate((e) => {
             const newScale = savedScale.value * e.scale;
             scale.value = Math.min(Math.max(newScale, 1), 5);
+            
+            // Zoom towards the focal point
+            const focalX = e.focalX - SCREEN_WIDTH / 2;
+            const focalY = e.focalY - SCREEN_HEIGHT / 2;
+            
+            translateX.value = savedTranslateX.value + (focalX - focalX * e.scale);
+            translateY.value = savedTranslateY.value + (focalY - focalY * e.scale);
         })
         .onEnd(() => {
             if (scale.value < 1) {
@@ -137,6 +144,8 @@ function PhotoItem({ photo, isActive, onTap }: { photo: PhotoView; isActive: boo
                 savedTranslateY.value = 0;
             } else {
                 savedScale.value = scale.value;
+                savedTranslateX.value = translateX.value;
+                savedTranslateY.value = translateY.value;
             }
         });
 
