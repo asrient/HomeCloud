@@ -131,11 +131,10 @@ function PhotoItem({ photo, isActive }: { photo: PhotoView; isActive: boolean })
         });
 
     const panGesture = Gesture.Pan()
+        .enabled(scale.value > 1)
         .onUpdate((e) => {
-            if (scale.value > 1) {
-                translateX.value = savedTranslateX.value + e.translationX;
-                translateY.value = savedTranslateY.value + e.translationY;
-            }
+            translateX.value = savedTranslateX.value + e.translationX;
+            translateY.value = savedTranslateY.value + e.translationY;
         })
         .onEnd(() => {
             savedTranslateX.value = translateX.value;
@@ -170,7 +169,7 @@ function PhotoItem({ photo, isActive }: { photo: PhotoView; isActive: boolean })
             }
         });
 
-    const composedGesture = Gesture.Simultaneous(
+    const composedGesture = Gesture.Race(
         doubleTapGesture,
         Gesture.Simultaneous(pinchGesture, panGesture)
     );
