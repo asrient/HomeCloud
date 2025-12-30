@@ -7,6 +7,8 @@ import { Paths } from 'expo-file-system/next';
 import { MobilePlatform } from "../types";
 import superman from "@/modules/superman";
 import { pathToUri } from "./fileUtils";
+import { preview } from "expo-quicklook-preview";
+// import { startActivityAsync, ActivityAction } from 'expo-intent-launcher';
 
 /**
  * Mobile implementation of SystemService using React Native APIs for system interactions.
@@ -144,10 +146,18 @@ class MobileSystemService extends SystemService {
 
     public async openFile(filePath: string): Promise<void> {
         filePath = pathToUri(filePath);
+        console.log('Opening file:', filePath);
         try {
-            // For mobile, we try to open the file URL using Linking
-            // This will open the file with the default app that can handle it
-            await Linking.openURL(filePath);
+            // for ios we can use quicklook preview
+            if (Platform.OS === 'ios') {
+                await preview({ url: filePath });
+            }
+            // for android we use intent launcher
+            else if (Platform.OS === 'android') {
+                await Linking.openURL(filePath);
+            } else {
+                throw new Error('Unsupported platform for opening files.');
+            }
         } catch (error) {
             console.warn('Failed to open file:', error);
             // Fallback: show alert that file cannot be opened

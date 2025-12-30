@@ -16,6 +16,10 @@ export async function getServiceController(fingerprint: string | null) {
     return modules.getRemoteServiceController(fingerprint);
 }
 
+export function getLocalServiceController() {
+    return modules.getLocalServiceController();
+}
+
 export function libraryHashFromId(fingerprint: string | null, libraryId: string) {
     return `${fingerprint}-${libraryId}`;
 }

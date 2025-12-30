@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getServiceController } from '@/lib/utils';
 import { FlashList } from "@shopify/flash-list";
 import { ThumbnailCheckbox } from './ThumbnailCheckbox';
+import { PhotosPreviewModal } from './photosPreviewModal';
 
 
 export function PhotoThumbnail({ item, onPress, isSelectMode }: { item: PhotoView, onPress?: (item: PhotoView) => void, isSelectMode?: boolean }) {
@@ -96,6 +97,8 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
 
     const { photos, isLoading, error, load, hasMore } = usePhotos(fetchOpts);
     const [renderKey, setRenderKey] = useState(0);
+    const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     useEffect(() => {
         // Force re-render when selectMode changes to update thumbnails
@@ -113,9 +116,20 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
                 onDeselectPhoto && onDeselectPhoto(photo);
             }
         } else {
+            // Open preview modal
+            const index = photos.findIndex(p => p.id === photo.id);
+            if (index !== -1) {
+                setPreviewIndex(index);
+                setIsPreviewOpen(true);
+            }
             onPreviewPhoto && onPreviewPhoto(photo);
         }
-    }, [selectMode, onSelectPhoto, onDeselectPhoto, onPreviewPhoto]);
+    }, [selectMode, onSelectPhoto, onDeselectPhoto, onPreviewPhoto, photos]);
+
+    const handleClosePreview = useCallback((finalIndex?: number) => {
+        setIsPreviewOpen(false);
+        setPreviewIndex(null);
+    }, []);
 
     if (isLoading && photos.length === 0) {
         return (
@@ -155,6 +169,14 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
                 }}
                 onEndReachedThreshold={0.5}
             />
+            {previewIndex !== null && (
+                <PhotosPreviewModal
+                    photos={photos}
+                    startIndex={previewIndex}
+                    isOpen={isPreviewOpen}
+                    onClose={handleClosePreview}
+                />
+            )}
         </View>
     );
 }

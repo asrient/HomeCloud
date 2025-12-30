@@ -82,6 +82,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - ExpoQuicklookPreview (0.1.2):
+    - ExpoModulesCore
   - ExpoSplashScreen (31.0.13):
     - ExpoModulesCore
   - ExpoSymbols (1.0.8):
@@ -1388,6 +1390,28 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
+  - react-native-pager-view (6.9.1):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - react-native-rsa-native (2.0.5):
     - React
   - react-native-safe-area-context (5.6.2):
@@ -1811,6 +1835,28 @@ PODS:
     - React-utils (= 0.81.5)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.81.5)
+  - RNGestureHandler (2.28.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - RNReanimated (4.1.6):
     - hermes-engine
     - RCTRequired
@@ -2035,6 +2081,7 @@ DEPENDENCIES:
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
   - ExpoMediaLibrary (from `../node_modules/expo-media-library/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
+  - ExpoQuicklookPreview (from `../node_modules/expo-quicklook-preview/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
   - ExpoSystemUI (from `../node_modules/expo-system-ui/ios`)
@@ -2074,6 +2121,7 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
+  - react-native-pager-view (from `../node_modules/react-native-pager-view`)
   - react-native-rsa-native (from `../node_modules/react-native-rsa-native`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - react-native-zeroconf (from `../node_modules/react-native-zeroconf`)
@@ -2108,6 +2156,7 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
+  - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNReanimated (from `../node_modules/react-native-reanimated`)
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNWorklets (from `../node_modules/react-native-worklets`)
@@ -2157,6 +2206,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-media-library/ios"
   ExpoModulesCore:
     :path: "../node_modules/expo-modules-core"
+  ExpoQuicklookPreview:
+    :path: "../node_modules/expo-quicklook-preview/ios"
   ExpoSplashScreen:
     :path: "../node_modules/expo-splash-screen/ios"
   ExpoSymbols:
@@ -2234,6 +2285,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   React-microtasksnativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
+  react-native-pager-view:
+    :path: "../node_modules/react-native-pager-view"
   react-native-rsa-native:
     :path: "../node_modules/react-native-rsa-native"
   react-native-safe-area-context:
@@ -2302,6 +2355,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   ReactNativeDependencies:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
+  RNGestureHandler:
+    :path: "../node_modules/react-native-gesture-handler"
   RNReanimated:
     :path: "../node_modules/react-native-reanimated"
   RNScreens:
@@ -2330,6 +2385,7 @@ SPEC CHECKSUMS:
   ExpoLinking: 8f0aaf69aa56f832913030503b6263dc6f647f37
   ExpoMediaLibrary: a3093b04365b245bb23b25b6eba84eb6ab55fecb
   ExpoModulesCore: f3da4f1ab5a8375d0beafab763739dbee8446583
+  ExpoQuicklookPreview: 14a80a46f3769e128d4d7b39e5bca9c6aadc21d1
   ExpoSplashScreen: bc3cffefca2716e5f22350ca109badd7e50ec14d
   ExpoSymbols: 349ee2b4d7d5ff3ea8436467914f8a67635aa354
   ExpoSystemUI: 2ad325f361a2fcd96a464e8574e19935c461c9cc
@@ -2371,6 +2427,7 @@ SPEC CHECKSUMS:
   React-logger: 50fdb9a8236da90c0b1072da5c32ee03aeb5bf28
   React-Mapbuffer: 9050ee10c19f4f7fca8963d0211b2854d624973e
   React-microtasksnativemodule: f775db9e991c6f3b8ccbc02bfcde22770f96e23b
+  react-native-pager-view: c8817c1d9f4643417e68f0b846c51214b2252eea
   react-native-rsa-native: a7931cdda1f73a8576a46d7f431378c5550f0c38
   react-native-safe-area-context: 37e680fc4cace3c0030ee46e8987d24f5d3bdab2
   react-native-zeroconf: 7551cb121ac8299feb39d5e47f065c3bc4cf9985
@@ -2405,6 +2462,7 @@ SPEC CHECKSUMS:
   ReactCodegen: 7d4593f7591f002d137fe40cef3f6c11f13c88cc
   ReactCommon: 08810150b1206cc44aecf5f6ae19af32f29151a8
   ReactNativeDependencies: 71ce9c28beb282aa720ea7b46980fff9669f428a
+  RNGestureHandler: 2914750df066d89bf9d8f48a10ad5f0051108ac3
   RNReanimated: e5c702a3e24cc1c68b2de67671713f35461678f4
   RNScreens: 6f7a6128b0d33ce66e60309b6c998a2235abe1f3
   RNWorklets: 76fce72926e28e304afb44f0da23b2d24f2c1fa0

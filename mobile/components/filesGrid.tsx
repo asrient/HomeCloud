@@ -2,8 +2,8 @@ import { FileRemoteItem } from '@/lib/types';
 import { ActivityIndicator, Pressable, View, ViewStyle } from 'react-native';
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getServiceController, printFingerprint } from '@/lib/utils';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getLocalServiceController, getServiceController, printFingerprint } from '@/lib/utils';
 import { FlashList } from "@shopify/flash-list";
 import { ThumbnailCheckbox } from './ThumbnailCheckbox';
 import { useFolder, usePinnedFolders } from '@/hooks/useFolders';
@@ -12,9 +12,12 @@ import { RemoteItem } from 'shared/types';
 import { useRouter } from 'expo-router';
 
 
-export function FileThumbnail({ item, onPress, isSelectMode }: { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => void, isSelectMode?: boolean }) {
+export function FileThumbnail({ item, onPress, isSelectMode }: { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean }) {
     const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(item.thumbnail || null);
     const [isSelected, setIsSelected] = useState(item.isSelected || false);
+    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+    const isDir = useMemo(() => item.type === 'directory', [item]);
 
     useEffect(() => {
         setIsSelected(item.isSelected || false);
@@ -58,12 +61,23 @@ export function FileThumbnail({ item, onPress, isSelectMode }: { item: FileRemot
             item.isSelected = newSelected;
         }
         if (onPress) {
-            onPress(item);
+            !isSelectMode && !isDir && setIsPreviewLoading(true);
+            onPress(item).finally(() => !isSelectMode && !isDir && setIsPreviewLoading(false));
         }
-    }, [isSelectMode, onPress, isSelected, item]);
+    }, [isSelectMode, onPress, isSelected, item, isDir]);
 
     return (
-        <Pressable onPress={handlePress} style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', margin: 2 }}>
+        <Pressable 
+        disabled={isPreviewLoading}
+        onPress={handlePress} 
+        style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', margin: 2 }}>
+            {
+                isPreviewLoading ? (
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" />
+                    </View>
+                ) : null
+            }
             <Image
                 source={
                     thumbnailSrc ? {
@@ -93,7 +107,8 @@ export type GridPropsCommon = {
     selectMode?: boolean;
     onSelect?: (file: FileRemoteItem) => void;
     onDeselect?: (file: FileRemoteItem) => void;
-    onPreview?: (file: FileRemoteItem) => void;
+    onPreview?: (file: FileRemoteItem) => void | boolean;
+    disablePreview?: boolean;
 }
 
 export type FilesGridProps = GridPropsCommon & {
@@ -114,17 +129,39 @@ export type PinnedFoldersGridProps = GridPropsCommon & {
     hideEmpty?: boolean;
 }
 
-export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error }: FilesGridProps) {
+export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error, disablePreview }: FilesGridProps) {
     const [renderKey, setRenderKey] = useState(0);
     const router = useRouter();
 
     useEffect(() => {
         // Force re-render when selectMode changes to update thumbnails
-        console.log('Select mode changed:', selectMode);
         setRenderKey((prev) => prev + 1);
     }, [selectMode]);
 
-    const handleFilePress = useCallback((file: FileRemoteItem) => {
+    const previewLockRef = useRef(false);
+
+    const previewFile = useCallback(async (file: FileRemoteItem) => {
+        if (disablePreview) {
+            return;
+        }
+        if (previewLockRef.current) {
+            console.warn('Preview is locked, skipping preview for', file.path);
+            return;
+        }
+        previewLockRef.current = true;
+        try {
+            const serviceController = getLocalServiceController();
+            await serviceController.files.openFile(file.deviceFingerprint, file.path);
+        } catch (error) {
+            console.error('Error previewing file:', file.path, error);
+            const localSc = getLocalServiceController();
+            localSc.system.alert('Could not open file', `${(error as Error).message || 'Something went wrong.'}`);
+        } finally {
+            previewLockRef.current = false;
+        }
+    }, [disablePreview]);
+
+    const handleFilePress = useCallback(async (file: FileRemoteItem) => {
         // Handle file press based on selectMode
         console.log('File pressed:', file.path, 'selectMode:', selectMode);
         if (selectMode) {
@@ -138,10 +175,16 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
                 // Navigate to folder view
                 router.push(getFolderAppRoute(file.path, file.deviceFingerprint));
             } else {
-                onPreview && onPreview(file);
+                if (onPreview) {
+                    const shouldPreview = onPreview(file);
+                    if (shouldPreview === false) {
+                        return;
+                    }
+                }
+                await previewFile(file);
             }
         }
-    }, [selectMode, onSelect, onDeselect, router, onPreview]);
+    }, [selectMode, onSelect, onDeselect, router, onPreview, previewFile]);
 
     if (isLoading) {
         return (
@@ -184,7 +227,7 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
     );
 }
 
-export function FolderFilesGrid({ deviceFingerprint, path, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, showPageFooter, pageFooterStyle }: FolderFilesGridProps) {
+export function FolderFilesGrid({ deviceFingerprint, path, footerComponent, showPageFooter, pageFooterStyle, ...rest }: FolderFilesGridProps) {
 
     const mapper = useCallback((item: RemoteItem): FileRemoteItem => ({
         ...item,
@@ -201,11 +244,6 @@ export function FolderFilesGrid({ deviceFingerprint, path, headerComponent, foot
             items={remoteItems}
             isLoading={isLoading}
             error={error}
-            headerComponent={headerComponent}
-            selectMode={selectMode}
-            onSelect={onSelect}
-            onDeselect={onDeselect}
-            onPreview={onPreview}
             footerComponent={
                 footerComponent || (
                     showPageFooter ?
@@ -217,11 +255,12 @@ export function FolderFilesGrid({ deviceFingerprint, path, headerComponent, foot
                         : undefined
                 )
             }
+            {...rest}
         />
     );
 }
 
-export function PinnedFoldersGrid({ deviceFingerprint, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, hideEmpty }: PinnedFoldersGridProps) {
+export function PinnedFoldersGrid({ deviceFingerprint, hideEmpty, ...rest }: PinnedFoldersGridProps) {
     const { pinnedFolders, isLoading, error } = usePinnedFolders(deviceFingerprint);
 
     const items: FileRemoteItem[] = useMemo(() => pinnedFolders.map((folder) => pinnedFolderToRemoteItem(folder, deviceFingerprint)).map((remoteItem) => ({
@@ -238,12 +277,7 @@ export function PinnedFoldersGrid({ deviceFingerprint, headerComponent, footerCo
             items={items}
             isLoading={isLoading}
             error={error}
-            headerComponent={headerComponent}
-            footerComponent={footerComponent}
-            selectMode={selectMode}
-            onSelect={onSelect}
-            onDeselect={onDeselect}
-            onPreview={onPreview}
+            {...rest}
         />
     );
 }
