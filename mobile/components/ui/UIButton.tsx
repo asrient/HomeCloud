@@ -98,7 +98,7 @@ export function UIButton({
     }, style);
 
     if (!useGlass) {
-        viewStyle = StyleSheet.compose(viewStyle, { backgroundColor: buttonColor } );
+        viewStyle = StyleSheet.compose(viewStyle, { backgroundColor: buttonColor, zIndex: 2 } );
     }
 
     marginHorizontal = marginHorizontal ?? margin ?? 4;

@@ -6,7 +6,7 @@ import { ThemeColors } from '@/constants/Colors';
 export type UITextProps = TextProps & {
   lightColor?: string;
   darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl'; // deprecated use size and color instead
+  type?:  'title'  | 'subtitle' | 'default' | 'defaultSemiBold';
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl';
   font?: 'bold' | 'regular' | 'semibold' | 'light' | 'medium';
   color?: keyof ThemeColors;
@@ -23,10 +23,6 @@ export function UIText({
   ...rest
 }: UITextProps) {
   const textColor = useThemeColor({ light: lightColor, dark: darkColor }, color || 'text');
-  
-  if (size) {
-    type = size;
-  }
 
   return (
     <Text
@@ -36,12 +32,12 @@ export function UIText({
         type === 'title' ? styles.title : undefined,
         type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
         type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'sm' ? styles.sm : undefined,
-        type === 'xs' ? styles.xs : undefined,
-        type === 'md' ? styles.md : undefined,
-        type === 'lg' ? styles.lg : undefined,
-        type === 'xl' ? styles.xl : undefined,
-        type === 'xxl' ? styles.xxl : undefined,
+        size === 'sm' ? styles.sm : undefined,
+        size === 'xs' ? styles.xs : undefined,
+        size === 'md' ? styles.md : undefined,
+        size === 'lg' ? styles.lg : undefined,
+        size === 'xl' ? styles.xl : undefined,
+        size === 'xxl' ? styles.xxl : undefined,
         font === 'bold' ? styles.bold : undefined,
         font === 'regular' ? styles.regular : undefined,
         font === 'semibold' ? styles.semibold : undefined,

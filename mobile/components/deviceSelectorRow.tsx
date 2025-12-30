@@ -1,15 +1,21 @@
 import { useAppState } from "@/hooks/useAppState";
-import { ScrollView, View, ViewStyle } from "react-native";
+import { ScrollView, View, ViewStyle, StyleSheet, StyleProp } from "react-native";
 import { UIButton } from "./ui/UIButton";
 
 // Shows a row for selecting a device from the list of peers
 export default function DeviceSelectorRow({ style }: { style?: ViewStyle }) {
     const { peers, selectedFingerprint, selectDevice } = useAppState();
 
+    const scrollViewStyle: StyleProp<ViewStyle> = StyleSheet.compose({
+        flexDirection: 'row',
+        padding: 10,
+        overflow: 'visible',
+    }, style || {});
+
     return (
-        <View style={style}>
+        <View>
             <ScrollView horizontal
-                style={{ padding: 10, flexDirection: 'row' }}
+                style={scrollViewStyle}
                 showsHorizontalScrollIndicator={false}
             >
                 {[null, ...peers].map((peer) => {
@@ -22,7 +28,7 @@ export default function DeviceSelectorRow({ style }: { style?: ViewStyle }) {
                         type={isSelected ? 'primary' : 'secondary'}
                         size='md'
                         title={name}
-                        style={{paddingVertical: 8}}
+                        style={{ paddingVertical: 8 }}
                     />)
                 })}
             </ScrollView>

@@ -39,10 +39,7 @@ export default function PhotosLibrarySelectorModal({ isOpen, onDone, selectedLib
                                         backgroundColor: isSelected ? '#007AFF' : 'transparent',
                                     }}
                                 >
-                                    <UIText 
-                                    lightColor={isSelected ? 'white' : undefined} 
-                                    darkColor={isSelected ? 'white' : undefined}
-                                    >
+                                    <UIText color={isSelected ? 'highlightText' : undefined}>
                                         {lib.name}
                                     </UIText>
                                 </Pressable>

@@ -15,7 +15,7 @@ export default function HomeScreen() {
   const { selectedPeer, selectedPeerConnection } = useAppState();
 
   return (
-    <UIScrollView>
+    <UIScrollView style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           title: 'Home',
@@ -33,7 +33,7 @@ export default function HomeScreen() {
         <View style={styles.container}>
           <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
             <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : null} />
-            <UIText style={{ marginTop: 10, fontSize: 20, fontWeight: '600', textAlign: 'center' }}>
+            <UIText style={{ marginTop: 10, textAlign: 'center' }} type='subtitle'>
               {selectedPeer ? selectedPeer.deviceName : 'This Device'}
             </UIText>
             {
@@ -43,7 +43,7 @@ export default function HomeScreen() {
                   selectedPeerConnection &&
                   <UIIcon name={selectedPeerConnection.connectionType === ConnectionType.LOCAL ? "wifi" : "cellularbars"} size={16} color="green" style={{ marginRight: 4 }} />
                 }
-                <UIText style={{ fontSize: 16, color: selectedPeerConnection ? 'green' : 'grey' }}>
+                <UIText style={{ color: selectedPeerConnection ? 'green' : 'grey' }} size='sm'>
                   {selectedPeerConnection ? 'Online' : 'Offline'}
                 </UIText>
               </View>
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingBottom: 80,
     paddingHorizontal: 20,
   },
 });

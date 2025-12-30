@@ -210,7 +210,7 @@ export function FolderFilesGrid({ deviceFingerprint, path, headerComponent, foot
                 footerComponent || (
                     showPageFooter ?
                         <View style={{ paddingHorizontal: 10, paddingVertical: 30, justifyContent: 'center', alignItems: 'center', ...pageFooterStyle }}>
-                            <UIText type="sm" style={{ color: 'gray' }}>
+                            <UIText size="sm" color='textSecondary'>
                                 {`${remoteItems.length} items.`}
                             </UIText>
                         </View>
