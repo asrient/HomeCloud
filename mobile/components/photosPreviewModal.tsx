@@ -1,6 +1,5 @@
-import { StyleSheet, Modal, Dimensions, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, Modal, Dimensions, ActivityIndicator, View } from 'react-native';
 import { PhotoView } from '@/lib/types';
-import { UIView } from './ui/UIView';
 import { UIText } from './ui/UIText';
 import { Directory, Paths, File } from 'expo-file-system/next';
 import { getServiceController } from '@/lib/utils';
@@ -13,8 +12,9 @@ import Animated, {
     withTiming,
     withSpring,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
+import { UIButton } from './ui/UIButton';
 
 export type PhotosPreviewModalProps = {
     photos: PhotoView[];
@@ -70,7 +70,7 @@ async function getAssetUri(photo: PhotoView): Promise<string> {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Individual photo item with zoom/pan gestures
-function PhotoItem({ photo, isActive }: { photo: PhotoView; isActive: boolean }) {
+function PhotoItem({ photo, isActive, onTap }: { photo: PhotoView; isActive: boolean, onTap?: () => void }) {
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -98,6 +98,16 @@ function PhotoItem({ photo, isActive }: { photo: PhotoView; isActive: boolean })
                 });
         }
     }, [photo, isActive]);
+
+    const handleTapJS = useCallback(() => {
+        onTap && onTap();
+    }, [onTap]);
+
+    const handleTap = () => {
+        'worklet';
+        if (scale.value > 1) return; // Don't toggle UI when zoomed
+        scheduleOnRN(handleTapJS);
+    };
 
     // Reset zoom when switching photos
     useEffect(() => {
@@ -155,13 +165,13 @@ function PhotoItem({ photo, isActive }: { photo: PhotoView; isActive: boolean })
                 const newScale = 2.5;
                 scale.value = withSpring(newScale);
                 savedScale.value = newScale;
-                
+
                 // Center on tap position
                 const centerX = SCREEN_WIDTH / 2;
                 const centerY = SCREEN_HEIGHT / 2;
                 const offsetX = (centerX - e.x) * (newScale - 1);
                 const offsetY = (centerY - e.y) * (newScale - 1);
-                
+
                 translateX.value = withSpring(offsetX);
                 translateY.value = withSpring(offsetY);
                 savedTranslateX.value = offsetX;
@@ -169,9 +179,13 @@ function PhotoItem({ photo, isActive }: { photo: PhotoView; isActive: boolean })
             }
         });
 
+    const singleTapGesture = Gesture.Tap()
+        .numberOfTaps(1)
+        .onEnd(handleTap);
+
     const composedGesture = Gesture.Race(
-        doubleTapGesture,
-        Gesture.Simultaneous(pinchGesture, panGesture)
+        Gesture.Exclusive(doubleTapGesture, singleTapGesture),
+        Gesture.Simultaneous(pinchGesture, panGesture),
     );
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -184,22 +198,22 @@ function PhotoItem({ photo, isActive }: { photo: PhotoView; isActive: boolean })
 
     if (isLoading) {
         return (
-            <UIView style={styles.photoContainer}>
+            <View style={styles.photoContainer}>
                 <ActivityIndicator size="large" color="#fff" />
-            </UIView>
+            </View>
         );
     }
 
     if (error || !imageUri) {
         return (
-            <UIView style={styles.photoContainer}>
+            <View style={styles.photoContainer}>
                 <UIText style={{ color: '#fff' }}>{error || 'Failed to load'}</UIText>
-            </UIView>
+            </View>
         );
     }
 
     return (
-        <UIView style={styles.photoContainer}>
+        <View style={styles.photoContainer}>
             <GestureDetector gesture={composedGesture}>
                 <Animated.View style={[styles.imageWrapper, animatedStyle]}>
                     <Image
@@ -209,7 +223,7 @@ function PhotoItem({ photo, isActive }: { photo: PhotoView; isActive: boolean })
                     />
                 </Animated.View>
             </GestureDetector>
-        </UIView>
+        </View>
     );
 }
 
@@ -217,13 +231,14 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
     const [currentIndex, setCurrentIndex] = useState(startIndex);
     const flashListRef = useRef<any>(null);
     const [viewableIndices, setViewableIndices] = useState<Set<number>>(new Set([startIndex]));
+    const [showUI, setShowUI] = useState(true);
 
     useEffect(() => {
         if (isOpen) {
             clearCache();
             setCurrentIndex(startIndex);
             setViewableIndices(new Set([startIndex]));
-            
+
             // Scroll to start index when modal opens
             setTimeout(() => {
                 flashListRef.current?.scrollToIndex({
@@ -239,6 +254,11 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
         onClose(currentIndex);
     }, [onClose, currentIndex]);
 
+    const handleTap = useCallback(() => {
+        console.log('Tapping photo to toggle UI');
+        setShowUI((prev) => !prev);
+    }, []);
+
     const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
         if (viewableItems.length > 0) {
             const newIndices = new Set<number>();
@@ -251,7 +271,7 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
                 }
             });
             setViewableIndices(newIndices);
-            
+
             // Update current index to the first viewable item
             const firstViewable = viewableItems[0];
             if (firstViewable?.index !== null && firstViewable?.index !== undefined) {
@@ -268,16 +288,20 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
     return (
         <Modal visible={isOpen} transparent={false} animationType="fade" statusBarTranslucent>
             <GestureHandlerRootView style={styles.container}>
-                <UIView style={styles.container}>
+
+                <View style={styles.container}>
                     {/* Header with close button and counter */}
-                    <UIView style={styles.header}>
-                        <Pressable onPress={exitPreview} style={styles.closeButton}>
-                            <Ionicons name="close" size={32} color="#fff" />
-                        </Pressable>
-                        <UIText style={styles.counter}>
-                            {currentIndex + 1} of {photos.length}
-                        </UIText>
-                    </UIView>
+                    {
+                        showUI && <View style={styles.header}>
+                            <View style={styles.headerGroup}>
+                                <UIButton onPress={exitPreview} type='secondary' icon='xmark' />
+                            </View>
+                            <View style={styles.headerGroup}>
+                                <UIButton type='secondary' icon='square.and.arrow.up' />
+                                <UIButton type='secondary' icon='ellipsis' />
+                            </View>
+                        </View>
+                    }
 
                     {/* Photo gallery */}
                     <FlashList
@@ -288,15 +312,17 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
                         showsHorizontalScrollIndicator={false}
                         keyExtractor={(item) => item.id}
                         renderItem={({ item, index }) => (
-                            <PhotoItem 
-                                photo={item} 
-                                isActive={viewableIndices.has(index!)} 
+                            <PhotoItem
+                                photo={item}
+                                onTap={handleTap}
+                                isActive={viewableIndices.has(index!)}
                             />
                         )}
                         onViewableItemsChanged={onViewableItemsChanged}
                         viewabilityConfig={viewabilityConfig}
                     />
-                </UIView>
+                </View>
+
             </GestureHandlerRootView>
         </Modal>
     );
@@ -319,15 +345,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 50,
         zIndex: 10,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
-    closeButton: {
-        padding: 8,
-    },
-    counter: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
+    headerGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     photoContainer: {
         width: SCREEN_WIDTH,

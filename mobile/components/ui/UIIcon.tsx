@@ -30,6 +30,7 @@ const MAPPING = {
   'folder.fill': 'folder',
   'trash': 'delete-outline',
   'square.and.arrow.up': 'share',
+  'ellipsis': 'more-horiz',
 } as IconMapping;
 
 /**
