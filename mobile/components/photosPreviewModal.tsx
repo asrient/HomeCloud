@@ -70,7 +70,7 @@ async function getAssetUri(photo: PhotoView): Promise<string> {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Individual photo item with zoom/pan gestures
-function PhotoItem({ photo, isActive, onTap }: { photo: PhotoView; isActive: boolean, onTap?: () => void }) {
+function PhotoItem({ photo, isActive, onTap, onClose }: { photo: PhotoView; isActive: boolean, onTap?: () => void, onClose?: () => void }) {
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -103,6 +103,10 @@ function PhotoItem({ photo, isActive, onTap }: { photo: PhotoView; isActive: boo
         onTap && onTap();
     }, [onTap]);
 
+    const handleCloseJS = useCallback(() => {
+        onClose && onClose();
+    }, [onClose]);
+
     const handleTap = () => {
         'worklet';
         if (scale.value > 1) return; // Don't toggle UI when zoomed
@@ -125,7 +129,7 @@ function PhotoItem({ photo, isActive, onTap }: { photo: PhotoView; isActive: boo
     const pinchGesture = Gesture.Pinch()
         .onUpdate((e) => {
             const newScale = savedScale.value * e.scale;
-            scale.value = Math.min(Math.max(newScale, 1), 5);
+            scale.value = Math.min(Math.max(newScale, 0.3), 5);
             
             // Zoom towards the focal point
             const focalX = e.focalX - SCREEN_WIDTH / 2;
@@ -135,7 +139,10 @@ function PhotoItem({ photo, isActive, onTap }: { photo: PhotoView; isActive: boo
             translateY.value = savedTranslateY.value + (focalY - focalY * e.scale);
         })
         .onEnd(() => {
-            if (scale.value < 1) {
+            if (scale.value < 0.6) {
+                // Close modal if zoomed out below threshold
+                scheduleOnRN(handleCloseJS);
+            } else if (scale.value <= 1) {
                 scale.value = withSpring(1);
                 savedScale.value = 1;
                 translateX.value = withSpring(0);
@@ -151,6 +158,8 @@ function PhotoItem({ photo, isActive, onTap }: { photo: PhotoView; isActive: boo
 
     const panGesture = Gesture.Pan()
         .enabled(scale.value > 1)
+        .activeOffsetX([-10, 10])
+        .activeOffsetY([-10, 10])
         .onUpdate((e) => {
             translateX.value = savedTranslateX.value + e.translationX;
             translateY.value = savedTranslateY.value + e.translationY;
@@ -192,10 +201,9 @@ function PhotoItem({ photo, isActive, onTap }: { photo: PhotoView; isActive: boo
         .numberOfTaps(1)
         .onEnd(handleTap);
 
-    const composedGesture = Gesture.Race(
-        Gesture.Exclusive(doubleTapGesture, singleTapGesture),
-        Gesture.Simultaneous(pinchGesture, panGesture),
-    );
+    const zoomPanGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+    const tapGesture = Gesture.Exclusive(doubleTapGesture, singleTapGesture);
+    const composedGesture = Gesture.Race(tapGesture, zoomPanGesture);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [
@@ -324,6 +332,7 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
                             <PhotoItem
                                 photo={item}
                                 onTap={handleTap}
+                                onClose={exitPreview}
                                 isActive={viewableIndices.has(index!)}
                             />
                         )}
