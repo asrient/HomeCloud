@@ -94,7 +94,7 @@ export function PhotoThumbnail({ item, onPress, isSelectMode }: { item: PhotoVie
                 />
                 {
                     isSelectMode &&
-                    <ThumbnailCheckbox isSelected={isSelected} />
+                    <ThumbnailCheckbox position='top-right' isSelected={isSelected} />
                 }
             </Pressable>
         </ContextMenu>

@@ -9,6 +9,7 @@ export interface AppState {
     peers: PeerInfo[];
     selectedFingerprint: string | null;
     isInitialized: boolean;
+    filesViewMode: 'grid' | 'list';
 
     initializeStore: (peers: PeerInfo[], connections: ConnectionInfo[]) => void;
     selectDevice: (fingerprint: string | null) => void;
@@ -16,6 +17,7 @@ export interface AppState {
     removePeer: (fingerprint: string) => void;
     addConnection: (connection: ConnectionInfo) => void;
     removeConnection: (fingerprint: string) => void;
+    setFilesViewMode: (mode: 'grid' | 'list') => void;
 }
 
 const useAppStore = create<AppState>((set) => ({
@@ -23,6 +25,7 @@ const useAppStore = create<AppState>((set) => ({
     peers: [],
     selectedFingerprint: null,
     isInitialized: false,
+    filesViewMode: 'grid',
     initializeStore: (peers, connections) => set(() => ({
         isInitialized: true,
         peers,
@@ -54,6 +57,9 @@ const useAppStore = create<AppState>((set) => ({
     removeConnection: (fingerprint) => set((state) => ({
         connections: state.connections.filter(conn => conn.fingerprint !== fingerprint),
     })),
+    setFilesViewMode: (mode: 'grid' | 'list') => set(() => ({
+        filesViewMode: mode,
+    })),
 }));
 
 export function useAppState() {
@@ -67,13 +73,15 @@ export function useAppState() {
         addPeer,
         removePeer,
         addConnection,
-        removeConnection
+        removeConnection,
+        filesViewMode,
+        setFilesViewMode,
     } = useAppStore();
     const loadingStateRef = useRef<'initial' | 'loading' | 'loaded'>('initial');
     const readySignalRef = useRef<SignalNodeRef<[boolean], string> | null>(null);
     const peerSignalRef = useRef<SignalNodeRef<[SignalEvent, PeerInfo], string> | null>(null);
     const connectionSignalRef = useRef<SignalNodeRef<[SignalEvent, ConnectionInfo], string> | null>(null);
-    const { setupAccountState, clearAccountState } = useAccountState(); 
+    const { setupAccountState, clearAccountState } = useAccountState();
 
     const initializeAppState = useCallback(async () => {
         console.log("Initializing app state...");
@@ -177,5 +185,7 @@ export function useAppState() {
         clearSignals,
         selectedPeer,
         selectedPeerConnection,
+        filesViewMode,
+        setFilesViewMode,
     };
 }

@@ -7,13 +7,18 @@ import { getLocalServiceController, getServiceController, printFingerprint } fro
 import { FlashList } from "@shopify/flash-list";
 import { ThumbnailCheckbox } from './ThumbnailCheckbox';
 import { useFolder, usePinnedFolders } from '@/hooks/useFolders';
-import { canGenerateThumbnail, pinnedFolderToRemoteItem, getDefautIconUri, getFolderAppRoute } from '@/lib/fileUtils';
+import { canGenerateThumbnail, pinnedFolderToRemoteItem, getDefautIconUri, getFolderAppRoute, getKind } from '@/lib/fileUtils';
 import { RemoteItem } from 'shared/types';
 import { useRouter } from 'expo-router';
 import ContextMenu from 'react-native-context-menu-view';
+import { UIIcon } from './ui/UIIcon';
 
-
-export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu }: { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean, disableContextMenu?: boolean }) {
+// Shared hook for file item state and logic
+function useFileItemState(
+    item: FileRemoteItem,
+    isSelectMode: boolean | undefined,
+    onPress?: (item: FileRemoteItem) => Promise<void>
+) {
     const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(item.thumbnail || null);
     const [isSelected, setIsSelected] = useState(item.isSelected || false);
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -32,6 +37,8 @@ export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu 
         }
     }, [isSelectMode, item]);
 
+    const fileKind = useMemo(() => getKind(item), [item]);
+
     const fetchThumbnailSrc = useCallback(async (item: FileRemoteItem) => {
         if (item.thumbnail) {
             return item.thumbnail;
@@ -42,7 +49,6 @@ export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu 
     }, []);
 
     useEffect(() => {
-        // console.log('Fetching thumbnail for photo', item.id);
         if (!canGenerateThumbnail(item)) {
             return;
         }
@@ -69,7 +75,6 @@ export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu 
 
     const actions = useMemo(() => {
         const baseActions = [
-
             { title: "Info", systemIcon: "info.circle" },
             { title: "Rename", systemIcon: "pencil" },
             { title: "Move", systemIcon: "folder" },
@@ -81,9 +86,30 @@ export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu 
         return [
             { title: "Export", systemIcon: "square.and.arrow.up" },
             ...baseActions,
-
         ];
     }, [isDir]);
+
+    return {
+        thumbnailSrc,
+        isSelected,
+        isPreviewLoading,
+        isDir,
+        handlePress,
+        actions,
+        fileKind,
+    };
+}
+
+const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
+};
+
+export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu }: { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean, disableContextMenu?: boolean }) {
+    const { thumbnailSrc, isSelected, isPreviewLoading, handlePress, actions, fileKind } = useFileItemState(item, isSelectMode, onPress);
 
     const content = (<Pressable
         disabled={isPreviewLoading}
@@ -108,12 +134,20 @@ export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu 
         />
         {
             isSelectMode &&
-            <ThumbnailCheckbox isSelected={isSelected} />
+            <ThumbnailCheckbox position='top-right' isSelected={isSelected} />
         }
         <UIText
             numberOfLines={1}
-            style={{ textAlign: 'center', paddingTop: 2, fontSize: 14 }}>
+            size='sm'
+            style={{ textAlign: 'center', paddingTop: 2 }}>
             {item.name}
+        </UIText>
+        <UIText
+            numberOfLines={1}
+            size="sm"
+            color="textSecondary"
+            style={{ textAlign: 'center', paddingTop: 1 }}>
+            {fileKind}
         </UIText>
     </Pressable>);
 
@@ -137,6 +171,75 @@ export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu 
     );
 }
 
+export function FileListItem({ item, onPress, isSelectMode, disableContextMenu }: { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean, disableContextMenu?: boolean }) {
+    const { thumbnailSrc, isSelected, isPreviewLoading, isDir, handlePress, actions, fileKind } = useFileItemState(item, isSelectMode, onPress);
+    let subText: string = fileKind;
+    if (!isDir) {
+        subText += `  ${formatFileSize(item.size || 0)}`;
+    }
+
+    const content = (
+        <Pressable
+            disabled={isPreviewLoading}
+            onPress={handlePress}
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                minHeight: 60
+            }}
+        >
+            {isSelectMode && (
+                <View style={{ marginRight: 12 }}>
+                    <ThumbnailCheckbox isSelected={isSelected} />
+                </View>
+            )}
+            <Image
+                source={
+                    thumbnailSrc ? {
+                        uri: thumbnailSrc,
+                        cacheKey: `${item.deviceFingerprint}-${item.path}`
+                    } : getDefautIconUri(item)
+                }
+                style={{ width: 40, height: 40, borderRadius: 6 }}
+                contentFit="cover"
+            />
+            <View style={{ flex: 1, marginLeft: 12, justifyContent: 'center' }}>
+                <UIText numberOfLines={1} size='md'>
+                    {item.name}
+                </UIText>
+                <UIText numberOfLines={1} size="sm" color="textSecondary" style={{ marginTop: 1 }}>
+                    {subText}
+                </UIText>
+            </View>
+            {isPreviewLoading ? (
+                <ActivityIndicator size="small" style={{ marginLeft: 8 }} />
+            ) : (
+                isDir && <UIIcon name="chevron.forward" size={20} themeColor="textTertiary" style={{ marginLeft: 8 }} />
+            )}
+        </Pressable>
+    );
+
+    if (isSelectMode || disableContextMenu) {
+        return content;
+    }
+
+    return (
+        <ContextMenu
+            actions={actions}
+            disabled={isSelectMode || disableContextMenu}
+            onPress={(event) => {
+                const action = event.nativeEvent.name;
+                console.log("Context menu action pressed", action);
+            }}
+            onPreviewPress={handlePress}
+        >
+            {content}
+        </ContextMenu>
+    );
+}
+
 export type GridPropsCommon = {
     headerComponent?: React.ReactElement;
     footerComponent?: React.ReactElement;
@@ -146,6 +249,7 @@ export type GridPropsCommon = {
     onPreview?: (file: FileRemoteItem) => void | boolean;
     disablePreview?: boolean;
     disableContextMenu?: boolean;
+    viewMode?: 'grid' | 'list';
 }
 
 export type FilesGridProps = GridPropsCommon & {
@@ -166,14 +270,14 @@ export type PinnedFoldersGridProps = GridPropsCommon & {
     hideEmpty?: boolean;
 }
 
-export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error, disablePreview }: FilesGridProps) {
+export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error, disablePreview, viewMode = 'grid', disableContextMenu }: FilesGridProps) {
     const [renderKey, setRenderKey] = useState(0);
     const router = useRouter();
 
     useEffect(() => {
-        // Force re-render when selectMode changes to update thumbnails
+        // Force re-render when selectMode or viewMode changes to update thumbnails
         setRenderKey((prev) => prev + 1);
-    }, [selectMode]);
+    }, [selectMode, viewMode]);
 
     const previewLockRef = useRef(false);
 
@@ -247,13 +351,18 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
                 data={items}
                 extraData={renderKey}
                 keyExtractor={(item) => item.deviceFingerprint ? printFingerprint(item.deviceFingerprint) + '|' + item.path : item.path}
-                numColumns={3}
+                numColumns={viewMode === 'grid' ? 3 : 1}
+                key={viewMode} // Force remount when switching between grid and list
                 refreshing={isLoading}
-                renderItem={({ item }) => (
-                    <View style={{ flex: 1 / 3, aspectRatio: 1, margin: 1 }}>
-                        <FileThumbnail item={item} isSelectMode={selectMode} onPress={handleFilePress} />
-                    </View>
-                )}
+                renderItem={({ item }) =>
+                    viewMode === 'grid' ? (
+                        <View style={{ flex: 1 / 3, aspectRatio: 1, margin: 1 }}>
+                            <FileThumbnail item={item} isSelectMode={selectMode} onPress={handleFilePress} disableContextMenu={disableContextMenu} />
+                        </View>
+                    ) : (
+                        <FileListItem item={item} isSelectMode={selectMode} onPress={handleFilePress} disableContextMenu={disableContextMenu} />
+                    )
+                }
                 ListEmptyComponent={
                     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
                         <UIText>Its empty here</UIText>

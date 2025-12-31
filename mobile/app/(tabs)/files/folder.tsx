@@ -16,7 +16,7 @@ type Props = RouteProp<ParamListBase, string> & {
 };
 
 export default function FolderScreen() {
-  const { selectedFingerprint } = useAppState();
+  const { selectedFingerprint, filesViewMode, setFilesViewMode } = useAppState();
   const navigation = useNavigation();
   const router = useRouter();
   const route = useRoute<Props>();
@@ -64,27 +64,32 @@ export default function FolderScreen() {
             <ContextMenu
               dropdownMenuMode={true}
               actions={[
-                { 
-                  title: "Sort", 
+                {
+                  title: "Sort",
                   systemIcon: "arrow.up.arrow.down",
                   actions: [
-                    { title: "Name" , systemIcon: "textformat", selected: true },
+                    { title: "Name", systemIcon: "textformat", selected: true },
                     { title: "Date Added", systemIcon: "calendar" },
                     { title: "Size", systemIcon: "arrow.up.arrow.down.circle" },
                   ]
-                 },
-                { 
+                },
+                {
                   title: "Display", systemIcon: "rectangle.grid.2x2",
                   inlineChildren: true,
                   actions: [
-                    { title: "Grid", systemIcon: "square.grid.2x2", selected: true },
-                    { title: "List", systemIcon: "list.bullet" },
-                  ] 
+                    { title: "Grid", systemIcon: "square.grid.2x2", selected: filesViewMode === 'grid' },
+                    { title: "List", systemIcon: "list.bullet", selected: filesViewMode === 'list' },
+                  ]
                 },
               ]}
               onPress={(event) => {
                 const action = event.nativeEvent.name;
                 console.log("Folder context menu action pressed", action);
+                if (action === 'Grid') {
+                  setFilesViewMode('grid');
+                } else if (action === 'List') {
+                  setFilesViewMode('list');
+                }
               }}
             >
               <UIHeaderButton name='ellipsis.circle' />
@@ -99,7 +104,7 @@ export default function FolderScreen() {
       }
       ,
     });
-  }, [navigation, folderName, selectMode, selectedFiles.length]);
+  }, [navigation, folderName, selectMode, selectedFiles.length, filesViewMode, setFilesViewMode]);
 
   return (
     <UIView style={{ flex: 1 }}>
@@ -110,6 +115,7 @@ export default function FolderScreen() {
           selectMode={selectMode}
           onSelect={handleSelectFile}
           onDeselect={handleDeselectFile}
+          viewMode={filesViewMode}
           headerComponent={
             <View style={{ marginTop: headerHeight }} />
           }

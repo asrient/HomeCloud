@@ -1,5 +1,7 @@
 // Fallback for using MaterialIcons on Android and web.
 
+import { ThemeColors } from '@/constants/Colors';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
 import { ComponentProps } from 'react';
@@ -32,6 +34,7 @@ const MAPPING = {
   'square.and.arrow.up': 'share',
   'ellipsis': 'more-horiz',
   'ellipsis.circle': 'more',
+  'chevron.compact.forward': 'chevron-right',
 } as IconMapping;
 
 /**
@@ -43,6 +46,7 @@ export function UIIcon({
   name,
   size = 24,
   color,
+  themeColor,
   style,
 }: {
   name: IconSymbolName;
@@ -50,6 +54,8 @@ export function UIIcon({
   color?: string | OpaqueColorValue;
   style?: StyleProp<TextStyle>;
   weight?: SymbolWeight;
+  themeColor?: keyof ThemeColors;
 }) {
-  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+  const themeColorValue = useThemeColor({}, themeColor || 'icon');
+  return <MaterialIcons color={color || themeColorValue} size={size} name={MAPPING[name]} style={style} />;
 }
