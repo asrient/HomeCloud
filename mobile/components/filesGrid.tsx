@@ -10,9 +10,10 @@ import { useFolder, usePinnedFolders } from '@/hooks/useFolders';
 import { canGenerateThumbnail, pinnedFolderToRemoteItem, getDefautIconUri, getFolderAppRoute } from '@/lib/fileUtils';
 import { RemoteItem } from 'shared/types';
 import { useRouter } from 'expo-router';
+import ContextMenu from 'react-native-context-menu-view';
 
 
-export function FileThumbnail({ item, onPress, isSelectMode }: { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean }) {
+export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu }: { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean, disableContextMenu?: boolean }) {
     const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(item.thumbnail || null);
     const [isSelected, setIsSelected] = useState(item.isSelected || false);
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -66,38 +67,73 @@ export function FileThumbnail({ item, onPress, isSelectMode }: { item: FileRemot
         }
     }, [isSelectMode, onPress, isSelected, item, isDir]);
 
-    return (
-        <Pressable 
+    const actions = useMemo(() => {
+        const baseActions = [
+
+            { title: "Info", systemIcon: "info.circle" },
+            { title: "Rename", systemIcon: "pencil" },
+            { title: "Move", systemIcon: "folder" },
+            { title: "Delete", systemIcon: "trash", destructive: true },
+        ];
+        if (isDir) {
+            return baseActions;
+        }
+        return [
+            { title: "Export", systemIcon: "square.and.arrow.up" },
+            ...baseActions,
+
+        ];
+    }, [isDir]);
+
+    const content = (<Pressable
         disabled={isPreviewLoading}
-        onPress={handlePress} 
+        onPress={handlePress}
         style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', margin: 2 }}>
-            {
-                isPreviewLoading ? (
-                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
+        {
+            isPreviewLoading ? (
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
                     <ActivityIndicator size="large" />
-                    </View>
-                ) : null
+                </View>
+            ) : null
+        }
+        <Image
+            source={
+                thumbnailSrc ? {
+                    uri: thumbnailSrc,
+                    cacheKey: `${item.deviceFingerprint}-${item.path}`
+                } : getDefautIconUri(item)
             }
-            <Image
-                source={
-                    thumbnailSrc ? {
-                        uri: thumbnailSrc,
-                        cacheKey: `${item.deviceFingerprint}-${item.path}`
-                    } : getDefautIconUri(item)
-                }
-                style={{ width: '60%', height: '60%' }}
-                contentFit="contain"
-            />
-            {
-                isSelectMode &&
-                <ThumbnailCheckbox isSelected={isSelected} />
-            }
-            <UIText
-                numberOfLines={1}
-                style={{ textAlign: 'center', paddingTop: 2, fontSize: 14 }}>
-                {item.name}
-            </UIText>
-        </Pressable>
+            style={{ width: '60%', height: '60%' }}
+            contentFit="contain"
+        />
+        {
+            isSelectMode &&
+            <ThumbnailCheckbox isSelected={isSelected} />
+        }
+        <UIText
+            numberOfLines={1}
+            style={{ textAlign: 'center', paddingTop: 2, fontSize: 14 }}>
+            {item.name}
+        </UIText>
+    </Pressable>);
+
+    if (isSelectMode || disableContextMenu) {
+        return content;
+    }
+
+    return (
+        <ContextMenu
+            // title='Meow'
+            actions={actions}
+            disabled={isSelectMode || disableContextMenu}
+            onPress={(event) => {
+                const action = event.nativeEvent.name;
+                console.log("Context menu action pressed", action);
+            }}
+            onPreviewPress={handlePress}
+        >
+            {content}
+        </ContextMenu>
     );
 }
 
@@ -109,6 +145,7 @@ export type GridPropsCommon = {
     onDeselect?: (file: FileRemoteItem) => void;
     onPreview?: (file: FileRemoteItem) => void | boolean;
     disablePreview?: boolean;
+    disableContextMenu?: boolean;
 }
 
 export type FilesGridProps = GridPropsCommon & {

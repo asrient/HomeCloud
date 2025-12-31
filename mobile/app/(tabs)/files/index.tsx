@@ -23,6 +23,7 @@ export default function FilesScreen() {
       <View style={{ flex: 1, marginTop: 10 }}>
         <PinnedFoldersGrid
           hideEmpty={true}
+          disableContextMenu={true}
           headerComponent={
             <View style={{ padding: 10 }}>
               <UIText type='subtitle'>Pinned Folders</UIText>
@@ -33,6 +34,7 @@ export default function FilesScreen() {
       </View>
       <View style={{ flex: 1, marginTop: 10 }}>
         <FolderFilesGrid
+          disableContextMenu={true}
           headerComponent={
             <View style={{ padding: 10 }}>
               <UIText type='subtitle'>Disks</UIText>

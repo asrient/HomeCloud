@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { FileRemoteItem } from '@/lib/types';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
+import ContextMenu from 'react-native-context-menu-view';
 
 type Props = RouteProp<ParamListBase, string> & {
   params: FolderRouteParams;
@@ -58,7 +59,37 @@ export default function FolderScreen() {
       headerBackButtonDisplayMode: 'minimal',
       headerRight: () => {
         if (!selectMode) {
-          return <UIHeaderButton name="checkmark.circle" onPress={() => { setSelectMode(true) }} />;
+          return <>
+            <UIHeaderButton name="checkmark.circle" onPress={() => { setSelectMode(true) }} />
+            <ContextMenu
+              dropdownMenuMode={true}
+              actions={[
+                { 
+                  title: "Sort", 
+                  systemIcon: "arrow.up.arrow.down",
+                  actions: [
+                    { title: "Name" , systemIcon: "textformat", selected: true },
+                    { title: "Date Added", systemIcon: "calendar" },
+                    { title: "Size", systemIcon: "arrow.up.arrow.down.circle" },
+                  ]
+                 },
+                { 
+                  title: "Display", systemIcon: "rectangle.grid.2x2",
+                  inlineChildren: true,
+                  actions: [
+                    { title: "Grid", systemIcon: "square.grid.2x2", selected: true },
+                    { title: "List", systemIcon: "list.bullet" },
+                  ] 
+                },
+              ]}
+              onPress={(event) => {
+                const action = event.nativeEvent.name;
+                console.log("Folder context menu action pressed", action);
+              }}
+            >
+              <UIHeaderButton name='ellipsis.circle' />
+            </ContextMenu>
+          </>;
         }
         return (<>
           <UIHeaderButton name="square.and.arrow.up" onPress={() => { }} />

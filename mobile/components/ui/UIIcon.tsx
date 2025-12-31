@@ -31,6 +31,7 @@ const MAPPING = {
   'trash': 'delete-outline',
   'square.and.arrow.up': 'share',
   'ellipsis': 'more-horiz',
+  'ellipsis.circle': 'more',
 } as IconMapping;
 
 /**

@@ -8,6 +8,7 @@ import { getServiceController } from '@/lib/utils';
 import { FlashList } from "@shopify/flash-list";
 import { ThumbnailCheckbox } from './ThumbnailCheckbox';
 import { PhotosPreviewModal } from './photosPreviewModal';
+import ContextMenu from "react-native-context-menu-view";
 
 
 export function PhotoThumbnail({ item, onPress, isSelectMode }: { item: PhotoView, onPress?: (item: PhotoView) => void, isSelectMode?: boolean }) {
@@ -71,17 +72,32 @@ export function PhotoThumbnail({ item, onPress, isSelectMode }: { item: PhotoVie
     }
 
     return (
-        <Pressable onPress={handlePress} style={{ width: '100%', height: '100%' }}>
-            <Image
-                source={{ uri: thumbnailSrc, cacheKey: `${item.deviceFingerprint}-${item.libraryId}-${item.id}` }}
-                style={{ width: '100%', height: '100%' }}
-                contentFit="cover"
-            />
-            {
-                isSelectMode &&
-                <ThumbnailCheckbox isSelected={isSelected} />
-            }
-        </Pressable>
+        <ContextMenu
+            style={{ width: '100%', height: '100%' }}
+            // title='Meow'
+            actions={[
+                { title: "Save", systemIcon: "square.and.arrow.down" },
+                { title: "Export", systemIcon: "square.and.arrow.up" },
+                { title: "Delete", systemIcon: "trash", destructive: true },
+            ]}
+            onPress={(event) => {
+                const action = event.nativeEvent.name;
+                console.log("Context menu action pressed", action);
+            }}
+            onPreviewPress={handlePress}
+        >
+            <Pressable onPress={handlePress} style={{ width: '100%', height: '100%' }}>
+                <Image
+                    source={{ uri: thumbnailSrc, cacheKey: `${item.deviceFingerprint}-${item.libraryId}-${item.id}` }}
+                    style={{ width: '100%', height: '100%' }}
+                    contentFit="cover"
+                />
+                {
+                    isSelectMode &&
+                    <ThumbnailCheckbox isSelected={isSelected} />
+                }
+            </Pressable>
+        </ContextMenu>
     );
 }
 

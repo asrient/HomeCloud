@@ -12,7 +12,7 @@ export function UIHeaderButton({
 }: {
     name?: SymbolViewProps['name'];
     text?: string;
-    onPress: () => void;
+    onPress?: () => void;
     isHighlight?: boolean;
 }) {
     const themeColor = useThemeColor({}, 'icon');
