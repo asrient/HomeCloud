@@ -311,11 +311,11 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
                     {
                         showUI && <View style={styles.header}>
                             <View style={styles.headerGroup}>
-                                <UIButton onPress={exitPreview} type='secondary' icon='xmark' />
+                                <UIButton clearGlass onPress={exitPreview} color='white' type='secondary' icon='xmark' />
                             </View>
                             <View style={styles.headerGroup}>
-                                <UIButton type='secondary' icon='square.and.arrow.up' />
-                                <UIButton type='secondary' icon='ellipsis' />
+                                <UIButton clearGlass color='white' type='secondary' icon='square.and.arrow.up' />
+                                <UIButton clearGlass color='white' type='secondary' icon='ellipsis' />
                             </View>
                         </View>
                     }

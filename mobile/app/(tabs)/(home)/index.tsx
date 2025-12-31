@@ -9,13 +9,24 @@ import { ConnectionType } from '@/lib/types';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UIScrollView } from '@/components/ui/UIScrollView';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { DeviceInfo } from 'shared/types';
 
 const MAX_DEVICE_NAME_LENGTH = 23;
+
+function printDeviceInfo(info: DeviceInfo | null) {
+  if (!info) return 'No Device Info';
+  return `${info.os} ${info.osFlavour} • ${info.formFactor}`;
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const headerHeight = useHeaderHeight();
+  const [thisDeviceInfo, setThisDeviceInfo] = useState<DeviceInfo | null>(null);
+
+  useEffect(() => {
+    modules.getLocalServiceController().system.getDeviceInfo().then(setThisDeviceInfo);
+  }, []);
 
   const { selectedPeer, selectedPeerConnection } = useAppState();
 
@@ -45,26 +56,29 @@ export default function HomeScreen() {
           ,
         }}
       />
-        <DeviceSelectorRow/>
-        <View style={styles.container}>
-          <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : null} />
-            <UIText style={{ marginTop: 10, textAlign: 'center' }} type='subtitle'>
-              {selectedPeer ? selectedPeer.deviceName : 'This Device'}
-            </UIText>
-            {
-              !!selectedPeer &&
-              <View style={{ alignItems: 'center', marginTop: 2, flexDirection: 'row', justifyContent: 'center' }}>
-                {
-                  selectedPeerConnection &&
-                  <UIIcon name={selectedPeerConnection.connectionType === ConnectionType.LOCAL ? "wifi" : "cellularbars"} size={16} color="green" style={{ marginRight: 4 }} />
-                }
-                <UIText style={{ color: selectedPeerConnection ? 'green' : 'grey' }} size='sm'>
-                  {selectedPeerConnection ? 'Online' : 'Offline'}
-                </UIText>
-              </View>
-            }
-          </View>
+      <DeviceSelectorRow />
+      <View style={styles.container}>
+        <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : null} />
+          <UIText style={{ marginTop: 10, textAlign: 'center' }} type='subtitle' font='medium'>
+            {selectedPeer ? selectedPeer.deviceName : modules.config.DEVICE_NAME}
+          </UIText>
+          <UIText style={{ textAlign: 'center', padding: 1 }} size='md' color='textSecondary' font='medium'>
+            {printDeviceInfo(selectedPeer ? selectedPeer.deviceInfo : thisDeviceInfo)}
+          </UIText>
+          {
+            !!selectedPeer &&
+            <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}>
+              {
+                selectedPeerConnection &&
+                <UIIcon name={selectedPeerConnection.connectionType === ConnectionType.LOCAL ? "wifi" : "cellularbars"} size={18} color="green" style={{ marginRight: 2 }} />
+              }
+              <UIText style={selectedPeerConnection ? { color: 'green' } : undefined} color='textSecondary' size='sm'>
+                {selectedPeerConnection ? 'Online' : 'Offline'}
+              </UIText>
+            </View>
+          }
+        </View>
       </View>
     </UIScrollView>
   );

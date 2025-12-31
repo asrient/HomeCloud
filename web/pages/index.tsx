@@ -41,7 +41,7 @@ const DrivesSection = ({
 const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: boolean }) => {
   const connection = usePeerConnectionState(isThisDevice ? null : peer.fingerprint);
   return (
-    <div className={cn("py-3 px-4 lg:px-6 xl:px-10 min-h-[12rem] flex items-center justify-between relative", isMacosTheme() && 'bg-secondary/40')}>
+    <div className={cn("py-3 px-4 lg:px-6 xl:px-10 min-h-[12rem] flex items-center justify-between relative")}>
       <div className='w-full flex items-center space-x-4'>
         <div><Image src={getUrlFromIconKey(peer.iconKey)} width={150} height={150} alt="Peer icon" /></div>
         <div className="flex flex-col text-base">
@@ -85,7 +85,7 @@ export default function Home() {
         <title>Media Center</title>
       </Head>
 
-      <PageBar icon={ThemedIconName.Home} title='My Media'>
+      <PageBar icon={ThemedIconName.Home} title='Media Center'>
       </PageBar>
       <PageContent>
         {peer && <PeerInfoHero peer={peer} isThisDevice={selectedFingerprint === null} />}

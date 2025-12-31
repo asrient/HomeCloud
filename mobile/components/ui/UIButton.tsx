@@ -22,6 +22,7 @@ export type UIButtonProps = {
     marginHorizontal?: number;
     marginVertical?: number;
     margin?: number;
+    clearGlass?: boolean;
 }
 
 const isIos = Platform.OS === 'ios';
@@ -42,6 +43,7 @@ export function UIButton({
     marginHorizontal,
     marginVertical,
     margin,
+    clearGlass = false,
 }: UIButtonProps) {
     const highlightColor = useThemeColor({}, 'highlight');
     const highlightTextColor = useThemeColor({}, 'highlightText');
@@ -117,6 +119,7 @@ export function UIButton({
                         isInteractive={!disabled}
                         style={viewStyle}
                         tintColor={buttonColor}
+                        glassEffectStyle={clearGlass ? "clear" : "regular"}
                     >
                         {content}
                     </GlassView>
