@@ -34,8 +34,8 @@ export const ColorsIos: ColorPallette = {
   },
   dark: {
     text: '#FFFFFF',
-    textSecondary: '#F3F3F8',
-    textTertiary: '#F8F8FC',
+    textSecondary: '#D2D2D2',
+    textTertiary: '#9F9F9F',
     background: '#000',
     backgroundSecondary: '#1C1C1E',
     backgroundTertiary: '#2C2C2E',
