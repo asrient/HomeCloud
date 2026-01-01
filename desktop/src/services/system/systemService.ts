@@ -1,11 +1,12 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
 import { dialog, BrowserWindow, shell, systemPreferences, clipboard } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails } from "../../types";
 import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import volumeDriver from "./volumeControl";
+import * as mediaControlWin from "./mediaControl/win32";
 
 const POLL_INTERVAL = 5000; // Polling interval for accent color changes
 
@@ -139,6 +140,58 @@ class DesktopSystemService extends SystemService {
     @exposed
     public async setVolumeLevel(level: number): Promise<void> {
         return volumeDriver.setVolume(level);
+    }
+
+    @exposed
+    public async canControlAudioPlayback(): Promise<boolean> {
+        return process.platform === 'win32';
+    }
+
+    @exposed
+    public async getAudioPlaybackInfo(): Promise<AudioPlaybackInfo> {
+        if (process.platform === 'win32') {
+            const info = mediaControlWin.getAudioPlaybackInfo();
+            const playbackInfo: AudioPlaybackInfo = {
+                trackName: info.title || '',
+                artistName: info.artist || '',
+                albumName: info.albumTitle || '',
+                isPlaying: info.status === 'playing',
+            };
+            return playbackInfo;
+        }
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async pauseAudioPlayback(): Promise<void> {
+        if (process.platform === 'win32') {
+            return mediaControlWin.pauseAudioPlayback();
+        }
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async playAudioPlayback(): Promise<void> {
+        if (process.platform === 'win32') {
+            return mediaControlWin.playAudioPlayback();
+        }
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async nextAudioTrack(): Promise<void> {
+        if (process.platform === 'win32') {
+            return mediaControlWin.nextAudioTrack();
+        }
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async previousAudioTrack(): Promise<void> {
+        if (process.platform === 'win32') {
+            return mediaControlWin.previousAudioTrack();
+        }
+        throw new Error("Not supported.");
     }
 
     @serviceStartMethod
