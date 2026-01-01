@@ -255,3 +255,10 @@ export type AccountLinkVerifyResponse = {
     email: string | null;
     accountId: string;
 };
+
+export type AudioPlaybackInfo = {
+    trackName: string;
+    artistName?: string;
+    albumName?: string;
+    isPlaying: boolean;
+}

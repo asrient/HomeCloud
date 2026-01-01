@@ -11,6 +11,7 @@ export function allowAll(target: any, methodName: string, descriptor: PropertyDe
     return descriptor;
 }
 
+// Marks that the method should receive MethodContext as the first argument
 export function withContext(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
     descriptor.value.__withContext = true;
     return descriptor;

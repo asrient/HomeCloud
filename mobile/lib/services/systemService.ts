@@ -1,6 +1,6 @@
 import { SystemService } from "shared/systemService";
 import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType } from "shared/types";
-import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
+import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { Alert, Platform, Linking } from 'react-native';
 import * as Device from 'expo-device';
 import { Paths } from 'expo-file-system/next';
@@ -8,6 +8,8 @@ import { MobilePlatform } from "../types";
 import superman from "@/modules/superman";
 import { pathToUri } from "./fileUtils";
 import { preview } from "expo-quicklook-preview";
+import * as Clipboard from 'expo-clipboard';
+import { VolumeManager } from 'react-native-volume-manager';
 // import { startActivityAsync, ActivityAction } from 'expo-intent-launcher';
 
 /**
@@ -163,6 +165,30 @@ class MobileSystemService extends SystemService {
             // Fallback: show alert that file cannot be opened
             Alert.alert('Cannot Open File', 'No application found to open this file type.');
         }
+    }
+
+    public async copyToClipboard(text: string, type?: 'text' | 'link'): Promise<void> {
+        if (type === 'link') {
+            await Clipboard.setUrlAsync(text);
+        } else {
+            await Clipboard.setStringAsync(text);
+        }
+    }
+
+    @exposed
+    public override async canControlVolumeLevel(): Promise<boolean> {
+        return true;
+    }
+
+    @exposed
+    public async getVolumeLevel(): Promise<number> {
+        const volumeResult = await VolumeManager.getVolume();
+        return volumeResult.volume;
+    }
+
+    @exposed
+    public async setVolumeLevel(level: number): Promise<void> {
+        await VolumeManager.setVolume(level);
     }
 
     @serviceStartMethod

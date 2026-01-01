@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, allowAll, withContext } from "./servicePrimatives";
-import { MethodContext, MethodInfo, PeerInfo, StoreNames, SignalEvent } from "./types";
+import { MethodContext, MethodInfo, PeerInfo, StoreNames, SignalEvent, NativeButtonConfig } from "./types";
 import ConfigStorage from "./storage";
 import { getIconKey } from "./utils";
 import Signal from "./signals";
@@ -219,6 +219,44 @@ export class AppService extends Service {
             iconKey: getIconKey(deviceInfo),
         };
         return peer;
+    }
+
+    @exposed
+    @withContext
+    public async receiveContent(ctx: MethodContext | null, content: string, type?: 'text' | 'link'): Promise<void> {
+        type = type || 'text';
+        console.log(`[AppService] receiveContent called from ${ctx ? ctx.fingerprint : "Unknown"}: type=${type}, content=${content}`);
+        const deviceName = ctx && ctx.peerInfo ? ctx.peerInfo.deviceName : "Unknown Device";
+        const croppedContent = content.length > 100 ? content.substring(0, 30) + "..." : content;
+        const localSc = modules.getLocalServiceController();
+        const buttons: NativeButtonConfig[] = [];
+        if (type === 'link') {
+            buttons.push({
+                text: "Open Link",
+                type: 'primary',
+                isDefault: true,
+                onPress: () => {
+                    localSc.system.openUrl(content).catch((err) => {
+                        console.error("Failed to open URL:", err);
+                    });
+                },
+            });
+        }
+        buttons.push({
+            text: `Copy ${type === 'link' ? 'Link' : 'Message'}`,
+            onPress: () => {
+                console.log("Copying to clipboard:", content);
+                // localSc.system.copyToClipboard(content).catch((err) => {
+                //     console.error("Failed to copy to clipboard:", err);
+                // });
+            },
+        });
+        buttons.push({ text: "Cancel", type: 'danger', isDefault: true, onPress: () => { } });
+        localSc.system.ask({
+            title: `${deviceName} sent a ${type === 'link' ? 'link' : 'message'}`,
+            description: croppedContent,
+            buttons,
+        })
     }
 
     public checkAccess(fingerprint: string, fqn: string, info: MethodInfo): [boolean, string | null] {

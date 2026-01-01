@@ -1,7 +1,7 @@
 import { SystemService } from "shared/systemService";
 import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
-import { dialog, BrowserWindow, shell, systemPreferences } from "electron";
+import { dialog, BrowserWindow, shell, systemPreferences, clipboard } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails } from "../../types";
 import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
@@ -118,6 +118,11 @@ class DesktopSystemService extends SystemService {
 
     public getAccentColorHex(): string {
         return systemPreferences.getAccentColor(); // RGBA hexadecimal form
+    }
+
+    public copyToClipboard(text: string, type: 'text' | 'link' = 'text'): void {
+        // For now, we treat 'link' the same as 'text'
+        clipboard.writeText(text);
     }
 
     @serviceStartMethod

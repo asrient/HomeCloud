@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories } from "./types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo } from "./types";
 import Signal from "./signals";
 
 
@@ -14,6 +14,54 @@ export abstract class SystemService extends Service {
     public abstract alert(title: string, description?: string): void;
 
     public abstract ask(config: NativeAskConfig): NativeAsk;
+
+    public abstract copyToClipboard(text: string, type?: 'text' | 'link'): void;
+
+    // Audio
+    @exposed
+    public async canControlAudioPlayback(): Promise<boolean> {
+        return false;
+    }
+
+    @exposed
+    public async canControlVolumeLevel(): Promise<boolean> {
+        return false;
+    }
+
+    @exposed
+    public async getAudioPlaybackInfo(): Promise<AudioPlaybackInfo> {
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async pauseAudioPlayback(): Promise<void> {
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async playAudioPlayback(): Promise<void> {
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async nextAudioTrack(): Promise<void> {
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async previousAudioTrack(): Promise<void> {
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async getVolumeLevel(): Promise<number> {
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async setVolumeLevel(level: number): Promise<void> {
+        throw new Error("Not supported.");
+    }
 
     public getAccentColorHex(): string {
         return "0078D4"; // Default accent color, can be overridden by subclasses
