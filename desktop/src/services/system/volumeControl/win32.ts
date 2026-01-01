@@ -4,7 +4,8 @@ let volumeMixer;
 
 // Installed as optional dependency since install fails on non-Windows platforms
 try {
-    volumeMixer = require('node-audio-volume-mixer');
+    const mod = require('node-audio-volume-mixer');
+    volumeMixer = mod.NodeAudioVolumeMixer;
 } catch (e) {
     // Module not available on this platform
     console.log('Volume mixer not available on this platform');
@@ -23,7 +24,7 @@ async function getVolume(): Promise<number> {
 
 async function setVolume(val: number): Promise<void> {
     assetModuleAvailable();
-    volumeMixer.setMasterVolume(val);
+    volumeMixer.setMasterVolumeLevelScalar(val);
 }
 
 async function getMuted(): Promise<boolean> {

@@ -150,14 +150,20 @@ class DesktopSystemService extends SystemService {
     @exposed
     public async getAudioPlaybackInfo(): Promise<AudioPlaybackInfo> {
         if (process.platform === 'win32') {
-            const info = mediaControlWin.getAudioPlaybackInfo();
-            const playbackInfo: AudioPlaybackInfo = {
-                trackName: info.title || '',
-                artistName: info.artist || '',
-                albumName: info.albumTitle || '',
-                isPlaying: info.status === 'playing',
-            };
-            return playbackInfo;
+            console.log('Fetching audio playback info on Windows');
+            try {
+                const info = mediaControlWin.getAudioPlaybackInfo();
+                const playbackInfo: AudioPlaybackInfo = {
+                    trackName: info.title || '',
+                    artistName: info.artist || '',
+                    albumName: info.albumTitle || '',
+                    isPlaying: info.status === 'playing',
+                };
+                return playbackInfo;
+            } catch (error) {
+                console.error('Error fetching audio playback info:', error);
+                throw error;
+            }
         }
         throw new Error("Not supported.");
     }

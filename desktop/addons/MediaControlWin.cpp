@@ -37,7 +37,6 @@ Napi::Value GetAudioPlaybackInfo(const Napi::CallbackInfo &info)
 
     try
     {
-        init_apartment();
         auto sessionManager = GetSessionManager();
         
         if (!sessionManager)
@@ -114,6 +113,12 @@ Napi::Value GetAudioPlaybackInfo(const Napi::CallbackInfo &info)
 
         return result;
     }
+    catch (const hresult_error &e)
+    {
+        std::string errorMsg = "WinRT error: " + ConvertWStringToString(e.message().c_str());
+        Napi::Error::New(env, errorMsg).ThrowAsJavaScriptException();
+        return env.Null();
+    }
     catch (const std::exception &e)
     {
         Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
@@ -132,7 +137,6 @@ Napi::Value PauseAudioPlayback(const Napi::CallbackInfo &info)
 
     try
     {
-        init_apartment();
         auto sessionManager = GetSessionManager();
         
         if (!sessionManager)
@@ -177,7 +181,6 @@ Napi::Value PlayAudioPlayback(const Napi::CallbackInfo &info)
 
     try
     {
-        init_apartment();
         auto sessionManager = GetSessionManager();
         
         if (!sessionManager)
@@ -222,7 +225,6 @@ Napi::Value NextAudioTrack(const Napi::CallbackInfo &info)
 
     try
     {
-        init_apartment();
         auto sessionManager = GetSessionManager();
         
         if (!sessionManager)
@@ -267,7 +269,6 @@ Napi::Value PreviousAudioTrack(const Napi::CallbackInfo &info)
 
     try
     {
-        init_apartment();
         auto sessionManager = GetSessionManager();
         
         if (!sessionManager)
