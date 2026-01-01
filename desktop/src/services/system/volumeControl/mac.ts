@@ -7,10 +7,13 @@ async function osascript(cmd: string): Promise<string> {
 }
 
 async function getVolume(): Promise<number> {
-    return parseInt(await osascript('output volume of (get volume settings)'), 10)
+    const volume = parseInt(await osascript('output volume of (get volume settings)'), 10)
+    return volume / 100
 }
 
 async function setVolume(val: number): Promise<void> {
+    // convert 0-1 range to 0-100
+    val = Math.round(val * 100)
     await osascript('set volume output volume ' + val)
 }
 

@@ -47,10 +47,13 @@ async function getInfo(): Promise<VolumeInfo> {
 }
 
 async function getVolume(): Promise<number> {
-    return (await getInfo()).volume
+    const volume = (await getInfo()).volume
+    return volume / 100
 }
 
 async function setVolume(val: number): Promise<void> {
+    // convert 0-1 range to 0-100
+    val = Math.round(val * 100)
     await amixer('set', await getDefaultDevice(), val + '%')
 }
 
