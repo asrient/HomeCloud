@@ -10,13 +10,14 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import { FileRemoteItem } from '@/lib/types';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import ContextMenu from 'react-native-context-menu-view';
+import { getPeerIconName } from '@/components/ui/getPeerIconName';
 
 type Props = RouteProp<ParamListBase, string> & {
   params: FolderRouteParams;
 };
 
 export default function FolderScreen() {
-  const { selectedFingerprint, filesViewMode, setFilesViewMode } = useAppState();
+  const { selectedFingerprint, filesViewMode, setFilesViewMode, peers } = useAppState();
   const navigation = useNavigation();
   const router = useRouter();
   const route = useRoute<Props>();
@@ -65,6 +66,10 @@ export default function FolderScreen() {
               dropdownMenuMode={true}
               actions={[
                 {
+                  title: "New Folder",
+                  systemIcon: "folder.badge.plus",
+                },
+                {
                   title: "Sort",
                   systemIcon: "arrow.up.arrow.down",
                   actions: [
@@ -80,6 +85,14 @@ export default function FolderScreen() {
                     { title: "Grid", systemIcon: "square.grid.2x2", selected: filesViewMode === 'grid' },
                     { title: "List", systemIcon: "list.bullet", selected: filesViewMode === 'list' },
                   ]
+                },
+                {
+                  title: "Open in device",
+                  systemIcon: "macbook.and.iphone",
+                  actions: peers.map((peer) => ({
+                    title: peer.deviceName,
+                    systemIcon: getPeerIconName(peer),
+                  })),
                 },
               ]}
               onPress={(event) => {
@@ -104,7 +117,7 @@ export default function FolderScreen() {
       }
       ,
     });
-  }, [navigation, folderName, selectMode, selectedFiles.length, filesViewMode, setFilesViewMode]);
+  }, [navigation, folderName, selectMode, selectedFiles.length, filesViewMode, setFilesViewMode, peers]);
 
   return (
     <UIView style={{ flex: 1 }}>

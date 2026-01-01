@@ -1,10 +1,11 @@
 import { useAppState } from "@/hooks/useAppState";
 import { ScrollView, View, ViewStyle, StyleSheet, StyleProp } from "react-native";
 import { UIButton } from "./ui/UIButton";
+import { getDeviceIconName } from "./ui/getPeerIconName";
 
 // Shows a row for selecting a device from the list of peers
 export default function DeviceSelectorRow({ style }: { style?: ViewStyle }) {
-    const { peers, selectedFingerprint, selectDevice } = useAppState();
+    const { peers, selectedFingerprint, selectDevice, deviceInfo } = useAppState();
 
     const scrollViewStyle: StyleProp<ViewStyle> = StyleSheet.compose({
         flexDirection: 'row',
@@ -27,6 +28,7 @@ export default function DeviceSelectorRow({ style }: { style?: ViewStyle }) {
                         onPress={() => selectDevice(fingerprint)}
                         type={isSelected ? 'primary' : 'secondary'}
                         size='md'
+                        icon={peer ? getDeviceIconName(peer.deviceInfo) : getDeviceIconName(deviceInfo!)}
                         title={name}
                         style={{ paddingVertical: 8 }}
                     />)

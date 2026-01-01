@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react'
 import { SignalNodeRef } from 'shared/signals'
-import { ConnectionInfo, PeerInfo, SignalEvent } from 'shared/types'
+import { ConnectionInfo, DeviceInfo, PeerInfo, SignalEvent } from 'shared/types'
 import { create } from 'zustand'
 import { useAccountState } from './useAccountState'
 
@@ -10,8 +10,9 @@ export interface AppState {
     selectedFingerprint: string | null;
     isInitialized: boolean;
     filesViewMode: 'grid' | 'list';
+    deviceInfo: DeviceInfo | null;
 
-    initializeStore: (peers: PeerInfo[], connections: ConnectionInfo[]) => void;
+    initializeStore: (peers: PeerInfo[], connections: ConnectionInfo[], deviceInfo: DeviceInfo) => void;
     selectDevice: (fingerprint: string | null) => void;
     addPeer: (peer: PeerInfo) => void;
     removePeer: (fingerprint: string) => void;
@@ -26,10 +27,12 @@ const useAppStore = create<AppState>((set) => ({
     selectedFingerprint: null,
     isInitialized: false,
     filesViewMode: 'grid',
-    initializeStore: (peers, connections) => set(() => ({
+    deviceInfo: null,
+    initializeStore: (peers, connections, deviceInfo) => set(() => ({
         isInitialized: true,
         peers,
         connections,
+        deviceInfo,
     })),
     selectDevice: (fingerprint) => set(() => ({
         selectedFingerprint: fingerprint,
@@ -76,6 +79,7 @@ export function useAppState() {
         removeConnection,
         filesViewMode,
         setFilesViewMode,
+        deviceInfo,
     } = useAppStore();
     const loadingStateRef = useRef<'initial' | 'loading' | 'loaded'>('initial');
     const readySignalRef = useRef<SignalNodeRef<[boolean], string> | null>(null);
@@ -88,8 +92,8 @@ export function useAppState() {
         const localSc = modules.getLocalServiceController();
         const peers = localSc.app.getPeers();
         const connections = await localSc.net.getConnectedDevices();
-
-        initializeStore(peers, connections);
+        const deviceInfo = await localSc.system.getDeviceInfo();
+        initializeStore(peers, connections, deviceInfo);
 
         // Account state
         setupAccountState();
@@ -187,5 +191,6 @@ export function useAppState() {
         selectedPeerConnection,
         filesViewMode,
         setFilesViewMode,
+        deviceInfo,
     };
 }

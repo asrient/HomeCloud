@@ -12,6 +12,7 @@ import { RemoteItem } from 'shared/types';
 import { useRouter } from 'expo-router';
 import ContextMenu from 'react-native-context-menu-view';
 import { UIIcon } from './ui/UIIcon';
+import { getPeerIconName } from './ui/getPeerIconName';
 
 // Shared hook for file item state and logic
 function useFileItemState(
@@ -74,7 +75,17 @@ function useFileItemState(
     }, [isSelectMode, onPress, isSelected, item, isDir]);
 
     const actions = useMemo(() => {
+        const localSc = getLocalServiceController();
+        const peers = localSc.app.getPeers();
         const baseActions = [
+            {
+                title: "Open in device",
+                systemIcon: "macbook.and.iphone",
+                actions: peers.filter(peer => peer.fingerprint !== modules.config.FINGERPRINT).map((peer) => ({
+                    title: peer.deviceName,
+                    systemIcon: getPeerIconName(peer),
+                })),
+            },
             { title: "Info", systemIcon: "info.circle" },
             { title: "Rename", systemIcon: "pencil" },
             { title: "Move", systemIcon: "folder" },
@@ -85,9 +96,17 @@ function useFileItemState(
         }
         return [
             { title: "Export", systemIcon: "square.and.arrow.up" },
+            {
+                title: "Send to device",
+                systemIcon: "arrow.up.message",
+                actions: peers.filter(peer => peer.fingerprint !== item.deviceFingerprint).map((peer) => ({
+                    title: peer.deviceName,
+                    systemIcon: getPeerIconName(peer),
+                })),
+            },
             ...baseActions,
         ];
-    }, [isDir]);
+    }, [isDir, item.deviceFingerprint]);
 
     return {
         thumbnailSrc,

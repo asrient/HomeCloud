@@ -35,6 +35,16 @@ const MAPPING = {
   'ellipsis': 'more-horiz',
   'ellipsis.circle': 'more',
   'chevron.compact.forward': 'chevron-right',
+  'iphone': 'smartphone',
+  'iphone.gen1': 'smartphone',
+  'laptopcomputer': 'laptop',
+  'desktopcomputer': 'desktop-mac',
+  'macbook.and.iphone': 'devices',
+  'folder.badge.plus': 'create-new-folder',
+  'ipad.landscape': 'tablet',
+  'smartphone': 'smartphone',
+  'tv': 'tv',
+  'arrow.up.message': 'arrow-upward',
 } as IconMapping;
 
 /**
@@ -59,3 +69,5 @@ export function UIIcon({
   const themeColorValue = useThemeColor({}, themeColor || 'icon');
   return <MaterialIcons color={color || themeColorValue} size={size} name={MAPPING[name]} style={style} />;
 }
+
+

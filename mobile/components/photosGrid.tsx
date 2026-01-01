@@ -3,17 +3,23 @@ import { usePhotos } from '@/hooks/usePhotos';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getServiceController } from '@/lib/utils';
 import { FlashList } from "@shopify/flash-list";
 import { ThumbnailCheckbox } from './ThumbnailCheckbox';
 import { PhotosPreviewModal } from './photosPreviewModal';
 import ContextMenu from "react-native-context-menu-view";
+import { getPeerIconName } from './ui/getPeerIconName';
 
 
 export function PhotoThumbnail({ item, onPress, isSelectMode }: { item: PhotoView, onPress?: (item: PhotoView) => void, isSelectMode?: boolean }) {
     const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(item.thumbnail || null);
     const [isSelected, setIsSelected] = useState(item.isSelected || false);
+
+    const peers = useMemo(() => {
+        const localSc = modules.getLocalServiceController();
+        return localSc.app.getPeers();
+    }, []);
 
     useEffect(() => {
         setIsSelected(item.isSelected || false);
@@ -76,8 +82,23 @@ export function PhotoThumbnail({ item, onPress, isSelectMode }: { item: PhotoVie
             style={{ width: '100%', height: '100%' }}
             // title='Meow'
             actions={[
-                { title: "Save", systemIcon: "square.and.arrow.down" },
                 { title: "Export", systemIcon: "square.and.arrow.up" },
+                {
+                    title: "Open in device",
+                    systemIcon: "macbook.and.iphone",
+                    actions: peers.filter(peer => peer.fingerprint !== modules.config.FINGERPRINT).map((peer) => ({
+                        title: peer.deviceName,
+                        systemIcon: getPeerIconName(peer),
+                    })),
+                },
+                {
+                    title: "Send to device",
+                    systemIcon: "arrow.up.message",
+                    actions: peers.filter(peer => peer.fingerprint !== item.deviceFingerprint).map((peer) => ({
+                        title: peer.deviceName,
+                        systemIcon: getPeerIconName(peer),
+                    })),
+                },
                 { title: "Delete", systemIcon: "trash", destructive: true },
             ]}
             onPress={(event) => {
