@@ -22,3 +22,10 @@ export enum WinDriveType {
     DRIVE_NO_ROOT_DIR = "No Root Directory",
     DRIVE_UNKNOWN = "Unknown",
 }
+
+export interface VolumeDriver {
+    getVolume(): Promise<number>;
+    setVolume(val: number): Promise<void>;
+    getMuted(): Promise<boolean>;
+    setMuted(val: boolean): Promise<void>;
+}

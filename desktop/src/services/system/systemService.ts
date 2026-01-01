@@ -4,7 +4,8 @@ import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
 import { dialog, BrowserWindow, shell, systemPreferences, clipboard } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails } from "../../types";
-import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
+import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
+import volumeDriver from "./volumeControl";
 
 const POLL_INTERVAL = 5000; // Polling interval for accent color changes
 
@@ -123,6 +124,21 @@ class DesktopSystemService extends SystemService {
     public copyToClipboard(text: string, type: 'text' | 'link' = 'text'): void {
         // For now, we treat 'link' the same as 'text'
         clipboard.writeText(text);
+    }
+
+    @exposed
+    public async canControlVolumeLevel(): Promise<boolean> {
+        return true;
+    }
+
+    @exposed
+    public async getVolumeLevel(): Promise<number> {
+        return volumeDriver.getVolume();
+    }
+
+    @exposed
+    public async setVolumeLevel(level: number): Promise<void> {
+        return volumeDriver.setVolume(level);
     }
 
     @serviceStartMethod
