@@ -225,6 +225,7 @@ class DesktopSystemService extends SystemService {
                 this.accentColorChangeSignal.dispatch(newColor);
             });
             mediaControlWin.onAudioPlaybackInfoChanged((info) => {
+                console.log('Audio playback info changed:', info);
                 const playbackInfo = winPlaybackInfoToAudioPlaybackInfo(info);
                 this.audioPlaybackSignal.dispatch(playbackInfo);
             });

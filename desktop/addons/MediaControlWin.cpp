@@ -14,7 +14,9 @@ static Napi::ThreadSafeFunction tsfn;
 static std::mutex callbackMutex;
 static event_token playbackInfoToken;
 static event_token mediaPropertiesToken;
+static event_token sessionChangedToken;
 static GlobalSystemMediaTransportControlsSession currentSession = nullptr;
+static GlobalSystemMediaTransportControlsSessionManager sessionManager = nullptr;
 
 std::string ConvertWStringToString(const std::wstring& wstr)
 {
@@ -55,6 +57,47 @@ void CallJSCallback(Napi::Env env, Napi::Function jsCallback, PlaybackInfoData* 
     
     jsCallback.Call({result});
     delete data;
+}
+
+// Forward declaration
+void NotifyPlaybackInfoChanged();
+
+void AttachToSession(GlobalSystemMediaTransportControlsSession session)
+{
+    if (!session || !tsfn)
+        return;
+
+    try
+    {
+        // Unregister old session handlers if any
+        if (currentSession)
+        {
+            try
+            {
+                currentSession.PlaybackInfoChanged(playbackInfoToken);
+                currentSession.MediaPropertiesChanged(mediaPropertiesToken);
+            }
+            catch (...) {}
+        }
+
+        currentSession = session;
+
+        // Register for PlaybackInfoChanged events (play/pause)
+        playbackInfoToken = currentSession.PlaybackInfoChanged([](auto&&, auto&&)
+        {
+            NotifyPlaybackInfoChanged();
+        });
+
+        // Register for MediaPropertiesChanged events (track changes)
+        mediaPropertiesToken = currentSession.MediaPropertiesChanged([](auto&&, auto&&)
+        {
+            NotifyPlaybackInfoChanged();
+        });
+
+        // Immediately notify with current state
+        NotifyPlaybackInfoChanged();
+    }
+    catch (...) {}
 }
 
 void NotifyPlaybackInfoChanged()
@@ -448,6 +491,16 @@ Napi::Value OnAudioPlaybackInfoChanged(const Napi::CallbackInfo &info)
             currentSession = nullptr;
         }
 
+        if (sessionManager)
+        {
+            try
+            {
+                sessionManager.CurrentSessionChanged(sessionChangedToken);
+            }
+            catch (...) {}
+            sessionManager = nullptr;
+        }
+
         // Create new thread-safe function
         tsfn = Napi::ThreadSafeFunction::New(
             env,
@@ -458,32 +511,35 @@ Napi::Value OnAudioPlaybackInfoChanged(const Napi::CallbackInfo &info)
             [](Napi::Env) {}
         );
 
-        // Get session and register event handlers
-        auto sessionManager = GetSessionManager();
+        // Get session manager
+        sessionManager = GetSessionManager();
         if (!sessionManager)
         {
             Napi::TypeError::New(env, "Failed to get session manager").ThrowAsJavaScriptException();
             return env.Undefined();
         }
 
-        currentSession = sessionManager.GetCurrentSession();
-        if (!currentSession)
+        // Register for session changed events
+        sessionChangedToken = sessionManager.CurrentSessionChanged([](auto&&, auto&&)
         {
-            Napi::TypeError::New(env, "No active media session").ThrowAsJavaScriptException();
-            return env.Undefined();
+            std::lock_guard<std::mutex> lock(callbackMutex);
+            if (sessionManager)
+            {
+                auto session = sessionManager.GetCurrentSession();
+                if (session)
+                {
+                    AttachToSession(session);
+                }
+            }
+        });
+
+        // Try to attach to current session if one exists
+        auto session = sessionManager.GetCurrentSession();
+        if (session)
+        {
+            AttachToSession(session);
         }
-
-        // Register for PlaybackInfoChanged events (play/pause)
-        playbackInfoToken = currentSession.PlaybackInfoChanged([](auto&&, auto&&)
-        {
-            NotifyPlaybackInfoChanged();
-        });
-
-        // Register for MediaPropertiesChanged events (track changes)
-        mediaPropertiesToken = currentSession.MediaPropertiesChanged([](auto&&, auto&&)
-        {
-            NotifyPlaybackInfoChanged();
-        });
+        // If no session exists now, the CurrentSessionChanged handler will catch it when one becomes available
 
         return env.Undefined();
     }
