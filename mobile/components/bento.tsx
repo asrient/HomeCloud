@@ -22,6 +22,7 @@ export type BentoBoxConfig = {
     expandedContent?: () => React.ReactNode;
     isCircular?: boolean;
     expandedContentHeight?: number;
+    contentHeight?: number;
 };
 
 export type BentoGroup = {
@@ -95,6 +96,9 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
             extraStyle.borderRadius = 1000; // Large value for circular shape
             extraStyle.aspectRatio = 1; // Keep it square
             extraStyle.height = 'auto'; // Let height be determined by width
+        }
+        if (config.contentHeight) {
+            extraStyle.height = config.contentHeight;
         }
         return StyleSheet.compose(baseStyle, extraStyle);
     };

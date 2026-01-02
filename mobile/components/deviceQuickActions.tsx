@@ -175,7 +175,11 @@ export function DeviceQuickActions({ peerInfo }: DeviceQuickActionsProps) {
         {
             flow: 'row',
             boxes: [
-                { type: 'full', content: <DisksBox fingerprint={deviceFingerprint} /> },
+                {
+                    type: 'full',
+                    content: <DisksBox fingerprint={deviceFingerprint} />,
+                    contentHeight: 140,
+                },
             ]
         },
     ]} />
