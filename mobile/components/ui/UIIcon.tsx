@@ -45,6 +45,21 @@ const MAPPING = {
   'smartphone': 'smartphone',
   'tv': 'tv',
   'arrow.up.message': 'arrow-upward',
+  'paperclip': 'attach-file',
+  'battery.0percent': 'battery-alert',
+  'battery.25percent': 'battery-2-bar',
+  'battery.50percent': 'battery-5-bar',
+  'battery.75percent': 'battery-6-bar',
+  'battery.100percent': 'battery-full',
+  'personalhotspot': 'wifi-tethering',
+  'personalhotspot.slash': 'portable-wifi-off',
+  'network': 'cell-tower',
+  'speaker.wave.2.fill': 'volume-down',
+  'clipboard': 'content-paste',
+  'play.fill': 'play-arrow',
+  'pause.fill': 'pause',
+  'backward.fill': 'skip-previous',
+  'forward.fill': 'skip-next',
 } as IconMapping;
 
 /**

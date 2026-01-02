@@ -1,19 +1,22 @@
 import { importModule } from "../../../utils";
 import { platform } from "os";
 
+export type AudioPlaybackInfoWin = {
+    status: 'playing' | 'paused' | 'stopped' | 'unknown';
+    title?: string;
+    artist?: string;
+    albumTitle?: string;
+    position?: number;
+    duration?: number;
+};
+
 let mediaControlModule: {
-    getAudioPlaybackInfo: () => {
-        status: 'playing' | 'paused' | 'stopped' | 'unknown';
-        title?: string;
-        artist?: string;
-        albumTitle?: string;
-        position?: number;
-        duration?: number;
-    };
+    getAudioPlaybackInfo: () => AudioPlaybackInfoWin;
     pauseAudioPlayback: () => void;
     playAudioPlayback: () => void;
     nextAudioTrack: () => void;
     previousAudioTrack: () => void;
+    onAudioPlaybackInfoChanged: (callback: (info: AudioPlaybackInfoWin) => void) => void;
 }
 
 function getMediaControlModule() {
@@ -49,4 +52,9 @@ export function nextAudioTrack() {
 export function previousAudioTrack() {
     const mediaControl = getMediaControlModule();
     return mediaControl.previousAudioTrack();
+}
+
+export function onAudioPlaybackInfoChanged(callback: (info: AudioPlaybackInfoWin) => void) {
+    const mediaControl = getMediaControlModule();
+    mediaControl.onAudioPlaybackInfoChanged(callback);
 }

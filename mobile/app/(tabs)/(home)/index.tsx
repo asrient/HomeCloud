@@ -1,16 +1,15 @@
 import { Stack, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import DeviceSelectorRow from '@/components/deviceSelectorRow';
-import { UIIcon } from '@/components/ui/UIIcon';
 import DeviceIcon from '@/components/deviceIcon';
 import { useAppState } from '@/hooks/useAppState';
 import { UIText } from '@/components/ui/UIText';
-import { ConnectionType } from '@/lib/types';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UIScrollView } from '@/components/ui/UIScrollView';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useEffect, useMemo, useState } from 'react';
 import { DeviceInfo } from 'shared/types';
+import { DeviceQuickActions } from '@/components/deviceQuickActions';
 
 const MAX_DEVICE_NAME_LENGTH = 23;
 
@@ -28,11 +27,11 @@ export default function HomeScreen() {
     modules.getLocalServiceController().system.getDeviceInfo().then(setThisDeviceInfo);
   }, []);
 
-  const { selectedPeer, selectedPeerConnection } = useAppState();
+  const { selectedPeer } = useAppState();
 
   const headerTitle = useMemo(() => {
     const deviceName = selectedPeer ? selectedPeer.deviceName : 'This Device';
-    if (headerHeight > 150) {
+    if (headerHeight > 118) {
       return 'Media Center';
     }
     if (deviceName.length > MAX_DEVICE_NAME_LENGTH) {
@@ -42,7 +41,7 @@ export default function HomeScreen() {
   }, [headerHeight, selectedPeer]);
 
   return (
-    <UIScrollView style={{ flex: 1 }}>
+    <UIScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           title: 'Home',
@@ -66,20 +65,10 @@ export default function HomeScreen() {
           <UIText style={{ textAlign: 'center', padding: 1 }} size='md' color='textSecondary' font='medium'>
             {printDeviceInfo(selectedPeer ? selectedPeer.deviceInfo : thisDeviceInfo)}
           </UIText>
-          {
-            !!selectedPeer &&
-            <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}>
-              {
-                selectedPeerConnection &&
-                <UIIcon name={selectedPeerConnection.connectionType === ConnectionType.LOCAL ? "wifi" : "cellularbars"} size={18} color="green" style={{ marginRight: 2 }} />
-              }
-              <UIText style={selectedPeerConnection ? { color: 'green' } : undefined} color='textSecondary' size='sm'>
-                {selectedPeerConnection ? 'Online' : 'Offline'}
-              </UIText>
-            </View>
-          }
         </View>
+        <DeviceQuickActions peerInfo={selectedPeer} />
       </View>
+
     </UIScrollView>
   );
 }
@@ -87,8 +76,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingBottom: 80,
     paddingHorizontal: 20,
   },

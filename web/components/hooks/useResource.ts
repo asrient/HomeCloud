@@ -123,3 +123,28 @@ export const useResource = ({
 
     return { isLoading, error, reload };
 };
+
+export const useResourceWithPolling = ({
+    deviceFingerprint, load, interval,
+}: {
+    deviceFingerprint: string | null;
+    load: (serviceController: ServiceController, shouldAbort: () => boolean) => Promise<void>;
+    interval: number;
+}) => {
+    const { isLoading, error, reload } = useResource({
+        deviceFingerprint,
+        load,
+    });
+
+    useEffect(() => {
+        const pollingInterval = setInterval(() => {
+            reload();
+        }, interval);
+
+        return () => {
+            clearInterval(pollingInterval);
+        };
+    }, [deviceFingerprint, interval, reload]);
+
+    return { isLoading, error, reload };
+};

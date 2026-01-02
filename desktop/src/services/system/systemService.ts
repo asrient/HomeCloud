@@ -1,5 +1,5 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
 import { dialog, BrowserWindow, shell, systemPreferences, clipboard } from "electron";
 import { getDriveDetails } from "./drivers/win32";
@@ -7,8 +7,19 @@ import { WinDriveDetails } from "../../types";
 import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import volumeDriver from "./volumeControl";
 import * as mediaControlWin from "./mediaControl/win32";
+import { getBatteryInfo, onBatteryInfoChanged } from "./batteryLevel";
 
 const POLL_INTERVAL = 5000; // Polling interval for accent color changes
+
+function winPlaybackInfoToAudioPlaybackInfo(info: mediaControlWin.AudioPlaybackInfoWin): AudioPlaybackInfo {
+    const playbackInfo: AudioPlaybackInfo = {
+        trackName: info.title || '',
+        artistName: info.artist || '',
+        albumName: info.albumTitle || '',
+        isPlaying: info.status === 'playing',
+    };
+    return playbackInfo;
+}
 
 /**
  * Desktop implementation of SystemService using Electron APIs for system interactions.
@@ -153,13 +164,7 @@ class DesktopSystemService extends SystemService {
             console.log('Fetching audio playback info on Windows');
             try {
                 const info = mediaControlWin.getAudioPlaybackInfo();
-                const playbackInfo: AudioPlaybackInfo = {
-                    trackName: info.title || '',
-                    artistName: info.artist || '',
-                    albumName: info.albumTitle || '',
-                    isPlaying: info.status === 'playing',
-                };
-                return playbackInfo;
+                return winPlaybackInfoToAudioPlaybackInfo(info);
             } catch (error) {
                 console.error('Error fetching audio playback info:', error);
                 throw error;
@@ -182,6 +187,17 @@ class DesktopSystemService extends SystemService {
             return mediaControlWin.playAudioPlayback();
         }
         throw new Error("Not supported.");
+    }
+
+    // Battery info
+    @exposed
+    public async getBatteryInfo(): Promise<BatteryInfo> {
+        return getBatteryInfo();
+    }
+
+    @exposed
+    public async canGetBatteryInfo(): Promise<boolean> {
+        return true;
     }
 
     @exposed
@@ -208,7 +224,14 @@ class DesktopSystemService extends SystemService {
                 console.log('Accent color changed:', newColor);
                 this.accentColorChangeSignal.dispatch(newColor);
             });
+            mediaControlWin.onAudioPlaybackInfoChanged((info) => {
+                const playbackInfo = winPlaybackInfoToAudioPlaybackInfo(info);
+                this.audioPlaybackSignal.dispatch(playbackInfo);
+            });
         }
+        onBatteryInfoChanged((info) => {
+            this.batteryInfoSignal.dispatch(info);
+        });
     }
 
     @serviceStopMethod

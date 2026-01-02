@@ -4,6 +4,7 @@ import { useThemeColor } from "@/hooks/useThemeColor";
 import { IconSymbolName, UIIcon } from "./UIIcon";
 import { UIText, UITextProps } from "./UIText";
 import { useState } from "react";
+import { ThemeColors } from "@/constants/Colors";
 
 
 export type UIButtonProps = {
@@ -23,6 +24,7 @@ export type UIButtonProps = {
     marginVertical?: number;
     margin?: number;
     clearGlass?: boolean;
+    themeColor?: keyof ThemeColors;
 }
 
 const isIos = Platform.OS === 'ios';
@@ -44,12 +46,16 @@ export function UIButton({
     marginVertical,
     margin,
     clearGlass = false,
+    themeColor,
 }: UIButtonProps) {
     const highlightColor = useThemeColor({}, 'highlight');
     const highlightTextColor = useThemeColor({}, 'highlightText');
     const textColor = useThemeColor({}, 'text');
     const tertiaryBackgroundColor = useThemeColor({}, 'backgroundTertiary');
+    const preferredThemeColor = useThemeColor({}, themeColor || 'icon');
     const [isPressed, setIsPressed] = useState(false);
+
+    color = themeColor ? preferredThemeColor : color;
 
     const useGlass = isLiquidGlassAvailable() && isIos && (type === 'primary' || type === 'secondary');
 

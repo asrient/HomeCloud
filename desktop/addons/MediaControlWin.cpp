@@ -3,10 +3,18 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Media.Control.h>
 #include <string>
+#include <mutex>
 
 using namespace winrt;
 using namespace Windows::Foundation;
 using namespace Windows::Media::Control;
+
+// Global state for event handling
+static Napi::ThreadSafeFunction tsfn;
+static std::mutex callbackMutex;
+static event_token playbackInfoToken;
+static event_token mediaPropertiesToken;
+static GlobalSystemMediaTransportControlsSession currentSession = nullptr;
 
 std::string ConvertWStringToString(const std::wstring& wstr)
 {
@@ -15,6 +23,106 @@ std::string ConvertWStringToString(const std::wstring& wstr)
     std::string strTo(size_needed, 0);
     WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &strTo[0], size_needed, NULL, NULL);
     return strTo;
+}
+
+struct PlaybackInfoData
+{
+    std::string status;
+    std::string title;
+    std::string artist;
+    std::string albumTitle;
+    double position;
+    double duration;
+    bool hasPosition;
+    bool hasDuration;
+};
+
+void CallJSCallback(Napi::Env env, Napi::Function jsCallback, PlaybackInfoData* data)
+{
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("status", data->status);
+    
+    if (!data->title.empty())
+        result.Set("title", data->title);
+    if (!data->artist.empty())
+        result.Set("artist", data->artist);
+    if (!data->albumTitle.empty())
+        result.Set("albumTitle", data->albumTitle);
+    if (data->hasPosition)
+        result.Set("position", data->position);
+    if (data->hasDuration)
+        result.Set("duration", data->duration);
+    
+    jsCallback.Call({result});
+    delete data;
+}
+
+void NotifyPlaybackInfoChanged()
+{
+    std::lock_guard<std::mutex> lock(callbackMutex);
+    
+    if (!tsfn || !currentSession)
+        return;
+
+    try
+    {
+        PlaybackInfoData* data = new PlaybackInfoData();
+        data->hasPosition = false;
+        data->hasDuration = false;
+
+        // Get playback status
+        auto playbackInfo = currentSession.GetPlaybackInfo();
+        auto status = playbackInfo.PlaybackStatus();
+
+        switch (status)
+        {
+        case GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing:
+            data->status = "playing";
+            break;
+        case GlobalSystemMediaTransportControlsSessionPlaybackStatus::Paused:
+            data->status = "paused";
+            break;
+        case GlobalSystemMediaTransportControlsSessionPlaybackStatus::Stopped:
+            data->status = "stopped";
+            break;
+        default:
+            data->status = "unknown";
+            break;
+        }
+
+        // Get media properties
+        try
+        {
+            auto mediaPropertiesOp = currentSession.TryGetMediaPropertiesAsync();
+            mediaPropertiesOp.get();
+            auto mediaProperties = mediaPropertiesOp.GetResults();
+
+            if (mediaProperties)
+            {
+                data->title = ConvertWStringToString(std::wstring(mediaProperties.Title()));
+                data->artist = ConvertWStringToString(std::wstring(mediaProperties.Artist()));
+                data->albumTitle = ConvertWStringToString(std::wstring(mediaProperties.AlbumTitle()));
+            }
+        }
+        catch (...) {}
+
+        // Get timeline properties
+        try
+        {
+            auto timelineProps = currentSession.GetTimelineProperties();
+            if (timelineProps)
+            {
+                data->position = timelineProps.Position().count() / 10000000.0;
+                data->duration = timelineProps.EndTime().count() / 10000000.0;
+                data->hasPosition = true;
+                data->hasDuration = true;
+            }
+        }
+        catch (...) {}
+
+        tsfn.BlockingCall(data, CallJSCallback);
+    }
+    catch (...) {}
 }
 
 GlobalSystemMediaTransportControlsSessionManager GetSessionManager()
@@ -307,6 +415,96 @@ Napi::Value PreviousAudioTrack(const Napi::CallbackInfo &info)
     }
 }
 
+Napi::Value OnAudioPlaybackInfoChanged(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsFunction())
+    {
+        Napi::TypeError::New(env, "Expected a callback function").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    Napi::Function callback = info[0].As<Napi::Function>();
+
+    try
+    {
+        std::lock_guard<std::mutex> lock(callbackMutex);
+
+        // Clean up existing callback and event handlers
+        if (tsfn)
+        {
+            tsfn.Release();
+        }
+
+        if (currentSession)
+        {
+            try
+            {
+                currentSession.PlaybackInfoChanged(playbackInfoToken);
+                currentSession.MediaPropertiesChanged(mediaPropertiesToken);
+            }
+            catch (...) {}
+            currentSession = nullptr;
+        }
+
+        // Create new thread-safe function
+        tsfn = Napi::ThreadSafeFunction::New(
+            env,
+            callback,
+            "MediaControlCallback",
+            0,
+            1,
+            [](Napi::Env) {}
+        );
+
+        // Get session and register event handlers
+        auto sessionManager = GetSessionManager();
+        if (!sessionManager)
+        {
+            Napi::TypeError::New(env, "Failed to get session manager").ThrowAsJavaScriptException();
+            return env.Undefined();
+        }
+
+        currentSession = sessionManager.GetCurrentSession();
+        if (!currentSession)
+        {
+            Napi::TypeError::New(env, "No active media session").ThrowAsJavaScriptException();
+            return env.Undefined();
+        }
+
+        // Register for PlaybackInfoChanged events (play/pause)
+        playbackInfoToken = currentSession.PlaybackInfoChanged([](auto&&, auto&&)
+        {
+            NotifyPlaybackInfoChanged();
+        });
+
+        // Register for MediaPropertiesChanged events (track changes)
+        mediaPropertiesToken = currentSession.MediaPropertiesChanged([](auto&&, auto&&)
+        {
+            NotifyPlaybackInfoChanged();
+        });
+
+        return env.Undefined();
+    }
+    catch (const hresult_error &e)
+    {
+        std::string errorMsg = "WinRT error: " + ConvertWStringToString(e.message().c_str());
+        Napi::Error::New(env, errorMsg).ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+    catch (const std::exception &e)
+    {
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+    catch (...)
+    {
+        Napi::Error::New(env, "Unknown error occurred").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
     exports.Set("getAudioPlaybackInfo", Napi::Function::New(env, GetAudioPlaybackInfo));
@@ -314,6 +512,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set("playAudioPlayback", Napi::Function::New(env, PlayAudioPlayback));
     exports.Set("nextAudioTrack", Napi::Function::New(env, NextAudioTrack));
     exports.Set("previousAudioTrack", Napi::Function::New(env, PreviousAudioTrack));
+    exports.Set("onAudioPlaybackInfoChanged", Napi::Function::New(env, OnAudioPlaybackInfoChanged));
     return exports;
 }
 

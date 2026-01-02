@@ -1,5 +1,5 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType, BatteryInfo } from "shared/types";
 import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { Alert, Platform, Linking } from 'react-native';
 import * as Device from 'expo-device';
@@ -10,6 +10,7 @@ import { pathToUri } from "./fileUtils";
 import { preview } from "expo-quicklook-preview";
 import * as Clipboard from 'expo-clipboard';
 import { VolumeManager } from 'react-native-volume-manager';
+import { getPowerStateAsync, BatteryState, addBatteryLevelListener, addBatteryStateListener, addLowPowerModeListener } from 'expo-battery';
 // import { startActivityAsync, ActivityAction } from 'expo-intent-launcher';
 
 /**
@@ -191,8 +192,37 @@ class MobileSystemService extends SystemService {
         await VolumeManager.setVolume(level);
     }
 
+    // Battery info
+    @exposed
+    public async getBatteryInfo(): Promise<BatteryInfo> {
+        const powerState = await getPowerStateAsync();
+        return {
+            level: powerState.batteryLevel === -1 ? 1 : powerState.batteryLevel,
+            isCharging: powerState.batteryState === BatteryState.CHARGING || powerState.batteryState === BatteryState.FULL,
+            isLowPowerMode: powerState.lowPowerMode,
+        };
+    }
+
+    @exposed
+    public async canGetBatteryInfo(): Promise<boolean> {
+        return true;
+    }
+
     @serviceStartMethod
     public async start() {
+        // Set up battery listeners
+        addBatteryLevelListener(async ({ batteryLevel }) => {
+            const info = await this.getBatteryInfo();
+            this.batteryInfoSignal.dispatch(info);
+        });
+        addBatteryStateListener(async ({ batteryState }) => {
+            const info = await this.getBatteryInfo();
+            this.batteryInfoSignal.dispatch(info);
+        });
+        addLowPowerModeListener(async ({ lowPowerMode }) => {
+            const info = await this.getBatteryInfo();
+            this.batteryInfoSignal.dispatch(info);
+        });
     }
 
     @serviceStopMethod

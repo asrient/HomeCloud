@@ -22,6 +22,9 @@ export const useResource = ({
     const { connections } = useAppState();
 
     const isConnected = useMemo(() => {
+        if (deviceFingerprint === null) {
+            return true;
+        }
         return connections.some(conn => conn.fingerprint === deviceFingerprint);
     }, [connections, deviceFingerprint]);
 
@@ -120,6 +123,31 @@ export const useResource = ({
         });
         return () => { clearSignals && serviceControllerRef.current && hasSignalSetupRef.current && clearSignals(serviceControllerRef.current); };
     }, [clearSignals, isConnected, deviceFingerprint, load, setupSignals]);
+
+    return { isLoading, error, reload };
+};
+
+export const useResourceWithPolling = ({
+    deviceFingerprint, load, interval,
+}: {
+    deviceFingerprint: string | null;
+    load: (serviceController: ServiceController, shouldAbort: () => boolean) => Promise<void>;
+    interval: number;
+}) => {
+    const { isLoading, error, reload } = useResource({
+        deviceFingerprint,
+        load,
+    });
+
+    useEffect(() => {
+        const pollingInterval = setInterval(() => {
+            reload();
+        }, interval);
+
+        return () => {
+            clearInterval(pollingInterval);
+        };
+    }, [deviceFingerprint, interval, reload]);
 
     return { isLoading, error, reload };
 };

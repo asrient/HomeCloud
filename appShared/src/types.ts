@@ -262,3 +262,9 @@ export type AudioPlaybackInfo = {
     albumName?: string;
     isPlaying: boolean;
 }
+
+export type BatteryInfo = {
+    level: number; // 0 to 1
+    isCharging: boolean;
+    isLowPowerMode?: boolean;
+}

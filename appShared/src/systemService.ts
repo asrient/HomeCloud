@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo } from "./types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo } from "./types";
 import Signal from "./signals";
 
 
@@ -33,6 +33,8 @@ export abstract class SystemService extends Service {
         throw new Error("Not supported.");
     }
 
+    public audioPlaybackSignal = new Signal<[AudioPlaybackInfo]>({ isExposed: true, isAllowAll: false });
+
     @exposed
     public async pauseAudioPlayback(): Promise<void> {
         throw new Error("Not supported.");
@@ -63,6 +65,19 @@ export abstract class SystemService extends Service {
         throw new Error("Not supported.");
     }
 
+    // Battery info
+    @exposed
+    public async getBatteryInfo(): Promise<BatteryInfo> {
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async canGetBatteryInfo(): Promise<boolean> {
+        return false;
+    }
+
+    public batteryInfoSignal = new Signal<[BatteryInfo]>({ isExposed: true, isAllowAll: false });
+
     public getAccentColorHex(): string {
         return "0078D4"; // Default accent color, can be overridden by subclasses
     }
@@ -73,7 +88,7 @@ export abstract class SystemService extends Service {
     public async openUrl(url: string) {
         throw new Error("Method not implemented.");
     }
-    
+
     @exposed
     public async openFile(filePath: string) {
         throw new Error("Method not implemented.");
