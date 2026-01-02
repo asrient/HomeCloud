@@ -17,3 +17,11 @@ export type StandardDirectoryType =
     | 'Movies'
     | 'Phone Storage'
     | 'SD Card';
+
+export type DiskInfo = {
+    type: 'internal' | 'external';
+    name: string;
+    path: string;
+    size: number;
+    free: number;
+};

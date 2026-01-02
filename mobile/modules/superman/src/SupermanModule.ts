@@ -1,6 +1,6 @@
 import { NativeModule, requireNativeModule } from 'expo';
 
-import { SupermanModuleEvents, StandardDirectoryType } from './Superman.types';
+import { SupermanModuleEvents, StandardDirectoryType, DiskInfo } from './Superman.types';
 
 declare class SupermanModule extends NativeModule<SupermanModuleEvents> {
   hello(): string;
@@ -13,6 +13,7 @@ declare class SupermanModule extends NativeModule<SupermanModuleEvents> {
   udpBind(socketId: string, port?: number, address?: string): Promise<{ address: string; port: number }>;
   udpSend(socketId: string, data: Uint8Array, port: number, address: string): Promise<boolean>;
   udpClose(socketId: string): Promise<boolean>;
+  getDisks(): Promise<DiskInfo[]>;
 }
 
 // This call loads the native module object from the JSI.

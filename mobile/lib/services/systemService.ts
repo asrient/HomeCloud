@@ -1,5 +1,5 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType, BatteryInfo } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType, BatteryInfo, Disk } from "shared/types";
 import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { Alert, Platform, Linking } from 'react-native';
 import * as Device from 'expo-device';
@@ -208,6 +208,35 @@ class MobileSystemService extends SystemService {
         return true;
     }
 
+    @exposed
+    public async listDisks(): Promise<Disk[]> {
+        const disks: Disk[] = [];
+        const nativeDisks = await superman.getDisks();
+        for (const ndisk of nativeDisks) {
+            let name = ndisk.name;
+            let path = ndisk.path;
+            if (path === '/') {
+                if (Platform.OS === 'ios') {
+                    let deviceName = Device.deviceType === Device.DeviceType.PHONE ? 'iPhone' :
+                        Device.deviceType === Device.DeviceType.TABLET ? 'iPad' : 'iOS';
+                    name = `${deviceName} Storage`;
+                    path = '/Media Center/';
+                } else if (Platform.OS === 'android') {
+                    name = 'Internal Storage';
+                }
+            }
+            const disk: Disk = {
+                type: ndisk.type,
+                name: name,
+                path,
+                size: ndisk.size,
+                free: ndisk.free,
+            };
+            disks.push(disk);
+        }
+        return disks;
+    }
+
     @serviceStartMethod
     public async start() {
         // Set up battery listeners
@@ -223,6 +252,9 @@ class MobileSystemService extends SystemService {
             const info = await this.getBatteryInfo();
             this.batteryInfoSignal.dispatch(info);
         });
+
+        const d = await this.listDisks();
+        console.log('Disks on start:', d);
     }
 
     @serviceStopMethod

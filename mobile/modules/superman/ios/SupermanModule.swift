@@ -66,6 +66,89 @@ public class SupermanModule: Module {
       self.udpNetworking.close(socketId: socketId, promise: promise)
     }
 
+    AsyncFunction("getDisks") { (promise: Promise) in
+      DispatchQueue.global(qos: .userInitiated).async {
+        var disks: [[String: Any]] = []
+        
+        // Get internal storage from root path
+        let rootURL = URL(fileURLWithPath: "/")
+        do {
+          let resourceValues = try rootURL.resourceValues(forKeys: [
+            .volumeNameKey,
+            .volumeTotalCapacityKey,
+            .volumeAvailableCapacityForImportantUsageKey
+          ])
+          
+          if let totalCapacity = resourceValues.volumeTotalCapacity,
+             let availableCapacity = resourceValues.volumeAvailableCapacityForImportantUsage {
+            
+            let volumeName = resourceValues.volumeName ?? "Internal Storage"
+            
+            let diskInfo: [String: Any] = [
+              "type": "internal",
+              "name": volumeName,
+              "path": "/",
+              "size": totalCapacity,
+              "free": availableCapacity
+            ]
+            
+            disks.append(diskInfo)
+          }
+        } catch {
+          // If root query fails, still resolve with empty array
+          print("Error retrieving disk info: \(error.localizedDescription)")
+        }
+        
+        // Check for external storage (mounted volumes)
+        let fileManager = FileManager.default
+        if let urls = fileManager.mountedVolumeURLs(includingResourceValuesForKeys: [
+          .volumeNameKey,
+          .volumeTotalCapacityKey,
+          .volumeAvailableCapacityForImportantUsageKey,
+          .volumeIsRemovableKey
+        ], options: [.skipHiddenVolumes]) {
+          for url in urls {
+            // Skip the root volume as we already added it
+            if url.path == "/" {
+              continue
+            }
+            
+            do {
+              let resourceValues = try url.resourceValues(forKeys: [
+                .volumeNameKey,
+                .volumeTotalCapacityKey,
+                .volumeAvailableCapacityForImportantUsageKey,
+                .volumeIsRemovableKey
+              ])
+              
+              guard let totalCapacity = resourceValues.volumeTotalCapacity,
+                    let availableCapacity = resourceValues.volumeAvailableCapacityForImportantUsage else {
+                continue
+              }
+              
+              let isRemovable = resourceValues.volumeIsRemovable ?? false
+              let volumeName = resourceValues.volumeName ?? "External Storage"
+              
+              let diskInfo: [String: Any] = [
+                "type": isRemovable ? "external" : "internal",
+                "name": volumeName,
+                "path": url.path,
+                "size": totalCapacity,
+                "free": availableCapacity
+              ]
+              
+              disks.append(diskInfo)
+            } catch {
+              // Skip volumes that can't be read
+              continue
+            }
+          }
+        }
+        
+        promise.resolve(disks)
+      }
+    }
+
     // Events
     Events("tcpData", "tcpError", "tcpClose", "udpMessage", "udpError", "udpListening", "udpClose")
   }

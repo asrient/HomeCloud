@@ -1,13 +1,16 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
 import { dialog, BrowserWindow, shell, systemPreferences, clipboard } from "electron";
 import { getDriveDetails } from "./drivers/win32";
-import { WinDriveDetails } from "../../types";
+import { WinDriveDetails, WinDriveType } from "../../types";
 import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import volumeDriver from "./volumeControl";
 import * as mediaControlWin from "./mediaControl/win32";
 import { getBatteryInfo, onBatteryInfoChanged } from "./batteryLevel";
+// Need to use require for this module as it does not have proper ES module support
+const nodeDiskInfo = require('node-disk-info');
+import path from "path";
 
 const POLL_INTERVAL = 5000; // Polling interval for accent color changes
 
@@ -212,6 +215,81 @@ class DesktopSystemService extends SystemService {
     public async previousAudioTrack(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.previousAudioTrack();
+        }
+        throw new Error("Not supported.");
+    }
+
+    // Disks
+    @exposed
+    public async listDisks(): Promise<Disk[]> {
+        if (process.platform === 'win32') {
+            const drives = await this.getWindowsDrives();
+            return drives.map(drive => {
+                let type: 'internal' | 'external' = 'internal';
+                if (drive.type === WinDriveType.DRIVE_CDROM || drive.type === WinDriveType.DRIVE_REMOTE || drive.type === WinDriveType.DRIVE_REMOVABLE) {
+                    type = 'external';
+                }
+                const letter = drive.path.replace('\\', '');
+                const name = `${drive.name} (${letter})`;
+                const disk: Disk = {
+                    type,
+                    path: drive.path,
+                    name,
+                    size: drive.totalSpace,
+                    free: drive.freeSpace,
+                };
+                return disk;
+            });
+        }
+        else if (process.platform === 'linux' || process.platform === 'darwin') {
+            const disks: Disk[] = [];
+
+            const diskInfos = await nodeDiskInfo.getDiskInfo();
+            const linuxPermitedDriveLocations = ['/media/', '/mnt/', '/run/media/'];
+            for (const info of diskInfos) {
+                let isExternal = false;
+                let location = info.mounted;
+                let name = path.basename(location);
+                // Filter out irrelevant file systems
+                if (info.filesystem.startsWith('dev') || info.filesystem === 'tmpfs' || info.filesystem === 'overlay') {
+                    continue;
+                }
+                if (process.platform === 'linux') {
+                    // Check if the mount point is under permitted locations
+                    let permitted = false;
+                    for (const permitedLocation of linuxPermitedDriveLocations) {
+                        if (location.startsWith(permitedLocation)) {
+                            permitted = true;
+                            break;
+                        }
+                    }
+                    if (!permitted && location !== '/') {
+                        continue; // Skip non-permitted locations except root
+                    }
+                }
+                if (process.platform === 'darwin' && (info.mounted.startsWith('/System/') || !info.mounted.startsWith('/'))) {
+                    continue; // Skip System volumes and non-root volumes on macOS
+                }
+                if (name === '') {
+                    if (process.platform === 'linux') {
+                        name = 'Hard Disk';
+                    } else {
+                        name = 'Macintosh HD';
+                    }
+                }
+                if (location !== '/') {
+                    isExternal = true;
+                }
+                const disk: Disk = {
+                    type: isExternal ? 'external' : 'internal',
+                    name,
+                    path: location,
+                    size: info.blocks * 1024,
+                    free: info.available * 1024,
+                };
+                disks.push(disk);
+            }
+            return disks;
         }
         throw new Error("Not supported.");
     }

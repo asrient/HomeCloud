@@ -8,6 +8,7 @@ import { ConnectionType } from "@/lib/types";
 import { View } from "react-native";
 import { UIButton } from "./ui/UIButton";
 import Slider from '@react-native-community/slider';
+import { DisksGrid } from "./disksGrid";
 
 
 function NowPlayingBox({ fingerprint }: { fingerprint: string | null }) {
@@ -39,15 +40,16 @@ function NowPlayingBox({ fingerprint }: { fingerprint: string | null }) {
     </View>;
 }
 
-function RecentsBox({ fingerprint }: { fingerprint: string | null }) {
-    return <View style={{ alignItems: 'center', justifyContent: 'center', padding: 5, flex: 1 }}>
-        <UIText numberOfLines={1} style={{ textAlign: 'center' }} size='md' font="semibold">
-            Continue from device
+function DisksBox({ fingerprint }: { fingerprint: string | null }) {
+    return <View style={{ flex: 1, width: '100%', height: '100%' }}>
+        <UIText style={{ paddingTop: 12, paddingLeft: 30 }} numberOfLines={1} size='md'>
+            Storage
         </UIText>
+        <DisksGrid deviceFingerprint={fingerprint} />
     </View>;
 }
 
-function VolumeCard({deviceFingerprint}: {deviceFingerprint: string | null}) {
+function VolumeCard({ deviceFingerprint }: { deviceFingerprint: string | null }) {
     const { setVolume, isLoading, error, volumeLevel } = useVolume(deviceFingerprint);
     const setVolumeTimerRef = useRef<number | null>(null);
 
@@ -135,7 +137,7 @@ export function DeviceQuickActions({ peerInfo }: DeviceQuickActionsProps) {
                     type: 'half',
                     icon: batteryIcon,
                     title: hasBatteryInfo ? `${Math.round((batteryInfo?.level || 0) * 100)}%` : 'Battery',
-                    subtitle: hasBatteryInfo ? batteryInfo?.isCharging ? 'Charging' : ( batteryInfo?.isLowPowerMode ? 'Low Power Mode' : 'Battery') : undefined,
+                    subtitle: hasBatteryInfo ? batteryInfo?.isCharging ? 'Charging' : (batteryInfo?.isLowPowerMode ? 'Low Power Mode' : 'Battery') : undefined,
                     onPress: () => console.log('BT tapped')
                 }
             ]
@@ -173,7 +175,7 @@ export function DeviceQuickActions({ peerInfo }: DeviceQuickActionsProps) {
         {
             flow: 'row',
             boxes: [
-                { type: 'full', content: <RecentsBox fingerprint={deviceFingerprint} /> },
+                { type: 'full', content: <DisksBox fingerprint={deviceFingerprint} /> },
             ]
         },
     ]} />

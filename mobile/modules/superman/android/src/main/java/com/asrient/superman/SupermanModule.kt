@@ -25,6 +25,7 @@ import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import io.ktor.network.selector.SelectorManager
 import io.ktor.utils.io.core.*
+import android.os.StatFs
 
 enum class StandardDirectory(val value: String) : Enumerable {
   DOCUMENTS("Documents"),
@@ -332,6 +333,62 @@ class SupermanModule : Module() {
       } catch (e: Exception) {
         promise.reject("UDP_CLOSE", e.message ?: "Unknown error", e)
       }
+    }
+
+    AsyncFunction("getDisks") {
+      val disks = mutableListOf<Map<String, Any>>()
+      val context = getContext()
+      
+      try {
+        // Get internal storage
+        @Suppress("DEPRECATION")
+        val internalStorage = Environment.getExternalStorageDirectory()
+        if (internalStorage != null && internalStorage.exists()) {
+          val stat = StatFs(internalStorage.path)
+          val blockSize = stat.blockSizeLong
+          val totalBlocks = stat.blockCountLong
+          val availableBlocks = stat.availableBlocksLong
+          
+          disks.add(mapOf(
+            "type" to "internal",
+            "name" to "Internal Storage",
+            "path" to internalStorage.path,
+            "size" to (totalBlocks * blockSize),
+            "free" to (availableBlocks * blockSize)
+          ))
+        }
+        
+        // Get external storage (SD Card)
+        val storageManager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+        storageManager.storageVolumes.forEach { volume ->
+          if (volume.isRemovable && !volume.isPrimary) {
+            volume.directory?.let { sdPath ->
+              if (sdPath.exists()) {
+                try {
+                  val stat = StatFs(sdPath.path)
+                  val blockSize = stat.blockSizeLong
+                  val totalBlocks = stat.blockCountLong
+                  val availableBlocks = stat.availableBlocksLong
+                  
+                  disks.add(mapOf(
+                    "type" to "external",
+                    "name" to (volume.getDescription(context) ?: "SD Card"),
+                    "path" to sdPath.path,
+                    "size" to (totalBlocks * blockSize),
+                    "free" to (availableBlocks * blockSize)
+                  ))
+                } catch (e: Exception) {
+                  android.util.Log.e("SupermanModule", "Failed to read SD card stats: ${e.message}")
+                }
+              }
+            }
+          }
+        }
+      } catch (e: Exception) {
+        android.util.Log.e("SupermanModule", "Error getting disks: ${e.message}", e)
+      }
+      
+      return@AsyncFunction disks
     }
 
     Events("tcpData", "tcpError", "tcpClose", "udpMessage", "udpError", "udpListening", "udpClose")

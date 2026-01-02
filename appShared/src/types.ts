@@ -171,6 +171,14 @@ export type RemoteItem = {
     thumbnail: string | null;
 }
 
+export type Disk = {
+    type: 'internal' | 'external';
+    path: string;
+    name: string;
+    size: number;
+    free: number;
+}
+
 export type FileContent = {
     name: string;
     mime: string;

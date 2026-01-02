@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, View, ViewStyle } from 'react-native';
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getLocalServiceController, getServiceController, printFingerprint } from '@/lib/utils';
+import { formatFileSize, getLocalServiceController, getServiceController, printFingerprint } from '@/lib/utils';
 import { FlashList } from "@shopify/flash-list";
 import { ThumbnailCheckbox } from './ThumbnailCheckbox';
 import { useFolder, usePinnedFolders } from '@/hooks/useFolders';
@@ -118,14 +118,6 @@ function useFileItemState(
         fileKind,
     };
 }
-
-const formatFileSize = (bytes?: number) => {
-    if (!bytes) return '';
-    if (bytes < 1024) return `${bytes}B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
-};
 
 export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu }: { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean, disableContextMenu?: boolean }) {
     const { thumbnailSrc, isSelected, isPreviewLoading, handlePress, actions, fileKind } = useFileItemState(item, isSelectMode, onPress);

@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo } from "./types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk } from "./types";
 import Signal from "./signals";
 
 
@@ -98,6 +98,11 @@ export abstract class SystemService extends Service {
     public async deviceInfo(): Promise<DeviceInfo> {
         const deviceInfo = await this.getDeviceInfo();
         return deviceInfo;
+    }
+
+    @exposed
+    public async listDisks(): Promise<Disk[]> {
+        throw new Error("Not implemented");
     }
 
     @serviceStartMethod

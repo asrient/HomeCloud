@@ -66,6 +66,8 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
     const handlePress = () => {
         if (config.onPress) {
             config.onPress();
+        } else if (config.canExpand && config.expandedContent) {
+            setIsExpanded(true);
         }
     };
 
@@ -97,6 +99,35 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
         return StyleSheet.compose(baseStyle, extraStyle);
     };
 
+    const content = (<UIView themeColor='backgroundSecondary' useGlass style={getBoxStyle()}>
+        {(config.icon || config.title || config.subtitle) && <View style={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: config.type === 'full' ? 'column' : 'row',
+            gap: 10
+        }}>
+            {config.icon && (
+                <UIIcon name={config.icon} size={config.type === 'small' ? 22 : 26} themeColor="icon" />
+            )}
+            {config.type !== 'small' && <View style={{
+                alignItems: config.type === 'full' ? 'center' : 'flex-start',
+                justifyContent: 'center'
+            }}>
+                {config.title && (
+                    <UIText size='md'>{config.title}</UIText>
+                )}
+                {config.subtitle && (
+                    <UIText color='textSecondary' size='xs'>{config.subtitle}</UIText>
+                )}
+            </View>}
+        </View>}
+        {config.content}
+    </UIView>);
+
+    if (!config.canExpand && !config.onPress) {
+        return content;
+    }
+
     return (
         <>
             <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
@@ -105,30 +136,7 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
                     onPressOut={handlePressOut}
                     onPress={handlePress}
                 >
-                    <UIView themeColor='backgroundSecondary' useGlass style={getBoxStyle()}>
-                        <View style={{
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexDirection: config.type === 'full' ? 'column' : 'row',
-                            gap: 10
-                        }}>
-                            {config.icon && (
-                                <UIIcon name={config.icon} size={config.type === 'small' ? 22 : 26} themeColor="icon" />
-                            )}
-                            {config.type !== 'small' && <View style={{
-                                alignItems: config.type === 'full' ? 'center' : 'flex-start',
-                                justifyContent: 'center'
-                            }}>
-                                {config.title && (
-                                    <UIText size='md'>{config.title}</UIText>
-                                )}
-                                {config.subtitle && (
-                                    <UIText color='textSecondary' size='xs'>{config.subtitle}</UIText>
-                                )}
-                            </View>}
-                        </View>
-                        {config.content}
-                    </UIView>
+                    {content}
                 </Pressable>
             </Animated.View>
 

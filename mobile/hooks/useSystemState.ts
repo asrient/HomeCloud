@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useResource, useResourceWithPolling } from "./useResource";
-import { AudioPlaybackInfo, BatteryInfo } from "shared/types";
+import { AudioPlaybackInfo, BatteryInfo, Disk } from "shared/types";
 import ServiceController from "shared/controller";
 import { getServiceController } from "shared/utils";
 import { SignalNodeRef } from "shared/signals";
@@ -177,4 +177,23 @@ export const useMediaPlayback = (deviceFingerprint: string | null) => {
     }, [action]);
 
     return { isLoading, error, reload, mediaPlayback, play, pause, next, previous };
+};
+
+
+export const useDisks = (deviceFingerprint: string | null) => {
+    const [disks, setDisks] = useState<Disk[]>([]);
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        const disks = await serviceController.system.listDisks();
+        if (shouldAbort()) {
+            return;
+        }
+        setDisks(disks);
+    }, []);
+
+    const { isLoading, error, reload } = useResource({
+        deviceFingerprint,
+        load,
+    });
+
+    return { isLoading, error, reload, disks };
 };
