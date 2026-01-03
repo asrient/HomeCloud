@@ -3,7 +3,14 @@ import { UIView } from "./ui/UIView";
 import { UIButton } from "./ui/UIButton";
 import { TextInput } from "react-native";
 import { useThemeColor } from "@/hooks/useThemeColor";
-
+import ContextMenu from "react-native-context-menu-view";
+import { useCallback, useState } from "react";
+import { getServiceController } from "shared/utils";
+import { getLocalServiceController } from "@/lib/utils";
+import { LoadingModal } from "./LoadingModal";
+import * as DocumentPicker from 'expo-document-picker';
+import { File } from "expo-file-system/next";
+import * as ImagePicker from 'expo-image-picker';
 
 export type DeviceSendBarProps = {
     peerInfo: PeerInfo;
@@ -11,27 +18,133 @@ export type DeviceSendBarProps = {
 
 export function DeviceSendBar({ peerInfo }: DeviceSendBarProps) {
     const textColor = useThemeColor({}, 'text');
-    return <UIView
-        themeColor="backgroundSecondary"
-        style={{ 
-            width: '100%', 
-            padding: 2, 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            flexDirection: 'row',
-            borderRadius: 50,
-        }}
-        useGlass={true}
-    >
-        <UIButton type="link" icon='paperclip' />
-        <TextInput
+    const [isSending, setIsSending] = useState(false);
+    const [text, setText] = useState('');
+
+    const sendMessage = useCallback(async () => {
+        if (text.trim().length === 0) {
+            return;
+        }
+        setIsSending(true);
+        const sc = await getServiceController(peerInfo.fingerprint);
+        sc.app.receiveContent(null, text.trim(), 'text').catch((error) => {
+            console.error('Error sending message to device:', error);
+            const localSc = getLocalServiceController();
+            localSc.system.alert('Could not send', 'An error occurred.');
+        });
+        setText('');
+        setIsSending(false);
+    }, [text, peerInfo.fingerprint]);
+
+    const openDocPicker = useCallback(async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                multiple: true,
+                copyToCacheDirectory: true,
+            });
+            if (result.canceled) {
+                return;
+            }
+            const assets = result.assets;
+            if (assets.length === 0) {
+                return;
+            }
+            setIsSending(true);
+            const sc = await getServiceController(peerInfo.fingerprint);
+            for (const asset of assets) {
+                await sc.files.download(modules.config.FINGERPRINT, asset.uri);
+                // now delete the cached file
+                const file = new File(asset.uri);
+                if (file.exists) {
+                    file.delete();
+                }
+            }
+        } catch (error) {
+            console.error('Error picking document:', error);
+            const localSc = getLocalServiceController();
+            localSc.system.alert('Could not send', 'An error occurred while picking the document.');
+        } finally {
+            setIsSending(false);
+        }
+    }, [peerInfo.fingerprint]);
+
+    const openImagePicker = useCallback(async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images', 'videos'],
+                allowsMultipleSelection: true,
+            });
+            if (result.canceled) {
+                return;
+            }
+            const assets = result.assets;
+            if (assets.length === 0) {
+                return;
+            }
+            setIsSending(true);
+            const sc = await getServiceController(peerInfo.fingerprint);
+            for (const asset of assets) {
+                await sc.files.download(modules.config.FINGERPRINT, asset.uri);
+            }
+        } catch (error) {
+            console.error('Error picking images:', error);
+            const localSc = getLocalServiceController();
+            localSc.system.alert('Could not send', 'An error occurred while picking the images.');
+        } finally {
+            setIsSending(false);
+        }
+    }, [peerInfo.fingerprint]);
+
+    return <>
+        <UIView
+            themeColor="backgroundSecondary"
             style={{
-                flex: 1,
-                marginLeft: 8,
-                color: textColor,
+                width: '100%',
+                padding: 2,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                borderRadius: 50,
             }}
-            placeholder="Send message"
-        />
-        <UIButton type="link" icon='paperplane' />
-    </UIView>;
+            useGlass={true}
+        >
+            <ContextMenu
+                title="Send to device"
+                actions={[
+                    { title: "Files", systemIcon: "folder" },
+                    { title: "Photos", systemIcon: "photo" },
+                ]}
+                onPress={(event) => {
+                    const action = event.nativeEvent.name;
+                    console.log("Context menu action pressed", action);
+                    if (action === 'Files') {
+                        openDocPicker();
+                    } else if (action === 'Photos') {
+                        openImagePicker();
+                    }
+                }}
+                dropdownMenuMode={true}
+            >
+                <UIButton type="link" icon='paperclip' themeColor="icon" />
+            </ContextMenu>
+            <TextInput
+                style={{
+                    flex: 1,
+                    marginLeft: 8,
+                    color: textColor,
+                }}
+                placeholder="Send message"
+                value={text}
+                onChangeText={setText}
+            />
+            <UIButton
+                type='link'
+                themeColor={text.trim().length === 0 ? "textSecondary" : "highlight"}
+                icon='arrow.up.circle.fill'
+                disabled={text.trim().length === 0 || isSending}
+                onPress={sendMessage}
+            />
+        </UIView>
+        <LoadingModal isActive={isSending} />
+    </>;
 }

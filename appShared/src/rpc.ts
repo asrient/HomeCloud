@@ -363,6 +363,7 @@ export class RPCPeer {
     }
 
     private parseJson(text: string) {
+        try {
         return JSON.parse(text, (_, v) => {
             if (!!v && v.__rpc_stream_id__ && typeof v.__rpc_stream_id__ === 'number') {
                 const id = v.__rpc_stream_id__;
@@ -380,6 +381,11 @@ export class RPCPeer {
             }
             return v;
         });
+        } catch (e) {
+            console.error('Failed to parse JSON', e);
+            console.debug('JSON text:', text);
+            return null;
+        }
     }
 
     private async handleRequest(buf: Uint8Array) {
@@ -432,7 +438,7 @@ export class RPCPeer {
             return;
         }
 
-        const decoded = this.parseJson(result);
+        const decoded = result !== undefined ? this.parseJson(result) : undefined;
 
         entry.resolve(decoded);
         this.pending.delete(callId);

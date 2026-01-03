@@ -60,6 +60,7 @@ const MAPPING = {
   'pause.fill': 'pause',
   'backward.fill': 'skip-previous',
   'forward.fill': 'skip-next',
+  'arrow.up.circle.fill': 'send',
 } as IconMapping;
 
 /**

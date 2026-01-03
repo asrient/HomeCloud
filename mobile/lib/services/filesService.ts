@@ -2,6 +2,7 @@ import { FilesService } from "shared/filesService";
 import MobileFsDriver from "./fs";
 import { getServiceController } from "shared/utils";
 import { Paths, File, Directory } from 'expo-file-system/next';
+import { exposed } from "shared/servicePrimatives";
 
 
 type PreviewCacheEntry = {
@@ -18,10 +19,11 @@ export default class MobileFilesService extends FilesService {
   public fs = new MobileFsDriver();
   public separator = '/';
 
+  @exposed
   async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
     const serviceController = await getServiceController(remoteFingerprint);
     const localSc = modules.getLocalServiceController();
-    const defaultDirs = await serviceController.system.getDefaultDirectories();
+    const defaultDirs = await localSc.system.getDefaultDirectories();
     const downloadDir = defaultDirs.Downloads;
     if (!downloadDir) {
       throw new Error("Download directory not found.");

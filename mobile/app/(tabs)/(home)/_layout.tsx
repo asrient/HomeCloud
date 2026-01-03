@@ -1,7 +1,7 @@
 import { DeviceSendBar } from '@/components/deviceSendBar';
 import { useAppState } from '@/hooks/useAppState';
 import { Stack } from 'expo-router';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, KeyboardAvoidingView } from 'react-native';
 
 export default function Layout() {
   const { selectedPeer } = useAppState();
@@ -10,9 +10,11 @@ export default function Layout() {
     <Stack />
     {
       selectedPeer && (
-        <View style={styles.bottomFloatingBar}>
+        <KeyboardAvoidingView  
+        behavior='position'
+        style={styles.bottomFloatingBar}>
           <DeviceSendBar peerInfo={selectedPeer} />
-        </View>
+        </KeyboardAvoidingView>
       )
     }
   </View>;

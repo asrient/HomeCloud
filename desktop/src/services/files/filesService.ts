@@ -4,15 +4,17 @@ import path from "path";
 import fs from "fs/promises";
 import { getServiceController } from "shared/utils";
 import { WatchedFile } from "./watchedFile";
+import { exposed } from "shared/servicePrimatives";
 
 export default class DesktopFilesService extends FilesService {
   public fs = new LocalFsDriver();
   public separator = path.sep;
 
+  @exposed
   async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
     const serviceController = await getServiceController(remoteFingerprint);
     const localSc = modules.getLocalServiceController();
-    const defaultDirs = await serviceController.system.getDefaultDirectories();
+    const defaultDirs = await localSc.system.getDefaultDirectories();
     const downloadDir = defaultDirs.Downloads;
     const remoteItem = await serviceController.files.fs.readFile(remotePath);
     const { name: fileName, stream } = remoteItem;

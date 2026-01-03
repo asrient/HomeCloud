@@ -18,7 +18,7 @@ export function DisksGrid({ deviceFingerprint }: { deviceFingerprint: string | n
                 (isLoading || error) &&
                 <View style={{ alignItems: 'center', justifyContent: 'center', height: 100 }} >
                     {isLoading && <ActivityIndicator />}
-                    {error && <UIText>Error loading disks: {error}</UIText>}
+                    {error && <UIText>Could not load.</UIText>}
                 </View>
             }
             <FlatList

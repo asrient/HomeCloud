@@ -84,6 +84,7 @@ export abstract class FilesService extends Service {
         return items;
     }
 
+    @exposed
     public async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
         throw new Error("Method not implemented.");
     }

@@ -34,6 +34,7 @@
       }
     },
     "android": {
+      "softwareKeyboardLayoutMode": "pan",
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.ACCESS_NETWORK_STATE",
@@ -83,6 +84,18 @@
           "ios": {
             "deploymentTarget": "15.2"
           }
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Media Center accesses your photos to let you send them with to your other devices."
         }
       ]
     ],
