@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useResource, useResourceWithPolling } from "./useResource";
-import { AudioPlaybackInfo, BatteryInfo, Disk } from "shared/types";
+import { AudioPlaybackInfo, BatteryInfo, ClipboardContent, Disk } from "shared/types";
 import ServiceController from "shared/controller";
 import { getServiceController } from "shared/utils";
 import { SignalNodeRef } from "shared/signals";
@@ -196,4 +196,22 @@ export const useDisks = (deviceFingerprint: string | null) => {
     });
 
     return { isLoading, error, reload, disks };
+};
+
+export const useClipboard = (deviceFingerprint: string | null) => {
+    const [content, setContent] = useState<ClipboardContent | null>(null);
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        const content = await serviceController.system.readClipboard();
+        if (shouldAbort()) {
+            return;
+        }
+        setContent(content);
+    }, []);
+
+    const { isLoading, error, reload } = useResource({
+        deviceFingerprint,
+        load,
+    });
+
+    return { isLoading, error, reload, content };
 };

@@ -223,7 +223,7 @@ export class AppService extends Service {
 
     @exposed
     @withContext
-    public async receiveContent(ctx: MethodContext | null, content: string, type?: 'text' | 'link'): Promise<void> {
+    public async receiveContent(ctx: MethodContext | null, content: string, type?: 'text' | 'link' | 'html' | 'rtf'): Promise<void> {
         type = type || 'text';
         console.log(`[AppService] receiveContent called from ${ctx ? ctx.fingerprint : "Unknown"}: type=${type}, content=${content}`);
         const deviceName = ctx && ctx.peerInfo ? ctx.peerInfo.deviceName : "Unknown Device";
@@ -243,17 +243,15 @@ export class AppService extends Service {
             });
         }
         buttons.push({
-            text: `Copy ${type === 'link' ? 'Link' : 'Message'}`,
+            text: `Copy ${type === 'link' ? 'Link' : 'Text'}`,
             onPress: () => {
                 console.log("Copying to clipboard:", content);
-                // localSc.system.copyToClipboard(content).catch((err) => {
-                //     console.error("Failed to copy to clipboard:", err);
-                // });
+                localSc.system.copyToClipboard(content, type);
             },
         });
         buttons.push({ text: "Cancel", type: 'danger', isDefault: true, onPress: () => { } });
         localSc.system.ask({
-            title: `${deviceName} sent a ${type === 'link' ? 'link' : 'message'}`,
+            title: `${deviceName} sent a ${type === 'link' ? 'link' : 'text'}`,
             description: croppedContent,
             buttons,
         })

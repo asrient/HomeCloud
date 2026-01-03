@@ -2,13 +2,14 @@ import { PeerInfo } from "shared/types";
 import { Bento } from "./bento";
 import { UIText } from "./ui/UIText";
 import { useCallback, useMemo, useRef } from "react";
-import { useBatteryInfo, useMediaPlayback, useVolume } from "@/hooks/useSystemState";
+import { useBatteryInfo, useClipboard, useMediaPlayback, useVolume } from "@/hooks/useSystemState";
 import { useAppState } from "@/hooks/useAppState";
 import { ConnectionType } from "@/lib/types";
-import { View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { UIButton } from "./ui/UIButton";
 import Slider from '@react-native-community/slider';
 import { DisksGrid } from "./disksGrid";
+import { getLocalServiceController } from "@/lib/utils";
 
 
 function NowPlayingBox({ fingerprint }: { fingerprint: string | null }) {
@@ -84,6 +85,42 @@ function VolumeCard({ deviceFingerprint }: { deviceFingerprint: string | null })
     </View>;
 }
 
+function ClipboardCard({ deviceFingerprint, dismiss }: { deviceFingerprint: string | null, dismiss: () => void }) {
+    const { isLoading, error, content } = useClipboard(deviceFingerprint);
+
+    const clippedText = useMemo(() => {
+        if (!content || content.content.length === 0) {
+            return 'No clipboard content';
+        }
+        return content.content;
+    }, [content]);
+
+    const copyToClipboard = useCallback(() => {
+        if (!content) return;
+        const localSc = getLocalServiceController();
+        localSc.system.copyToClipboard(content.content, content.type);
+        dismiss();
+    }, [content, dismiss]);
+
+    return <View style={{ padding: 5, flex: 1, justifyContent: 'center' }}>
+        <UIText style={{ margin: 12 }} size="md" font="semibold">
+            Device Clipboard
+        </UIText>
+        <View style={{ padding: 10, minHeight: 100, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            {isLoading ? (
+                <ActivityIndicator />
+            ) : error ? (
+                <UIText color="textSecondary" size="sm" font='light'>Could not load clipboard.</UIText>
+            ) : (
+                <UIText color="textSecondary" size="sm" font='light' numberOfLines={8}>{clippedText}</UIText>
+            )}
+        </View>
+        <View style={{ width: '100%', marginTop: 5 }}>
+            <UIButton disabled={isLoading || !!error || !content} onPress={copyToClipboard} title="Copy" type="primary" stretch />
+        </View>
+    </View>;
+}
+
 export type DeviceQuickActionsProps = {
     peerInfo: PeerInfo | null;
 };
@@ -100,7 +137,7 @@ export function DeviceQuickActions({ peerInfo }: DeviceQuickActionsProps) {
         return connections.find(conn => conn.fingerprint === deviceFingerprint) || null;
     }, [connections, deviceFingerprint]);
 
-    const { batteryInfo, isLoading: isBatteryLoading } = useBatteryInfo(deviceFingerprint);
+    const { batteryInfo, isLoading: isBatteryLoading, reload: batteryReload } = useBatteryInfo(deviceFingerprint);
 
     const batteryIcon = useMemo(() => {
         if (!batteryInfo) {
@@ -138,7 +175,7 @@ export function DeviceQuickActions({ peerInfo }: DeviceQuickActionsProps) {
                     icon: batteryIcon,
                     title: hasBatteryInfo ? `${Math.round((batteryInfo?.level || 0) * 100)}%` : 'Battery',
                     subtitle: hasBatteryInfo ? batteryInfo?.isCharging ? 'Charging' : (batteryInfo?.isLowPowerMode ? 'Low Power Mode' : 'Battery') : undefined,
-                    onPress: () => console.log('BT tapped')
+                    onPress: batteryReload,
                 }
             ]
         },
@@ -156,9 +193,9 @@ export function DeviceQuickActions({ peerInfo }: DeviceQuickActionsProps) {
                             type: 'half',
                             icon: 'clipboard',
                             title: 'Clipboard',
-                            onPress: () => console.log('Clipboard tapped'),
                             canExpand: true,
-                            expandedContent: () => <UIText>Clipboard Settings</UIText>
+                            expandedContent: (dismiss) => <ClipboardCard deviceFingerprint={deviceFingerprint} dismiss={dismiss} />,
+                            expandedContentHeight: 300,
                         },
                         {
                             type: 'half',

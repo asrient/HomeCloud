@@ -1,5 +1,5 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
 import { dialog, BrowserWindow, shell, systemPreferences, clipboard } from "electron";
 import { getDriveDetails } from "./drivers/win32";
@@ -136,9 +136,43 @@ class DesktopSystemService extends SystemService {
         return systemPreferences.getAccentColor(); // RGBA hexadecimal form
     }
 
-    public copyToClipboard(text: string, type: 'text' | 'link' = 'text'): void {
-        // For now, we treat 'link' the same as 'text'
-        clipboard.writeText(text);
+    public copyToClipboard(text: string, type: 'text' | 'link' | 'html' | 'rtf' = 'text'): void {
+        switch (type) {
+            case 'text':
+            case 'link':
+                clipboard.writeText(text);
+                break;
+            case 'html':
+                clipboard.writeHTML(text);
+                break;
+            case 'rtf':
+                clipboard.writeRTF(text);
+                break;
+            default:
+                console.warn(`Unsupported clipboard type: ${type}. Defaulting to text.`);
+                clipboard.writeText(text);
+        }
+    }
+
+    @exposed
+    public async readClipboard(): Promise<ClipboardContent | null> {
+        const availableFormats = clipboard.availableFormats();
+        if (availableFormats.includes('text/html')) {
+            const htmlContent = clipboard.readHTML();
+            return { type: 'html', content: htmlContent };
+        } else if (availableFormats.includes('text/rtf')) {
+            const rtfContent = clipboard.readRTF();
+            return { type: 'rtf', content: rtfContent };
+        } else if (availableFormats.includes('text/plain')) {
+            const textContent = clipboard.readText();
+            let type: 'text' | 'link' = 'text';
+            // Simple heuristic to check if the text is a URL
+            if (/^(https?:\/\/|www\.)/.test(textContent.trim())) {
+                type = 'link';
+            }
+            return { type, content: textContent };
+        }
+        return null;
     }
 
     @exposed

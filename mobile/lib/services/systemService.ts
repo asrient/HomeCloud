@@ -1,5 +1,5 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType, BatteryInfo, Disk } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType, BatteryInfo, Disk, ClipboardContent } from "shared/types";
 import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { Alert, Platform, Linking } from 'react-native';
 import * as Device from 'expo-device';
@@ -168,12 +168,30 @@ class MobileSystemService extends SystemService {
         }
     }
 
-    public async copyToClipboard(text: string, type?: 'text' | 'link'): Promise<void> {
+    public async copyToClipboard(text: string, type?: 'text' | 'link' | 'html' | 'rtf'): Promise<void> {
         if (type === 'link') {
             await Clipboard.setUrlAsync(text);
         } else {
-            await Clipboard.setStringAsync(text);
+            await Clipboard.setStringAsync(text, { inputFormat: type === 'html' ? Clipboard.StringFormat.HTML : Clipboard.StringFormat.PLAIN_TEXT });
         }
+    }
+
+    @exposed
+    public async readClipboard(): Promise<ClipboardContent | null> {
+        const hasUrl = await Clipboard.hasUrlAsync();
+        if (hasUrl) {
+            const url = await Clipboard.getUrlAsync();
+            if (!url) {
+                return null;
+            }
+            return { type: 'link', content: url };
+        } else {
+            const text = await Clipboard.getStringAsync();
+            if (text) {
+                return { type: 'text', content: text };
+            }
+        }
+        return null;
     }
 
     @exposed
@@ -252,9 +270,6 @@ class MobileSystemService extends SystemService {
             const info = await this.getBatteryInfo();
             this.batteryInfoSignal.dispatch(info);
         });
-
-        const d = await this.listDisks();
-        console.log('Disks on start:', d);
     }
 
     @serviceStopMethod

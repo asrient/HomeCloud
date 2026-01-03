@@ -3,7 +3,7 @@ import { BlurView } from "expo-blur";
 import { UIView } from "./ui/UIView";
 import { UIText } from "./ui/UIText";
 import { UIIcon, IconSymbolName } from "./ui/UIIcon";
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 
 
 const HEIGHT_UNIT = 90;
@@ -19,7 +19,7 @@ export type BentoBoxConfig = {
     onPress?: () => void;
     content?: React.ReactNode;
     canExpand?: boolean;
-    expandedContent?: () => React.ReactNode;
+    expandedContent?: (dismiss: () => void) => React.ReactNode;
     isCircular?: boolean;
     expandedContentHeight?: number;
     contentHeight?: number;
@@ -34,6 +34,10 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const dismissExpanded = useCallback(() => {
+        setIsExpanded(false);
+    }, []);
 
     const handlePressIn = () => {
         // Scale down animation on press
@@ -162,7 +166,7 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
                                 onPress={(e) => e.stopPropagation()}
                             >
                                 <UIView themeColor='backgroundSecondary' useGlass style={styles.expandedContent}>
-                                    {config.expandedContent()}
+                                    {config.expandedContent(dismissExpanded)}
                                 </UIView>
                             </Pressable>
                         </Pressable>

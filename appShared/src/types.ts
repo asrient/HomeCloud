@@ -276,3 +276,8 @@ export type BatteryInfo = {
     isCharging: boolean;
     isLowPowerMode?: boolean;
 }
+
+export type ClipboardContent = {
+    type: 'text' | 'link' | 'html' | 'rtf';
+    content: string;
+}
