@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
 import { FileList_ } from "@/lib/types";
+import { Folder } from "lucide-react";
 
 export type UploadFileSelectorProps = {
     title: string,
@@ -19,9 +20,10 @@ export type UploadFileSelectorProps = {
     onUpload: (files: FileList_) => Promise<void>,
     accept?: string,
     embedComponent?: React.ReactNode,
+    description?: string,
 };
 
-export default function UploadFileSelector({ title, children, onUpload, accept, embedComponent }: UploadFileSelectorProps) {
+export default function UploadFileSelector({ title, children, onUpload, accept, embedComponent, description }: UploadFileSelectorProps) {
     const [files, setFiles] = useState<FileList_ | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -55,11 +57,9 @@ export default function UploadFileSelector({ title, children, onUpload, accept, 
             </DialogTrigger>
             <DialogContent className="sm:max-w-[20rem]">
                 <DialogHeader className="md:flex-row">
-                    <div className="flex items-center justify-center p-1 md:pr-4">
+                    <div className="flex items-center justify-center p-1 md:pr-3">
                         <div className="h-[3rem] w-[3rem] rounded-md bg-blue-500 text-white flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                            </svg>
+                            <Folder size={32} />
                         </div>
                     </div>
                     <div className="grow flex-col flex justify-center">
@@ -67,7 +67,7 @@ export default function UploadFileSelector({ title, children, onUpload, accept, 
                             {title}
                         </DialogTitle>
                         <DialogDescription>
-                            {error ? <span className='text-red-500'>{error}</span> : 'Select files to upload.'}
+                            {error ? <span className='text-red-500'>{error}</span> : (description || 'Select files to upload.')}
                         </DialogDescription>
                     </div>
                 </DialogHeader>

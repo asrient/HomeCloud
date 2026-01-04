@@ -281,3 +281,8 @@ export type ClipboardContent = {
     type: 'text' | 'link' | 'html' | 'rtf';
     content: string;
 }
+
+export type FileFilter = {
+    name: string;
+    extensions: string[];
+}

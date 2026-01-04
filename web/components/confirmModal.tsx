@@ -75,9 +75,12 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
                     <DialogTitle>
                         {title}
                     </DialogTitle>
-                    <DialogDescription>
-                        {error ? <span className='text-red-500'>{error}</span> : description || 'Are you sure?'}
-                    </DialogDescription>
+                    {
+                        (description || error)
+                        && <DialogDescription>
+                            {error ? <span className='text-red-500'>{error}</span> : description}
+                        </DialogDescription>
+                    }
                 </DialogHeader>
                 <>
                     {isLoading && <div className="flex justify-center items-center">

@@ -11,6 +11,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 export type TextModalProps = {
     title: string,
@@ -25,9 +26,11 @@ export type TextModalProps = {
     noTrigger?: boolean,
     additionalContent?: React.ReactNode,
     textType?: 'text' | 'password',
+    rows?: number,
+    placeholder?: string,
 }
 
-export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description, isOpen, onOpenChange, noTrigger, additionalContent, textType }: TextModalProps) {
+export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description, isOpen, onOpenChange, noTrigger, additionalContent, textType, rows = 1, placeholder }: TextModalProps) {
     fieldName = fieldName || 'Name';
     const [text, setText] = useState<string>(defaultValue || '');
     const [isDirty, setIsDirty] = useState(false);
@@ -93,7 +96,7 @@ export default function TextModal({ title, buttonText, children, onDone, default
         }
     }, [text, onDone, handleOpenChange, dialogOpen]);
 
-    const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setText(e.target.value);
         setIsDirty(true);
     }, []);
@@ -120,7 +123,11 @@ export default function TextModal({ title, buttonText, children, onDone, default
                     {!isLoading && (<>
                         <div className="grid w-full max-w-sm items-center gap-1.5">
                             <Label>{fieldName}</Label>
-                            <Input onChange={handleNameChange} value={text} type={textType || "text"} />
+                            {rows > 1 ? (
+                                <Textarea onChange={handleNameChange} value={text} rows={rows} placeholder={placeholder} />
+                            ) : (
+                                <Input onChange={handleNameChange} value={text} type={textType || "text"} placeholder={placeholder} />
+                            )}
                         </div>
                         {additionalContent}
                     </>)}

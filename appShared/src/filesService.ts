@@ -1,7 +1,7 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed } from "./servicePrimatives";
 import { FsDriver } from "./fsDriver";
 import ConfigStorage from "./storage";
-import { StoreNames, PinnedFolder, SignalEvent, RemoteItem } from "./types";
+import { StoreNames, PinnedFolder, SignalEvent, RemoteItem, FileFilter } from "./types";
 import Signal from "./signals";
 import { getServiceController } from "./utils"
 
@@ -136,6 +136,10 @@ export abstract class FilesService extends Service {
         this.store.setItem(PINNED_FOLDERS_KEY, updatedPinnedFolders);
         await this.store.save();
         this.pinnedFoldersSignal.dispatch(SignalEvent.REMOVE, pin);
+    }
+
+    public async openFilePicker(selectMultiple: boolean, pickDir?: boolean, filters?: FileFilter[], title?: string, buttonText?: string): Promise<RemoteItem[] | null> {
+        throw new Error("Method not implemented.");
     }
 
     @serviceStartMethod
