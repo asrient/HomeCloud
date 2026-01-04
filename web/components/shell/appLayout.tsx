@@ -30,12 +30,10 @@ function SidebarArea() {
     )}>
         {isMacosTheme() && <div className="app-dragable h-[3rem] w-full"></div>}
         <ScrollArea className={cn(
-            "py-6",
             isMacosTheme() && " px-1 lg:pr-2",
-            isMacosTheme() ? "h-[calc(100vh-8rem)]" : "h-[calc(100vh-2.6rem)]",
+            isMacosTheme() ? "h-[calc(100vh-7.5rem)]" : "h-[calc(100vh-2.6rem)]",
         )}>
-            <div className='flex justify-start items-center pl-4'>
-            </div>
+            <div className="h-[1rem] w-full"></div>
             <AppSidebar />
         </ScrollArea>
         {isMacosTheme() && <DeviceBar />}

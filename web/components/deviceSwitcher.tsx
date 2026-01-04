@@ -81,11 +81,13 @@ export function DeviceSwitcher({
                         className={cn("h-7 bg-background flex items-center justify-between relative", isMacosTheme() && 'shadow-2xl border border-border/80')}
                         style={{ width }}>
                         <div>{!!selectedFingerprint && <ConnectionIcon connection={selectedPeer?.connection || null} size={14} />}</div>
-                        <div className="flex items-center justify-center text-ellipsis truncate max-w-[70%]">
+                        <div className="flex items-center justify-start text-start text-ellipsis truncate max-w-[70%]">
                             <Image src={getUrlFromIconKey(selectedPeer?.iconKey)} width={16} height={16} alt="Device icon" className='mr-2' />
                             {selectedPeer ? (selectedPeer.deviceName || 'Anonymous device') : 'This Device'}
                         </div>
-                        <div><ChevronsUpDown className='text-foreground/80' size={14} /></div>
+                        <div>
+                            <ChevronsUpDown className='text-foreground/80' size={14} />
+                        </div>
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent style={{ width }} align="center">

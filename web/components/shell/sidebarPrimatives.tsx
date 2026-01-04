@@ -37,7 +37,7 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick, isParent, isRef
                 isMatch && "bg-foreground/10",
                 isMatch && isWin11Theme() ? 'win11-selected' : 'border-none',
                 !isMacosTheme() && !isParent && 'pl-7',
-                isMacosTheme() && 'font-medium',
+                isMacosTheme() && 'font-normal',
                 "rounded-md sidebarItem w-full justify-start text-left text-ellipsis truncate h-8")}
         >
             {item.icon && <ThemedIcon name={item.icon} size={20} className={cn("mr-2")} type={isMacosTheme() ? "symbol" : "image"} />}
@@ -64,7 +64,7 @@ export function SidebarSectionView({ section, onRightClick, onClick }: {
     return (
         <div className={cn(
             !isMacosTheme() && 'py-2',
-            isMacosTheme() ? 'font-semibold text-sm text-foreground/80 px-1' : 'pl-2 font-normal text-sm text-foreground',
+            isMacosTheme() ? 'font-semibold text-xs text-foreground/80 px-1' : 'pl-2 font-normal text-sm text-foreground',
         )}>
             {
                 section.title && (<div className={cn(
@@ -99,7 +99,7 @@ export function SidebarView({ className, children }: {
     children?: React.ReactNode,
 }) {
     return (
-        <div className={cn("pb-12 space-y-4", className)}>
+        <div className={cn("pb-10 space-y-4", className)}>
             {children}
         </div>
     )

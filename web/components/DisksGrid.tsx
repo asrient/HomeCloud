@@ -3,6 +3,7 @@ import { useDisks } from "./hooks/useSystemState";
 import LoadingIcon from "./ui/loadingIcon";
 import Image from "next/image";
 import { folderViewUrl } from "@/lib/urls";
+import { cn, isMacosTheme, isWin11Theme } from "@/lib/utils";
 
 export function DisksGrid({ deviceFingerprint }: { deviceFingerprint: string | null }) {
     const { disks, isLoading } = useDisks(deviceFingerprint);
@@ -17,7 +18,10 @@ export function DisksGrid({ deviceFingerprint }: { deviceFingerprint: string | n
                     <Link key={disk.path}
                         href={folderViewUrl(deviceFingerprint, disk.path)}
                         title={`${((disk.size - disk.free) / disk.size * 100).toFixed(2)}% used`}
-                        className="rounded-lg p-4 overflow-hidden flex items-start gap-4"
+                        className={cn(
+                            "p-4 overflow-hidden flex items-start gap-4 hover:bg-secondary/50 transition-colors",
+                            isMacosTheme() ? "rounded-lg" : "rounded-sm"
+                        )}
                     >
                         <div className="flex justify-center items-center h-full">
                             <Image src="/icons/ssd.png" alt="Disk Icon" width={50} height={50} />
@@ -26,9 +30,9 @@ export function DisksGrid({ deviceFingerprint }: { deviceFingerprint: string | n
                             <h3 className="text-sm font-semibold mb-0.5">{disk.name}</h3>
                             <p className="text-sm text-foreground/80 mb-0.5">{(disk.size / (1024 ** 3)).toFixed(2)} GB</p>
                             {/* Progress bar showing used space */}
-                            <div className="w-full bg-muted rounded-full h-2 overflow-hidden max-w-[12rem]">
+                            <div className={cn("w-full bg-muted overflow-hidden max-w-[12rem]", isWin11Theme() ? "rounded-none h-2.5" : "rounded-full h-2")}>
                                 <div
-                                    className="bg-muted-foreground h-2 rounded-full transition-all duration-500"
+                                    className={cn("bg-muted-foreground transition-all duration-500", isWin11Theme() ? "h-2.5 rounded-none" : "h-2 rounded-full")}
                                     style={{ width: `${((disk.size - disk.free) / disk.size) * 100}%` }}
                                 ></div>
                             </div>

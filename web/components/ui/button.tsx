@@ -37,20 +37,25 @@ const buttonVariants = cva(
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
   VariantProps<typeof buttonVariants> {
-  asChild?: boolean
+  asChild?: boolean,
+  rounded?: boolean,
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button"
+  ({ className, variant, size, asChild = false, rounded, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+    let roundedClass = isWin11Theme() ? 'rounded-sm' : isMacosTheme() ? 'rounded-full' : 'rounded-md';
+    if (rounded !== undefined) {
+      roundedClass = rounded ? 'rounded-full' : 'rounded-md';
+    }
     return (
       <Comp
         className={cn(buttonVariants({
           variant,
           size,
           className: cn(
-            isWin11Theme() ? 'rounded-sm' : 'rounded-md',
-            isMacosTheme() && 'rounded-lg focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset font-medium',
+            roundedClass,
+            isMacosTheme() && 'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset font-medium',
             className
           )
         }),
