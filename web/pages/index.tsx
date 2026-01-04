@@ -22,6 +22,7 @@ import LoadingIcon from '@/components/ui/loadingIcon';
 import { Slider } from "@/components/ui/slider"
 import { DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DisksGrid } from '@/components/DisksGrid';
 
 const DrivesSection = ({
   fingerprint,
@@ -373,8 +374,11 @@ export default function Home() {
       <PageContent>
         {peer && <PeerInfoHero peer={peer} isThisDevice={selectedFingerprint === null} />}
         <QuickActionsBar deviceFingerprint={selectedFingerprint} />
-        <div className="p-4 space-y-8">
-          <DrivesSection fingerprint={selectedFingerprint} title="Storage" />
+        <div className='py-5 px-3'>
+          <div className='mb-3 font-semibold text-md'>
+            Storage
+          </div>
+        <DisksGrid deviceFingerprint={selectedFingerprint} />
         </div>
       </PageContent>
     </>
