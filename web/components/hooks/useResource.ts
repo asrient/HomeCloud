@@ -22,6 +22,9 @@ export const useResource = ({
     const { connections } = useAppState();
 
     const isConnected = useMemo(() => {
+        if (deviceFingerprint === null) {
+            return true;
+        }
         return connections.some(conn => conn.fingerprint === deviceFingerprint);
     }, [connections, deviceFingerprint]);
 
@@ -125,15 +128,19 @@ export const useResource = ({
 };
 
 export const useResourceWithPolling = ({
-    deviceFingerprint, load, interval,
+    deviceFingerprint, load, interval, clearSignals, setupSignals,
 }: {
     deviceFingerprint: string | null;
     load: (serviceController: ServiceController, shouldAbort: () => boolean) => Promise<void>;
     interval: number;
+    clearSignals?: (serviceController: ServiceController) => void;
+    setupSignals?: (serviceController: ServiceController) => void;
 }) => {
     const { isLoading, error, reload } = useResource({
         deviceFingerprint,
         load,
+        clearSignals,
+        setupSignals,
     });
 
     useEffect(() => {

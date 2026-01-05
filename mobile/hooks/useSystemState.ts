@@ -128,11 +128,12 @@ export const useMediaPlayback = (deviceFingerprint: string | null) => {
         });
     }, [clearSignals]);
 
-    const { isLoading, error, reload } = useResource({
+    const { isLoading, error, reload } = useResourceWithPolling({
         deviceFingerprint,
         load,
         setupSignals,
         clearSignals,
+        interval: 15 * 1000, // Poll every 15 seconds
     });
 
     const action = useCallback(async (type: 'play' | 'pause' | 'next' | 'previous') => {

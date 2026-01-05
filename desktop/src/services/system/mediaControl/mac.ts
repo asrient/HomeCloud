@@ -9,7 +9,7 @@ export class MacOSPlaybackWatcher {
     private lastInfo: AudioPlaybackInfo | null = null;
     private lastGetCallTs = 0;
 
-    private readonly POLL_INTERVAL = 5000;
+    private readonly POLL_INTERVAL = 3000;
     private readonly IDLE_TIMEOUT = 2 * 60 * 1000;
 
     constructor(onStateChange: StateCallback) {
@@ -74,7 +74,43 @@ tell application "System Events"
 end tell
         `;
 
-        await this.execAppleScript(musicScript);
+        const musicResult = await this.execAppleScript(musicScript);
+        if (musicResult === 'ok') return;
+
+        // Try QuickTime Player
+        const qtCommand = this.mapToQuickTimeCommand(command);
+        if (qtCommand) {
+            const quickTimeScript = `
+tell application "System Events"
+  if exists process "QuickTime Player" then
+    tell application "QuickTime Player"
+      if (count of documents) > 0 then
+        tell front document to ${qtCommand}
+        return "ok"
+      end if
+    end tell
+  end if
+end tell
+            `;
+
+            await this.execAppleScript(quickTimeScript);
+        }
+    }
+
+    private mapToQuickTimeCommand(command: string): string | null {
+        // QuickTime uses different command syntax
+        switch (command) {
+            case 'play':
+                return 'play';
+            case 'pause':
+                return 'pause';
+            case 'next track':
+                return 'step forward';
+            case 'previous track':
+                return 'step backward';
+            default:
+                return null;
+        }
     }
 
     private async refreshState(): Promise<void> {
@@ -131,12 +167,15 @@ end tell
     /** ---------------- Data Fetch ---------------- */
 
     private async fetchPlaybackInfo(): Promise<AudioPlaybackInfo | null> {
-        // Priority order: Spotify → Apple Music
+        // Priority order: Spotify → Apple Music → QuickTime Player
         const spotify = await this.querySpotify();
         if (spotify) return spotify;
 
         const music = await this.queryAppleMusic();
         if (music) return music;
+
+        const quicktime = await this.queryQuickTime();
+        if (quicktime) return quicktime;
 
         return null;
     }
@@ -222,6 +261,39 @@ end tell
             artistName: artist,
             albumName: album,
             isPlaying: state === "playing",
+        };
+    }
+
+    /** ---------------- QuickTime Player ---------------- */
+
+    private async queryQuickTime(): Promise<AudioPlaybackInfo | null> {
+        const script = `
+tell application "System Events"
+  if exists process "QuickTime Player" then
+    tell application "QuickTime Player"
+      if (count of documents) > 0 then
+        tell front document
+          set isPlaying to playing
+          set docName to name
+          return (isPlaying as string) & "||" & docName
+        end tell
+      end if
+    end tell
+  end if
+end tell
+    `;
+
+        const res = await this.execAppleScript(script);
+        // console.log('QuickTime AppleScript result:', res);
+        if (!res) return null;
+
+        const [playing, docName] = res.split("||");
+
+        return {
+            trackName: docName,
+            artistName: undefined,
+            albumName: undefined,
+            isPlaying: playing === "true",
         };
     }
 }

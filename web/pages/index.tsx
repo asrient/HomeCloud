@@ -10,7 +10,7 @@ import { FileList_, FileRemoteItem } from '@/lib/types';
 import { remoteItemToFileRemoteItem } from '@/lib/fileUtils';
 import { useAppState } from '@/components/hooks/useAppState';
 import { usePeer, usePeerConnectionState } from '@/components/hooks/usePeerState';
-import { cn, getServiceController, getUrlFromIconKey, isWin11Theme } from '@/lib/utils';
+import { cn, getServiceController, getUrlFromIconKey, isMacosTheme, isWin11Theme } from '@/lib/utils';
 import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionIcon } from '@/components/deviceSwitcher';
@@ -111,8 +111,8 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
             Now Playing
           </div>
 
-          <div className='flex flex-col lg:justify-center'>
-            <div className='font-semibold'>{mediaPlayback ? clipText(mediaPlayback.trackName, 50) : 'Not playing'}</div>
+          <div className={'flex flex-col items-center lg:items-start gap-1'}>
+            <div className='font-semibold truncate max-w-xs'>{mediaPlayback ? mediaPlayback.trackName : 'Not playing'}</div>
             <div className='text-xs text-foreground/80 truncate max-w-xs'>{mediaPlayback && mediaPlayback.artistName ? mediaPlayback.artistName : ''}</div>
           </div>
           <div className='flex flex-row space-x-4'>
