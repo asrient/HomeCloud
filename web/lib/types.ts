@@ -5,14 +5,6 @@ export type PeerState = PeerInfo & {
     connection: ConnectionInfo | null;
 }
 
-export interface File_ extends File {
-    path?: string;
-}
-
-export interface FileList_ extends FileList {
-    [index: number]: File_;
-}
-
 export type RemoteItemWithPeer = RemoteItem & {
     deviceFingerprint: string | null;
 }
@@ -68,4 +60,8 @@ export type PhotosFetchOptions = {
     ascending?: boolean;
     library: PhotoLibraryLocation;
     deviceFingerprint: string | null;
+}
+
+export type NativeUtils = {
+    getPathForFile: (file: File) => string;
 }

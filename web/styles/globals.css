@@ -142,9 +142,19 @@
     background-color: rgba(0, 0, 0, 0.5);
   }
 
+  .draggable {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
   button,
   a {
     cursor: default;
+  }
+
+  img, video, a {
+    -webkit-user-drag: none;
+    user-drag: none;
   }
 }
 

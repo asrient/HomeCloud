@@ -115,7 +115,7 @@ async function initModules() {
     getLocalServiceController: () => DesktopServiceController.getLocalInstance<DesktopServiceController>(),
     getRemoteServiceController: async (fingerprint: string) => {
       return DesktopServiceController.getRemoteInstance(fingerprint);
-    }
+    },
   };
   setModules(modules, global);
   const serviceController = DesktopServiceController.getLocalInstance<DesktopServiceController>();

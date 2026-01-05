@@ -26,6 +26,12 @@ export abstract class FilesService extends Service {
         // walk through the file path if a directory
         const fileStat = await this.fs.getStat(localFilePath);
         if (fileStat.type === "directory") {
+            // Recreate the directory on remote side
+            const remoteDirName = localFilePath.split(this.separator).pop() || 'folder';
+            const serviceController = await getServiceController(remoteFingerprint);
+            const remoteDir = await serviceController.files.fs.mkDir(remoteDirName, remoteFolderId);
+            const remoteDirPath = remoteDir.path;
+            // Read the directory contents
             const files = await this.fs.readDir(localFilePath);
             const promises = files.map(async (file, ind) => {
                 const filePath = file.path;
@@ -33,19 +39,17 @@ export abstract class FilesService extends Service {
                 if (ind > 0) {
                     await new Promise((resolve) => setTimeout(resolve, ind * 100));
                 }
-                return this._moveSingle(remoteFingerprint, remoteFolderId, filePath, deleteSource);
+                return this._moveSingle(remoteFingerprint, remoteDirPath, filePath, deleteSource);
             });
-            return Promise.allSettled(promises).then(results => {
-                const items = [];
-                results.forEach(result => {
-                    if (result.status === "fulfilled") {
-                        items.push(...result.value);
-                    } else {
-                        console.error("Failed to move file:", result.reason);
-                    }
-                });
-                return items;
-            });
+            await Promise.allSettled(promises);
+            if (deleteSource) {
+                try {
+                    await this.fs.unlink(localFilePath);
+                } catch (e) {
+                    console.error("Failed to delete source directory:", e);
+                }
+                return [remoteDir];
+            }
         } else {
             const serviceController = await getServiceController(remoteFingerprint);
             const fileContent = await this.fs.readFile(localFilePath);
@@ -53,6 +57,13 @@ export abstract class FilesService extends Service {
                 remoteFolderId,
                 fileContent
             );
+            if (deleteSource) {
+                try {
+                    await this.fs.unlink(localFilePath);
+                } catch (e) {
+                    console.error("Failed to delete source file:", e);
+                }
+            }
             return [remoteItem];
         }
     }

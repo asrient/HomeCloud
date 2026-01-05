@@ -1,6 +1,6 @@
 import { useRouter } from 'next/router'
 import { buildPageConfig, cn, getServiceController, isMacosTheme, isMobile } from '@/lib/utils'
-import { FileList_, FileRemoteItem } from "@/lib/types"
+import { FileRemoteItem } from "@/lib/types"
 import { RemoteItem } from 'shared/types'
 import { NextPageWithConfig } from '@/pages/_app'
 import FilesView, { SortBy, GroupBy } from '@/components/filesView'
@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import UploadFileSelector from '@/components/uploadFileSelector'
 import TextModal from '@/components/textModal'
 import FolderPath from '@/components/folderPath'
 import { folderViewUrl } from '@/lib/urls'
@@ -129,15 +128,16 @@ const Page: NextPageWithConfig = () => {
     setView(value as 'list' | 'grid')
   }
 
-  const onUpload = useCallback(async (files: FileList_) => {
+  const onUpload = useCallback(async (files: FileList) => {
+    console.log('Uploading files to remote folder', files);
     const serviceController = window.modules.getLocalServiceController();
     const filePaths: string[] = [];
     Object.values(files).forEach(file => {
-      if (file instanceof File && file.path) {
-        filePaths.push(file.path);
+      if (file instanceof File) {
+        filePaths.push(window.utils.getPathForFile(file));
       }
     });
-    const items = await serviceController.files.move(fingerprint, path, filePaths);
+    const items = await serviceController.files.move(fingerprint, path, filePaths, true);
     setRemoteItems((prevItems) => [...prevItems, ...items.map(toFileRemoteItem)]);
   }, [fingerprint, path, setRemoteItems, toFileRemoteItem])
 
@@ -440,13 +440,6 @@ const Page: NextPageWithConfig = () => {
           </Select>
         </MenuGroup>
         <MenuGroup>
-          <UploadFileSelector onUpload={onUpload} title='Upload files'>
-            <MenuButton>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-              </svg>
-            </MenuButton>
-          </UploadFileSelector>
           <TextModal onOpenChange={setNewFolderDialogOpen} isOpen={newFolderDialogOpen} onDone={onNewFolder} title='New Folder' buttonText='Create'>
             <MenuButton>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -456,7 +449,9 @@ const Page: NextPageWithConfig = () => {
           </TextModal>
         </MenuGroup>
       </PageBar>
-      <PageContent>
+      <PageContent
+        onDrop={onUpload}
+      >
         <ContextMenu>
           <ContextMenuTrigger>
             <div onClick={onClickOutside} className='min-h-[90vh]' onContextMenu={onRightClickOutside}>

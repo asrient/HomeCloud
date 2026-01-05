@@ -43,13 +43,25 @@ export function PageBar({ children, title, icon }: {
     )
 }
 
-export function PageContent({ children, className }: { children: React.ReactNode, className?: string }) {
+export function PageContent({ children, className, onDrop }: { children: React.ReactNode, className?: string, onDrop?: (files: FileList) => void }) {
     return (
-        <div className={cn(
-            'relative overflow-y-auto w-full',
-            isMacosTheme() ? 'h-[calc(100%-3rem)]' : 'h-[calc(100%-4rem)]',
-            className
-        )}>
+        <div
+            className={cn(
+                'relative overflow-y-auto w-full',
+                isMacosTheme() ? 'h-[calc(100%-3rem)]' : 'h-[calc(100%-4rem)]',
+                className
+            )}
+            onDragOver={onDrop ? (e) => {
+                e.preventDefault();
+            } : undefined}
+            onDrop={onDrop ? (e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    onDrop(e.dataTransfer.files);
+                    e.dataTransfer.clearData();
+                }
+            } : undefined}
+        >
             {children}
         </div>
     )
@@ -83,10 +95,10 @@ export function MenuGroup({ children }: {
     children: React.ReactNode
 }) {
     return (
-            <div className={cn('flex flex-row items-center text-xs mx-2 text-foreground',
-                isMacosTheme() && 'bg-white/80 dark:bg-foreground/5 rounded-full shadow-2xl'
-            )}>
-                {children}
-            </div>
+        <div className={cn('flex flex-row items-center text-xs mx-2 text-foreground',
+            isMacosTheme() && 'bg-white/80 dark:bg-foreground/5 rounded-full shadow-2xl'
+        )}>
+            {children}
+        </div>
     )
 }

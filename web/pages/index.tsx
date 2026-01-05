@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SortBy, Group } from '@/components/filesView';
 import { useFolder } from '@/components/hooks/useFolders';
 import { ClipboardContent, PeerInfo, RemoteItem } from 'shared/types';
-import { FileList_, FileRemoteItem } from '@/lib/types';
+import { FileRemoteItem } from '@/lib/types';
 import { remoteItemToFileRemoteItem } from '@/lib/fileUtils';
 import { useAppState } from '@/components/hooks/useAppState';
 import { usePeer, usePeerConnectionState } from '@/components/hooks/usePeerState';
