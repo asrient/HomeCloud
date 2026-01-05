@@ -12,6 +12,7 @@ import { getBatteryInfo, onBatteryInfoChanged } from "./batteryLevel";
 const nodeDiskInfo = require('node-disk-info');
 import path from "path";
 import { MacOSPlaybackWatcher } from "./mediaControl/mac";
+import { LinuxPlaybackWatcher } from "./mediaControl/linux";
 
 const POLL_INTERVAL = 5000; // Polling interval for accent color changes
 
@@ -31,6 +32,7 @@ function winPlaybackInfoToAudioPlaybackInfo(info: mediaControlWin.AudioPlaybackI
 class DesktopSystemService extends SystemService {
 
     private macPlaybackWatcher: MacOSPlaybackWatcher | null = null;
+    private linuxPlaybackWatcher: LinuxPlaybackWatcher | null = null;
 
     /**
      * Gets device information using cached values.
@@ -195,7 +197,7 @@ class DesktopSystemService extends SystemService {
 
     @exposed
     public async canControlAudioPlayback(): Promise<boolean> {
-        return process.platform === 'win32' || process.platform === 'darwin';
+        return process.platform === 'win32' || process.platform === 'darwin' || process.platform === 'linux';
     }
 
     @exposed
@@ -215,6 +217,8 @@ class DesktopSystemService extends SystemService {
             }
             const info = await this.macPlaybackWatcher.getPlaybackInfo();
             return info;
+        } else if (process.platform === 'linux' && this.linuxPlaybackWatcher) {
+            return this.linuxPlaybackWatcher.getPlaybackInfo();
         }
         throw new Error("Not supported.");
     }
@@ -225,6 +229,8 @@ class DesktopSystemService extends SystemService {
             return mediaControlWin.pauseAudioPlayback();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
             return this.macPlaybackWatcher.pause();
+        } else if (process.platform === 'linux' && this.linuxPlaybackWatcher) {
+            return this.linuxPlaybackWatcher.pause();
         }
         throw new Error("Not supported.");
     }
@@ -235,6 +241,8 @@ class DesktopSystemService extends SystemService {
             return mediaControlWin.playAudioPlayback();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
             return this.macPlaybackWatcher.play();
+        } else if (process.platform === 'linux' && this.linuxPlaybackWatcher) {
+            return this.linuxPlaybackWatcher.play();
         }
         throw new Error("Not supported.");
     }
@@ -256,6 +264,8 @@ class DesktopSystemService extends SystemService {
             return mediaControlWin.nextAudioTrack();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
             return this.macPlaybackWatcher.next();
+        } else if (process.platform === 'linux' && this.linuxPlaybackWatcher) {
+            return this.linuxPlaybackWatcher.next();
         }
         throw new Error("Not supported.");
     }
@@ -266,6 +276,8 @@ class DesktopSystemService extends SystemService {
             return mediaControlWin.previousAudioTrack();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
             return this.macPlaybackWatcher.previous();
+        } else if (process.platform === 'linux' && this.linuxPlaybackWatcher) {
+            return this.linuxPlaybackWatcher.previous();
         }
         throw new Error("Not supported.");
     }
@@ -347,8 +359,8 @@ class DesktopSystemService extends SystemService {
 
     @serviceStartMethod
     public async start() {
-        // We will only poll on windows
         if (process.platform === 'win32') {
+            // Accent color change listener only for Windows
             systemPreferences.on('accent-color-changed', (_ev, newColor: string) => {
                 console.log('Accent color changed:', newColor);
                 this.accentColorChangeSignal.dispatch(newColor);
@@ -363,8 +375,14 @@ class DesktopSystemService extends SystemService {
                 console.log('Audio playback info changed (macOS):', info);
                 this.audioPlaybackSignal.dispatch(info);
             });
+        } else if (process.platform === 'linux') {
+            this.linuxPlaybackWatcher = new LinuxPlaybackWatcher((info) => {
+                console.log('Audio playback info changed (Linux):', info);
+                this.audioPlaybackSignal.dispatch(info);
+            });
         }
 
+        // Battery info change listener
         onBatteryInfoChanged((info) => {
             this.batteryInfoSignal.dispatch(info);
         });

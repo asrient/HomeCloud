@@ -30,6 +30,7 @@
     "@electron/remote": "^2.1.2",
     "bonjour-service": "^1.2.1",
     "chokidar": "^4.0.3",
+    "dbus-next": "^0.10.2",
     "electron-squirrel-startup": "^1.0.1",
     "execa": "^9.6.1",
     "exifreader": "^4.26.0",

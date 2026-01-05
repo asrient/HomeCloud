@@ -4,23 +4,35 @@ import { execa } from 'execa';
 import { powerMonitor } from "electron";
 import { readFile } from 'fs/promises';
 
-async function batteryLevelMac(): Promise<number> {
+async function batteryLevelMac2(): Promise<number> {
     try {
-        const { stdout } = await execa('ioreg', ['-n', 'AppleSmartBattery', '-r', '-a']);
-        // Parse the output to find CurrentCapacity and MaxCapacity
-        const currentCapacityMatch = stdout.match(/"CurrentCapacity"\s*=\s*(\d+)/);
-        const maxCapacityMatch = stdout.match(/"MaxCapacity"\s*=\s*(\d+)/);
-
-        if (currentCapacityMatch && maxCapacityMatch) {
-            const current = parseInt(currentCapacityMatch[1]);
-            const max = parseInt(maxCapacityMatch[1]);
-            return current / max;
+        const { stdout } = await execa('pmset', ['-g', 'batt']);
+        const match = stdout.match(/(\d+)%/);
+        if (match) {
+            const percentage = parseInt(match[1]);
+            return percentage / 100;
         }
-        return 1;
+        throw new Error('Could not parse battery level from pmset output');
     } catch (error) {
-        console.error('Error getting battery level on Mac:', error);
-        return 1;
+        console.error('Error getting battery level on Mac (pmset):', error);
+        throw error;
     }
+}
+
+
+async function batteryLevelMac(): Promise<number> {
+    const { stdout } = await execa('ioreg', ['-n', 'AppleSmartBattery', '-r', '-a']);
+    // Parse the output to find CurrentCapacity and MaxCapacity
+    const currentCapacityMatch = stdout.match(/"CurrentCapacity"\s*=\s*(\d+)/);
+    const maxCapacityMatch = stdout.match(/"MaxCapacity"\s*=\s*(\d+)/);
+
+    if (currentCapacityMatch && maxCapacityMatch) {
+        const current = parseInt(currentCapacityMatch[1]);
+        const max = parseInt(maxCapacityMatch[1]);
+        return current / max;
+    }
+    console.warn('Could not parse battery capacity on Mac, using alternative method.');
+    return batteryLevelMac2();
 }
 
 async function batteryLevelWin(): Promise<number> {
@@ -61,7 +73,7 @@ async function batteryLevelLinux(): Promise<number> {
             return percentage / 100;
         } catch (fallbackError) {
             console.error('Error getting battery level on Linux:', error, fallbackError);
-            return 1;
+            throw error;
         }
     }
 }
