@@ -29,11 +29,11 @@ export abstract class SystemService extends Service {
     }
 
     @exposed
-    public async getAudioPlaybackInfo(): Promise<AudioPlaybackInfo> {
+    public async getAudioPlaybackInfo(): Promise<AudioPlaybackInfo | null> {
         throw new Error("Not supported.");
     }
 
-    public audioPlaybackSignal = new Signal<[AudioPlaybackInfo]>({ isExposed: true, isAllowAll: false });
+    public audioPlaybackSignal = new Signal<[AudioPlaybackInfo | null]>({ isExposed: true, isAllowAll: false });
 
     @exposed
     public async pauseAudioPlayback(): Promise<void> {

@@ -11,6 +11,7 @@ import { getBatteryInfo, onBatteryInfoChanged } from "./batteryLevel";
 // Need to use require for this module as it does not have proper ES module support
 const nodeDiskInfo = require('node-disk-info');
 import path from "path";
+import { MacOSPlaybackWatcher } from "./mediaControl/mac";
 
 const POLL_INTERVAL = 5000; // Polling interval for accent color changes
 
@@ -28,6 +29,8 @@ function winPlaybackInfoToAudioPlaybackInfo(info: mediaControlWin.AudioPlaybackI
  * Desktop implementation of SystemService using Electron APIs for system interactions.
  */
 class DesktopSystemService extends SystemService {
+
+    private macPlaybackWatcher: MacOSPlaybackWatcher | null = null;
 
     /**
      * Gets device information using cached values.
@@ -192,11 +195,11 @@ class DesktopSystemService extends SystemService {
 
     @exposed
     public async canControlAudioPlayback(): Promise<boolean> {
-        return process.platform === 'win32';
+        return process.platform === 'win32' || process.platform === 'darwin';
     }
 
     @exposed
-    public async getAudioPlaybackInfo(): Promise<AudioPlaybackInfo> {
+    public async getAudioPlaybackInfo(): Promise<AudioPlaybackInfo | null> {
         if (process.platform === 'win32') {
             console.log('Fetching audio playback info on Windows');
             try {
@@ -204,8 +207,14 @@ class DesktopSystemService extends SystemService {
                 return winPlaybackInfoToAudioPlaybackInfo(info);
             } catch (error) {
                 console.error('Error fetching audio playback info:', error);
-                throw error;
+                return null;
             }
+        } else if (process.platform === 'darwin') {
+            if (!this.macPlaybackWatcher) {
+                throw new Error('MacOSPlaybackWatcher not initialized');
+            }
+            const info = await this.macPlaybackWatcher.getPlaybackInfo();
+            return info;
         }
         throw new Error("Not supported.");
     }
@@ -214,6 +223,8 @@ class DesktopSystemService extends SystemService {
     public async pauseAudioPlayback(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.pauseAudioPlayback();
+        } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
+            return this.macPlaybackWatcher.pause();
         }
         throw new Error("Not supported.");
     }
@@ -222,6 +233,8 @@ class DesktopSystemService extends SystemService {
     public async playAudioPlayback(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.playAudioPlayback();
+        } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
+            return this.macPlaybackWatcher.play();
         }
         throw new Error("Not supported.");
     }
@@ -241,6 +254,8 @@ class DesktopSystemService extends SystemService {
     public async nextAudioTrack(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.nextAudioTrack();
+        } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
+            return this.macPlaybackWatcher.next();
         }
         throw new Error("Not supported.");
     }
@@ -249,6 +264,8 @@ class DesktopSystemService extends SystemService {
     public async previousAudioTrack(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.previousAudioTrack();
+        } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
+            return this.macPlaybackWatcher.previous();
         }
         throw new Error("Not supported.");
     }
@@ -341,7 +358,13 @@ class DesktopSystemService extends SystemService {
                 const playbackInfo = winPlaybackInfoToAudioPlaybackInfo(info);
                 this.audioPlaybackSignal.dispatch(playbackInfo);
             });
+        } else if (process.platform === 'darwin') {
+            this.macPlaybackWatcher = new MacOSPlaybackWatcher((info) => {
+                console.log('Audio playback info changed (macOS):', info);
+                this.audioPlaybackSignal.dispatch(info);
+            });
         }
+
         onBatteryInfoChanged((info) => {
             this.batteryInfoSignal.dispatch(info);
         });
