@@ -77,7 +77,7 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
                     </DialogTitle>
                     {
                         (description || error)
-                        && <DialogDescription>
+                        && <DialogDescription  className='break-all'>
                             {error ? <span className='text-red-500'>{error}</span> : description}
                         </DialogDescription>
                     }
