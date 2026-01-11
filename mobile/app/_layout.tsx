@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { initModules } from '@/lib/init';
 import { useAppState } from '@/hooks/useAppState';
+import { InputPopup } from '@/components/inputPopup';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -80,6 +81,7 @@ export default function RootLayout() {
           }} />
           <Stack.Screen name="+not-found" />
         </Stack>
+        <InputPopup />
         <StatusBar style="auto" />
       </ThemeProvider>
     </View>

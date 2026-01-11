@@ -1,5 +1,5 @@
 import { FileRemoteItem } from '@/lib/types';
-import { ActivityIndicator, Pressable, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, NativeSyntheticEvent, Pressable, View, ViewStyle } from 'react-native';
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,15 +10,28 @@ import { useFolder, usePinnedFolders } from '@/hooks/useFolders';
 import { canGenerateThumbnail, pinnedFolderToRemoteItem, getDefautIconUri, getFolderAppRoute, getKind } from '@/lib/fileUtils';
 import { RemoteItem } from 'shared/types';
 import { useRouter } from 'expo-router';
-import ContextMenu from 'react-native-context-menu-view';
+import ContextMenu, { ContextMenuAction, ContextMenuOnPressNativeEvent } from 'react-native-context-menu-view';
 import { UIIcon } from './ui/UIIcon';
 import { getPeerIconName } from './ui/getPeerIconName';
+
+
+export type FileSortBy = {
+    field: 'name' | 'size' | 'dateAdded';
+    direction: 'asc' | 'desc';
+}
+
+export type FileQuickActionType = {
+    type: 'rename' | 'delete' | 'move' | 'info' | 'export' | 'openInDevice' | 'sendToDevice';
+    targetDeviceFingerprint?: string;
+    item: FileRemoteItem;
+}
 
 // Shared hook for file item state and logic
 function useFileItemState(
     item: FileRemoteItem,
     isSelectMode: boolean | undefined,
-    onPress?: (item: FileRemoteItem) => Promise<void>
+    onPress?: (item: FileRemoteItem) => Promise<void>,
+    onQuickAction?: (action: FileQuickActionType) => void,
 ) {
     const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(item.thumbnail || null);
     const [isSelected, setIsSelected] = useState(item.isSelected || false);
@@ -77,36 +90,93 @@ function useFileItemState(
     const actions = useMemo(() => {
         const localSc = getLocalServiceController();
         const peers = localSc.app.getPeers();
-        const baseActions = [
-            {
-                title: "Open in device",
-                systemIcon: "macbook.and.iphone",
-                actions: peers.filter(peer => peer.fingerprint !== modules.config.FINGERPRINT).map((peer) => ({
-                    title: peer.deviceName,
-                    systemIcon: getPeerIconName(peer),
-                })),
-            },
+        let baseActions: ContextMenuAction[] = [
             { title: "Info", systemIcon: "info.circle" },
             { title: "Rename", systemIcon: "pencil" },
             { title: "Move", systemIcon: "folder" },
-            { title: "Delete", systemIcon: "trash", destructive: true },
+
         ];
-        if (isDir) {
-            return baseActions;
+        if (!isDir) {
+            baseActions.push({ title: "Export", systemIcon: "square.and.arrow.up" });
         }
-        return [
-            { title: "Export", systemIcon: "square.and.arrow.up" },
-            {
-                title: "Send to device",
-                systemIcon: "arrow.up.message",
-                actions: peers.filter(peer => peer.fingerprint !== item.deviceFingerprint).map((peer) => ({
-                    title: peer.deviceName,
-                    systemIcon: getPeerIconName(peer),
-                })),
-            },
-            ...baseActions,
-        ];
+        baseActions.push({ title: "Delete", systemIcon: "trash", destructive: true });
+        if (!isDir) {
+            baseActions = [
+                ...baseActions,
+                {
+                    title: "Open in device",
+                    systemIcon: "macbook.and.iphone",
+                    actions: peers.filter(peer => peer.fingerprint !== modules.config.FINGERPRINT).map((peer) => ({
+                        title: peer.deviceName,
+                        systemIcon: getPeerIconName(peer),
+                    })),
+                },
+                {
+                    title: "Send to device",
+                    systemIcon: "arrow.up.message",
+                    actions: peers.filter(peer => peer.fingerprint !== item.deviceFingerprint).map((peer) => ({
+                        title: peer.deviceName,
+                        systemIcon: getPeerIconName(peer),
+                    })),
+                },
+            ]
+        }
+        return baseActions;
     }, [isDir, item.deviceFingerprint]);
+
+    const handleQuickAction = useCallback((event: NativeSyntheticEvent<ContextMenuOnPressNativeEvent>) => {
+        if (!onQuickAction) {
+            return;
+        }
+        const action = event.nativeEvent.name;
+        const parentIndex = event.nativeEvent.indexPath.length > 1 ? event.nativeEvent.indexPath[0] : null;
+        let type: FileQuickActionType['type'] | null = null;
+        let targetDeviceFingerprint: string | undefined = undefined;
+        switch (action) {
+            case 'Info':
+                type = 'info';
+                break;
+            case 'Rename':
+                type = 'rename';
+                break;
+            case 'Move':
+                type = 'move';
+                break;
+            case 'Delete':
+                type = 'delete';
+                break;
+            case 'Export':
+                type = 'export';
+                break;
+            default:
+                type = null;
+        }
+        if ((parentIndex === 6 || parentIndex === 5) && !isDir) {
+            // Open in device or Send to device submenu
+            const deviceName = action;
+            const localSc = getLocalServiceController();
+            const peer = localSc.app.getPeers().find(p => p.deviceName === deviceName);
+            if (!peer) {
+                console.error('Peer not found for quick action:', deviceName);
+                return;
+            }
+            targetDeviceFingerprint = peer.fingerprint;
+            if (parentIndex === 5) {
+                type = 'openInDevice';
+            } else if (parentIndex === 6) {
+                type = 'sendToDevice';
+            }
+        }
+        if (!type) {
+            console.error('Unknown quick action type for action:', action);
+            return;
+        }
+        onQuickAction({
+            type,
+            targetDeviceFingerprint,
+            item,
+        });
+    }, [isDir, item, onQuickAction]);
 
     return {
         thumbnailSrc,
@@ -116,11 +186,18 @@ function useFileItemState(
         handlePress,
         actions,
         fileKind,
+        handleQuickAction,
     };
 }
 
-export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu }: { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean, disableContextMenu?: boolean }) {
-    const { thumbnailSrc, isSelected, isPreviewLoading, handlePress, actions, fileKind } = useFileItemState(item, isSelectMode, onPress);
+export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu, onQuickAction }: {
+    item: FileRemoteItem,
+    onPress?: (item: FileRemoteItem) => Promise<void>,
+    isSelectMode?: boolean,
+    disableContextMenu?: boolean,
+    onQuickAction?: (action: FileQuickActionType) => void;
+}) {
+    const { thumbnailSrc, isSelected, isPreviewLoading, handlePress, actions, fileKind, handleQuickAction } = useFileItemState(item, isSelectMode, onPress, onQuickAction);
 
     const content = (<Pressable
         disabled={isPreviewLoading}
@@ -171,10 +248,7 @@ export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu 
             // title='Meow'
             actions={actions}
             disabled={isSelectMode || disableContextMenu}
-            onPress={(event) => {
-                const action = event.nativeEvent.name;
-                console.log("Context menu action pressed", action);
-            }}
+            onPress={handleQuickAction}
             onPreviewPress={handlePress}
         >
             {content}
@@ -182,8 +256,9 @@ export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu 
     );
 }
 
-export function FileListItem({ item, onPress, isSelectMode, disableContextMenu }: { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean, disableContextMenu?: boolean }) {
-    const { thumbnailSrc, isSelected, isPreviewLoading, isDir, handlePress, actions, fileKind } = useFileItemState(item, isSelectMode, onPress);
+export function FileListItem({ item, onPress, isSelectMode, disableContextMenu, onQuickAction }:
+    { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean, disableContextMenu?: boolean, onQuickAction?: (action: FileQuickActionType) => void }) {
+    const { thumbnailSrc, isSelected, isPreviewLoading, isDir, handlePress, actions, fileKind, handleQuickAction } = useFileItemState(item, isSelectMode, onPress, onQuickAction);
     let subText: string = fileKind;
     if (!isDir) {
         subText += `  ${formatFileSize(item.size || 0)}`;
@@ -240,10 +315,7 @@ export function FileListItem({ item, onPress, isSelectMode, disableContextMenu }
         <ContextMenu
             actions={actions}
             disabled={isSelectMode || disableContextMenu}
-            onPress={(event) => {
-                const action = event.nativeEvent.name;
-                console.log("Context menu action pressed", action);
-            }}
+            onPress={handleQuickAction}
             onPreviewPress={handlePress}
         >
             {content}
@@ -261,6 +333,8 @@ export type GridPropsCommon = {
     disablePreview?: boolean;
     disableContextMenu?: boolean;
     viewMode?: 'grid' | 'list';
+    sortBy?: FileSortBy;
+    onQuickAction?: (action: FileQuickActionType) => void;
 }
 
 export type FilesGridProps = GridPropsCommon & {
@@ -281,9 +355,29 @@ export type PinnedFoldersGridProps = GridPropsCommon & {
     hideEmpty?: boolean;
 }
 
-export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error, disablePreview, viewMode = 'grid', disableContextMenu }: FilesGridProps) {
+export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error, disablePreview, viewMode = 'grid', disableContextMenu, sortBy, onQuickAction }: FilesGridProps) {
     const [renderKey, setRenderKey] = useState(0);
     const router = useRouter();
+
+    const sortedItems = useMemo(() => {
+        if (!sortBy) {
+            return items;
+        }
+        const sorted = [...items];
+        sorted.sort((a, b) => {
+            let compare = 0;
+            if (sortBy.field === 'name') {
+                compare = a.name.localeCompare(b.name);
+            } else if (sortBy.field === 'size') {
+                compare = (a.size || 0) - (b.size || 0);
+            } else if (sortBy.field === 'dateAdded') {
+                // compare the dates
+                compare = (new Date(a.createdAt || 0)).getTime() - (new Date(b.createdAt || 0)).getTime();
+            }
+            return sortBy.direction === 'asc' ? compare : -compare;
+        });
+        return sorted;
+    }, [items, sortBy]);
 
     useEffect(() => {
         // Force re-render when selectMode or viewMode changes to update thumbnails
@@ -338,6 +432,12 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
         }
     }, [selectMode, onSelect, onDeselect, router, onPreview, previewFile]);
 
+    const handleQuickAction = useCallback((action: FileQuickActionType) => {
+        if (onQuickAction) {
+            onQuickAction(action);
+        }
+    }, [onQuickAction]);
+
     if (isLoading) {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
@@ -359,7 +459,7 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
             <FlashList
                 ListHeaderComponent={headerComponent}
                 ListFooterComponent={footerComponent}
-                data={items}
+                data={sortedItems}
                 extraData={renderKey}
                 keyExtractor={(item) => item.deviceFingerprint ? printFingerprint(item.deviceFingerprint) + '|' + item.path : item.path}
                 numColumns={viewMode === 'grid' ? 3 : 1}
@@ -368,10 +468,10 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
                 renderItem={({ item }) =>
                     viewMode === 'grid' ? (
                         <View style={{ flex: 1 / 3, aspectRatio: 1, margin: 1 }}>
-                            <FileThumbnail item={item} isSelectMode={selectMode} onPress={handleFilePress} disableContextMenu={disableContextMenu} />
+                            <FileThumbnail item={item} isSelectMode={selectMode} onPress={handleFilePress} disableContextMenu={disableContextMenu} onQuickAction={handleQuickAction} />
                         </View>
                     ) : (
-                        <FileListItem item={item} isSelectMode={selectMode} onPress={handleFilePress} disableContextMenu={disableContextMenu} />
+                        <FileListItem item={item} isSelectMode={selectMode} onPress={handleFilePress} disableContextMenu={disableContextMenu} onQuickAction={handleQuickAction} />
                     )
                 }
                 ListEmptyComponent={
