@@ -17,6 +17,8 @@ export abstract class SystemService extends Service {
 
     public abstract copyToClipboard(text: string, type?: 'text' | 'link' | 'html' | 'rtf'): void;
 
+    public abstract share(options: { title?: string; description?: string; content?: string; files?: string[], type: 'url' | 'text' | 'file' }): Promise<void>;
+
     // Audio
     @exposed
     public async canControlAudioPlayback(): Promise<boolean> {

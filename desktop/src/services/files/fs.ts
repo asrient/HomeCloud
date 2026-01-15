@@ -8,7 +8,7 @@ import { exposed } from "shared/servicePrimatives";
 export default class LocalFsDriver extends FsDriver {
 
   private normalizePath(filePath: string) {
-    if(filePath.endsWith(':')) {
+    if (filePath.endsWith(':')) {
       // Special case for Windows drive letters
       filePath += path.sep;
     }
@@ -78,14 +78,14 @@ export default class LocalFsDriver extends FsDriver {
   public override async mkDir(name: string, baseId: string) {
     baseId = this.normalizePath(baseId);
     const dirPath = path.join(baseId, this.normalizeFilename(name));
-    await fs.mkdir(dirPath);
+    await fs.mkdir(dirPath, { recursive: false });
     return this.toRemoteItem(dirPath);
   }
 
   @exposed
   public override async unlink(id: string) {
     id = this.normalizePath(id);
-    await fs.unlink(id);
+    await fs.rm(id, { recursive: true, force: true });
   }
 
   @exposed
@@ -152,5 +152,9 @@ export default class LocalFsDriver extends FsDriver {
   public override async getStat(id: string): Promise<RemoteItem> {
     id = this.normalizePath(id);
     return this.toRemoteItem(id);
+  }
+
+  public joinPaths(...paths: string[]): string {
+    return path.join(...paths);
   }
 }

@@ -120,14 +120,14 @@ export default class MobileFsDriver extends FsDriver {
     baseId = pathToUri(baseId);
     const dirPath = Paths.join(baseId, this.normalizeFilename(name));
     const directory = new Directory(dirPath);
-    directory.create();
+    directory.create({ intermediates: true, idempotent: true });
     return this.toRemoteItem({ item: directory });
   }
 
   @exposed
   public override async unlink(id: string) {
     id = pathToUri(id);
-    await FileSystem.deleteAsync(id);
+    await FileSystem.deleteAsync(id, { idempotent: true });
   }
 
   @exposed
@@ -250,5 +250,9 @@ export default class MobileFsDriver extends FsDriver {
   public override async getStat(id: string): Promise<RemoteItem> {
     id = pathToUri(id);
     return this.toRemoteItem({ item: id, loadStat: true });
+  }
+
+  public override joinPaths(...paths: string[]): string {
+    return Paths.join(...paths);
   }
 }

@@ -5,7 +5,6 @@ import { UIStatusBar } from '@/components/ui/UIStatusBar';
 import { FileRemoteItem, RemoteItemWithPeer } from '@/lib/types';
 import { FolderFilesGrid } from '@/components/filesGrid';
 import { useAppState } from '@/hooks/useAppState';
-import { getDeviceIconName } from './ui/getPeerIconName';
 import { UIIcon } from './ui/UIIcon';
 import DeviceIcon from './deviceIcon';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -23,7 +22,7 @@ export type FilePickerProps = {
 }
 
 function DeviceList({ selectDevice }: { selectDevice: (fingerprint: string | null) => void }) {
-    const { peers, deviceInfo } = useAppState();
+    const { peers } = useAppState();
     const themeBorderColor = useThemeColor({}, 'seperator');
     return (
         <View>
@@ -43,7 +42,7 @@ function DeviceList({ selectDevice }: { selectDevice: (fingerprint: string | nul
                         borderBottomWidth: 0.5
                     }}
                 >
-                    <DeviceIcon size={30} iconKey={peer ? getDeviceIconName(peer.deviceInfo) : getDeviceIconName(deviceInfo)} />
+                    <DeviceIcon size={30} iconKey={peer ? peer.iconKey : null} />
                     <UIText size="md">{name}</UIText>
                     <View style={{ flex: 1 }} />
                     <UIIcon name="chevron.forward" size={18} themeColor="textTertiary" />

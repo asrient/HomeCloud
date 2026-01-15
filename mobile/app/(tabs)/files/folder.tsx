@@ -11,7 +11,7 @@ import { FileRemoteItem } from '@/lib/types';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import ContextMenu from 'react-native-context-menu-view';
 import { useInputPopup } from '@/hooks/usePopup';
-import { getServiceController } from '@/lib/utils';
+import { getLocalServiceController, getServiceController } from '@/lib/utils';
 import { UIText } from '@/components/ui/UIText';
 import { useFolder } from '@/hooks/useFolders';
 import { RemoteItem } from 'shared/types';
@@ -238,6 +238,20 @@ export default function FolderScreen() {
     }
   }, [setRemoteItems, itemsToMove]);
 
+  const shareItem = useCallback(async (item: FileRemoteItem) => {
+    try {
+      //setCurrentOperation('Preparing..');
+      const localSc = getLocalServiceController();
+      await localSc.files.shareFiles(item.deviceFingerprint || null, [item.path]);
+    }
+    catch (error) {
+      console.error('Failed to share item:', error);
+      Alert.alert('Error', 'Failed to share item. Please try again.');
+    } finally {
+      //setCurrentOperation(null);
+    }
+  }, []);
+
   useEffect(() => {
     navigation.setOptions({
       title: folderName,
@@ -294,7 +308,6 @@ export default function FolderScreen() {
           </>;
         }
         return (<>
-          <UIHeaderButton name="square.and.arrow.up" onPress={() => { }} />
           <UIHeaderButton name="arrow.up.message" onPress={() => setItemsToMove(selectedFiles)} />
           <UIHeaderButton name="trash" onPress={deleteSelectedItems} />
           <UIHeaderButton onPress={() => setSelectMode(false)} isHighlight={true} name='xmark' />
@@ -358,6 +371,7 @@ export default function FolderScreen() {
         break;
       case 'export':
         // Export file
+        shareItem(action.item);
         break;
       case 'sendToDevice':
         if (action.targetDeviceFingerprint !== undefined) {
@@ -367,7 +381,7 @@ export default function FolderScreen() {
       default:
         console.warn('Unknown quick action:', action);
     }
-  }, [deleteItems, openInDevice, renameItem, sendToDevice]);
+  }, [deleteItems, openInDevice, renameItem, sendToDevice, shareItem]);
 
   return (
     <UIView style={{ flex: 1 }}>

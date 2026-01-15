@@ -12,6 +12,8 @@ import * as Clipboard from 'expo-clipboard';
 import { VolumeManager } from 'react-native-volume-manager';
 import { getPowerStateAsync, BatteryState, addBatteryLevelListener, addBatteryStateListener, addLowPowerModeListener } from 'expo-battery';
 // import { startActivityAsync, ActivityAction } from 'expo-intent-launcher';
+import { shareAsync } from 'expo-sharing';
+import mime from 'mime';
 
 /**
  * Mobile implementation of SystemService using React Native APIs for system interactions.
@@ -253,6 +255,47 @@ class MobileSystemService extends SystemService {
             disks.push(disk);
         }
         return disks;
+    }
+
+    public async share(options: { title?: string; description?: string; content?: string; files?: string[]; type: "url" | "text" | "file"; }): Promise<void> {
+        if (options.type === 'file' && options.files && options.files.length > 1) {
+            throw new Error("Sharing multiple files is not supported on mobile.");
+        }
+        let content = options.content || '';
+        if (options.type === 'file' && options.files && options.files.length > 0) {
+            content = pathToUri(options.files[0]);
+            console.log('Sharing file:', content);
+        }
+        let mimeType = 'text/plain';
+        let UTI = 'public.data';
+        switch (options.type) {
+            case 'url':
+                mimeType = 'text/plain';
+                UTI = 'public.url';
+                break;
+            case 'text':
+                mimeType = 'text/plain';
+                UTI = 'public.plain-text';
+                break;
+            case 'file':
+                mimeType = mime.getType(content) || 'application/octet-stream';
+                if (mimeType.startsWith('image/')) {
+                    UTI = 'public.image';
+                } else if (mimeType.startsWith('video/')) {
+                    UTI = 'public.video';
+                } else if (mimeType.startsWith('audio/')) {
+                    UTI = 'public.audio';
+                } else if (mimeType === 'application/pdf') {
+                    UTI = 'com.adobe.pdf';
+                }
+                break;
+        }
+
+        await shareAsync(content, {
+            dialogTitle: options.title || 'Share',
+            mimeType,
+            UTI,
+        });
     }
 
     @serviceStartMethod

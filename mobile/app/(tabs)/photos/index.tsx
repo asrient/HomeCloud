@@ -3,15 +3,16 @@ import { UIView } from '@/components/ui/UIView';
 import { useAppState } from '@/hooks/useAppState';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { Stack } from 'expo-router';
-import { View } from 'react-native';
+import { Alert, Platform, View } from 'react-native';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import PhotosLibrarySelectorModal from '@/components/photosLibrarySelectorModal';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PhotoLibraryLocation } from 'shared/types';
 import { usePhotoLibraries } from '@/hooks/usePhotos';
-import { PhotosGrid } from '@/components/photosGrid';
+import { PhotosGrid, PhotosQuickAction } from '@/components/photosGrid';
 import { PhotosSortOption, PhotoView } from '@/lib/types';
 import { UIButton } from '@/components/ui/UIButton';
+import { getLocalServiceController, getServiceController } from '@/lib/utils';
 
 export default function PhotosScreen() {
   const headerHeight = useHeaderHeight();
@@ -28,10 +29,13 @@ export default function PhotosScreen() {
 
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<PhotoView[]>([]);
+  const [deletedPhotoIds, setDeletedPhotoIds] = useState<string[]>([]);
 
   useEffect(() => {
     setSelectedLibrary(null);
     setSelectMode(false);
+    setSelectedPhotos([]);
+    setDeletedPhotoIds([]);
     currentFingerprintRef.current = selectedFingerprint;
   }, [selectedFingerprint]);
 
@@ -57,6 +61,98 @@ export default function PhotosScreen() {
       prevSelected.filter((p) => p.id !== photo.id)
     );
   }, []);
+
+  const sharePhoto = useCallback(async (photo: PhotoView) => {
+    const localSc = getLocalServiceController();
+    const forceCache = photo.deviceFingerprint === null && Platform.OS === 'ios';
+    console.log("Sharing photo with forceCache =", forceCache);
+    try {
+      await localSc.files.shareFiles(photo.deviceFingerprint, [photo.fileId], forceCache);
+    } catch (e) {
+      console.error("Failed to share photo:", e);
+      Alert.alert("Error", "Failed to share photo. Please try again.");
+    }
+  }, []);
+
+  const deletePhotos = useCallback(async (photos: PhotoView[]) => {
+    if (!selectedLibrary) return;
+
+    Alert.alert("Confirm Delete", `Are you sure you want to delete ${photos.length} photo(s)? This action cannot be undone.`, [
+      {
+        text: "Cancel",
+        style: "cancel"
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const sc = await getServiceController(selectedFingerprint);
+            const resp = await sc.photos.deletePhotos(selectedLibrary.id, photos.map(p => p.fileId));
+            if (resp.deleteCount === 0) {
+              Alert.alert("Error", "Could not delete photos. Please try again.");
+            } else {
+              setDeletedPhotoIds((prev) => [...prev, ...resp.deletedIds]);
+              setSelectedPhotos((prevSelected) =>
+                prevSelected.filter((p) => !resp.deletedIds.includes(p.id))
+              );
+            }
+          } catch (e) {
+            console.error("Failed to delete photos:", e);
+            Alert.alert("Error", "Failed to delete photos. Please try again.");
+          }
+        }
+      }
+    ]);
+  }, [selectedFingerprint, selectedLibrary]);
+
+  const openInDevice = useCallback(async (photo: PhotoView, destFingerprint: string) => {
+    try {
+      const sc = await getServiceController(destFingerprint);
+      await sc.files.openFile(photo.deviceFingerprint || modules.config.FINGERPRINT, photo.fileId);
+    }
+    catch (error) {
+      console.error('Failed to open item in device:', error);
+      Alert.alert('Error', 'Failed to open item in device. Please try again.');
+    }
+  }, []);
+
+  const sendToDevice = useCallback(async (items: PhotoView[], destFingerprint: string | null) => {
+    try {
+      const sc = await getServiceController(destFingerprint);
+      for (const item of items) {
+        await sc.files.download(item.deviceFingerprint || modules.config.FINGERPRINT, item.fileId);
+      }
+    }
+    catch (error) {
+      console.error('Failed to send items to device:', error);
+      Alert.alert('Error', 'Failed to send items to device. Please try again.');
+    }
+  }, []);
+
+  const handleQuickAction = useCallback((action: PhotosQuickAction) => {
+    switch (action.type) {
+      case 'export':
+        sharePhoto(action.photo);
+        break;
+      case 'openInDevice':
+        if (action.targetDeviceFingerprint) {
+          openInDevice(action.photo, action.targetDeviceFingerprint);
+        }
+        break;
+      case 'sendToDevice':
+        sendToDevice([action.photo], action.targetDeviceFingerprint || null);
+        break;
+      case 'delete':
+        deletePhotos([action.photo]);
+        break;
+      case 'info':
+        // Implement info display logic here
+        break;
+      default:
+        console.warn('Unknown action type:', action.type);
+    }
+  }, [sharePhoto, deletePhotos, openInDevice, sendToDevice]);
 
   const fetchOpts = useMemo(() => {
     if (selectedFingerprint !== currentFingerprintRef.current) {
@@ -86,8 +182,17 @@ export default function PhotosScreen() {
             if (!selectMode) return null;
             return (
               <>
-                <UIHeaderButton name="trash" onPress={() => { }} />
-                <UIHeaderButton name="square.and.arrow.up" onPress={() => { }} />
+                <UIHeaderButton name="trash" disabled={selectedPhotos.length === 0} onPress={() => {
+                  deletePhotos(selectedPhotos);
+                }} />
+                <UIHeaderButton
+                  disabled={selectedPhotos.length !== 1}
+                  name="square.and.arrow.up"
+                  onPress={() => {
+                    if (selectedPhotos.length === 1) {
+                      sharePhoto(selectedPhotos[0]);
+                    }
+                  }} />
               </>
             );
           }
@@ -97,9 +202,11 @@ export default function PhotosScreen() {
         fetchOpts &&
         <PhotosGrid
           fetchOpts={fetchOpts}
+          deletedIds={deletedPhotoIds}
           selectMode={selectMode}
           onSelectPhoto={handleSelectPhoto}
           onDeselectPhoto={handleDeselectPhoto}
+          onQuickAction={handleQuickAction}
           headerComponent={<View style={{ paddingTop: headerHeight }} >
             <DeviceSelectorRow />
           </View>}

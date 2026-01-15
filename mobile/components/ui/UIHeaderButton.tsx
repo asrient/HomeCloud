@@ -9,11 +9,13 @@ export function UIHeaderButton({
     text,
     onPress,
     isHighlight,
+    disabled,
 }: {
     name?: SymbolViewProps['name'];
     text?: string;
     onPress?: () => void;
     isHighlight?: boolean;
+    disabled?: boolean;
 }) {
     const themeColor = useThemeColor({}, 'icon');
 
@@ -22,7 +24,7 @@ export function UIHeaderButton({
     const contentColor = isHighlight ? highlightColor : themeColor;
 
     return (
-        <HeaderButton onPress={onPress}>
+        <HeaderButton disabled={disabled} onPress={onPress}>
             {
                 name && <UIIcon
                     name={name}

@@ -6,6 +6,7 @@ import Signal from "./signals";
 import { getServiceController } from "./utils"
 
 const PINNED_FOLDERS_KEY = "pinnedFolders";
+const SHARE_CACHE_DIRNAME = "ShareCache";
 
 export abstract class FilesService extends Service {
     protected store: ConfigStorage;
@@ -102,6 +103,59 @@ export abstract class FilesService extends Service {
 
     protected abstract _openRemoteFile(remoteFingerprint: string, remotePath: string): Promise<void>;
 
+    private getShareCacheDir() {
+        return this.fs.joinPaths(modules.config.DATA_DIR, SHARE_CACHE_DIRNAME);
+    }
+
+    private shareCacheCleanupTimer: any = null;
+
+    private async clearShareCache() {
+        const cacheDir = this.getShareCacheDir();
+        await this.fs.unlink(cacheDir);
+        // recreate the directory
+        await this.fs.mkDir(SHARE_CACHE_DIRNAME, modules.config.DATA_DIR);
+    }
+
+    public async shareFiles(fingerprint: string | null, paths: string[], forceCache?: boolean): Promise<void> {
+        if (paths.length === 0) {
+            throw new Error("No files to share.");
+        }
+        if (fingerprint === null && !forceCache) {
+            this.shareLocalFiles(paths);
+            return;
+        }
+        const serviceController = await getServiceController(fingerprint);
+        if (this.shareCacheCleanupTimer !== null) {
+            clearTimeout(this.shareCacheCleanupTimer);
+            this.shareCacheCleanupTimer = null;
+        }
+        await this.clearShareCache();
+        // todo: there is a potential issue of name collisions here.
+        const createdItems = await serviceController.files.move(fingerprint === null ? null : modules.config.FINGERPRINT, this.getShareCacheDir(), paths, false);
+        console.log("Created share cache items:", createdItems);
+        const sharePaths = createdItems.map(item => item.path);
+        this.shareLocalFiles(sharePaths);
+        // start cleanup timer
+        this.shareCacheCleanupTimer = setTimeout(() => {
+            this.clearShareCache()
+                .then(() => {
+                    console.log("Share cache cleared.");
+                })
+                .catch((e) => {
+                    console.error("Failed to clear share cache:", e);
+                });
+        }, 10 * 60 * 1000); // 10 minutes
+    }
+
+    public async shareLocalFiles(paths: string[]): Promise<void> {
+        const localSc = modules.getLocalServiceController();
+        localSc.system.share({
+            title: "Share Files",
+            files: paths,
+            type: 'file'
+        })
+    }
+
     @exposed
     public async openFile(deviceFingerprint: string | null, path: string): Promise<void> {
         if (deviceFingerprint === null) {
@@ -155,6 +209,7 @@ export abstract class FilesService extends Service {
 
     @serviceStartMethod
     public async start() {
+        await this.clearShareCache();
     }
 
     @serviceStopMethod

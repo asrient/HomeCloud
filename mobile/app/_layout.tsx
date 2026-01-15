@@ -9,6 +9,7 @@ import { View } from 'react-native';
 import { initModules } from '@/lib/init';
 import { useAppState } from '@/hooks/useAppState';
 import { InputPopup } from '@/components/inputPopup';
+import { useKeepAwake } from 'expo-keep-awake';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -23,6 +24,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [modulesLoaded, setModulesLoaded] = useState(false);
   const { loadAppState, clearSignals, isInitialized } = useAppState();
+  useKeepAwake();
 
   useEffect(() => {
     async function loadModules() {

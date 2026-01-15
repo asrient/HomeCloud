@@ -1,7 +1,7 @@
 import { SystemService } from "shared/systemService";
 import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
-import { dialog, BrowserWindow, shell, systemPreferences, clipboard } from "electron";
+import { dialog, BrowserWindow, shell, systemPreferences, clipboard, ShareMenu, SharingItem } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails, WinDriveType } from "../../types";
 import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
@@ -13,8 +13,6 @@ const nodeDiskInfo = require('node-disk-info');
 import path from "path";
 import { MacOSPlaybackWatcher } from "./mediaControl/mac";
 import { LinuxPlaybackWatcher } from "./mediaControl/linux";
-
-const POLL_INTERVAL = 5000; // Polling interval for accent color changes
 
 function winPlaybackInfoToAudioPlaybackInfo(info: mediaControlWin.AudioPlaybackInfoWin): AudioPlaybackInfo {
     const playbackInfo: AudioPlaybackInfo = {
@@ -355,6 +353,27 @@ class DesktopSystemService extends SystemService {
             return disks;
         }
         throw new Error("Not supported.");
+    }
+
+    public async share(options: { title?: string; description?: string; content?: string; files?: string[]; type: "url" | "text" | "file"; }): Promise<void> {
+        const focusedWindow = BrowserWindow.getFocusedWindow();
+        const sharingItem: SharingItem = {};
+
+        if (options.type === 'file' && options.files) {
+            sharingItem.filePaths = options.files;
+        } else if (options.type === 'text' && options.content) {
+            sharingItem.texts = [options.content];
+        } else if (options.type === 'url' && options.content) {
+            sharingItem.urls = [options.content];
+        } else {
+            throw new Error("Invalid share options.");
+        }
+
+        const shareMenu = new ShareMenu(sharingItem);
+
+        shareMenu.popup({
+            window: focusedWindow || undefined,
+        });
     }
 
     @serviceStartMethod

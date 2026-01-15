@@ -113,4 +113,8 @@ export class FsDriver {
             return this.mkDir(name, baseId);
         }
     }
+
+    public joinPaths(...paths: string[]): string {
+        throw new Error("Not implemented");
+    }
 }

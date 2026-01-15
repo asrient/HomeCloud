@@ -36,7 +36,7 @@ export function pathToUri(filePath: string) {
     if (parts.length > 0 && drivesMapping[parts[0]]) {
         parts[0] = drivesMapping[parts[0]];
     }
-    return parts.join('/');
+    return Paths.join(...parts);
 }
 
 export function uriToPath(filePath: string): string {
@@ -48,7 +48,7 @@ export function uriToPath(filePath: string): string {
                 relativePath = relativePath.slice(1);
             }
             // console.log('original path:', filePath, 'mapped to:', `/${key}/${relativePath}`);
-            return `/${key}/${relativePath}`;
+            return Paths.join('/', key, relativePath);
         }
     }
     return filePath; // If no mapping found, return as is

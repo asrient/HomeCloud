@@ -9,7 +9,7 @@ export function ThumbnailCheckbox({ isSelected, position, disabled }: {
 }) {
     const highlightColor = useThemeColor({}, 'highlight');
     const highlightTextColor = useThemeColor({}, 'highlightText');
-    const textTertiaryColor = useThemeColor({}, 'textTertiary');
+    const disabledColor = useThemeColor({}, 'seperator');
 
     let positionStyles: ViewStyle = {
         position: 'absolute',
@@ -40,11 +40,11 @@ export function ThumbnailCheckbox({ isSelected, position, disabled }: {
             width: 24,
             height: 24,
             borderRadius: 12,
-            backgroundColor: isSelected ? highlightColor : disabled ? textTertiaryColor : 'rgba(255, 255, 255, 0.7)',
+            backgroundColor: isSelected ? highlightColor : disabled ? disabledColor : 'rgba(255, 255, 255, 0.7)',
             justifyContent: 'center',
             alignItems: 'center',
             borderWidth: 1,
-            borderColor: isSelected ? highlightTextColor : textTertiaryColor,
+            borderColor: isSelected ? highlightTextColor : disabledColor,
         }}>
             {isSelected &&
                 <UIText style={{ color: highlightTextColor, fontWeight: 'bold' }}>✓</UIText>}
