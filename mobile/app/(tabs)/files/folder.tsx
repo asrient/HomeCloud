@@ -10,13 +10,13 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import { FileRemoteItem } from '@/lib/types';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import ContextMenu from 'react-native-context-menu-view';
-import { getPeerIconName } from '@/components/ui/getPeerIconName';
 import { useInputPopup } from '@/hooks/usePopup';
 import { getServiceController } from '@/lib/utils';
 import { UIText } from '@/components/ui/UIText';
 import { useFolder } from '@/hooks/useFolders';
 import { RemoteItem } from 'shared/types';
 import { LoadingModal } from '@/components/LoadingModal';
+import { FilePickerModal } from '@/components/FilePickerModal';
 
 type Props = RouteProp<ParamListBase, string> & {
   params: FolderRouteParams;
@@ -31,6 +31,7 @@ export default function FolderScreen() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileRemoteItem[]>([]);
   const { openInputPopup } = useInputPopup();
+  const [itemsToMove, setItemsToMove] = useState<FileRemoteItem[] | null>(null);
 
   const [sortBy, setSortBy] = useState<FileSortBy | null>(null);
 
@@ -210,10 +211,15 @@ export default function FolderScreen() {
     }
   }, [deleteItems, selectedFiles]);
 
-  const moveItems = useCallback(async (items: FileRemoteItem[], destFingerprint: string | null, destPath: string, deleteSource: boolean) => {
+  const moveItems = useCallback(async (destFingerprint: string | null, destPath: string, deleteSource: boolean) => {
+    if (!itemsToMove || itemsToMove.length === 0) {
+      return;
+    }
+    const items = [...itemsToMove];
+    setItemsToMove(null);
     const filePaths = items.map(i => i.path);
     try {
-      setCurrentOperation(`Moving ${items.length} item(s).`);
+      // setCurrentOperation(`Moving ${items.length} item(s).`);
       const serviceController = await getServiceController(destFingerprint);
       const res = await serviceController.files.move(destFingerprint, destPath, filePaths, deleteSource);
       console.log('Items moved:', res);
@@ -228,9 +234,9 @@ export default function FolderScreen() {
       console.error('Failed to move items:', error);
       Alert.alert('Error', 'Failed to move items. Please try again.');
     } finally {
-      setCurrentOperation(null);
+      // setCurrentOperation(null);
     }
-  }, [setRemoteItems]);
+  }, [setRemoteItems, itemsToMove]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -289,13 +295,14 @@ export default function FolderScreen() {
         }
         return (<>
           <UIHeaderButton name="square.and.arrow.up" onPress={() => { }} />
+          <UIHeaderButton name="arrow.up.message" onPress={() => setItemsToMove(selectedFiles)} />
           <UIHeaderButton name="trash" onPress={deleteSelectedItems} />
           <UIHeaderButton onPress={() => setSelectMode(false)} isHighlight={true} name='xmark' />
         </>);
       }
       ,
     });
-  }, [navigation, folderName, selectMode, selectedFiles.length, filesViewMode, setFilesViewMode, peers, sortBy, updatedSortBy, newFolder, deleteSelectedItems]);
+  }, [navigation, folderName, selectMode, selectedFiles.length, filesViewMode, setFilesViewMode, peers, sortBy, updatedSortBy, newFolder, deleteSelectedItems, selectedFiles]);
 
   const sendToDevice = useCallback(async (items: FileRemoteItem[], destFingerprint: string | null) => {
     try {
@@ -313,7 +320,7 @@ export default function FolderScreen() {
     }
   }, []);
 
-    const openInDevice = useCallback(async (item: FileRemoteItem, destFingerprint: string) => {
+  const openInDevice = useCallback(async (item: FileRemoteItem, destFingerprint: string) => {
     try {
       console.log('Opening item in device:', item.path);
       setCurrentOperation('Opening item in device.');
@@ -336,6 +343,7 @@ export default function FolderScreen() {
         break;
       case 'move':
         // Open move screen
+        setItemsToMove([action.item]);
         break;
       case 'rename':
         renameItem(action.item);
@@ -390,6 +398,19 @@ export default function FolderScreen() {
 
       }
       <LoadingModal isActive={!!currentOperation} title={currentOperation || undefined} />
+      <FilePickerModal
+        isOpen={!!itemsToMove}
+        pickerType="folder"
+        onDone={async (items) => {
+          if (!items || items.length === 0) {
+            setItemsToMove(null);
+            return;
+          }
+          // Move selected files to the chosen folder
+          console.log('Moving items to folder:', items);
+          await moveItems(items[0].deviceFingerprint, items[0].path, true);
+        }}
+      />
     </UIView>
   );
 }

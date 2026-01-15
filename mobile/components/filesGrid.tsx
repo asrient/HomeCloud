@@ -26,30 +26,53 @@ export type FileQuickActionType = {
     item: FileRemoteItem;
 }
 
+function isFileSelectable(item: FileRemoteItem, selectKind: 'file' | 'folder' | 'both',) {
+    if (selectKind === 'both') {
+        return true;
+    }
+    if (selectKind === 'file' && item.type !== 'directory') {
+        return true;
+    }
+    if (selectKind === 'folder' && item.type === 'directory') {
+        return true;
+    }
+    return false;
+}
+
 // Shared hook for file item state and logic
 function useFileItemState(
     item: FileRemoteItem,
     isSelectMode: boolean | undefined,
-    onPress?: (item: FileRemoteItem) => Promise<void>,
-    onQuickAction?: (action: FileQuickActionType) => void,
+    onPress: (item: FileRemoteItem, previewIntent?: boolean) => Promise<boolean>,
+    onQuickAction: (action: FileQuickActionType) => void,
+    selectKind: 'file' | 'folder' | 'both',
+    disablePreview: boolean,
+    isSelected?: boolean,
 ) {
     const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(item.thumbnail || null);
-    const [isSelected, setIsSelected] = useState(item.isSelected || false);
-    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+    const [isSelectedInternal, setIsSelectedInternal] = useState(isSelected || item.isSelected || false);
+    const [isPressed, setIsPressed] = useState(false);
 
-    const isDir = useMemo(() => item.type === 'directory', [item]);
+    const isDir = useMemo(() => item.type === 'directory', [item.type]);
 
     useEffect(() => {
-        setIsSelected(item.isSelected || false);
+        setIsSelectedInternal(isSelected || item.isSelected || false);
         setThumbnailSrc(item.thumbnail || null);
-    }, [item]);
+    }, [isSelected, item.isSelected, item.thumbnail]);
+
+    const isSelectable = useMemo(() => {
+        if (!isSelectMode) {
+            return false;
+        }
+        return selectKind ? isFileSelectable(item, selectKind) : true;
+    }, [isSelectMode, selectKind, item]);
 
     useEffect(() => {
-        if (!isSelectMode) {
-            setIsSelected(false);
+        if (!isSelectMode || !isSelectable || !isSelected) {
+            setIsSelectedInternal(false);
             item.isSelected = false;
         }
-    }, [isSelectMode, item]);
+    }, [isSelectMode, isSelectable, isSelected, item]);
 
     const fileKind = useMemo(() => getKind(item), [item]);
 
@@ -75,19 +98,51 @@ function useFileItemState(
             });
     }, [item, fetchThumbnailSrc]);
 
-    const handlePress = useCallback(() => {
-        if (isSelectMode) {
-            const newSelected = !isSelected;
-            setIsSelected(newSelected);
-            item.isSelected = newSelected;
+    const isPressedRef = useRef(false);
+
+    const handlePress = useCallback(async (previewIntent?: boolean) => {
+        if (isPressedRef.current) {
+            return;
         }
-        if (onPress) {
-            !isSelectMode && !isDir && setIsPreviewLoading(true);
-            onPress(item).finally(() => !isSelectMode && !isDir && setIsPreviewLoading(false));
+        isPressedRef.current = true;
+        setIsPressed(true);
+        try {
+            const canContinue = onPress ? (await onPress(item, previewIntent)) : true;
+            if (!canContinue) {
+                return;
+            }
+            if (isSelectable && !previewIntent) {
+                const newSelected = !isSelectedInternal;
+                item.isSelected = newSelected;
+                // only update internal state if isSelected prop is not provided i.e not controlled externally
+                // if extenally controlled, the state will be automatically updated via useEffect
+                if (isSelected === undefined) {
+                    setIsSelectedInternal(newSelected);
+                }
+            }
+        } finally {
+            isPressedRef.current = false;
+            setIsPressed(false);
         }
-    }, [isSelectMode, onPress, isSelected, item, isDir]);
+    }, [onPress, item, isSelectable, isSelectedInternal, isSelected]);
 
     const actions = useMemo(() => {
+        if (isSelectMode) {
+            const actions_: ContextMenuAction[] = [];
+            if (!disablePreview) {
+                actions_.push({
+                    title: isDir ? 'Open' : 'Preview',
+                    systemIcon: isDir ? 'folder' : 'eye',
+                });
+            }
+            if (isSelectable) {
+                actions_.push({
+                    title: isSelectedInternal ? 'Deselect' : 'Select',
+                    systemIcon: isSelectedInternal ? 'checkmark.circle.fill' : 'circle',
+                });
+            }
+            return actions_;
+        }
         const localSc = getLocalServiceController();
         const peers = localSc.app.getPeers();
         let baseActions: ContextMenuAction[] = [
@@ -122,7 +177,7 @@ function useFileItemState(
             ]
         }
         return baseActions;
-    }, [isDir, item.deviceFingerprint]);
+    }, [disablePreview, isDir, isSelectMode, isSelectable, isSelectedInternal, item.deviceFingerprint]);
 
     const handleQuickAction = useCallback((event: NativeSyntheticEvent<ContextMenuOnPressNativeEvent>) => {
         if (!onQuickAction) {
@@ -133,6 +188,16 @@ function useFileItemState(
         let type: FileQuickActionType['type'] | null = null;
         let targetDeviceFingerprint: string | undefined = undefined;
         switch (action) {
+            case 'Open':
+            case 'Preview':
+                // Handled in onPress
+                !disablePreview && handlePress(true);
+                return;
+            case 'Select':
+            case 'Deselect':
+                // Handled in onPress
+                handlePress();
+                return;
             case 'Info':
                 type = 'info';
                 break;
@@ -176,149 +241,146 @@ function useFileItemState(
             targetDeviceFingerprint,
             item,
         });
-    }, [isDir, item, onQuickAction]);
+    }, [disablePreview, handlePress, isDir, item, onQuickAction]);
 
     return {
         thumbnailSrc,
-        isSelected,
-        isPreviewLoading,
+        isSelectedInternal,
+        isPressed,
         isDir,
         handlePress,
         actions,
         fileKind,
         handleQuickAction,
+        isSelectable,
     };
 }
 
-export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu, onQuickAction }: {
+export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu, onQuickAction, selectKind, disablePreview, isSelected }: {
     item: FileRemoteItem,
-    onPress?: (item: FileRemoteItem) => Promise<void>,
-    isSelectMode?: boolean,
-    disableContextMenu?: boolean,
-    onQuickAction?: (action: FileQuickActionType) => void;
+    onPress: (item: FileRemoteItem, previewIntent?: boolean) => Promise<boolean>,
+    isSelectMode: boolean,
+    disableContextMenu: boolean,
+    onQuickAction: (action: FileQuickActionType) => void;
+    selectKind: 'file' | 'folder' | 'both';
+    disablePreview: boolean;
+    isSelected?: boolean;
 }) {
-    const { thumbnailSrc, isSelected, isPreviewLoading, handlePress, actions, fileKind, handleQuickAction } = useFileItemState(item, isSelectMode, onPress, onQuickAction);
+    const { thumbnailSrc, isSelectedInternal, isPressed, handlePress, actions, fileKind, handleQuickAction, isSelectable } = useFileItemState(item, isSelectMode, onPress, onQuickAction, selectKind, disablePreview, isSelected);
 
-    const content = (<Pressable
-        disabled={isPreviewLoading}
-        onPress={handlePress}
-        style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', margin: 2 }}>
-        {
-            isPreviewLoading ? (
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
-                    <ActivityIndicator size="large" />
-                </View>
-            ) : null
-        }
-        <Image
-            source={
-                thumbnailSrc ? {
-                    uri: thumbnailSrc,
-                    cacheKey: `${item.deviceFingerprint}-${item.path}`
-                } : getDefautIconUri(item)
-            }
-            style={{ width: '60%', height: '60%' }}
-            contentFit="contain"
-        />
-        {
-            isSelectMode &&
-            <ThumbnailCheckbox position='top-right' isSelected={isSelected} />
-        }
-        <UIText
-            numberOfLines={1}
-            size='sm'
-            style={{ textAlign: 'center', paddingTop: 2 }}>
-            {item.name}
-        </UIText>
-        <UIText
-            numberOfLines={1}
-            size="sm"
-            color="textSecondary"
-            style={{ textAlign: 'center', paddingTop: 1 }}>
-            {fileKind}
-        </UIText>
-    </Pressable>);
-
-    if (isSelectMode || disableContextMenu) {
-        return content;
-    }
+    const handlePressWrapper = useCallback(() => {
+        handlePress(false);
+    }, [handlePress]);
 
     return (
         <ContextMenu
             // title='Meow'
             actions={actions}
-            disabled={isSelectMode || disableContextMenu}
+            disabled={disableContextMenu}
             onPress={handleQuickAction}
-            onPreviewPress={handlePress}
+            onPreviewPress={() => handlePress(true)}
         >
-            {content}
+            <Pressable
+                disabled={isPressed}
+                onPress={handlePressWrapper}
+                style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', margin: 2 }}>
+                <Image
+                    source={
+                        thumbnailSrc ? {
+                            uri: thumbnailSrc,
+                            cacheKey: `${item.deviceFingerprint}-${item.path}`
+                        } : getDefautIconUri(item)
+                    }
+                    style={{ width: '60%', height: '60%' }}
+                    contentFit="contain"
+                />
+                {
+                    isSelectMode &&
+                    <ThumbnailCheckbox position='top-right' isSelected={isSelectedInternal} disabled={!isSelectable} />
+                }
+                <UIText
+                    numberOfLines={1}
+                    size='sm'
+                    style={{ textAlign: 'center', paddingTop: 2 }}>
+                    {item.name}
+                </UIText>
+                <UIText
+                    numberOfLines={1}
+                    size="sm"
+                    color="textSecondary"
+                    style={{ textAlign: 'center', paddingTop: 1 }}>
+                    {fileKind}
+                </UIText>
+            </Pressable>
         </ContextMenu>
     );
 }
 
-export function FileListItem({ item, onPress, isSelectMode, disableContextMenu, onQuickAction }:
-    { item: FileRemoteItem, onPress?: (item: FileRemoteItem) => Promise<void>, isSelectMode?: boolean, disableContextMenu?: boolean, onQuickAction?: (action: FileQuickActionType) => void }) {
-    const { thumbnailSrc, isSelected, isPreviewLoading, isDir, handlePress, actions, fileKind, handleQuickAction } = useFileItemState(item, isSelectMode, onPress, onQuickAction);
+export function FileListItem({ item, onPress, isSelectMode, disableContextMenu, onQuickAction, selectKind, disablePreview, isSelected }:
+    {
+        item: FileRemoteItem,
+        onPress: (item: FileRemoteItem, previewIntent?: boolean) => Promise<boolean>,
+        isSelectMode: boolean,
+        disableContextMenu: boolean,
+        onQuickAction: (action: FileQuickActionType) => void,
+        selectKind: 'file' | 'folder' | 'both';
+        disablePreview: boolean;
+        isSelected?: boolean;
+    }) {
+    const { thumbnailSrc, isSelectedInternal, isPressed, isDir, handlePress, actions, fileKind, handleQuickAction, isSelectable } = useFileItemState(item, isSelectMode, onPress, onQuickAction, selectKind, disablePreview, isSelected);
     let subText: string = fileKind;
     if (!isDir) {
         subText += `  ${formatFileSize(item.size || 0)}`;
     }
 
-    const content = (
-        <Pressable
-            disabled={isPreviewLoading}
-            onPress={handlePress}
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                minHeight: 60
-            }}
-        >
-            {isSelectMode && (
-                <View style={{ marginRight: 12 }}>
-                    <ThumbnailCheckbox isSelected={isSelected} />
-                </View>
-            )}
-            <Image
-                source={
-                    thumbnailSrc ? {
-                        uri: thumbnailSrc,
-                        cacheKey: `${item.deviceFingerprint}-${item.path}`
-                    } : getDefautIconUri(item)
-                }
-                style={{ width: 40, height: 40, borderRadius: 6 }}
-                contentFit="cover"
-            />
-            <View style={{ flex: 1, marginLeft: 12, justifyContent: 'center' }}>
-                <UIText numberOfLines={1} size='md'>
-                    {item.name}
-                </UIText>
-                <UIText numberOfLines={1} size="sm" color="textSecondary" style={{ marginTop: 1 }}>
-                    {subText}
-                </UIText>
-            </View>
-            {isPreviewLoading ? (
-                <ActivityIndicator size="small" style={{ marginLeft: 8 }} />
-            ) : (
-                isDir && <UIIcon name="chevron.forward" size={20} themeColor="textTertiary" style={{ marginLeft: 8 }} />
-            )}
-        </Pressable>
-    );
-
-    if (isSelectMode || disableContextMenu) {
-        return content;
-    }
-
     return (
         <ContextMenu
             actions={actions}
-            disabled={isSelectMode || disableContextMenu}
+            disabled={disableContextMenu}
             onPress={handleQuickAction}
-            onPreviewPress={handlePress}
+            onPreviewPress={() => handlePress(true)}
         >
-            {content}
+            <Pressable
+                disabled={isPressed}
+                onPress={() => handlePress()}
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    minHeight: 60,
+                    backgroundColor: isPressed ? 'rgba(0,0,0,0.1)' : 'transparent',
+                }}
+            >
+                {isSelectMode && (
+                    <View style={{ marginRight: 12 }}>
+                        <ThumbnailCheckbox isSelected={isSelectedInternal} disabled={!isSelectable} />
+                    </View>
+                )}
+                <Image
+                    source={
+                        thumbnailSrc ? {
+                            uri: thumbnailSrc,
+                            cacheKey: `${item.deviceFingerprint}-${item.path}`
+                        } : getDefautIconUri(item)
+                    }
+                    style={{ width: 40, height: 40, borderRadius: 6 }}
+                    contentFit="cover"
+                />
+                <View style={{ flex: 1, marginLeft: 12, justifyContent: 'center' }}>
+                    <UIText numberOfLines={1} size='md'>
+                        {item.name}
+                    </UIText>
+                    <UIText numberOfLines={1} size="sm" color="textSecondary" style={{ marginTop: 1 }}>
+                        {subText}
+                    </UIText>
+                </View>
+                {isPressed ? (
+                    <ActivityIndicator size="small" style={{ marginLeft: 8 }} />
+                ) : (
+                    isDir && <UIIcon name="chevron.forward" size={20} themeColor="textTertiary" style={{ marginLeft: 8 }} />
+                )}
+            </Pressable>
         </ContextMenu>
     );
 }
@@ -327,14 +389,16 @@ export type GridPropsCommon = {
     headerComponent?: React.ReactElement;
     footerComponent?: React.ReactElement;
     selectMode?: boolean;
-    onSelect?: (file: FileRemoteItem) => void;
-    onDeselect?: (file: FileRemoteItem) => void;
+    selectKind?: 'file' | 'folder' | 'both';
+    onSelect?: (file: FileRemoteItem) => void | boolean;
+    onDeselect?: (file: FileRemoteItem) => void | boolean;
     onPreview?: (file: FileRemoteItem) => void | boolean;
     disablePreview?: boolean;
     disableContextMenu?: boolean;
     viewMode?: 'grid' | 'list';
     sortBy?: FileSortBy;
     onQuickAction?: (action: FileQuickActionType) => void;
+    selectedItems?: FileRemoteItem[];
 }
 
 export type FilesGridProps = GridPropsCommon & {
@@ -355,8 +419,8 @@ export type PinnedFoldersGridProps = GridPropsCommon & {
     hideEmpty?: boolean;
 }
 
-export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error, disablePreview, viewMode = 'grid', disableContextMenu, sortBy, onQuickAction }: FilesGridProps) {
-    const [renderKey, setRenderKey] = useState(0);
+export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error, disablePreview, viewMode = 'grid', disableContextMenu, sortBy, onQuickAction, selectKind, selectedItems }: FilesGridProps) {
+    const [internalRenderKey, setInternalRenderKey] = useState(0);
     const router = useRouter();
 
     const sortedItems = useMemo(() => {
@@ -381,7 +445,7 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
 
     useEffect(() => {
         // Force re-render when selectMode or viewMode changes to update thumbnails
-        setRenderKey((prev) => prev + 1);
+        setInternalRenderKey((prev) => prev + 1);
     }, [selectMode, viewMode]);
 
     const previewLockRef = useRef(false);
@@ -407,36 +471,79 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
         }
     }, [disablePreview]);
 
-    const handleFilePress = useCallback(async (file: FileRemoteItem) => {
+    const handleFilePress = useCallback(async (file: FileRemoteItem, previewIntent?: boolean) => {
         // Handle file press based on selectMode
         console.log('File pressed:', file.path, 'selectMode:', selectMode);
-        if (selectMode) {
-            if (file.isSelected) {
-                onSelect && onSelect(file);
+        if (selectMode && isFileSelectable(file, selectKind || 'both') && !previewIntent) {
+            if (!file.isSelected) {
+                if (onSelect) {
+                    const result = onSelect(file);
+                    if (result === false) {
+                        return false;
+                    }
+                }
             } else {
-                onDeselect && onDeselect(file);
+                if (onDeselect) {
+                    const result = onDeselect(file);
+                    if (result === false) {
+                        return false;
+                    }
+                }
             }
-        } else {
+        } else if (!disablePreview) {
+            if (onPreview) {
+                const shouldPreview = onPreview(file);
+                if (shouldPreview === false) {
+                    return false;
+                }
+            }
             if (file.type === 'directory') {
                 // Navigate to folder view
                 router.push(getFolderAppRoute(file.path, file.deviceFingerprint));
             } else {
-                if (onPreview) {
-                    const shouldPreview = onPreview(file);
-                    if (shouldPreview === false) {
-                        return;
-                    }
-                }
                 await previewFile(file);
             }
         }
-    }, [selectMode, onSelect, onDeselect, router, onPreview, previewFile]);
+        return true;
+    }, [selectMode, selectKind, disablePreview, onSelect, onDeselect, onPreview, router, previewFile]);
 
     const handleQuickAction = useCallback((action: FileQuickActionType) => {
         if (onQuickAction) {
             onQuickAction(action);
         }
     }, [onQuickAction]);
+
+    const renderItem = useCallback(({ item }: { item: FileRemoteItem }) => {
+        const isSelected = selectedItems ? selectedItems.some(si => si.path === item.path && si.deviceFingerprint === item.deviceFingerprint) : undefined;
+        if (viewMode === 'grid') {
+            return (
+                <View style={{ flex: 1 / 3, aspectRatio: 1, margin: 1 }}>
+                    <FileThumbnail
+                        item={item}
+                        isSelectMode={selectMode || false}
+                        isSelected={isSelected}
+                        onPress={handleFilePress}
+                        disableContextMenu={disableContextMenu || false}
+                        onQuickAction={handleQuickAction}
+                        selectKind={selectKind || 'both'}
+                        disablePreview={disablePreview || false}
+                    />
+                </View>
+            );
+        }
+        return (
+            <FileListItem
+                item={item}
+                isSelectMode={selectMode || false}
+                isSelected={isSelected}
+                onPress={handleFilePress}
+                disableContextMenu={disableContextMenu || false}
+                onQuickAction={handleQuickAction}
+                selectKind={selectKind || 'both'}
+                disablePreview={disablePreview || false}
+            />
+        );
+    }, [disableContextMenu, disablePreview, handleFilePress, handleQuickAction, selectKind, selectMode, selectedItems, viewMode]);
 
     if (isLoading) {
         return (
@@ -460,20 +567,12 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
                 ListHeaderComponent={headerComponent}
                 ListFooterComponent={footerComponent}
                 data={sortedItems}
-                extraData={renderKey}
+                extraData={internalRenderKey}
                 keyExtractor={(item) => item.deviceFingerprint ? printFingerprint(item.deviceFingerprint) + '|' + item.path : item.path}
                 numColumns={viewMode === 'grid' ? 3 : 1}
                 key={viewMode} // Force remount when switching between grid and list
                 refreshing={isLoading}
-                renderItem={({ item }) =>
-                    viewMode === 'grid' ? (
-                        <View style={{ flex: 1 / 3, aspectRatio: 1, margin: 1 }}>
-                            <FileThumbnail item={item} isSelectMode={selectMode} onPress={handleFilePress} disableContextMenu={disableContextMenu} onQuickAction={handleQuickAction} />
-                        </View>
-                    ) : (
-                        <FileListItem item={item} isSelectMode={selectMode} onPress={handleFilePress} disableContextMenu={disableContextMenu} onQuickAction={handleQuickAction} />
-                    )
-                }
+                renderItem={renderItem}
                 ListEmptyComponent={
                     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
                         <UIText>Its empty here</UIText>

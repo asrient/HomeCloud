@@ -2,12 +2,14 @@ import { View, ViewStyle } from 'react-native';
 import { UIText } from './ui/UIText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
-export function ThumbnailCheckbox({ isSelected, position }: {
+export function ThumbnailCheckbox({ isSelected, position, disabled }: {
     isSelected: boolean;
     position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center';
+    disabled?: boolean;
 }) {
     const highlightColor = useThemeColor({}, 'highlight');
     const highlightTextColor = useThemeColor({}, 'highlightText');
+    const textTertiaryColor = useThemeColor({}, 'textTertiary');
 
     let positionStyles: ViewStyle = {
         position: 'absolute',
@@ -38,11 +40,11 @@ export function ThumbnailCheckbox({ isSelected, position }: {
             width: 24,
             height: 24,
             borderRadius: 12,
-            backgroundColor: isSelected ? highlightColor : 'rgba(255, 255, 255, 0.7)',
+            backgroundColor: isSelected ? highlightColor : disabled ? textTertiaryColor : 'rgba(255, 255, 255, 0.7)',
             justifyContent: 'center',
             alignItems: 'center',
             borderWidth: 1,
-            borderColor: isSelected ? highlightTextColor : '#ccc',
+            borderColor: isSelected ? highlightTextColor : textTertiaryColor,
         }}>
             {isSelected &&
                 <UIText style={{ color: highlightTextColor, fontWeight: 'bold' }}>✓</UIText>}

@@ -13,6 +13,7 @@ export type ThemeColors = {
   icon: string;
   highlight: string;
   highlightText: string;
+  seperator: string;
 };
 
 export type ColorPallette = {
@@ -31,6 +32,7 @@ export const ColorsIos: ColorPallette = {
     icon: '#000000',
     highlight: '#007AFF',
     highlightText: '#ffffff',
+    seperator: '#C6C6C8',
   },
   dark: {
     text: '#FFFFFF',
@@ -42,6 +44,7 @@ export const ColorsIos: ColorPallette = {
     icon: '#FFFFFF',
     highlight: '#0A84FF',
     highlightText: '#ffffff',
+    seperator: '#3A3A3C',
   },
 };
 

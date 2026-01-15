@@ -2,7 +2,10 @@ import { OSType } from '@/lib/types';
 import { DeviceInfo, PeerInfo } from 'shared/types';
 import { IconSymbolName } from './UIIcon';
 
-export function getDeviceIconName(deviceInfo: DeviceInfo): IconSymbolName {
+export function getDeviceIconName(deviceInfo: DeviceInfo | null): IconSymbolName {
+  if (!deviceInfo) {
+    return 'iphone';
+  }
   switch (deviceInfo.formFactor) {
     case 'mobile':
       if (deviceInfo.os === OSType.iOS) {
