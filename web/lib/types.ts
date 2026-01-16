@@ -43,7 +43,6 @@ export type PageUIConfig = {
 }
 
 export type PhotoView = {
-    isSelected: boolean;
     thumbnail?: string;
     assetUrl?: string;
     deviceFingerprint: string | null;
@@ -62,6 +61,18 @@ export type PhotosFetchOptions = {
     deviceFingerprint: string | null;
 }
 
+export type ContextMenuItem = {
+    label?: string;
+    description?: string;
+    id: string;
+    disabled?: boolean;
+    isChecked?: boolean;
+    type?: 'separator' | 'normal' | 'checkbox' | 'radio';
+    role?: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll' | 'minimize' | 'close' | 'delete';
+    subItems?: ContextMenuItem[];
+}
+
 export type NativeUtils = {
     getPathForFile: (file: File) => string;
+    openContextMenu: (items: ContextMenuItem[], callback: (id: string) => void) => void;
 }

@@ -1,12 +1,7 @@
 import { SidebarSectionView, SidebarView } from "./sidebarPrimatives";
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import { useCallback, useMemo, useState } from "react";
-import { SidebarItem, SidebarSection } from "@/lib/types";
+import { NativeContextMenu } from "@/components/nativeContextMenu";
+import { ContextMenuItem, SidebarItem, SidebarSection } from "@/lib/types";
+import { useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { useAppState } from "../hooks/useAppState";
 import { useFolder, usePinnedFolders } from "../hooks/useFolders";
@@ -35,31 +30,7 @@ const FilesSection = ({
 
     const { remoteItems: disks, isLoading, error } = useFolder(fingerprint, '');
     const { pinnedFolders, isLoading: isPinnedFoldersLoading, error: pinnedFoldersError } = usePinnedFolders(fingerprint);
-    const [selectedSidebarItem, setSelectedSidebarItem] = useState<SidebarItem | null>(null);
     const router = useRouter();
-
-    const openItem = useCallback(() => {
-        console.log('Opening item:', selectedSidebarItem);
-        if (!selectedSidebarItem) return;
-        router.push(selectedSidebarItem.href || '/files');
-    }, [selectedSidebarItem, router]);
-
-    const removePinnedFolder = useCallback(async () => {
-        if (!selectedSidebarItem || !selectedSidebarItem.data) return;
-        const { deviceFingerprint, path } = (selectedSidebarItem.data as FilesSidebarData);
-        if (!deviceFingerprint || !path) return;
-        if (deviceFingerprint !== fingerprint) {
-            console.warn('Selected item does not belong to the current peer');
-            return;
-        }
-        try {
-            const serviceController = await getServiceController(fingerprint);
-            await serviceController.files.removePinnedFolder(path);
-        } catch (e: any) {
-            console.error(e);
-            alert(`Could not remove from "${selectedSidebarItem.title}" favourites.`);
-        }
-    }, [fingerprint, selectedSidebarItem]);
 
     const section = useMemo((): SidebarSection => {
         const pinnedRemoteItems = pinnedFolders.map((pinned) => {
@@ -92,33 +63,75 @@ const FilesSection = ({
         };
     }, [disks, error, fingerprint, isLoading, isPinnedFoldersLoading, pinnedFolders, pinnedFoldersError]);
 
-    const folderPath = (selectedSidebarItem?.data as FilesSidebarData)?.path;
+    // Use a ref to track the currently right-clicked item to avoid stale closure issues
+    const rightClickedItemRef = useRef<SidebarItem | null>(null);
+
+    const openItemDirect = useCallback((item: SidebarItem) => {
+        console.log('Opening item:', item);
+        router.push(item.href || '/files');
+    }, [router]);
+
+    const removePinnedFolderDirect = useCallback(async (item: SidebarItem) => {
+        if (!item || !item.data) return;
+        const { deviceFingerprint, path } = (item.data as FilesSidebarData);
+        if (!deviceFingerprint || !path) return;
+        if (deviceFingerprint !== fingerprint) {
+            console.warn('Selected item does not belong to the current peer');
+            return;
+        }
+        try {
+            const serviceController = await getServiceController(fingerprint);
+            await serviceController.files.removePinnedFolder(path);
+        } catch (e: any) {
+            console.error(e);
+            alert(`Could not remove "${item.title}" from favourites.`);
+        }
+    }, [fingerprint]);
+
+    const handleContextMenuClick = useCallback((id: string) => {
+        const item = rightClickedItemRef.current;
+        if (!item) return;
+        
+        switch (id) {
+            case 'open':
+                openItemDirect(item);
+                break;
+            case 'getInfo':
+                // TODO: implement get info
+                break;
+            case 'remove':
+                removePinnedFolderDirect(item);
+                break;
+        }
+    }, [openItemDirect, removePinnedFolderDirect]);
+
+    const handleSidebarRightClick = useCallback((item: SidebarItem | null) => {
+        rightClickedItemRef.current = item;
+    }, []);
+
+    const getContextMenuItems = useCallback((): ContextMenuItem[] | undefined => {
+        const item = rightClickedItemRef.current;
+        if (!item) return undefined;
+        const folderPath = (item.data as FilesSidebarData)?.path;
+        if (!folderPath) return undefined;
+        return [
+            { id: 'open', label: 'Open' },
+            { id: 'getInfo', label: 'Get info' },
+            { id: 'remove', label: 'Remove' },
+        ];
+    }, []);
 
     return (<div>
-        <ContextMenu>
-            <ContextMenuTrigger>
-                {
-                    section.items.length > 0 && (
-                        <SidebarSectionView onRightClick={setSelectedSidebarItem} section={section} />
-                    )
-                }
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-                {folderPath && (
-                    <>
-                        <ContextMenuItem onClick={openItem}>
-                            Open
-                        </ContextMenuItem>
-                        <ContextMenuItem>
-                            Get info
-                        </ContextMenuItem>
-                        <ContextMenuItem onClick={removePinnedFolder} className='text-red-500'>
-                            Remove
-                        </ContextMenuItem>
-                    </>
-                )}
-            </ContextMenuContent>
-        </ContextMenu>
+        <NativeContextMenu
+            onMenuOpen={getContextMenuItems}
+            onMenuItemClick={handleContextMenuClick}
+        >
+            {
+                section.items.length > 0 && (
+                    <SidebarSectionView onRightClick={handleSidebarRightClick} section={section} />
+                )
+            }
+        </NativeContextMenu>
     </div>);
 }
 

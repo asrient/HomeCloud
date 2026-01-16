@@ -9,4 +9,5 @@ const { webUtils } = require('electron');
 window.modules = getGlobal('modules');
 window.utils = {
     getPathForFile: webUtils.getPathForFile,
+    openContextMenu: require('@electron/remote').require('./contextMenu').openContextMenu
 }

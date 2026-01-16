@@ -7,12 +7,8 @@ import LazyImage from "./lazyImage";
 import { cn, getServiceController, isMacosTheme, isMobile } from "@/lib/utils";
 import { dateToTitle } from "@/lib/photoUtils";
 import Image from "next/image";
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+import { NativeContextMenu } from "./nativeContextMenu";
+import { ContextMenuItem } from "@/lib/types";
 import ConfirmModal from "./confirmModal";
 import PhotosPreviewModal from "./photosPreviewModal";
 import { usePhotos } from "./hooks/usePhotos";
@@ -33,10 +29,11 @@ type ClickProps = {
 
 type ThumbnailPhotoProps = {
     item: PhotoView;
+    isSelected: boolean;
     className?: string;
 } & ClickProps;
 
-function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick }: ThumbnailPhotoProps) {
+function ThumbnailPhoto({ item, isSelected, className, onClick, onDoubleClick, onRightClick }: ThumbnailPhotoProps) {
     const dafaultSrc = '/img/blank-tile.png';
 
     const fetchThumbnailSrc = useCallback(async () => {
@@ -71,12 +68,13 @@ function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick 
         height="0"
         className={cn("photoThumbnail h-full w-full object-cover transform dark:brightness-90 brightness-105 transition will-change-auto dark:hover:brightness-110 hover:brightness-75",
             className,
-            item.isSelected && 'ring-4 ring-blue-600 opacity-80')}
+            isSelected && 'ring-4 ring-blue-600 opacity-80')}
     />)
 }
 
 type PhotoGridProps = {
     photos: PhotoView[];
+    selectedIds: Set<string>;
     size: number;
     dateKey: 'capturedOn' | 'addedOn';
     containerHeight: number;
@@ -118,7 +116,11 @@ function getColumnsForZoom(zoom: number, containerWidth: number): number {
     }
 }
 
-function PhotoGrid({ photos, size, dateKey, containerHeight, hasMore, isLoading, onLoadMore, ...clickProps }: PhotoGridProps) {
+function getPhotoKey(photo: PhotoView): string {
+    return `${photo.id}-${photo.deviceFingerprint}-${photo.libraryId}`;
+}
+
+function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMore, isLoading, onLoadMore, ...clickProps }: PhotoGridProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState(0);
     const [currentSectionTitle, setCurrentSectionTitle] = useState<string | null>(null);
@@ -179,6 +181,7 @@ function PhotoGrid({ photos, size, dateKey, containerHeight, hasMore, isLoading,
 
     type CellProps = {
         photos: PhotoView[];
+        selectedIds: Set<string>;
         columnCount: number;
         hasMore: boolean;
         totalPhotos: number;
@@ -191,6 +194,7 @@ function PhotoGrid({ photos, size, dateKey, containerHeight, hasMore, isLoading,
         columnIndex,
         style,
         photos,
+        selectedIds,
         columnCount,
         hasMore,
         totalPhotos,
@@ -230,21 +234,23 @@ function PhotoGrid({ photos, size, dateKey, containerHeight, hasMore, isLoading,
         }
 
         const photo = photos[photoIndex];
+        const isSelected = selectedIds.has(getPhotoKey(photo));
         return (
             <div style={style} className="p-[2px]">
-                <ThumbnailPhoto item={photo} {...clickProps} />
+                <ThumbnailPhoto item={photo} isSelected={isSelected} {...clickProps} />
             </div>
         );
     }, []);
 
     const cellProps = useMemo((): CellProps => ({
         photos,
+        selectedIds,
         columnCount,
         hasMore,
         totalPhotos,
         clickProps,
         onLoadMore,
-    }), [photos, columnCount, hasMore, totalPhotos, clickProps, onLoadMore]);
+    }), [photos, selectedIds, columnCount, hasMore, totalPhotos, clickProps, onLoadMore]);
 
     const getRowHeight = useCallback((index: number): number => {
         const isLastRow = index === Math.ceil(totalPhotos / columnCount);
@@ -318,8 +324,9 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         };
     }, []);
 
-    const selectedPhotos = useMemo(() => photos.filter(item => item.isSelected), [photos]);
-    const selectedCount = useMemo(() => selectedPhotos.length, [selectedPhotos]);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const selectedCount = selectedIds.size;
+    const selectedPhotos = useMemo(() => photos.filter(p => selectedIds.has(getPhotoKey(p))), [photos, selectedIds]);
     const [photoForPreview, setPhotoForPreview] = useState<PhotoView | null>(null);
 
     const fetchNew = useCallback(async () => {
@@ -339,19 +346,18 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const selectPhoto = useCallback((item: PhotoView, toggle = true, persistSelection?: boolean) => {
         const persistSelection_ = selectMode || persistSelection;
-        setPhotos((prevPhotos) => prevPhotos.map((p) => {
-            if (p.id === item.id && p.deviceFingerprint === item.deviceFingerprint && p.libraryId === item.libraryId) {
-                return {
-                    ...p,
-                    isSelected: toggle ? !p.isSelected : true,
-                }
+        const key = getPhotoKey(item);
+        
+        setSelectedIds((prev) => {
+            const next = persistSelection_ ? new Set(prev) : new Set<string>();
+            if (toggle && prev.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
             }
-            if (persistSelection_) {
-                return p;
-            }
-            return { ...p, isSelected: false };
-        }));
-    }, [selectMode, setPhotos]);
+            return next;
+        });
+    }, [selectMode]);
 
     const previewPhoto = useCallback((item: PhotoView) => {
         setPhotoForPreview(item);
@@ -371,19 +377,9 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         previewPhoto(item);
     }, [previewPhoto]);
 
-    const onRightClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
-        selectPhoto(item, false, true);
-    }, [selectPhoto]);
-
     const onClickOutside = useCallback(() => {
-        setPhotos((prevPhotos) => prevPhotos.map((p) => {
-            if (!p.isSelected) return p;
-            return {
-                ...p,
-                isSelected: false,
-            }
-        }));
-    }, [setPhotos]);
+        setSelectedIds(new Set());
+    }, []);
 
     const onRightClickOutside = useCallback((e: React.MouseEvent) => {
         if (e.target instanceof HTMLElement && e.target.closest('.photoThumbnail')) return;
@@ -402,6 +398,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         const serviceController = await getServiceController(fetchOptions.deviceFingerprint);
         const { deletedIds } = await serviceController.photos.deletePhotos(fetchOptions.library.id, idsToDel);
         setPhotos((prevPhotos) => prevPhotos.filter((p) => !deletedIds.includes(p.id)));
+        setSelectedIds(new Set());
         setDeleteDialogOpen(false);
     }, [fetchOptions.deviceFingerprint, fetchOptions.library.id, selectedCount, selectedPhotos, setPhotos]);
 
@@ -414,11 +411,61 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     }, []);
 
     const selectAll = useCallback(() => {
-        setPhotos((prevPhotos) => prevPhotos.map((p) => ({
-            ...p,
-            isSelected: true,
-        })));
-    }, [setPhotos]);
+        setSelectedIds(new Set(photos.map(p => getPhotoKey(p))));
+    }, [photos]);
+
+    // Use a ref to track the right-clicked item to avoid stale closure issues
+    const rightClickedItemRef = useRef<PhotoView | null>(null);
+
+    const handleContextMenuClick = useCallback((id: string) => {
+        const clickedItem = rightClickedItemRef.current;
+        
+        switch (id) {
+            case 'selectAll':
+                selectAll();
+                break;
+            case 'preview':
+                if (clickedItem) previewPhoto(clickedItem);
+                break;
+            case 'delete':
+                openDeleteDialog();
+                break;
+        }
+    }, [selectAll, previewPhoto, openDeleteDialog]);
+
+    const onRightClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Store the right-clicked item in ref for use in menu handlers
+        rightClickedItemRef.current = item;
+        
+        selectPhoto(item, false, true);
+        
+        // Build menu items directly to avoid state delay
+        const isAlreadySelected = selectedIds.has(getPhotoKey(item));
+        const currentSelectedCount = isAlreadySelected ? selectedCount : selectedCount + 1;
+        
+        const items: ContextMenuItem[] = [];
+        if (currentSelectedCount === 1) {
+            items.push({ id: 'preview', label: 'Preview' });
+        }
+        items.push({ id: 'copy', label: 'Copy', disabled: true });
+        items.push({ id: 'cut', label: 'Cut', disabled: true });
+        items.push({
+            id: 'delete',
+            label: currentSelectedCount === 1 ? 'Delete photo' : `Delete (${currentSelectedCount}) photos`,
+        });
+        
+        window.utils.openContextMenu(items, handleContextMenuClick);
+    }, [selectPhoto, selectedIds, selectedCount, handleContextMenuClick]);
+
+    const getContainerContextMenuItems = useCallback((): ContextMenuItem[] | undefined => {
+        const items: ContextMenuItem[] = [];
+            items.push({ id: 'paste', label: 'Paste', disabled: true });
+            items.push({ id: 'selectAll', label: 'Select all' });
+        return items;
+    }, []);
 
     return (
         <>
@@ -453,71 +500,45 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 </MenuGroup>
             </PageBar>
             <PageContent>
-                <ContextMenu>
-                    <ContextMenuTrigger>
-                        <div
-                            ref={contentContainerRef}
-                            onClick={onClickOutside}
-                            onContextMenu={onRightClickOutside}
-                            className='min-h-[90vh]'
-                        >
-                            <div className={cn(!isMacosTheme() && 'px-7')}>
-                                <PhotoGrid
-                                    dateKey={fetchOptions.sortBy}
-                                    photos={photos}
-                                    size={zoom}
-                                    containerHeight={containerHeight}
-                                    onClick={onClick}
-                                    onDoubleClick={onDoubleClick}
-                                    onRightClick={onRightClick}
-                                    hasMore={hasMore}
-                                    isLoading={isLoading}
-                                    onLoadMore={fetchNew}
-                                />
-                            </div>
-                            {
-                                !error && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
-                                    <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' priority width={0} height={0} />
-                                    <div className='text-lg font-semibold'>Nothing to see here, except for the cat.</div>
-                                </div>
-                            }
-                            {error && <div className='p-5 py-10 flex justify-center items-center text-red-500'>
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                                </svg>
-                                <span className='ml-2 text-sm'>{error}</span>
-                            </div>}
+                <NativeContextMenu
+                    onMenuOpen={getContainerContextMenuItems}
+                    onMenuItemClick={handleContextMenuClick}
+                >
+                    <div
+                        ref={contentContainerRef}
+                        onClick={onClickOutside}
+                        onContextMenu={onRightClickOutside}
+                        className='min-h-[90vh]'
+                    >
+                        <div className={cn(!isMacosTheme() && 'px-7')}>
+                            <PhotoGrid
+                                dateKey={fetchOptions.sortBy}
+                                photos={photos}
+                                selectedIds={selectedIds}
+                                size={zoom}
+                                containerHeight={containerHeight}
+                                onClick={onClick}
+                                onDoubleClick={onDoubleClick}
+                                onRightClick={onRightClick}
+                                hasMore={hasMore}
+                                isLoading={isLoading}
+                                onLoadMore={fetchNew}
+                            />
                         </div>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
                         {
-                            selectedCount === 0 && (
-                                <>
-                                    <ContextMenuItem disabled>Paste</ContextMenuItem>
-                                    <ContextMenuItem onClick={selectAll}>Select all</ContextMenuItem>
-                                </>
-                            )
+                            !error && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
+                                <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' priority width={0} height={0} />
+                                <div className='text-lg font-semibold'>Nothing to see here, except for the cat.</div>
+                            </div>
                         }
-                        {
-                            selectedCount === 1 && (
-                                <ContextMenuItem onClick={previewSelected}>
-                                    Preview
-                                </ContextMenuItem>
-                            )
-                        }
-                        {
-                            selectedCount > 0 && (
-                                <>
-                                    <ContextMenuItem disabled>Copy</ContextMenuItem>
-                                    <ContextMenuItem disabled>Cut</ContextMenuItem>
-                                    <ContextMenuItem onClick={openDeleteDialog} className='text-red-500'>
-                                        {`Delete ${selectedCount === 1 ? 'photo' : `(${selectedCount}) photos`}`}
-                                    </ContextMenuItem>
-                                </>
-                            )
-                        }
-                    </ContextMenuContent>
-                </ContextMenu>
+                        {error && <div className='p-5 py-10 flex justify-center items-center text-red-500'>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                            </svg>
+                            <span className='ml-2 text-sm'>{error}</span>
+                        </div>}
+                    </div>
+                </NativeContextMenu>
                 <ConfirmModal isOpen={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}
                     title={selectedCount > 1 ? `Delete (${selectedCount}) Photos?` : `Delete Photo?`}
                     description='These photos(s) will be deleted from the remote storage. You may not be able to recover them.'

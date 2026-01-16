@@ -20,12 +20,8 @@ import {
 import TextModal from '@/components/textModal'
 import FolderPath from '@/components/folderPath'
 import { folderViewUrl } from '@/lib/urls'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+import { NativeContextMenu } from '@/components/nativeContextMenu'
+import { ContextMenuItem } from '@/lib/types'
 import ConfirmModal from '@/components/confirmModal'
 import { toast, useToast } from '@/components/ui/use-toast'
 import mime from 'mime'
@@ -373,6 +369,112 @@ const Page: NextPageWithConfig = () => {
     setRemoteOpenFile(item);
   }, [selectedItems]);
 
+  // Use a ref to track the right-clicked item to avoid stale closure issues
+  const rightClickedItemRef = useRef<FileRemoteItem | null>(null);
+
+  const handleContextMenuClick = useCallback((id: string) => {
+    const clickedItem = rightClickedItemRef.current;
+    
+    switch (id) {
+      case 'preview':
+        if (clickedItem) openItem(clickedItem);
+        break;
+      case 'openInApp':
+        if (clickedItem) openItemNative(clickedItem);
+        break;
+      case 'download':
+        if (clickedItem) {
+          const serviceController = window.modules.getLocalServiceController();
+          toast({ title: 'Download started', description: clickedItem.name });
+          serviceController.files.download(clickedItem.deviceFingerprint!, clickedItem.path)
+            .then(() => toast({ title: 'File downloaded', description: clickedItem.name }))
+            .catch((e: any) => toast({ variant: "destructive", title: 'Could not download file', description: clickedItem.name }));
+        }
+        break;
+      case 'getInfo':
+        // TODO: implement get info
+        break;
+      case 'addToFavorites':
+        if (clickedItem) pinFolder();
+        break;
+      case 'rename':
+        openRenameDialog();
+        break;
+      case 'openRemote':
+        if (clickedItem) setRemoteOpenFile(clickedItem);
+        break;
+      case 'importPhotos':
+        openImportPhotosDialog();
+        break;
+      case 'copy':
+        cutCopy();
+        break;
+      case 'cut':
+        cutCopy(true);
+        break;
+      case 'delete':
+        openDeleteDialog();
+        break;
+      case 'paste':
+        paste(null);
+        break;
+      case 'newFolder':
+        openNewFolderDialog();
+        break;
+    }
+  }, [openItem, openItemNative, toast, pinFolder, openRenameDialog, openImportPhotosDialog, cutCopy, openDeleteDialog, paste, openNewFolderDialog]);
+
+  const getContainerContextMenuItems = useCallback((): ContextMenuItem[] | undefined => {
+    const items: ContextMenuItem[] = [];
+    items.push({ id: 'getInfo', label: 'Get info' });
+    items.push({ id: 'paste', label: 'Paste', disabled: !hasItemsToCopy() });
+    items.push({ id: 'newFolder', label: 'New Folder' });
+    return items;
+  }, []);
+
+  const onItemRightClickWithMenu = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Store the right-clicked item in ref for use in menu handlers
+    rightClickedItemRef.current = item;
+    
+    selectItem(item, false, true);
+
+    const isAlreadySelected = item.isSelected;
+    const currentSelectedCount = isAlreadySelected ? selectedItems.length : selectedItems.length + 1;
+    const isSingleSelection = currentSelectedCount === 1;
+    const isFolder = item.type === 'directory';
+
+    const items: ContextMenuItem[] = [];
+
+    if (isSingleSelection) {
+      items.push({ id: 'preview', label: 'Preview', disabled: previewLoading });
+      if (!isFolder) {
+        items.push({ id: 'openInApp', label: 'Open in app..', disabled: previewLoading });
+        items.push({ id: 'download', label: 'Download' });
+      }
+      items.push({ id: 'getInfo', label: 'Get info' });
+      if (isFolder) {
+        items.push({ id: 'addToFavorites', label: 'Add to Favorites' });
+      }
+      items.push({ id: 'rename', label: 'Rename..' });
+      if (!isFolder) {
+        items.push({ id: 'openRemote', label: 'Open in another device..' });
+      }
+    }
+
+    if (photosImportable) {
+      items.push({ id: 'importPhotos', label: 'Import to photos..' });
+    }
+
+    items.push({ id: 'copy', label: 'Copy' });
+    items.push({ id: 'cut', label: 'Cut' });
+    items.push({ id: 'delete', label: 'Delete' });
+
+    window.utils.openContextMenu(items, handleContextMenuClick);
+  }, [selectItem, selectedItems.length, previewLoading, photosImportable, handleContextMenuClick]);
+
   if (isLoading || error) return (
     <>
       <Head><title>Files - HomeCloud</title></Head>
@@ -452,83 +554,20 @@ const Page: NextPageWithConfig = () => {
       <PageContent
         onDrop={onUpload}
       >
-        <ContextMenu>
-          <ContextMenuTrigger>
-            <div onClick={onClickOutside} className='min-h-[90vh]' onContextMenu={onRightClickOutside}>
-              <FilesView view={view}
-                sortBy={SortBy.None}
-                groupBy={GroupBy.None}
-                onClick={onItemClick}
-                onRightClick={onItemRightClick}
-                onDbClick={onItemDbClick}
-                items={remoteItems} />
-            </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            {
-              selectedCount > 0 ? (<>
-                {
-                  selectedCount === 1 && (<>
-                    <ContextMenuItem
-                      disabled={previewLoading}
-                      onClick={openSelectedItem}>
-                      Preview
-                    </ContextMenuItem>
-                    {/* {
-                      isFolderSelected && isSingleLocalItemSelected && <ContextMenuItem disabled={previewLoading} onClick={openSelectedItemNative}>
-                        <Image src={getNativeFilesAppIcon(deviceInfo)} alt='Folder Icon' width={16} height={16} className='mr-[0.2rem]' />
-                        Open in {getNativeFilesAppName(deviceInfo)}
-                      </ContextMenuItem>
-                    } */}
-                    {
-                      !isFolderSelected && <ContextMenuItem disabled={previewLoading} onClick={openSelectedItemNative}>
-                        Open in app..
-                      </ContextMenuItem>
-                    }
-                    {
-                      !isFolderSelected && <ContextMenuItem onClick={downloadSelected}>
-                        Download
-                      </ContextMenuItem>
-                    }
-                    <ContextMenuItem>Get info</ContextMenuItem>
-                    {
-                      isFolderSelected && (
-                        <ContextMenuItem onClick={pinFolder}>Add to Favorites</ContextMenuItem>
-                      )
-                    }
-                    <ContextMenuItem onClick={openRenameDialog}>
-                      Rename..
-                    </ContextMenuItem>
-                    {
-                      !isFolderSelected && <ContextMenuItem onClick={openFileRemote}>
-                        Open in another device..
-                      </ContextMenuItem>
-                    }
-                  </>)
-                }
-                {
-                  photosImportable && (
-                    <ContextMenuItem onClick={openImportPhotosDialog}>
-                      <Image src='/icons/photos.png' alt='Photos Icon' width={16} height={16} className='mr-[0.2rem]' />
-                      Import to photos..
-                    </ContextMenuItem>
-                  )
-                }
-                <ContextMenuItem onClick={() => cutCopy()}>Copy</ContextMenuItem>
-                <ContextMenuItem onClick={() => cutCopy(true)}>Cut</ContextMenuItem>
-                <ContextMenuItem className='text-red-500' onClick={openDeleteDialog}>
-                  Delete
-                </ContextMenuItem>
-              </>)
-                : (<>
-                  <ContextMenuItem>Get info</ContextMenuItem>
-                  <ContextMenuItem onClick={paste} disabled={!hasItemsToCopy()}>Paste</ContextMenuItem>
-                  <ContextMenuItem onClick={openNewFolderDialog}>New Folder</ContextMenuItem>
-                </>)
-            }
-
-          </ContextMenuContent>
-        </ContextMenu>
+        <NativeContextMenu
+          onMenuOpen={getContainerContextMenuItems}
+          onMenuItemClick={handleContextMenuClick}
+        >
+          <div onClick={onClickOutside} className='min-h-[90vh]' onContextMenu={onRightClickOutside}>
+            <FilesView view={view}
+              sortBy={SortBy.None}
+              groupBy={GroupBy.None}
+              onClick={onItemClick}
+              onRightClick={onItemRightClickWithMenu}
+              onDbClick={onItemDbClick}
+              items={remoteItems} />
+          </div>
+        </NativeContextMenu>
         {selectedCount > 0 && <TextModal isOpen={renameDialogOpen} onOpenChange={setRenameDialogOpen}
           onDone={onRename} title='Rename' defaultValue={selectedItems[0].name}
           description='Provide a name.' buttonText='Save'>
