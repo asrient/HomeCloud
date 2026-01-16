@@ -1,8 +1,7 @@
 import { PhotoView, PhotosFetchOptions } from "@/lib/types";
 import Head from "next/head";
-import {MenuButton, MenuGroup, PageBar, PageContent} from "./pagePrimatives";
-import { Button } from "./ui/button";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MenuButton, MenuGroup, PageBar, PageContent } from "./pagePrimatives";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Loading from "./ui/loading";
 import LazyImage from "./lazyImage";
 import { cn, getServiceController, isMacosTheme, isMobile } from "@/lib/utils";
@@ -18,6 +17,7 @@ import ConfirmModal from "./confirmModal";
 import PhotosPreviewModal from "./photosPreviewModal";
 import { usePhotos } from "./hooks/usePhotos";
 import { ThemedIconName } from "@/lib/enums";
+import { Grid } from 'react-window';
 
 export type PhotosPageProps = {
     pageTitle: string;
@@ -75,84 +75,248 @@ function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick 
     />)
 }
 
-type PhotoSection = {
-    title: string;
-    photos: PhotoView[];
-}
-
-type TimeBasedGridProps = {
+type PhotoGridProps = {
     photos: PhotoView[];
     size: number;
     dateKey: 'capturedOn' | 'addedOn';
+    containerHeight: number;
+    hasMore: boolean;
+    isLoading: boolean;
+    onLoadMore: () => void;
 } & ClickProps;
 
-function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridProps) {
-    const gridClasses = useMemo(() => {
-        switch (size) {
-            case 1:
-                return 'grid-cols-9 md:grid-cols-12 lg:grid-cols-16 xl:grid-cols-18';
-            case 2:
-                return 'grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-12';
-            case 3:
-                return 'grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 lg:gap-1';
-            case 4:
-                return 'grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 md:gap-1';
-            default:
-                return 'grid-cols-1';
-        }
-    }, [size]);
+// Hardcoded columns for each zoom level at different viewport widths
+function getColumnsForZoom(zoom: number, containerWidth: number): number {
+    // Breakpoints: sm < 640, md >= 768, lg >= 1024, xl >= 1280
+    const isXl = containerWidth >= 1280;
+    const isLg = containerWidth >= 1024;
+    const isMd = containerWidth >= 768;
 
-    const sections: PhotoSection[] = useMemo(() => {
-        const sections: PhotoSection[] = [];
-        let currentSection: PhotoSection | null = null;
-        const today = new Date();
-        photos.forEach((photo) => {
-            const date = new Date(photo[dateKey]);
-            const sectionTitle = dateToTitle(date, size <= 2 ? 'month' : 'day', today);
-            if (!currentSection || currentSection.title !== sectionTitle) {
-                currentSection = {
-                    title: sectionTitle,
-                    photos: [],
-                };
-                sections.push(currentSection);
+    switch (zoom) {
+        case 1:
+            if (isXl) return 16;
+            if (isLg) return 14;
+            if (isMd) return 10;
+            return 7;
+        case 2:
+            if (isXl) return 12;
+            if (isLg) return 10;
+            if (isMd) return 8;
+            return 5;
+        case 3:
+            if (isXl) return 8;
+            if (isLg) return 7;
+            if (isMd) return 5;
+            return 4;
+        case 4:
+            if (isXl) return 6;
+            if (isLg) return 5;
+            if (isMd) return 4;
+            return 3;
+        default:
+            return 5;
+    }
+}
+
+function PhotoGrid({ photos, size, dateKey, containerHeight, hasMore, isLoading, onLoadMore, ...clickProps }: PhotoGridProps) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState(0);
+    const [currentSectionTitle, setCurrentSectionTitle] = useState<string | null>(null);
+
+    // Observe container width changes
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const updateWidth = () => {
+            const width = container.offsetWidth;
+            if (width > 0) {
+                setContainerWidth(width);
             }
-            currentSection.photos.push(photo);
+        };
+
+        const resizeObserver = new ResizeObserver(() => {
+            updateWidth();
         });
-        return sections;
+
+        resizeObserver.observe(container);
+        updateWidth();
+
+        return () => resizeObserver.disconnect();
+    }, []);
+
+    const columnCount = useMemo(
+        () => getColumnsForZoom(size, containerWidth),
+        [size, containerWidth]
+    );
+
+    // Calculate cell size - each cell is square (width = height)
+    // Grid positions cells without gaps, so we use padding inside cells for spacing
+    const cellSize = containerWidth > 0 ? Math.floor(containerWidth / columnCount) : 0;
+
+    // Total items = photos + 1 loader/footer row (spanning full width)
+    const totalPhotos = photos.length;
+    const rowCount = Math.ceil(totalPhotos / columnCount) + (hasMore || totalPhotos > 0 ? 1 : 0);
+
+    // Set initial section title
+    useEffect(() => {
+        if (photos.length > 0) {
+            const date = new Date(photos[0][dateKey]);
+            setCurrentSectionTitle(dateToTitle(date, size <= 2 ? 'month' : 'day', new Date()));
+        }
     }, [photos, dateKey, size]);
 
-    return (
-        <div  className='px-3 select-none'>
-            {
-                sections.map((section) => (
-                    <div key={section.title}>
-                        <div className={cn('font-medium sticky z-10 top-0',
-                            isMacosTheme() ? 'text-md p-1 max-w-max' : 'text-sm py-3 bg-background px-3'
-                        )}>
-                            <div className={cn(isMacosTheme() && 'px-3 py-2 backdrop-blur-xl rounded-lg')} >
-                            {section.title}
-                            </div>
+    // Handle visible cells to update date indicator
+    const handleCellsRendered = useCallback((visibleCells: { rowStartIndex: number; rowStopIndex: number; columnStartIndex: number; columnStopIndex: number }) => {
+        const { rowStartIndex } = visibleCells;
+        const photoIndex = rowStartIndex * columnCount;
+        if (photoIndex < photos.length) {
+            const photo = photos[photoIndex];
+            const date = new Date(photo[dateKey]);
+            setCurrentSectionTitle(dateToTitle(date, size <= 2 ? 'month' : 'day', new Date()));
+        }
+    }, [photos, columnCount, dateKey, size]);
+
+    type CellProps = {
+        photos: PhotoView[];
+        columnCount: number;
+        hasMore: boolean;
+        totalPhotos: number;
+        clickProps: ClickProps;
+        onLoadMore: () => void;
+    };
+
+    const CellComponent = useCallback(({
+        rowIndex,
+        columnIndex,
+        style,
+        photos,
+        columnCount,
+        hasMore,
+        totalPhotos,
+        clickProps,
+        onLoadMore,
+    }: {
+        rowIndex: number;
+        columnIndex: number;
+        style: React.CSSProperties;
+    } & CellProps) => {
+        const photoIndex = rowIndex * columnCount + columnIndex;
+        const isLastRow = rowIndex === Math.ceil(totalPhotos / columnCount);
+
+        // Last row: loader or footer (only render in first column, spanning conceptually)
+        if (isLastRow) {
+            if (columnIndex === 0) {
+                if (hasMore) {
+                    return (
+                        <div style={style} className='flex justify-center items-center'>
+                            <Loading onVisible={onLoadMore} />
                         </div>
-                        <div className={'relative grid gap-1 ' + gridClasses}>
-                            {section.photos.map((photo) => (
-                                <div className='w-full aspect-square' key={`${photo.id}_${photo.libraryId}`}>
-                                    <ThumbnailPhoto item={photo} {...clickProps} />
-                                </div>
-                            ))}
+                    );
+                } else if (totalPhotos > 0) {
+                    return (
+                        <div style={style} className='flex justify-center items-center text-gray-500'>
+                            <span className='text-sm font-medium'>{totalPhotos} photo(s).</span>
                         </div>
-                    </div>
-                ))
+                    );
+                }
             }
+            return null;
+        }
+
+        // No photo at this index
+        if (photoIndex >= totalPhotos) {
+            return null;
+        }
+
+        const photo = photos[photoIndex];
+        return (
+            <div style={style} className="p-[2px]">
+                <ThumbnailPhoto item={photo} {...clickProps} />
+            </div>
+        );
+    }, []);
+
+    const cellProps = useMemo((): CellProps => ({
+        photos,
+        columnCount,
+        hasMore,
+        totalPhotos,
+        clickProps,
+        onLoadMore,
+    }), [photos, columnCount, hasMore, totalPhotos, clickProps, onLoadMore]);
+
+    const getRowHeight = useCallback((index: number): number => {
+        const isLastRow = index === Math.ceil(totalPhotos / columnCount);
+        if (isLastRow) {
+            return 80; // loader/footer height
+        }
+        return cellSize; // Same as column width for square cells
+    }, [totalPhotos, columnCount, cellSize]);
+
+    if (photos.length === 0 || containerWidth === 0) {
+        return <div ref={containerRef} className='select-none w-full h-full' />;
+    }
+
+    return (
+        <div ref={containerRef} className='select-none w-full relative'>
+            {/* Fixed date indicator */}
+            {currentSectionTitle && (
+                <div className={cn(
+                    'absolute top-2 left-4 z-20 font-medium pointer-events-none',
+                    isMacosTheme()
+                        ? 'text-md px-3 py-2 backdrop-blur-xl bg-background/70 rounded-lg shadow-sm'
+                        : 'text-sm px-3 py-2 bg-background/90 rounded-md shadow-sm'
+                )}>
+                    {currentSectionTitle}
+                </div>
+            )}
+            <Grid<CellProps>
+                cellComponent={CellComponent}
+                cellProps={cellProps}
+                columnCount={columnCount}
+                columnWidth={cellSize}
+                rowCount={rowCount}
+                rowHeight={getRowHeight}
+                overscanCount={3}
+                onCellsRendered={handleCellsRendered}
+                style={{ height: containerHeight, width: containerWidth }}
+            />
         </div>
-    )
+    );
 }
 
 export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: PhotosPageProps) {
     const [zoom, setZoom] = useState(3);
     const [selectMode, setSelectMode] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [containerHeight, setContainerHeight] = useState(600);
+    const contentContainerRef = useRef<HTMLDivElement>(null);
 
     const { photos, setPhotos, hasMore, isLoading, error, load } = usePhotos(fetchOptions);
+
+    // Observe content container height
+    useEffect(() => {
+        const container = contentContainerRef.current;
+        if (!container) return;
+
+        const updateHeight = () => {
+            // Get available height (viewport height minus page bar and padding)
+            const rect = container.getBoundingClientRect();
+            const availableHeight = window.innerHeight - rect.top - 20;
+            setContainerHeight(Math.max(400, availableHeight));
+        };
+
+        const resizeObserver = new ResizeObserver(updateHeight);
+        resizeObserver.observe(container);
+        updateHeight();
+        window.addEventListener('resize', updateHeight);
+
+        return () => {
+            resizeObserver.disconnect();
+            window.removeEventListener('resize', updateHeight);
+        };
+    }, []);
 
     const selectedPhotos = useMemo(() => photos.filter(item => item.isSelected), [photos]);
     const selectedCount = useMemo(() => selectedPhotos.length, [selectedPhotos]);
@@ -261,21 +425,21 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             <Head>
                 <title>{pageTitle}</title>
             </Head>
-            
-                <PhotosPreviewModal
-                    photos={photos}
-                    photo={photoForPreview}
-                    changePhoto={(photo) => setPhotoForPreview(photo)}
-                />
-                <PageBar title={pageTitle} icon={pageIcon}>
-                    <MenuGroup>
+
+            <PhotosPreviewModal
+                photos={photos}
+                photo={photoForPreview}
+                changePhoto={(photo) => setPhotoForPreview(photo)}
+            />
+            <PageBar title={pageTitle} icon={pageIcon}>
+                <MenuGroup>
                     <MenuButton title='Toggle select mode' onClick={toggleSelectMode} selected={selectMode}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </MenuButton>
-                    </MenuGroup>
-                    <MenuGroup>
+                </MenuGroup>
+                <MenuGroup>
                     <MenuButton title='Zoom In' disabled={zoom >= 4} onClick={zoomIn}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
@@ -286,25 +450,30 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM13.5 10.5h-6" />
                         </svg>
                     </MenuButton>
-                    </MenuGroup>
-                </PageBar>
-                <PageContent>
+                </MenuGroup>
+            </PageBar>
+            <PageContent>
                 <ContextMenu>
                     <ContextMenuTrigger>
                         <div
+                            ref={contentContainerRef}
                             onClick={onClickOutside}
                             onContextMenu={onRightClickOutside}
                             className='min-h-[90vh]'
                         >
                             <div className={cn(!isMacosTheme() && 'px-7')}>
-                            <TimeBasedGrid
-                                dateKey={fetchOptions.sortBy}
-                                photos={photos}
-                                size={zoom}
-                                onClick={onClick}
-                                onDoubleClick={onDoubleClick}
-                                onRightClick={onRightClick}
-                            />
+                                <PhotoGrid
+                                    dateKey={fetchOptions.sortBy}
+                                    photos={photos}
+                                    size={zoom}
+                                    containerHeight={containerHeight}
+                                    onClick={onClick}
+                                    onDoubleClick={onDoubleClick}
+                                    onRightClick={onRightClick}
+                                    hasMore={hasMore}
+                                    isLoading={isLoading}
+                                    onLoadMore={fetchNew}
+                                />
                             </div>
                             {
                                 !error && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
@@ -312,20 +481,12 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                                     <div className='text-lg font-semibold'>Nothing to see here, except for the cat.</div>
                                 </div>
                             }
-                            {error && !hasMore && <div className='p-5 py-10 flex justify-center items-center text-red-500'>
+                            {error && <div className='p-5 py-10 flex justify-center items-center text-red-500'>
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                                 </svg>
                                 <span className='ml-2 text-sm'>{error}</span>
                             </div>}
-                            {!error && hasMore && <div className='p-5 py-10 flex justify-center items-center'>
-                                <Loading onVisible={fetchNew} />
-                            </div>}
-                            {
-                                !error && !hasMore && photos.length > 0 && <div className='p-5 py-10 flex justify-center items-center text-gray-500'>
-                                    <span className='text-sm font-medium'>{photos.length} photo(s).</span>
-                                </div>
-                            }
                         </div>
                     </ContextMenuTrigger>
                     <ContextMenuContent>
