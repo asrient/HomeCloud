@@ -217,12 +217,6 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
                             <Loading onVisible={onLoadMore} />
                         </div>
                     );
-                } else if (totalPhotos > 0) {
-                    return (
-                        <div style={style} className='flex justify-center items-center text-gray-500'>
-                            <span className='text-sm font-medium'>{totalPhotos} photo(s).</span>
-                        </div>
-                    );
                 }
             }
             return null;
@@ -309,7 +303,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         const updateHeight = () => {
             // Get available height (viewport height minus page bar and padding)
             const rect = container.getBoundingClientRect();
-            const availableHeight = window.innerHeight - rect.top - 20;
+            const availableHeight = window.innerHeight - rect.top - (isMacosTheme() ? 4 : 10);
             setContainerHeight(Math.max(400, availableHeight));
         };
 
@@ -503,14 +497,14 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 <NativeContextMenu
                     onMenuOpen={getContainerContextMenuItems}
                     onMenuItemClick={handleContextMenuClick}
+                    style={{width: '100%', 'height': '100%'}}
                 >
                     <div
                         ref={contentContainerRef}
                         onClick={onClickOutside}
                         onContextMenu={onRightClickOutside}
-                        className='min-h-[90vh]'
                     >
-                        <div className={cn(!isMacosTheme() && 'px-7')}>
+                        <div className={cn(isMacosTheme() ? 'px-1' : 'px-7')}>
                             <PhotoGrid
                                 dateKey={fetchOptions.sortBy}
                                 photos={photos}
