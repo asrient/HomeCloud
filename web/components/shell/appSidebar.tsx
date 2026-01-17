@@ -1,5 +1,5 @@
 import { SidebarSectionView, SidebarView } from "./sidebarPrimatives";
-import { NativeContextMenu } from "@/components/nativeContextMenu";
+import { ContextMenuArea } from "@/components/contextMenuArea";
 import { ContextMenuItem, SidebarItem, SidebarSection } from "@/lib/types";
 import { useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
@@ -122,7 +122,7 @@ const FilesSection = ({
     }, []);
 
     return (<div>
-        <NativeContextMenu
+        <ContextMenuArea
             onMenuOpen={getContextMenuItems}
             onMenuItemClick={handleContextMenuClick}
         >
@@ -131,7 +131,7 @@ const FilesSection = ({
                     <SidebarSectionView onRightClick={handleSidebarRightClick} section={section} />
                 )
             }
-        </NativeContextMenu>
+        </ContextMenuArea>
     </div>);
 }
 

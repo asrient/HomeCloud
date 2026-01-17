@@ -7,7 +7,7 @@ import LazyImage from "./lazyImage";
 import { cn, getServiceController, isMacosTheme, isMobile } from "@/lib/utils";
 import { dateToTitle } from "@/lib/photoUtils";
 import Image from "next/image";
-import { NativeContextMenu } from "./nativeContextMenu";
+import { ContextMenuArea } from "./contextMenuArea";
 import { ContextMenuItem } from "@/lib/types";
 import ConfirmModal from "./confirmModal";
 import PhotosPreviewModal from "./photosPreviewModal";
@@ -494,7 +494,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 </MenuGroup>
             </PageBar>
             <PageContent>
-                <NativeContextMenu
+                <ContextMenuArea
                     onMenuOpen={getContainerContextMenuItems}
                     onMenuItemClick={handleContextMenuClick}
                     style={{width: '100%', 'height': '100%'}}
@@ -532,7 +532,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                             <span className='ml-2 text-sm'>{error}</span>
                         </div>}
                     </div>
-                </NativeContextMenu>
+                </ContextMenuArea>
                 <ConfirmModal isOpen={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}
                     title={selectedCount > 1 ? `Delete (${selectedCount}) Photos?` : `Delete Photo?`}
                     description='These photos(s) will be deleted from the remote storage. You may not be able to recover them.'

@@ -8,7 +8,7 @@ export type ContextMenuOptions = {
     children: React.ReactNode;
 }
 
-export const NativeContextMenu = (options: ContextMenuOptions) => {
+export const ContextMenuArea = (options: ContextMenuOptions) => {
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
         const items = options.onMenuOpen();
         if (items !== undefined) {

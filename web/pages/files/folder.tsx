@@ -20,7 +20,7 @@ import {
 import TextModal from '@/components/textModal'
 import FolderPath from '@/components/folderPath'
 import { folderViewUrl } from '@/lib/urls'
-import { NativeContextMenu } from '@/components/nativeContextMenu'
+import { ContextMenuArea } from '@/components/contextMenuArea'
 import { ContextMenuItem } from '@/lib/types'
 import ConfirmModal from '@/components/confirmModal'
 import { toast, useToast } from '@/components/ui/use-toast'
@@ -554,7 +554,7 @@ const Page: NextPageWithConfig = () => {
       <PageContent
         onDrop={onUpload}
       >
-        <NativeContextMenu
+        <ContextMenuArea
           onMenuOpen={getContainerContextMenuItems}
           onMenuItemClick={handleContextMenuClick}
         >
@@ -567,7 +567,7 @@ const Page: NextPageWithConfig = () => {
               onDbClick={onItemDbClick}
               items={remoteItems} />
           </div>
-        </NativeContextMenu>
+        </ContextMenuArea>
         {selectedCount > 0 && <TextModal isOpen={renameDialogOpen} onOpenChange={setRenameDialogOpen}
           onDone={onRename} title='Rename' defaultValue={selectedItems[0].name}
           description='Provide a name.' buttonText='Save'>
