@@ -1,21 +1,25 @@
-import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useMemo, useState } from 'react'
 import { getDefaultIcon, getFileUrl } from '@/lib/fileUtils';
 import Image from 'next/image';
 import { Button } from './ui/button';
-import { ArrowUpOnSquareIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { FileRemoteItem } from '@/lib/types';
 import { toast } from './ui/use-toast';
 import LoadingIcon from './ui/loadingIcon';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
-function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }) {
-    const icon = useMemo(() => getDefaultIcon(item), [item]);
+function PreviewBar({ item }: { item: FileRemoteItem | null }) {
+    const icon = useMemo(() => item ? getDefaultIcon(item) : null, [item]);
     const [openingInApp, setOpeningInApp] = useState(false);
 
     const openInApp = useCallback(async () => {
         if (openingInApp) return;
+        if (!item) return;
         setOpeningInApp(true);
-        if (!item.deviceFingerprint) return;
         try {
             // open file locally
             const serviceController = window.modules.getLocalServiceController();
@@ -29,31 +33,20 @@ function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }
         } finally {
             setOpeningInApp(false);
         }
-    }, [item.deviceFingerprint, item.path, openingInApp]);
+    }, [item, openingInApp]);
 
     return (
-        <>
-            <div className='text-s app-titlebar min-h-[2.6rem] flex'>
-                <div className='flex items-center p-1 px-3 space-x-2'>
-                    <Button variant='secondary' size='sm' className='rounded-full' onClick={close}>
-                        <ArrowLeftIcon className="h-5 w-5" />
-                    </Button>
-                    <Button onClick={openInApp} variant='default' disabled={openingInApp} size='sm'>
-                        {
-                            openingInApp ?
-                                <LoadingIcon className='h-5 w-5' />
-                                :
-                                <ArrowUpOnSquareIcon className='h-5 w-5' />
-                        }
-                    </Button>
-                </div>
-                <div className='flex items-center space-x-2 h-full w-full app-dragable'>
-                    <Image height={20} width={20} src={icon} alt='Item icon' />
-                    <div className='text-foreground font-medium'>{item.name}</div>
-                </div>
+        <div className='text-sm flex items-center justify-between space-x-2 mr-6'>
+            <div className='flex items-center space-x-2'>
+                {icon && <Image height={20} width={20} src={icon} alt='Item icon' />}
+                <DialogTitle className='text-sm'>{item?.name || 'Preview'}</DialogTitle>
             </div>
-            <div className='bg-background h-[2.7rem] w-full border-b bottom-1'></div>
-        </>
+            <div className='flex items-center space-x-2'>
+                <Button onClick={openInApp} variant='default' disabled={openingInApp} size='sm'>
+                    {openingInApp ? <LoadingIcon className='h-5 w-5' /> : 'Open'}
+                </Button>
+            </div>
+        </div>
     )
 }
 
@@ -62,15 +55,14 @@ function PreviewContent({ item }: { item: FileRemoteItem }) {
     const contentType = useMemo(() => item.mimeType?.split('/')[0], [item]);
 
     if (assetUrl && contentType === 'image') {
-        return (<div className='w-full h-full'>
-            <Image src={assetUrl} height={0} width={0} className='w-full h-full object-scale-down' alt='Preview image' />
-        </div>)
+        return (
+            <Image src={assetUrl} height={0} width={0} className='w-auto h-auto object-contain object-center' alt='Preview image' />)
     }
 
     if (assetUrl && contentType === 'video') {
-        return (<div className='w-full h-full'>
-            <video src={assetUrl} controls className='w-full h-full' />
-        </div>)
+        return (
+            <video src={assetUrl} controls className='w-auto h-auto object-contain object-center' />
+        )
     }
 
     if (assetUrl && contentType === 'audio') {
@@ -103,17 +95,16 @@ export default function PreviewModal({
     }, [close, item]);
 
     return (
-        <Dialog.Root open={!!item} onOpenChange={handleOpenChange}>
-            <Dialog.Portal>
-                <Dialog.Overlay />
-                <Dialog.Content
-                    className='fixed top-0 h-screen w-screen z-30 bg-background duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]'>
-                    {item && (<>
-                        <PreviewBar item={item} close={close} />
-                        <PreviewContent item={item} />
-                    </>)}
-                </Dialog.Content>
-            </Dialog.Portal>
-        </Dialog.Root>
+        <Dialog open={!!item} onOpenChange={handleOpenChange}>
+            <DialogContent
+                className='max-w-3xl lg:max-w-4xl xl:max-w-6xl h-[85vh] max-h-[50rem] overflow-hidden py-0 px-0 gap-0 flex flex-col'>
+                <DialogHeader className='py-3 px-4 h-min'>
+                    <PreviewBar item={item} />
+                </DialogHeader>
+                <div className='w-full h-full overflow-auto'>
+                    {item && <PreviewContent item={item} />}
+                </div>
+            </DialogContent>
+        </Dialog>
     )
 }
