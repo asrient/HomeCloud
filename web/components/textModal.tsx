@@ -31,7 +31,6 @@ export type TextModalProps = {
 }
 
 export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description, isOpen, onOpenChange, noTrigger, additionalContent, textType, rows = 1, placeholder }: TextModalProps) {
-    fieldName = fieldName || 'Name';
     const [text, setText] = useState<string>(defaultValue || '');
     const [isDirty, setIsDirty] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -122,7 +121,7 @@ export default function TextModal({ title, buttonText, children, onDone, default
                 <>
                     {!isLoading && (<>
                         <div className="grid w-full max-w-sm items-center gap-1.5">
-                            <Label>{fieldName}</Label>
+                            {fieldName && <Label>{fieldName}</Label>}
                             {rows > 1 ? (
                                 <Textarea onChange={handleNameChange} value={text} rows={rows} placeholder={placeholder} />
                             ) : (
@@ -138,10 +137,10 @@ export default function TextModal({ title, buttonText, children, onDone, default
                     </div>}
 
                     <div className="space-x-2 flex justify-center items-center">
-                        <Button variant='secondary' size='lg' disabled={isLoading} onClick={() => handleOpenChange(false)}>
+                        <Button variant='secondary' size='platform' stretch disabled={isLoading} onClick={() => handleOpenChange(false)}>
                             Cancel
                         </Button>
-                        <Button type='submit' variant='default' size='lg' disabled={isLoading || !text} onClick={handleSubmit}>
+                        <Button type='submit' variant='default' size='platform' stretch disabled={isLoading || !text} onClick={handleSubmit}>
                             {buttonText || 'Save'}
                         </Button>
                     </div>

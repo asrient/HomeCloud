@@ -72,11 +72,11 @@ export function WelcomePage() {
     return (
         <>
             <DialogHeader>
-                <DialogTitle className="text-3xl font-bold">Welcome to Media Center</DialogTitle>
+                <DialogTitle className="text-3xl font-bold ml-2">Welcome to Media Center</DialogTitle>
             </DialogHeader>
             <IntroHero />
-            <DialogFooter className="mt-auto mx-auto">
-                <Button className={cn("w-[12rem]", isMacosTheme() && "rounded-full")} size={isMacosTheme() ? 'sm' : 'default'} onClick={handleNext}>
+            <DialogFooter className="flex sm:justify-center sm:items-center sm:w-full">
+                <Button size='platform' variant='default' stretch onClick={handleNext}>
                     Continue
                 </Button>
             </DialogFooter>

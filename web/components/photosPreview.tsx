@@ -16,13 +16,54 @@ import type { PhotoView } from '@/lib/types'
 import LazyImage from './lazyImage'
 import { getFileUrl } from '@/lib/fileUtils'
 import { toast } from './ui/use-toast'
-import { getServiceController } from '@/lib/utils'
+import { cn, getServiceController, isMacosTheme } from '@/lib/utils'
 
 type ThumbnailPhotoProps = {
   item: PhotoView;
   className?: string;
   height?: number;
   width?: number;
+}
+
+type ActionButtonProps = {
+  onClick: (e: React.MouseEvent) => void;
+  title?: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+function ActionButton({ onClick, title, children, className = '' }: ActionButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full bg-black/50 p-2 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white ${className}`}
+      title={title}
+    >
+      {children}
+    </button>
+  );
+}
+
+type NavigationButtonProps = {
+  direction: 'left' | 'right';
+  onClick: () => void;
+}
+
+function NavigationButton({ direction, onClick }: NavigationButtonProps) {
+  const isLeft = direction === 'left';
+  return (
+    <button
+      className={`absolute z-50 ${isLeft ? 'left-6' : 'right-6'} top-[calc(50%-16px)] rounded-full bg-black/50 p-3 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white focus:outline-none`}
+      style={{ transform: 'translate3d(0, 0, 0)' }}
+      onClick={onClick}
+    >
+      {isLeft ? (
+        <ChevronLeftIcon className="h-5 w-5" />
+      ) : (
+        <ChevronRightIcon className="h-5 w-5" />
+      )}
+    </button>
+  );
 }
 
 function ThumbnailPhoto({ item, className, height, width }: ThumbnailPhotoProps) {
@@ -167,9 +208,9 @@ export default function PhotosPreview({
         {...handlers}
       >
         {/* Main image */}
-        <div className="w-full overflow-hidden">
-          <div className="relative flex items-center justify-center">
-            <AnimatePresence initial={false} custom={direction}>
+        <div className="w-full h-full overflow-hidden">
+          <div className="relative flex items-center justify-center w-full h-full">
+            <AnimatePresence initial={false} custom={direction} mode="popLayout">
               <motion.div
                 key={index}
                 custom={direction}
@@ -177,7 +218,7 @@ export default function PhotosPreview({
                 initial="enter"
                 animate="center"
                 exit="exit"
-                className='h-full'
+                className='absolute inset-0 flex items-center justify-center'
               >
                 {error
                   ? (
@@ -213,50 +254,38 @@ export default function PhotosPreview({
               {images && (
                 <>
                   {index > 0 && (
-                    <button
-                      className="absolute z-50 left-6 top-[calc(50%-16px)] rounded-full bg-black/50 p-3 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white focus:outline-none"
-                      style={{ transform: 'translate3d(0, 0, 0)' }}
+                    <NavigationButton
+                      direction="left"
                       onClick={() => changePhoto(images[index - 1])}
-                    >
-                      <ChevronLeftIcon className="h-5 w-5" />
-                    </button>
+                    />
                   )}
                   {index + 1 < images.length && (
-                    <button
-                      className="absolute z-50 right-6 top-[calc(50%-16px)] rounded-full bg-black/50 p-3 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white focus:outline-none"
-                      style={{ transform: 'translate3d(0, 0, 0)' }}
+                    <NavigationButton
+                      direction="right"
                       onClick={() => changePhoto(images[index + 1])}
-                    >
-                      <ChevronRightIcon className="h-5 w-5" />
-                    </button>
+                    />
                   )}
                 </>
               )}
-              <div className="absolute z-50 top-0 right-0 flex items-center gap-2 p-6 text-white">
-                {<button
-                  onClick={downloadPhoto}
-                  className="rounded-full bg-black/50 p-2 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white"
-                  title="Download fullsize version">
+              <div className={cn(
+                "absolute z-50 right-0 flex items-center gap-2 p-6 text-white",
+                isMacosTheme() ? 'top-2' : 'top-4'
+              )}>
+                <ActionButton onClick={downloadPhoto} title="Download fullsize version">
                   <ArrowDownTrayIcon className="h-5 w-5" />
-                </button>}
-                {filteredImages && filteredImages.length > 0 && <button
-                  onClick={thumbsButtonClick}
-                  className="rounded-full bg-black/50 p-2 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white"
-                  title="Toggle Thumbnails">
-                  <RectangleStackIcon className="h-5 w-5" />
-                </button>}
-              </div>
-              <div className="absolute z-50 top-0 left-0 flex items-center gap-2 p-6 text-white">
-                <button
-                  onClick={() => closeModal()}
-                  className="rounded-full bg-black/50 p-2 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white"
-                >
+                </ActionButton>
+                {filteredImages && filteredImages.length > 0 && (
+                  <ActionButton onClick={thumbsButtonClick} title="Toggle Thumbnails">
+                    <RectangleStackIcon className="h-5 w-5" />
+                  </ActionButton>
+                )}
+                <ActionButton onClick={() => closeModal()}>
                   {filteredImages ? (
                     <XMarkIcon className="h-5 w-5" />
                   ) : (
                     <ArrowUturnLeftIcon className="h-5 w-5" />
                   )}
-                </button>
+                </ActionButton>
               </div>
             </div>
           )}

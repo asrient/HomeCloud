@@ -342,7 +342,6 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
         title='Send Text'
         description={`Send text to ${peerInfo ? peerInfo.deviceName : 'device'}.`}
         rows={4}
-        fieldName='Message'
         placeholder='Type here'
         buttonText='Send'>
         <Button variant='ghost' size='sm'>

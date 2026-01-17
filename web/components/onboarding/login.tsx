@@ -152,7 +152,7 @@ export function LoginPage() {
             </div>
 
             <DialogFooter className="mt-auto">
-                <Button className={cn(isMacosTheme() && "rounded-full")} variant={'ghost'} size={isMacosTheme() ? 'sm' : 'default'}
+                <Button variant={'ghost'} size='platform'
                     onClick={() => {
                         if (currentStep === 'email') {
                             closeDialog();
@@ -165,9 +165,9 @@ export function LoginPage() {
                         currentStep === 'email' ? 'Not now' : 'Back'
                     }
                 </Button>
-                <Button className={cn(isMacosTheme() && "rounded-full")}
+                <Button
                     disabled={(currentStep === 'email' ? !isEmailValid : otpValue.length !== OTP_LENGTH) || isLoading}
-                    size={isMacosTheme() ? 'sm' : 'default'}
+                    size='platform'
                     onClick={() => {
                         if (currentStep === 'email') {
                             submitEmail();

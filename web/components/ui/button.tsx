@@ -23,8 +23,9 @@ const buttonVariants = cva(
       size: {
         default: "h-9 px-4 py-2",
         sm: "h-8 px-3 text-xs",
-        lg: "h-10 px-8 md:w-full max-w-[12rem]",
+        lg: "h-10 px-8 md:w-full",
         icon: "h-9 w-9",
+        platform: "",
       },
     },
     defaultVariants: {
@@ -39,14 +40,18 @@ export interface ButtonProps
   VariantProps<typeof buttonVariants> {
   asChild?: boolean,
   rounded?: boolean,
+  stretch?: boolean,
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, rounded, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, rounded, stretch, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     let roundedClass = isWin11Theme() ? 'rounded-sm' : isMacosTheme() ? 'rounded-full' : 'rounded-md';
     if (rounded !== undefined) {
       roundedClass = rounded ? 'rounded-full' : 'rounded-md';
+    }
+    if (size === 'platform') {
+      size = isMacosTheme() ? 'sm' : isWin11Theme() ? 'lg' : 'default';
     }
     return (
       <Comp
@@ -56,6 +61,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           className: cn(
             roundedClass,
             isMacosTheme() && 'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset font-medium',
+            (stretch === true || size === 'lg') && 'w-full max-w-[12rem]',
             className
           )
         }),
