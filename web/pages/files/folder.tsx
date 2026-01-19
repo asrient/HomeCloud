@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import { buildPageConfig, cn, getServiceController, isMacosTheme, isMobile } from '@/lib/utils'
+import { buildPageConfig, cn, getServiceController, isMacos, isMacosTheme, isMobile } from '@/lib/utils'
 import { FileRemoteItem } from "@/lib/types"
 import { RemoteItem } from 'shared/types'
 import { NextPageWithConfig } from '@/pages/_app'
@@ -304,6 +304,14 @@ const Page: NextPageWithConfig = () => {
     }
   }, [toast]);
 
+  const share = useCallback(async () => {
+    const selectedItems = getCurrentSelectedItems();
+    const fileIds = selectedItems.map(item => item.path);
+    if (fileIds.length === 0) return;
+    const localSc = window.modules.getLocalServiceController();
+    localSc.files.shareFiles(fingerprint, fileIds);
+  }, [getCurrentSelectedItems, fingerprint]);
+
   // const isSingleLocalItemSelected = useMemo(() => {
   //   if (selectedItems.length !== 1) return false;
   //   const item = selectedItems[0];
@@ -374,9 +382,12 @@ const Page: NextPageWithConfig = () => {
       case 'selectAll':
         selectAll();
         break;
-      }
+      case 'share':
+        share();
+        break;
+    }
     rightClickedItemRef.current = null;
-  }, [openInDevice, sendToDevice, openItem, openItemNative, pinFolder, openRenameDialog, cutCopy, openDeleteDialog, paste, openNewFolderDialog, selectAll, toast]);
+  }, [openInDevice, sendToDevice, openItem, openItemNative, pinFolder, openRenameDialog, cutCopy, openDeleteDialog, paste, openNewFolderDialog, selectAll, share, toast]);
 
   const getContainerContextMenuItems = useCallback((): ContextMenuItem[] | undefined => {
     const items: ContextMenuItem[] = [];
@@ -419,29 +430,31 @@ const Page: NextPageWithConfig = () => {
       } else {
         items.push({ id: 'download', label: 'Download' });
       }
+    }
 
-      if (!isFolder) {
-        items.push({
-          id: 'openInDevice',
-          label: 'Open in Device',
-          subItems: peers.map(p => {
-            return {
-              id: `openInDevice=${p.fingerprint}`,
-              label: p.deviceName,
-            }
-          })
-        });
-        items.push({
-          id: 'sendToDevice',
-          label: 'Send to Device',
-          subItems: peers.map(p => {
-            return {
-              id: `sendToDevice=${p.fingerprint}`,
-              label: p.deviceName,
-            }
-          })
-        });
-      }
+    isMacos() && items.push({ id: 'share', label: 'Export' });
+
+    if (!isFolder && peers.length > 0 && isSingleSelection) {
+      items.push({
+        id: 'openInDevice',
+        label: 'Open in Device',
+        subItems: peers.map(p => {
+          return {
+            id: `openInDevice=${p.fingerprint}`,
+            label: p.deviceName,
+          }
+        })
+      });
+      items.push({
+        id: 'sendToDevice',
+        label: 'Send to Device',
+        subItems: peers.map(p => {
+          return {
+            id: `sendToDevice=${p.fingerprint}`,
+            label: p.deviceName,
+          }
+        })
+      });
     }
 
     if (items.length > 0)

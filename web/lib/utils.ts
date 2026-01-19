@@ -198,3 +198,11 @@ export function isMacosTheme(): boolean {
 }
 
 export const UI_THEMES = [UITheme.Macos, UITheme.Win11];
+
+export function isMacos(): boolean {
+  return window.modules.config.OS === OSType.MacOS;
+}
+
+export function isWindows(): boolean {
+  return window.modules.config.OS === OSType.Windows;
+}

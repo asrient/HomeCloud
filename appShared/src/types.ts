@@ -107,6 +107,7 @@ export type AppConfigType = {
     UI_THEME: UITheme;
     SERVER_URL: string;
     WS_SERVER_URL: string;
+    OS: OSType;
 }
 
 export type PeerInfo = {

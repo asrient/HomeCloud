@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import DesktopConfigStorage from './configStorage';
 import { getServiceController } from 'shared/utils';
-import { DeviceFormType, UITheme } from 'shared/types';
+import { DeviceFormType, OSType, UITheme } from 'shared/types';
 
 const WEB_APP_SERVER = 'http://localhost:3000';
 
@@ -101,6 +101,7 @@ async function getConfig() {
     FINGERPRINT: fingerprint,
     APP_NAME: app.getName(),
     UI_THEME: uiTheme,
+    OS: process.platform === 'darwin' ? OSType.MacOS : process.platform === 'win32' ? OSType.Windows : OSType.Linux,
   };
   return desktopConfig;
 }

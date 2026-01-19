@@ -4,7 +4,7 @@ import { MenuButton, MenuGroup, PageBar, PageContent } from "./pagePrimatives";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Loading from "./ui/loading";
 import LazyImage from "./lazyImage";
-import { cn, getServiceController, isMacosTheme, isMobile } from "@/lib/utils";
+import { cn, getServiceController, isMacos, isMacosTheme, isMobile } from "@/lib/utils";
 import { dateToTitle } from "@/lib/photoUtils";
 import Image from "next/image";
 import { ContextMenuArea } from "./contextMenuArea";
@@ -453,6 +453,14 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         await localSc.files.download(fetchOptions.deviceFingerprint, item.fileId);
     }, [fetchOptions.deviceFingerprint]);
 
+    const share = useCallback(async () => {
+        const selectedItems = getCurrentSelectedItems();
+        const fileIds = selectedItems.map(item => item.fileId);
+        if (fileIds.length === 0) return;
+        const localSc = window.modules.getLocalServiceController();
+        localSc.files.shareFiles(fetchOptions.deviceFingerprint, fileIds);
+    }, [getCurrentSelectedItems, fetchOptions.deviceFingerprint]);
+
     const handleContextMenuClick = useCallback((id: string) => {
         const clickedItem = rightClickedItemRef.current;
 
@@ -485,9 +493,12 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             case 'download':
                 if (clickedItem) download(clickedItem);
                 break;
+            case 'share':
+                share();
+                break;
         }
         rightClickedItemRef.current = null;
-    }, [openInDevice, sendToDevice, selectAll, previewPhoto, openDeleteDialog, copy, download]);
+    }, [openInDevice, sendToDevice, selectAll, previewPhoto, openDeleteDialog, copy, download, share]);
 
     const onRightClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
         e.preventDefault();
@@ -529,6 +540,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             items.push({ id: 'download', label: 'Download' });
         }
         items.push({ id: 'copy', label: 'Copy' });
+        isMacos() && items.push({ id: 'share', label: 'Export' });
         items.push({
             id: 'delete',
             label: currentSelectedCount === 1 ? 'Delete photo' : `Delete (${currentSelectedCount}) photos`,

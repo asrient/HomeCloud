@@ -392,6 +392,10 @@ class DesktopSystemService extends SystemService {
     }
 
     public async share(options: { title?: string; description?: string; content?: string; files?: string[]; type: "url" | "text" | "file"; }): Promise<void> {
+        // only available on macOS.
+        if (process.platform !== 'darwin') {
+            throw new Error("Sharing is only supported on macOS.");
+        }
         const focusedWindow = BrowserWindow.getFocusedWindow();
         const sharingItem: SharingItem = {};
 

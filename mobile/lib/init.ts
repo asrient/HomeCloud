@@ -1,7 +1,7 @@
 import { setModules, ModulesType } from "shared/modules";
 import CryptoImpl from "./cryptoImpl";
 import MobileServiceController from "./serviceController";
-import { MobileConfigType, MobilePlatform, UITheme } from "./types";
+import { MobileConfigType, MobilePlatform, UITheme, OSType } from "./types";
 import MobileConfigStorage from "./configStorage";
 import * as Device from 'expo-device';
 import { applicationName, nativeApplicationVersion } from 'expo-application';
@@ -74,6 +74,7 @@ async function getConfig() {
         UI_THEME: mobilePlatform === MobilePlatform.IOS ? UITheme.Ios : UITheme.Android,
         SERVER_URL: process.env.EXPO_PUBLIC_SERVER_URL || "http://localhost:4000",
         WS_SERVER_URL: process.env.EXPO_PUBLIC_WS_SERVER_URL || "ws://localhost:4000/ws",
+        OS: Platform.OS === 'ios' ? OSType.iOS : OSType.Android,
     };
     return mobileConfig;
 }
