@@ -204,29 +204,9 @@ function useFileItemState(
                 // Handled in onPress
                 handlePress();
                 return;
-            case 'info':
-                type = 'info';
-                break;
-            case 'rename':
-                type = 'rename';
-                break;
-            case 'move':
-                type = 'move';
-                break;
-            case 'delete':
-                type = 'delete';
-                break;
-            case 'export':
-                type = 'export';
-                break;
-            case 'openInDevice':
-                type = 'openInDevice';
-                break;
-            case 'sendToDevice':
-                type = 'sendToDevice';
-                break;
             default:
-                type = null;
+                type = id as FileQuickActionType['type'];
+                break;
         }
         if (!type) {
             console.error('Unknown quick action type for action:', id);

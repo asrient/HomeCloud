@@ -1,4 +1,4 @@
-import { RemoteItem, PeerInfo, ConnectionInfo, Photo, PhotoLibraryLocation, AppConfigType } from "shared/types";
+import { RemoteItem, PeerInfo, ConnectionInfo, Photo, PhotoLibraryLocation, AppConfigType, ClipboardContentType } from "shared/types";
 import { ThemedIconName } from "./enums";
 
 export type PeerState = PeerInfo & {
@@ -75,4 +75,5 @@ export type ContextMenuItem = {
 export type NativeUtils = {
     getPathForFile: (file: File) => string;
     openContextMenu: (items: ContextMenuItem[], callback: (id: string) => void) => void;
+    clipboardHasContent: () => ClipboardContentType[];
 }

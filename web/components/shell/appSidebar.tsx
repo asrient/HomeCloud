@@ -74,7 +74,7 @@ const FilesSection = ({
     const removePinnedFolderDirect = useCallback(async (item: SidebarItem) => {
         if (!item || !item.data) return;
         const { deviceFingerprint, path } = (item.data as FilesSidebarData);
-        if (!deviceFingerprint || !path) return;
+        if (!path) return;
         if (deviceFingerprint !== fingerprint) {
             console.warn('Selected item does not belong to the current peer');
             return;
@@ -96,9 +96,6 @@ const FilesSection = ({
             case 'open':
                 openItemDirect(item);
                 break;
-            case 'getInfo':
-                // TODO: implement get info
-                break;
             case 'remove':
                 removePinnedFolderDirect(item);
                 break;
@@ -116,7 +113,6 @@ const FilesSection = ({
         if (!folderPath) return undefined;
         return [
             { id: 'open', label: 'Open' },
-            { id: 'getInfo', label: 'Get info' },
             { id: 'remove', label: 'Remove' },
         ];
     }, []);

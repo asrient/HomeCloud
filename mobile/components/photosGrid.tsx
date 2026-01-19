@@ -74,31 +74,8 @@ export function PhotoThumbnail({ item, onPress, isSelectMode, onQuickAction }: {
         if (!onQuickAction) {
             return;
         }
-        let type: PhotosQuickAction['type'] | null = null;
+        const type = id as PhotosQuickAction['type'];
         let targetDeviceFingerprint: string | undefined = data;
-        switch (id) {
-            case 'info':
-                type = 'info';
-                break;
-            case 'delete':
-                type = 'delete';
-                break;
-            case 'export':
-                type = 'export';
-                break;
-            case 'openInDevice':
-                type = 'openInDevice';
-                break;
-            case 'sendToDevice':
-                type = 'sendToDevice';
-                break;
-            default:
-                type = null;
-        }
-        if (!type) {
-            console.error('Unknown quick action type for action:', id);
-            return;
-        }
         onQuickAction({
             type,
             targetDeviceFingerprint,
@@ -154,7 +131,7 @@ export function PhotoThumbnail({ item, onPress, isSelectMode, onQuickAction }: {
             onPreviewPress={handlePress}
         >
             {/* onLongPress is needed to prevent onPress from firing when context menu opens on Android */}
-            <Pressable onPress={handlePress} onLongPress={() => {}} style={{ width: '100%', height: '100%' }}>
+            <Pressable onPress={handlePress} onLongPress={() => { }} style={{ width: '100%', height: '100%' }}>
                 <Image
                     source={{ uri: thumbnailSrc, cacheKey: `${item.deviceFingerprint}-${item.libraryId}-${item.id}` }}
                     style={{ width: '100%', height: '100%' }}

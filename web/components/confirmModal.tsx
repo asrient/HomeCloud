@@ -70,9 +70,9 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
             <DialogTrigger asChild>
                 {children}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[20rem]">
+            <DialogContent className="sm:max-w-[26rem] overflow-hidden">
                 <DialogHeader>
-                    <DialogTitle>
+                    <DialogTitle className="overflow-ellipsis max-w-[22rem] truncate">
                         {title}
                     </DialogTitle>
                     {

@@ -1,4 +1,6 @@
+import { clipboard } from 'electron';
 import { Menu, MenuItem } from 'electron/main';
+import { ClipboardContentType } from 'shared/types';
 
 export type ContextMenuItem = {
     label?: string;
@@ -34,4 +36,31 @@ function buildMenu(items: ContextMenuItem[], callback?: (id: string) => void): M
     }
 
     return menu;
+}
+
+export function clipboardHasContent(): ClipboardContentType[] {
+    const formats = clipboard.availableFormats();
+    // map the formats to a simpler list
+    const contentTypes: Set<ClipboardContentType> = new Set();
+    formats.forEach(format => {
+        switch (format) {
+            case 'text/plain':
+                contentTypes.add('text');
+                break;
+            case 'text/html':
+                contentTypes.add('html');
+                break;
+            case 'text/rtf':
+                contentTypes.add('rtf');
+                break;
+            case 'text/uri-list':
+                contentTypes.add('filePath');
+                break;
+            default:
+                if (format.startsWith('image/')) {
+                    contentTypes.add('image');
+                }
+        }
+    });
+    return Array.from(contentTypes);
 }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, safeStorage, protocol, net, nativeTheme } from 'electron';
+import { app, BrowserWindow, safeStorage, protocol, net, nativeTheme, Menu, MenuItemConstructorOptions } from 'electron';
 import path from 'node:path';
 import env from './env';
 import { DesktopConfigType } from './types';
@@ -157,6 +157,7 @@ const createWindow = () => {
   });
 
   require("@electron/remote/main").enable(mainWindow.webContents);
+
   // and load the index.html of the app.
   if ((modules.config as DesktopConfigType).USE_WEB_APP_SERVER) {
     console.log('Loading web app from server:', WEB_APP_SERVER);
@@ -166,11 +167,70 @@ const createWindow = () => {
     mainWindow.loadURL(`app://-/index.html?back=off`);
   }
 
+  handleContextMenuFromWindow(mainWindow);
+
   // Open the DevTools.
   if (shouldShowDevTools()) {
     mainWindow.webContents.openDevTools();
   }
 };
+
+const handleContextMenuFromWindow = (win: BrowserWindow) => {
+  win.webContents.on('context-menu', (event, params) => {
+    // We handle text and link selection from here.
+    const hasText = params.selectionText.length > 0
+    if (!hasText) {
+      return;
+    }
+    const template: MenuItemConstructorOptions[] = [
+      {
+        label: 'Copy',
+        role: 'copy',
+        accelerator: 'CmdOrCtrl+C',
+        enabled: params.editFlags.canCopy,
+        click: () => {
+          win.webContents.copy();
+        }
+      },
+    ];
+    if (params.editFlags.canCut) {
+      template.unshift({
+        label: 'Cut',
+        role: 'cut',
+        accelerator: 'CmdOrCtrl+X',
+        enabled: params.editFlags.canCut,
+        click: () => {
+          win.webContents.cut();
+        }
+      });
+    }
+    if (params.editFlags.canPaste) {
+      template.push({
+        label: 'Paste',
+        role: 'paste',
+        accelerator: 'CmdOrCtrl+V',
+        enabled: params.editFlags.canPaste,
+        click: () => {
+          win.webContents.paste();
+        }
+      });
+    }
+    if (process.platform === 'darwin') {
+      template.push({
+        label: 'Search with Google',
+        enabled: params.editFlags.canCopy,
+        click: () => {
+          const query = encodeURIComponent(params.selectionText);
+          const url = `https://www.google.com/search?q=${query}`;
+          win.webContents.send('open-external-link', url);
+        }
+      });
+    }
+    const menu = Menu.buildFromTemplate(template);
+    menu.popup({ window: win, x: params.x, y: params.y });
+
+  });
+}
 
 async function handleMediaRequest(request: Request): Promise<GlobalResponse> {
   const urlObj = new URL(request.url);

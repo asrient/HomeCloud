@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent } from "./types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType } from "./types";
 import Signal from "./signals";
 
 
@@ -15,7 +15,7 @@ export abstract class SystemService extends Service {
 
     public abstract ask(config: NativeAskConfig): NativeAsk;
 
-    public abstract copyToClipboard(text: string, type?: 'text' | 'link' | 'html' | 'rtf'): void;
+    public abstract copyToClipboard(content: string | string[], type?: ClipboardContentType): void;
 
     public abstract share(options: { title?: string; description?: string; content?: string; files?: string[], type: 'url' | 'text' | 'file' }): Promise<void>;
 
@@ -108,7 +108,7 @@ export abstract class SystemService extends Service {
     }
 
     @exposed
-    public async readClipboard(): Promise<ClipboardContent | null> {
+    public async readClipboard(mimeType?: string): Promise<ClipboardContent | null> {
         throw new Error("Not implemented");
     }
 

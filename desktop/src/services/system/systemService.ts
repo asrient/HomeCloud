@@ -1,5 +1,5 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
 import { dialog, BrowserWindow, shell, systemPreferences, clipboard, ShareMenu, SharingItem } from "electron";
 import { getDriveDetails } from "./drivers/win32";
@@ -13,6 +13,7 @@ const nodeDiskInfo = require('node-disk-info');
 import path from "path";
 import { MacOSPlaybackWatcher } from "./mediaControl/mac";
 import { LinuxPlaybackWatcher } from "./mediaControl/linux";
+import { writeFilePathsToClipboard, readFilePathsFromClipboard } from "./clipboard";
 
 function winPlaybackInfoToAudioPlaybackInfo(info: mediaControlWin.AudioPlaybackInfoWin): AudioPlaybackInfo {
     const playbackInfo: AudioPlaybackInfo = {
@@ -139,8 +140,13 @@ class DesktopSystemService extends SystemService {
         return systemPreferences.getAccentColor(); // RGBA hexadecimal form
     }
 
-    public copyToClipboard(text: string, type: 'text' | 'link' | 'html' | 'rtf' = 'text'): void {
+    public copyToClipboard(content: string | string[], type: ClipboardContentType = 'text'): void {
+        const text = Array.isArray(content) ? content[0] : content;
         switch (type) {
+            case 'filePath':
+                const filePaths = Array.isArray(content) ? content : [content];
+                writeFilePathsToClipboard(filePaths);
+                break;
             case 'text':
             case 'link':
                 clipboard.writeText(text);
@@ -158,22 +164,51 @@ class DesktopSystemService extends SystemService {
     }
 
     @exposed
-    public async readClipboard(): Promise<ClipboardContent | null> {
-        const availableFormats = clipboard.availableFormats();
-        if (availableFormats.includes('text/html')) {
-            const htmlContent = clipboard.readHTML();
-            return { type: 'html', content: htmlContent };
-        } else if (availableFormats.includes('text/rtf')) {
-            const rtfContent = clipboard.readRTF();
-            return { type: 'rtf', content: rtfContent };
-        } else if (availableFormats.includes('text/plain')) {
-            const textContent = clipboard.readText();
-            let type: 'text' | 'link' = 'text';
-            // Simple heuristic to check if the text is a URL
-            if (/^(https?:\/\/|www\.)/.test(textContent.trim())) {
-                type = 'link';
+    public async readClipboard(type?: ClipboardContentType): Promise<ClipboardContent | null> {
+        let availableFormats = clipboard.availableFormats();
+        const isTypeAllowed = (type_: string): boolean => {
+            return !type || type === type_;
+        };
+
+        // Check for file paths first using platform-specific methods
+        if (isTypeAllowed('filePath')) {
+            const filePaths = readFilePathsFromClipboard();
+            if (filePaths && filePaths.length > 0) {
+                return { type: 'filePath', content: filePaths.join('\n'), paths: filePaths };
             }
-            return { type, content: textContent };
+        }
+
+        // Check for images
+        let hasImage = availableFormats.findIndex(format => format.startsWith('image/')) !== -1;
+        if (hasImage) {
+            const image = clipboard.readImage();
+            if (!image.isEmpty()) {
+                return { type: 'image', content: image.toDataURL() };
+            }
+        }
+
+        if (availableFormats.includes('text/html') && isTypeAllowed('html')) {
+            const htmlContent = clipboard.readHTML();
+            if (htmlContent) {
+                return { type: 'html', content: htmlContent };
+            }
+        }
+        if (availableFormats.includes('text/rtf') && isTypeAllowed('rtf')) {
+            const rtfContent = clipboard.readRTF();
+            if (rtfContent) {
+                return { type: 'rtf', content: rtfContent };
+            }
+        }
+        if (availableFormats.includes('text/plain') && (isTypeAllowed('text') || isTypeAllowed('link'))) {
+            const textContent = clipboard.readText();
+            if (textContent) {
+                let type_: 'text' | 'link' = 'text';
+                // Simple heuristic to check if the text is a URL
+                if (/^(https?:\/\/|www\.)/.test(textContent.trim())) {
+                    type_ = 'link';
+                }
+                return { type: type || type_, content: textContent };
+            }
         }
         return null;
     }

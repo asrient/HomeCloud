@@ -277,9 +277,12 @@ export type BatteryInfo = {
     isLowPowerMode?: boolean;
 }
 
+export type ClipboardContentType = 'text' | 'link' | 'html' | 'rtf' | 'image' | 'filePath';
+
 export type ClipboardContent = {
-    type: 'text' | 'link' | 'html' | 'rtf';
+    type: ClipboardContentType;
     content: string;
+    paths?: string[];
 }
 
 export type FileFilter = {

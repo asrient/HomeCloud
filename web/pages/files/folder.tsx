@@ -323,8 +323,7 @@ const Page: NextPageWithConfig = () => {
     }
   }, [fingerprint, path, setRemoteItems, toast]);
 
-  const pinFolder = useCallback(async () => {
-    const item = selectedItems[0];
+  const pinFolder = useCallback(async (item: FileRemoteItem) => {
     if (!item || item.type !== 'directory') return;
     const serviceController = await getServiceController(item.deviceFingerprint);
     try {
@@ -338,7 +337,7 @@ const Page: NextPageWithConfig = () => {
         description: `Could not add "${item.name}" to favourites.`,
       });
     }
-  }, [selectedItems, toast]);
+  }, [toast]);
 
   const openImportPhotosDialog = useCallback(() => {
     setImportPhotosDialogOpen(true);
@@ -350,24 +349,12 @@ const Page: NextPageWithConfig = () => {
     openItem(item);
   }, [selectedItems, openItem]);
 
-  const openSelectedItemNative = useCallback(() => {
-    const item = selectedItems[0];
-    if (!item) return;
-    openItemNative(item);
-  }, [selectedItems, openItemNative]);
-
   // const isSingleLocalItemSelected = useMemo(() => {
   //   if (selectedItems.length !== 1) return false;
   //   const item = selectedItems[0];
   //   const storage = storages?.find(s => s.id === item.storageId);
   //   return storage?.type === StorageType.Local;
   // }, [selectedItems, storages]);
-
-  const openFileRemote = useCallback(() => {
-    const item = selectedItems[0];
-    if (!item) return;
-    setRemoteOpenFile(item);
-  }, [selectedItems]);
 
   // Use a ref to track the right-clicked item to avoid stale closure issues
   const rightClickedItemRef = useRef<FileRemoteItem | null>(null);
@@ -395,7 +382,7 @@ const Page: NextPageWithConfig = () => {
         // TODO: implement get info
         break;
       case 'addToFavorites':
-        if (clickedItem) pinFolder();
+        if (clickedItem) pinFolder(clickedItem);
         break;
       case 'rename':
         openRenameDialog();

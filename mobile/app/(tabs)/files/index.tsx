@@ -27,7 +27,7 @@ export default function FilesScreen() {
           disableContextMenu={true}
           headerComponent={
             <View style={{ padding: 10 }}>
-              <UIText type='subtitle'>Pinned Folders</UIText>
+              <UIText type='subtitle'>Favorites</UIText>
             </View>
           }
           deviceFingerprint={selectedFingerprint}

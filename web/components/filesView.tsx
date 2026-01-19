@@ -72,14 +72,14 @@ function GridItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
     return (<div onDoubleClick={onDbClick_}
         onClick={onClick_}
         onContextMenu={onRightClick_}
-        className={`fileItem select-none flex flex-col cursor-default justify-center items-center text-center rounded-md p-2 min-w-[8rem] ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}>
+        className={`fileItem select-none flex flex-col cursor-default justify-center items-center text-center rounded-md p-2 min-w-[8rem] ${item.isSelected ? 'bg-secondary text-secondary-foreground' : 'hover:bg-muted'}`}>
         <div className="pb-1">
             <ThumbnailImage item={item} />
         </div>
         <div title={item.name} className="mt-2 text-xs font-medium overflow-ellipsis overflow-hidden max-w-[8rem]">
             {item.name}
         </div>
-        <div className="mt-1 text-xs text-gray-500">
+        <div className="mt-1 text-xs text-foreground/70">
             <span>{getKind(item)}</span>
         </div>
     </div>)
@@ -98,7 +98,7 @@ function ListItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
         onRightClick && onRightClick(item, e);
     }
 
-    return (<div className={`fileItem select-none flex items-center px-4 py-2 space-x-3 shadow-sm ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}
+    return (<div className={`fileItem select-none flex items-center px-4 py-2 space-x-3 shadow-sm ${item.isSelected ? 'bg-secondary text-secondary-foreground' : 'hover:bg-muted'}`}
         onDoubleClick={onDbClick_}
         onClick={onClick_}
         onContextMenu={onRightClick_}>
@@ -106,8 +106,8 @@ function ListItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
             <ThumbnailImage className="h-[2.5rem] w-[3rem]" item={item} />
         </div>
         <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-gray-900 truncate">{item.name}</div>
-            <div className="text-sm text-gray-500">
+            <div className="text-sm font-medium text-foreground truncate">{item.name}</div>
+            <div className="text-sm text-foreground/70">
                 <span>{item.type}</span>
             </div>
         </div>
@@ -178,7 +178,7 @@ export type FilesViewParams = GroupParams & {
 
 export default function FilesView({ items, groupBy, ...rest }: FilesViewParams) {
 
-    if (items.length === 0) return (<div className="min-h-[80vh] p-5 flex flex-col justify-center items-center text-center text-gray-500">
+    if (items.length === 0) return (<div className="min-h-[80vh] p-5 flex flex-col justify-center items-center text-center text-foreground/70">
         <div className="pb-3">
             <Image src="/img/purr-page-not-found.png" priority alt="Empty" width={200} height={200} />
         </div>

@@ -1,5 +1,5 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType, BatteryInfo, Disk, ClipboardContent } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType, BatteryInfo, Disk, ClipboardContent, ClipboardContentType } from "shared/types";
 import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { Alert, Platform, Linking } from 'react-native';
 import * as Device from 'expo-device';
@@ -170,7 +170,8 @@ class MobileSystemService extends SystemService {
         }
     }
 
-    public async copyToClipboard(text: string, type?: 'text' | 'link' | 'html' | 'rtf'): Promise<void> {
+    public async copyToClipboard(content: string | string[], type: ClipboardContentType = 'text'): Promise<void> {
+        const text = Array.isArray(content) ? content[0] : content;
         if (type === 'link') {
             await Clipboard.setUrlAsync(text);
         } else {
