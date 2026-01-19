@@ -75,5 +75,5 @@ export type ContextMenuItem = {
 export type NativeUtils = {
     getPathForFile: (file: File) => string;
     openContextMenu: (items: ContextMenuItem[], callback: (id: string) => void) => void;
-    clipboardHasContent: () => ClipboardContentType[];
+    clipboardHasFiles: () => boolean;
 }

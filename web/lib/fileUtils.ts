@@ -1,4 +1,4 @@
-import { DeviceInfo, PinnedFolder, RemoteItem, PeerInfo } from "shared/types";
+import { DeviceInfo, PinnedFolder, RemoteItem, PeerInfo, ClipboardFile } from "shared/types";
 import { FileRemoteItem, RemoteItemWithPeer } from "./types";
 import { OSType } from "@/lib/enums";
 import mime from 'mime';
@@ -370,39 +370,53 @@ export function getNativeFilesAppIcon(deviceInfo: DeviceInfo | null) {
     return '/icons/folder.png';
 }
 
-const CLIPBOARD_KEY = 'files-clipboard';
+export async function setItemsToCopy(fingerprint: string | null, itemIds: string[], cut = false) {
+    const files: ClipboardFile[] = itemIds.map(id => {
+        if (fingerprint === null) {
+            return { path: id, cut };
+        } else {
+            return { fingerprint, path: id, cut };
+        }
+    });
+    if (files.length === 0) return;
+    const localSc = await getServiceController(null);
+    localSc.system.copyToClipboard(files, 'filePath');
+}
 
-export function setItemsToCopy(fingerprint: string | null, itemIds: string[], cut = false) {
-    const clipboardJson = {
-        fingerprint,
-        itemIds,
-        cut,
+export async function getItemsToCopy(): Promise<ClipboardFile[] | null> {
+    const localSc = await getServiceController(null);
+    const clipboardContent = await localSc.system.readClipboard('filePath');
+    if (!clipboardContent || !clipboardContent.files || clipboardContent.type !== 'filePath') {
+        return null;
     }
-    sessionStorage.setItem(CLIPBOARD_KEY, JSON.stringify(clipboardJson));
+    return clipboardContent.files;
 }
 
-export function getItemsToCopy(): { fingerprint: string | null, itemIds: string[], cut: boolean } | null {
-    const clipboardJson = sessionStorage.getItem(CLIPBOARD_KEY);
-    if (!clipboardJson) return null;
-    return JSON.parse(clipboardJson);
-}
-
-export function clearItemsToCopy() {
-    sessionStorage.removeItem(CLIPBOARD_KEY);
-}
-
-export function hasItemsToCopy() {
-    return !!sessionStorage.getItem(CLIPBOARD_KEY);
+export function hasItemsToCopy(): boolean {
+    // Check if system clipboard has file paths
+    if (typeof window !== 'undefined' && window.utils?.clipboardHasFiles) {
+        return window.utils.clipboardHasFiles();
+    }
+    return false;
 }
 
 export async function performCopyItems(destFingerprint: string | null, destFolderId: string) {
-    const clipboard = getItemsToCopy();
-    if (!clipboard) return;
-    const { fingerprint: sourceFingerprint, itemIds, cut } = clipboard;
-    const serviceController = await getServiceController(sourceFingerprint);
-    const res = await serviceController.files.move(destFingerprint, destFolderId, itemIds, cut);
-    if (cut) {
-        clearItemsToCopy();
+    const clipboard = await getItemsToCopy();
+    if (!clipboard || clipboard.length === 0) return;
+    const sourceFingerprint = clipboard[0].fingerprint || null;
+    const isCutOperation = clipboard[0].cut || false;
+    // make sure all items are from the same source and have the same cut/copy status
+    for (const item of clipboard) {
+        const itemSource = item.fingerprint || null;
+        if (itemSource !== sourceFingerprint) {
+            throw new Error("Cannot copy items from multiple sources.");
+        }
+        if ((item.cut || false) !== isCutOperation) {
+            throw new Error("Cannot mix cut and copy operations.");
+        }
     }
+    const itemIds = clipboard.map(item => item.path);
+    const serviceController = await getServiceController(sourceFingerprint);
+    const res = await serviceController.files.move(destFingerprint, destFolderId, itemIds, isCutOperation);
     return res;
 }

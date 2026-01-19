@@ -13,5 +13,5 @@ window.modules = getGlobal('modules');
 window.utils = {
     getPathForFile: webUtils.getPathForFile,
     openContextMenu: desktopWebUtils.openContextMenu,
-    clipboardHasContent: desktopWebUtils.clipboardHasContent,
+    clipboardHasFiles: desktopWebUtils.clipboardHasFiles,
 }

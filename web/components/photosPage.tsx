@@ -14,6 +14,8 @@ import PhotosPreviewModal from "./photosPreviewModal";
 import { usePhotos } from "./hooks/usePhotos";
 import { ThemedIconName } from "@/lib/enums";
 import { Grid } from 'react-window';
+import { useAppState } from "./hooks/useAppState";
+import { setItemsToCopy } from "@/lib/fileUtils";
 
 export type PhotosPageProps = {
     pageTitle: string;
@@ -296,8 +298,12 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [containerHeight, setContainerHeight] = useState(600);
     const contentContainerRef = useRef<HTMLDivElement>(null);
+    // Use a ref to track the right-clicked item to avoid stale closure issues
+    const rightClickedItemRef = useRef<PhotoView | null>(null);
 
     const { photos, setPhotos, hasMore, isLoading, error, load } = usePhotos(fetchOptions);
+
+    const { peers } = useAppState();
 
     // Observe content container height
     useEffect(() => {
@@ -326,6 +332,19 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const selectedCount = selectedIds.size;
     const selectedPhotos = useMemo(() => photos.filter(p => selectedIds.has(getPhotoKey(p))), [photos, selectedIds]);
     const [photoForPreview, setPhotoForPreview] = useState<PhotoView | null>(null);
+
+    const getCurrentSelectedItems = useCallback((): PhotoView[] => {
+        const items = [...selectedPhotos];
+        const rightClickedItem = rightClickedItemRef.current;
+        if (rightClickedItem !== null) {
+            // Ensure the right-clicked item is included
+            const isAlreadyIncluded = items.find(i => i.id === rightClickedItem.id);
+            if (!isAlreadyIncluded) {
+                items.push(rightClickedItem);
+            }
+        }
+        return items;
+    }, [selectedPhotos]);
 
     const fetchNew = useCallback(async () => {
         console.log('fetchNew')
@@ -384,12 +403,6 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         onClickOutside()
     }, [onClickOutside])
 
-    const previewSelected = useCallback(() => {
-        if (selectedCount !== 1) return;
-        const selectedPhoto = selectedPhotos[0];
-        previewPhoto(selectedPhoto);
-    }, [previewPhoto, selectedCount, selectedPhotos]);
-
     const deleteSelected = useCallback(async () => {
         if (!selectedCount) return;
         const idsToDel = selectedPhotos.map((p) => p.id);
@@ -412,11 +425,46 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         setSelectedIds(new Set(photos.map(p => getPhotoKey(p))));
     }, [photos]);
 
-    // Use a ref to track the right-clicked item to avoid stale closure issues
-    const rightClickedItemRef = useRef<PhotoView | null>(null);
+    const openInDevice = useCallback(async (photo: PhotoView, fingerprint: string | null) => {
+        try {
+            const serviceController = await getServiceController(fingerprint);
+            await serviceController.files.openFile(photo.deviceFingerprint, photo.fileId);
+        } catch (e: any) {
+            console.error(e);
+        }
+    }, []);
+
+    const sendToDevice = useCallback(async (file: PhotoView, fingerprint: string) => {
+        try {
+            const serviceController = await getServiceController(fingerprint);
+            await serviceController.files.download(window.modules.config.FINGERPRINT, file.fileId);
+        } catch (e: any) {
+            console.error(e);
+        }
+    }, []);
+
+    const copy = useCallback(async () => {
+        const selectedIds = getCurrentSelectedItems().map(item => item.fileId);
+        await setItemsToCopy(fetchOptions.deviceFingerprint, selectedIds, false);
+    }, [getCurrentSelectedItems, fetchOptions.deviceFingerprint]);
+
+    const download = useCallback(async (item: PhotoView) => {
+        const localSc = window.modules.getLocalServiceController();
+        await localSc.files.download(fetchOptions.deviceFingerprint, item.fileId);
+    }, [fetchOptions.deviceFingerprint]);
 
     const handleContextMenuClick = useCallback((id: string) => {
         const clickedItem = rightClickedItemRef.current;
+
+        if (id.startsWith('openInDevice=')) {
+            const fingerprint = id.split('=')[1];
+            if (clickedItem) openInDevice(clickedItem, fingerprint);
+        }
+
+        if (id.startsWith('sendToDevice=')) {
+            const fingerprint = id.split('=')[1];
+            if (clickedItem) sendToDevice(clickedItem, fingerprint);
+        }
 
         switch (id) {
             case 'selectAll':
@@ -425,11 +473,21 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             case 'preview':
                 if (clickedItem) previewPhoto(clickedItem);
                 break;
+            case 'openNative':
+                if (clickedItem) openInDevice(clickedItem, null);
+                break;
             case 'delete':
                 openDeleteDialog();
                 break;
+            case 'copy':
+                copy();
+                break;
+            case 'download':
+                if (clickedItem) download(clickedItem);
+                break;
         }
-    }, [selectAll, previewPhoto, openDeleteDialog]);
+        rightClickedItemRef.current = null;
+    }, [openInDevice, sendToDevice, selectAll, previewPhoto, openDeleteDialog, copy, download]);
 
     const onRightClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
         e.preventDefault();
@@ -447,16 +505,37 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         const items: ContextMenuItem[] = [];
         if (currentSelectedCount === 1) {
             items.push({ id: 'preview', label: 'Preview' });
+            items.push({ id: 'openNative', label: 'Open as File' });
+            items.push({
+                id: 'openInDevice',
+                label: 'Open in Device',
+                subItems: peers.map(p => {
+                    return {
+                        id: `openInDevice=${p.fingerprint}`,
+                        label: p.deviceName,
+                    }
+                })
+            });
+            items.push({
+                id: 'sendToDevice',
+                label: 'Send to Device',
+                subItems: peers.map(p => {
+                    return {
+                        id: `sendToDevice=${p.fingerprint}`,
+                        label: p.deviceName,
+                    }
+                })
+            });
+            items.push({ id: 'download', label: 'Download' });
         }
-        items.push({ id: 'copy', label: 'Copy', disabled: true });
-        items.push({ id: 'cut', label: 'Cut', disabled: true });
+        items.push({ id: 'copy', label: 'Copy' });
         items.push({
             id: 'delete',
             label: currentSelectedCount === 1 ? 'Delete photo' : `Delete (${currentSelectedCount}) photos`,
         });
 
         window.utils.openContextMenu(items, handleContextMenuClick);
-    }, [selectPhoto, selectedIds, selectedCount, handleContextMenuClick]);
+    }, [selectPhoto, selectedIds, selectedCount, handleContextMenuClick, peers]);
 
     const getContainerContextMenuItems = useCallback((): ContextMenuItem[] | undefined => {
         const items: ContextMenuItem[] = [];

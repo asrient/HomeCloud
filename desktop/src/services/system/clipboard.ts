@@ -1,6 +1,9 @@
 import { clipboard } from "electron";
 import plist from "plist";
 import * as win32Clipboard from "./drivers/win32";
+import { ClipboardFile } from "shared/types";
+
+const CUSTOM_CLIPBOARD_TYPE = 'application/x-mediacenter-files';
 
 /**
  * Writes file paths to the clipboard using native Windows API.
@@ -8,7 +11,7 @@ import * as win32Clipboard from "./drivers/win32";
 function writeFilePathsWindows(filePaths: string[]): void {
     // Normalize paths to use backslashes
     const normalizedPaths = filePaths.map(fp => fp.replace(/\//g, '\\'));
-    
+
     const success = win32Clipboard.setClipboardFilePaths(normalizedPaths);
     if (!success) {
         console.error('Failed to write file paths to clipboard via native API');
@@ -19,7 +22,7 @@ function writeFilePathsWindows(filePaths: string[]): void {
  * Writes file paths to the clipboard in a platform-specific way.
  * The paths can then be pasted in native file explorers.
  */
-export function writeFilePathsToClipboard(filePaths: string[]): void {
+function writeFilePathsToClipboardNative(filePaths: string[]): void {
     if (filePaths.length === 0) return;
 
     if (process.platform === 'darwin') {
@@ -40,17 +43,64 @@ export function writeFilePathsToClipboard(filePaths: string[]): void {
     }
 }
 
+function writeCustomClipboardContent(clipboardFiles: ClipboardFile[]) {
+    const data = JSON.stringify(clipboardFiles);
+    const buff = Buffer.from(data, 'utf-8');
+    clipboard.writeBuffer(CUSTOM_CLIPBOARD_TYPE, buff);
+}
+
+export function writeFilePathsToClipboard(clipboardFile: ClipboardFile[]): void {
+    const canUseNative = clipboardFile.every(cf => !cf.fingerprint && !cf.cut);
+    if (canUseNative) {
+        const paths = clipboardFile.map(cf => cf.path);
+        writeFilePathsToClipboardNative(paths);
+    } else {
+        writeCustomClipboardContent(clipboardFile);
+    }
+}
+
 /**
  * Reads file paths from the clipboard in a platform-specific way.
  * @returns Array of file paths or null if no file paths are in clipboard.
  */
-export function readFilePathsFromClipboard(): string[] | null {
+function readFilePathsFromClipboardNative(): string[] | null {
     if (process.platform === 'darwin') {
         return readFilePathsMacOS();
     } else if (process.platform === 'win32') {
         return readFilePathsWindows();
     } else if (process.platform === 'linux') {
         return readFilePathsLinux();
+    }
+    return null;
+}
+
+function hasCustomClipboardContent(): boolean {
+    return clipboard.availableFormats().includes(CUSTOM_CLIPBOARD_TYPE);
+}
+
+function parseCustomClipboardContent(): ClipboardFile[] | null {
+    if (!hasCustomClipboardContent()) {
+        return null;
+    }
+    const rawData = clipboard.readBuffer(CUSTOM_CLIPBOARD_TYPE);
+    try {
+        const parsed = JSON.parse(rawData.toString('utf-8'));
+        if (Array.isArray(parsed)) {
+            return parsed as ClipboardFile[];
+        }
+    } catch (e) {
+        console.error('Failed to parse custom clipboard content:', e);
+    }
+    return null;
+}
+
+export function readFilePathsFromClipboard(): ClipboardFile[] | null {
+    if (hasCustomClipboardContent()) {
+        return parseCustomClipboardContent();
+    }
+    const nativePaths = readFilePathsFromClipboardNative();
+    if (nativePaths) {
+        return nativePaths.map(path => ({ path }));
     }
     return null;
 }
@@ -153,6 +203,9 @@ function readFilePathsLinux(): string[] | null {
  * Checks if the clipboard contains file paths.
  */
 export function hasFilePathsInClipboard(): boolean {
+    if (hasCustomClipboardContent()) {
+        return true;
+    }
     if (process.platform === 'darwin') {
         return clipboard.has('NSFilenamesPboardType') || clipboard.has('public.file-url');
     } else if (process.platform === 'win32') {

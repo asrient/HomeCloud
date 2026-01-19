@@ -277,12 +277,18 @@ export type BatteryInfo = {
     isLowPowerMode?: boolean;
 }
 
+export type ClipboardFile = {
+    fingerprint?: string;
+    path: string;
+    cut?: boolean;
+};
+
 export type ClipboardContentType = 'text' | 'link' | 'html' | 'rtf' | 'image' | 'filePath';
 
 export type ClipboardContent = {
     type: ClipboardContentType;
     content: string;
-    paths?: string[];
+    files?: ClipboardFile[];
 }
 
 export type FileFilter = {

@@ -1,5 +1,5 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType, ClipboardFile } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
 import { dialog, BrowserWindow, shell, systemPreferences, clipboard, ShareMenu, SharingItem } from "electron";
 import { getDriveDetails } from "./drivers/win32";
@@ -140,12 +140,13 @@ class DesktopSystemService extends SystemService {
         return systemPreferences.getAccentColor(); // RGBA hexadecimal form
     }
 
-    public copyToClipboard(content: string | string[], type: ClipboardContentType = 'text'): void {
-        const text = Array.isArray(content) ? content[0] : content;
+    public copyToClipboard(content: string | ClipboardFile[], type: ClipboardContentType = 'text'): void {
+        const text = typeof content === 'string' ? content : '';
         switch (type) {
             case 'filePath':
-                const filePaths = Array.isArray(content) ? content : [content];
-                writeFilePathsToClipboard(filePaths);
+                if (typeof content !== 'string') {
+                    writeFilePathsToClipboard(content);
+                }
                 break;
             case 'text':
             case 'link':
@@ -172,9 +173,9 @@ class DesktopSystemService extends SystemService {
 
         // Check for file paths first using platform-specific methods
         if (isTypeAllowed('filePath')) {
-            const filePaths = readFilePathsFromClipboard();
-            if (filePaths && filePaths.length > 0) {
-                return { type: 'filePath', content: filePaths.join('\n'), paths: filePaths };
+            const files = readFilePathsFromClipboard();
+            if (files && files.length > 0) {
+                return { type: 'filePath', content: files.map(f => f.path).join('\n'), files };
             }
         }
 

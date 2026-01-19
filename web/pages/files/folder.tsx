@@ -24,49 +24,10 @@ import { ContextMenuArea } from '@/components/contextMenuArea'
 import { ContextMenuItem } from '@/lib/types'
 import ConfirmModal from '@/components/confirmModal'
 import { toast, useToast } from '@/components/ui/use-toast'
-import mime from 'mime'
 import PreviewModal from '@/components/preview'
-import DeviceSelectorModal, { Device } from '@/components/deviceSelectorModal'
 import { useFolder, useStat } from '@/components/hooks/useFolders'
 import { useAppState } from '@/components/hooks/useAppState'
 import { ThemedIconName } from '@/lib/enums'
-
-function OpenInDevice({ file, reset }: {
-  file: FileRemoteItem | null,
-  reset: () => void,
-}) {
-
-  const { toast } = useToast();
-
-  const onSelect = useCallback(async (device: Device) => {
-    if (!file || !file.deviceFingerprint) return;
-    console.log('Selected Device to open file', device);
-    toast({
-      title: `Opening "${file.name}" in ${device.deviceName}`,
-    });
-    try {
-      const serviceController = await getServiceController(device.fingerprint);
-      await serviceController.files.openFile(file.deviceFingerprint, file.path);
-    } catch (e: any) {
-      console.error(e);
-      toast({
-        variant: "destructive",
-        title: `Failed to open file in ${device.deviceName}`,
-        description: e.message,
-      });
-    } finally {
-      reset();
-    }
-  }, [file, reset, toast]);
-
-  const setModal = useCallback((open: boolean) => {
-    if (!open) {
-      reset();
-    }
-  }, [reset]);
-
-  return (<DeviceSelectorModal isOpen={!!file} setModal={setModal} showNearbyDevices={false} onSelect={onSelect} />)
-}
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -96,29 +57,26 @@ const Page: NextPageWithConfig = () => {
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false)
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [importPhotosDialogOpen, setImportPhotosDialogOpen] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewItem, setPreviewItem] = useState<FileRemoteItem | null>(null);
-  const [remoteOpenFile, setRemoteOpenFile] = useState<FileRemoteItem | null>(null);
 
   const selectedItems = useMemo(() => remoteItems.filter(item => item.isSelected), [remoteItems]);
 
-  const photosImportable = useMemo(() => {
-    if (selectedItems.length > 100) return false;
-    if (selectedItems.length === 0) return false;
-    for (const item of selectedItems) {
-      if (item.type !== 'file') return false;
-      if (!item.mimeType) {
-        item.mimeType = mime.getType(item.name) || '';
-      }
-      if (!item.mimeType) return false;
-      const type = item.mimeType.split('/')[0];
-      if (type !== 'image' && type !== 'video') return false;
-    }
-    return true;
-  }, [selectedItems]);
+  // Use a ref to track the right-clicked item to avoid stale closure issues
+  const rightClickedItemRef = useRef<FileRemoteItem | null>(null);
 
-  const defaultIcon = useMemo(() => folderStat ? getDefaultIcon(folderStat) : undefined, [folderStat]);
+  const getCurrentSelectedItems = useCallback((): FileRemoteItem[] => {
+    const items = [...selectedItems];
+    const rightClickedItem = rightClickedItemRef.current;
+    if (rightClickedItem !== null) {
+      // Ensure the right-clicked item is included
+      const isAlreadyIncluded = items.find(i => i.path === rightClickedItem.path);
+      if (!isAlreadyIncluded) {
+        items.push(rightClickedItem);
+      }
+    }
+    return items;
+  }, [selectedItems]);
 
   const onViewChange = (value: string) => {
     setView(value as 'list' | 'grid')
@@ -147,14 +105,17 @@ const Page: NextPageWithConfig = () => {
 
   const selectItem = useCallback((item: FileRemoteItem, toggle = true, persistSelection?: boolean) => {
     setRemoteItems((prevItems) => prevItems.map(prevItem => {
+      let _item = prevItem;
       if (prevItem.path === item.path) {
-        return {
+        _item = {
           ...prevItem,
           isSelected: toggle ? !prevItem.isSelected : true,
         }
+      } else {
+        const persistSelection_ = selectMode || persistSelection;
+        _item = { ...prevItem, isSelected: persistSelection_ ? prevItem.isSelected : false }
       }
-      const persistSelection_ = selectMode || persistSelection;
-      return { ...prevItem, isSelected: persistSelection_ ? prevItem.isSelected : false }
+      return _item;
     }))
   }, [selectMode, setRemoteItems])
 
@@ -189,30 +150,6 @@ const Page: NextPageWithConfig = () => {
       return openItemNative(item);
     }
   }, [openItemNative, router])
-
-  const downloadSelected = useCallback(async () => {
-    const item = selectedItems[0];
-    if (!item || !item.deviceFingerprint) return;
-    const serviceController = window.modules.getLocalServiceController();
-    toast({
-      title: 'Download started',
-      description: item.name,
-    });
-    try {
-      await serviceController.files.download(item.deviceFingerprint, item.path);
-      toast({
-        title: 'File downloaded',
-        description: item.name,
-      });
-    } catch (e) {
-      console.error(e);
-      toast({
-        variant: "destructive",
-        title: 'Could not download file',
-        description: item.name,
-      });
-    }
-  }, [selectedItems, toast]);
 
   const onItemClick = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
     const isShift = e.shiftKey;
@@ -287,10 +224,10 @@ const Page: NextPageWithConfig = () => {
     setDeleteDialogOpen(true);
   }, []);
 
-  const cutCopy = useCallback((cut = false) => {
-    const selectedIds = selectedItems.map(item => item.path);
-    setItemsToCopy(fingerprint, selectedIds, cut);
-  }, [selectedItems, fingerprint]);
+  const cutCopy = useCallback(async (cut = false) => {
+    const selectedIds = getCurrentSelectedItems().map(item => item.path);
+    await setItemsToCopy(fingerprint, selectedIds, cut);
+  }, [getCurrentSelectedItems, fingerprint]);
 
   const isPastingRef = useRef(false);
   const paste = useCallback(async (e: any) => {
@@ -339,15 +276,33 @@ const Page: NextPageWithConfig = () => {
     }
   }, [toast]);
 
-  const openImportPhotosDialog = useCallback(() => {
-    setImportPhotosDialogOpen(true);
-  }, []);
+  const openInDevice = useCallback(async (file: FileRemoteItem, fingerprint: string) => {
+    try {
+      const serviceController = await getServiceController(fingerprint);
+      await serviceController.files.openFile(file.deviceFingerprint, file.path);
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        variant: "destructive",
+        title: `Failed to open file in remote device.`,
+        description: e.message,
+      });
+    }
+  }, [toast]);
 
-  const openSelectedItem = useCallback(() => {
-    const item = selectedItems[0];
-    if (!item) return;
-    openItem(item);
-  }, [selectedItems, openItem]);
+  const sendToDevice = useCallback(async (file: FileRemoteItem, fingerprint: string) => {
+    try {
+      const serviceController = await getServiceController(fingerprint);
+      await serviceController.files.download(window.modules.config.FINGERPRINT, file.path);
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        variant: "destructive",
+        title: `Failed to open file in remote device.`,
+        description: e.message,
+      });
+    }
+  }, [toast]);
 
   // const isSingleLocalItemSelected = useMemo(() => {
   //   if (selectedItems.length !== 1) return false;
@@ -356,12 +311,26 @@ const Page: NextPageWithConfig = () => {
   //   return storage?.type === StorageType.Local;
   // }, [selectedItems, storages]);
 
-  // Use a ref to track the right-clicked item to avoid stale closure issues
-  const rightClickedItemRef = useRef<FileRemoteItem | null>(null);
+  const selectAll = useCallback(() => {
+    setRemoteItems((prevItems) => prevItems.map(prevItem => ({
+      ...prevItem,
+      isSelected: true,
+    })));
+  }, [setRemoteItems]);
 
   const handleContextMenuClick = useCallback((id: string) => {
     const clickedItem = rightClickedItemRef.current;
-    
+
+    if (id.startsWith('openInDevice=')) {
+      const fingerprint = id.split('=')[1];
+      if (clickedItem) openInDevice(clickedItem, fingerprint);
+    }
+
+    if (id.startsWith('sendToDevice=')) {
+      const fingerprint = id.split('=')[1];
+      if (clickedItem) sendToDevice(clickedItem, fingerprint);
+    }
+
     switch (id) {
       case 'preview':
         if (clickedItem) openItem(clickedItem);
@@ -387,12 +356,6 @@ const Page: NextPageWithConfig = () => {
       case 'rename':
         openRenameDialog();
         break;
-      case 'openRemote':
-        if (clickedItem) setRemoteOpenFile(clickedItem);
-        break;
-      case 'importPhotos':
-        openImportPhotosDialog();
-        break;
       case 'copy':
         cutCopy();
         break;
@@ -408,24 +371,29 @@ const Page: NextPageWithConfig = () => {
       case 'newFolder':
         openNewFolderDialog();
         break;
-    }
-  }, [openItem, openItemNative, toast, pinFolder, openRenameDialog, openImportPhotosDialog, cutCopy, openDeleteDialog, paste, openNewFolderDialog]);
+      case 'selectAll':
+        selectAll();
+        break;
+      }
+    rightClickedItemRef.current = null;
+  }, [openInDevice, sendToDevice, openItem, openItemNative, pinFolder, openRenameDialog, cutCopy, openDeleteDialog, paste, openNewFolderDialog, selectAll, toast]);
 
   const getContainerContextMenuItems = useCallback((): ContextMenuItem[] | undefined => {
     const items: ContextMenuItem[] = [];
-    items.push({ id: 'getInfo', label: 'Get info' });
+    items.push({ id: 'getInfo', label: 'Get Info' });
     items.push({ id: 'paste', label: 'Paste', disabled: !hasItemsToCopy() });
     items.push({ id: 'newFolder', label: 'New Folder' });
+    items.push({ id: 'selectAll', label: 'Select All' });
     return items;
   }, []);
 
   const onItemRightClickWithMenu = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Store the right-clicked item in ref for use in menu handlers
     rightClickedItemRef.current = item;
-    
+
     selectItem(item, false, true);
 
     const isAlreadySelected = item.isSelected;
@@ -436,31 +404,58 @@ const Page: NextPageWithConfig = () => {
     const items: ContextMenuItem[] = [];
 
     if (isSingleSelection) {
-      items.push({ id: 'preview', label: 'Preview', disabled: previewLoading });
-      if (!isFolder) {
-        items.push({ id: 'openInApp', label: 'Open in app..', disabled: previewLoading });
-        items.push({ id: 'download', label: 'Download' });
+      if (isFolder || canPreview(item.mimeType || '')) {
+        items.push({ id: 'preview', label: isFolder ? 'Open' : 'Preview', disabled: previewLoading });
       }
-      items.push({ id: 'getInfo', label: 'Get info' });
+      if (!isFolder) {
+        items.push({ id: 'openInApp', label: 'Open File', disabled: previewLoading });
+      }
+      items.push({ id: 'getInfo', label: 'Get Info' });
+
+      items.push({ type: 'separator', id: 'sep' });
+
       if (isFolder) {
         items.push({ id: 'addToFavorites', label: 'Add to Favorites' });
+      } else {
+        items.push({ id: 'download', label: 'Download' });
       }
-      items.push({ id: 'rename', label: 'Rename..' });
+
       if (!isFolder) {
-        items.push({ id: 'openRemote', label: 'Open in another device..' });
+        items.push({
+          id: 'openInDevice',
+          label: 'Open in Device',
+          subItems: peers.map(p => {
+            return {
+              id: `openInDevice=${p.fingerprint}`,
+              label: p.deviceName,
+            }
+          })
+        });
+        items.push({
+          id: 'sendToDevice',
+          label: 'Send to Device',
+          subItems: peers.map(p => {
+            return {
+              id: `sendToDevice=${p.fingerprint}`,
+              label: p.deviceName,
+            }
+          })
+        });
       }
     }
 
-    if (photosImportable) {
-      items.push({ id: 'importPhotos', label: 'Import to photos..' });
-    }
+    if (items.length > 0)
+      items.push({ type: 'separator', id: 'sep' });
 
     items.push({ id: 'copy', label: 'Copy' });
     items.push({ id: 'cut', label: 'Cut' });
+    if (isSingleSelection) {
+      items.push({ id: 'rename', label: 'Rename' });
+    }
     items.push({ id: 'delete', label: 'Delete' });
 
     window.utils.openContextMenu(items, handleContextMenuClick);
-  }, [selectItem, selectedItems.length, previewLoading, photosImportable, handleContextMenuClick]);
+  }, [selectItem, selectedItems.length, handleContextMenuClick, previewLoading, peers]);
 
   if (isLoading || error) return (
     <>
@@ -568,7 +563,6 @@ const Page: NextPageWithConfig = () => {
             onConfirm={onDelete}>
           </ConfirmModal>
         }
-        <OpenInDevice file={remoteOpenFile} reset={() => setRemoteOpenFile(null)} />
         <PreviewModal item={previewItem} close={() => setPreviewItem(null)} />
         {
           previewLoading && <div className='fixed top-0 left-0 w-screen h-screen bg-background/80 z-50 flex flex-col justify-center items-center'>
