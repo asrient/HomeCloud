@@ -5,6 +5,7 @@ import { View, } from 'react-native';
 import { FolderFilesGrid, PinnedFoldersGrid } from '@/components/filesGrid';
 import { UIText } from '@/components/ui/UIText';
 import { UIScrollView } from '@/components/ui/UIScrollView';
+import { isIos } from '@/lib/utils';
 
 export default function FilesScreen() {
   const { selectedFingerprint } = useAppState();
@@ -16,7 +17,7 @@ export default function FilesScreen() {
           title: 'Files',
           headerTitle: 'Files',
           headerLargeTitle: true,
-          headerTransparent: true,
+          headerTransparent: isIos,
         }}
       />
       <DeviceSelectorRow />

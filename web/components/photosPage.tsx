@@ -68,7 +68,7 @@ function ThumbnailPhoto({ item, isSelected, className, onClick, onDoubleClick, o
         height="0"
         className={cn("photoThumbnail h-full w-full object-cover transform dark:brightness-90 brightness-105 transition will-change-auto dark:hover:brightness-110 hover:brightness-75",
             className,
-            isSelected && 'ring-4 ring-blue-600 opacity-80')}
+            isSelected && 'ring-4 ring-primary opacity-80')}
     />)
 }
 
@@ -130,8 +130,12 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
         const container = containerRef.current;
         if (!container) return;
 
+        // On macos, scrollbars overlay content, so no need to subtract width
+        // on other OS, we subtract a fixed width to account for scrollbar
+        const scrollBarWidth = isMacosTheme() ? 0 : 15;
+
         const updateWidth = () => {
-            const width = container.offsetWidth;
+            const width = container.offsetWidth - scrollBarWidth;
             if (width > 0) {
                 setContainerWidth(width);
             }
@@ -280,7 +284,7 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
                 rowHeight={getRowHeight}
                 overscanCount={3}
                 onCellsRendered={handleCellsRendered}
-                style={{ height: containerHeight, width: containerWidth }}
+                style={{ height: containerHeight, width: '100%' }}
             />
         </div>
     );
@@ -341,7 +345,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const selectPhoto = useCallback((item: PhotoView, toggle = true, persistSelection?: boolean) => {
         const persistSelection_ = selectMode || persistSelection;
         const key = getPhotoKey(item);
-        
+
         setSelectedIds((prev) => {
             const next = persistSelection_ ? new Set(prev) : new Set<string>();
             if (toggle && prev.has(key)) {
@@ -413,7 +417,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const handleContextMenuClick = useCallback((id: string) => {
         const clickedItem = rightClickedItemRef.current;
-        
+
         switch (id) {
             case 'selectAll':
                 selectAll();
@@ -430,16 +434,16 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const onRightClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // Store the right-clicked item in ref for use in menu handlers
         rightClickedItemRef.current = item;
-        
+
         selectPhoto(item, false, true);
-        
+
         // Build menu items directly to avoid state delay
         const isAlreadySelected = selectedIds.has(getPhotoKey(item));
         const currentSelectedCount = isAlreadySelected ? selectedCount : selectedCount + 1;
-        
+
         const items: ContextMenuItem[] = [];
         if (currentSelectedCount === 1) {
             items.push({ id: 'preview', label: 'Preview' });
@@ -450,14 +454,14 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             id: 'delete',
             label: currentSelectedCount === 1 ? 'Delete photo' : `Delete (${currentSelectedCount}) photos`,
         });
-        
+
         window.utils.openContextMenu(items, handleContextMenuClick);
     }, [selectPhoto, selectedIds, selectedCount, handleContextMenuClick]);
 
     const getContainerContextMenuItems = useCallback((): ContextMenuItem[] | undefined => {
         const items: ContextMenuItem[] = [];
-            items.push({ id: 'paste', label: 'Paste', disabled: true });
-            items.push({ id: 'selectAll', label: 'Select all' });
+        items.push({ id: 'paste', label: 'Paste', disabled: true });
+        items.push({ id: 'selectAll', label: 'Select all' });
         return items;
     }, []);
 
@@ -497,28 +501,27 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 <ContextMenuArea
                     onMenuOpen={getContainerContextMenuItems}
                     onMenuItemClick={handleContextMenuClick}
-                    style={{width: '100%', 'height': '100%'}}
+                    style={{ width: '100%', 'height': '100%' }}
                 >
                     <div
                         ref={contentContainerRef}
                         onClick={onClickOutside}
                         onContextMenu={onRightClickOutside}
+                        className={cn(isMacosTheme() ? 'px-1' : 'px-7')}
                     >
-                        <div className={cn(isMacosTheme() ? 'px-1' : 'px-7')}>
-                            <PhotoGrid
-                                dateKey={fetchOptions.sortBy}
-                                photos={photos}
-                                selectedIds={selectedIds}
-                                size={zoom}
-                                containerHeight={containerHeight}
-                                onClick={onClick}
-                                onDoubleClick={onDoubleClick}
-                                onRightClick={onRightClick}
-                                hasMore={hasMore}
-                                isLoading={isLoading}
-                                onLoadMore={fetchNew}
-                            />
-                        </div>
+                        <PhotoGrid
+                            dateKey={fetchOptions.sortBy}
+                            photos={photos}
+                            selectedIds={selectedIds}
+                            size={zoom}
+                            containerHeight={containerHeight}
+                            onClick={onClick}
+                            onDoubleClick={onDoubleClick}
+                            onRightClick={onRightClick}
+                            hasMore={hasMore}
+                            isLoading={isLoading}
+                            onLoadMore={fetchNew}
+                        />
                         {
                             !error && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
                                 <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' priority width={0} height={0} />

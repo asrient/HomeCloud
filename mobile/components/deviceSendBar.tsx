@@ -3,7 +3,7 @@ import { UIView } from "./ui/UIView";
 import { UIButton } from "./ui/UIButton";
 import { TextInput } from "react-native";
 import { useThemeColor } from "@/hooks/useThemeColor";
-import ContextMenu from "react-native-context-menu-view";
+import { UIContextMenu } from './ui/UIContextMenu';
 import { useCallback, useState } from "react";
 import { getServiceController } from "shared/utils";
 import { getLocalServiceController } from "@/lib/utils";
@@ -108,25 +108,24 @@ export function DeviceSendBar({ peerInfo }: DeviceSendBarProps) {
             }}
             useGlass={true}
         >
-            <ContextMenu
+            <UIContextMenu
                 title="Send to device"
                 actions={[
-                    { title: "Files", systemIcon: "folder" },
-                    { title: "Photos", systemIcon: "photo" },
+                    { id: 'files', title: "Files", icon: "folder" },
+                    { id: 'photos', title: "Photos", icon: "photo" },
                 ]}
-                onPress={(event) => {
-                    const action = event.nativeEvent.name;
-                    console.log("Context menu action pressed", action);
-                    if (action === 'Files') {
+                onAction={(id) => {
+                    console.log("Context menu action pressed", id);
+                    if (id === 'files') {
                         openDocPicker();
-                    } else if (action === 'Photos') {
+                    } else if (id === 'photos') {
                         openImagePicker();
                     }
                 }}
-                dropdownMenuMode={true}
+                dropdownMenuMode
             >
                 <UIButton type="link" icon='paperclip' themeColor="icon" />
-            </ContextMenu>
+            </UIContextMenu>
             <TextInput
                 style={{
                     flex: 1,

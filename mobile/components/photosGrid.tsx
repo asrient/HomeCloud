@@ -1,14 +1,14 @@
 import { PhotosFetchOptions, PhotoView } from '@/lib/types';
 import { usePhotos } from '@/hooks/usePhotos';
-import { ActivityIndicator, NativeSyntheticEvent, Pressable, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getLocalServiceController, getServiceController } from '@/lib/utils';
+import { getServiceController } from '@/lib/utils';
 import { FlashList } from "@shopify/flash-list";
 import { ThumbnailCheckbox } from './ThumbnailCheckbox';
 import { PhotosPreviewModal } from './photosPreviewModal';
-import ContextMenu, { ContextMenuOnPressNativeEvent } from "react-native-context-menu-view";
+import { UIContextMenu } from './ui/UIContextMenu';
 import { getPeerIconName } from './ui/getPeerIconName';
 
 
@@ -70,46 +70,33 @@ export function PhotoThumbnail({ item, onPress, isSelectMode, onQuickAction }: {
         }
     }, [isSelectMode, onPress, isSelected, item]);
 
-    const handleQuickAction = useCallback((event: NativeSyntheticEvent<ContextMenuOnPressNativeEvent>) => {
+    const handleQuickAction = useCallback((id: string, data: string | undefined) => {
         if (!onQuickAction) {
             return;
         }
-        const action = event.nativeEvent.name;
-        const parentIndex = event.nativeEvent.indexPath.length > 1 ? event.nativeEvent.indexPath[0] : null;
         let type: PhotosQuickAction['type'] | null = null;
-        let targetDeviceFingerprint: string | undefined = undefined;
-        switch (action) {
-            case 'Info':
+        let targetDeviceFingerprint: string | undefined = data;
+        switch (id) {
+            case 'info':
                 type = 'info';
                 break;
-            case 'Delete':
+            case 'delete':
                 type = 'delete';
                 break;
-            case 'Export':
+            case 'export':
                 type = 'export';
+                break;
+            case 'openInDevice':
+                type = 'openInDevice';
+                break;
+            case 'sendToDevice':
+                type = 'sendToDevice';
                 break;
             default:
                 type = null;
         }
-        // 1: Open in device submenu, 2: Send to device submenu
-        if ((parentIndex === 1 || parentIndex === 2)) {
-            // Open in device or Send to device submenu
-            const deviceName = action;
-            const localSc = getLocalServiceController();
-            const peer = localSc.app.getPeers().find(p => p.deviceName === deviceName);
-            if (!peer) {
-                console.error('Peer not found for quick action:', deviceName);
-                return;
-            }
-            targetDeviceFingerprint = peer.fingerprint;
-            if (parentIndex === 1) {
-                type = 'openInDevice';
-            } else if (parentIndex === 2) {
-                type = 'sendToDevice';
-            }
-        }
         if (!type) {
-            console.error('Unknown quick action type for action:', action);
+            console.error('Unknown quick action type for action:', id);
             return;
         }
         onQuickAction({
@@ -133,34 +120,41 @@ export function PhotoThumbnail({ item, onPress, isSelectMode, onQuickAction }: {
     }
 
     return (
-        <ContextMenu
+        <UIContextMenu<string>
             style={{ width: '100%', height: '100%' }}
             // title='Meow'
             actions={[
-                { title: "Export", systemIcon: "square.and.arrow.up" },
+                { id: 'export', title: "Export", icon: "square.and.arrow.up" },
                 {
+                    id: 'openInDevice',
                     title: "Open in device",
-                    systemIcon: "macbook.and.iphone",
+                    icon: "macbook.and.iphone",
                     actions: peers.filter(peer => peer.fingerprint !== modules.config.FINGERPRINT).map((peer) => ({
+                        id: 'openInDevice',
                         title: peer.deviceName,
-                        systemIcon: getPeerIconName(peer),
+                        icon: getPeerIconName(peer),
+                        data: peer.fingerprint,
                     })),
                 },
                 {
+                    id: 'sendToDevice',
                     title: "Send to device",
-                    systemIcon: "arrow.up.message",
+                    icon: "arrow.up.message",
                     actions: peers.filter(peer => peer.fingerprint !== item.deviceFingerprint).map((peer) => ({
+                        id: 'sendToDevice',
                         title: peer.deviceName,
-                        systemIcon: getPeerIconName(peer),
+                        icon: getPeerIconName(peer),
+                        data: peer.fingerprint,
                     })),
                 },
-                { title: "Info", systemIcon: "info.circle" },
-                { title: "Delete", systemIcon: "trash", destructive: true },
+                { id: 'info', title: "Info", icon: "info.circle" },
+                { id: 'delete', title: "Delete", icon: "trash", destructive: true },
             ]}
-            onPress={handleQuickAction}
+            onAction={handleQuickAction}
             onPreviewPress={handlePress}
         >
-            <Pressable onPress={handlePress} style={{ width: '100%', height: '100%' }}>
+            {/* onLongPress is needed to prevent onPress from firing when context menu opens on Android */}
+            <Pressable onPress={handlePress} onLongPress={() => {}} style={{ width: '100%', height: '100%' }}>
                 <Image
                     source={{ uri: thumbnailSrc, cacheKey: `${item.deviceFingerprint}-${item.libraryId}-${item.id}` }}
                     style={{ width: '100%', height: '100%' }}
@@ -171,7 +165,7 @@ export function PhotoThumbnail({ item, onPress, isSelectMode, onQuickAction }: {
                     <ThumbnailCheckbox position='top-right' isSelected={isSelected} />
                 }
             </Pressable>
-        </ContextMenu>
+        </UIContextMenu>
     );
 }
 

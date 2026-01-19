@@ -12,7 +12,7 @@ import { usePhotoLibraries } from '@/hooks/usePhotos';
 import { PhotosGrid, PhotosQuickAction } from '@/components/photosGrid';
 import { PhotosSortOption, PhotoView } from '@/lib/types';
 import { UIButton } from '@/components/ui/UIButton';
-import { getLocalServiceController, getServiceController } from '@/lib/utils';
+import { getLocalServiceController, getServiceController, isIos } from '@/lib/utils';
 
 export default function PhotosScreen() {
   const headerHeight = useHeaderHeight();
@@ -175,7 +175,7 @@ export default function PhotosScreen() {
           title: 'Photos',
           headerTitle: selectMode ? `${selectedPhotos.length} selected` : 'Photos',
           //headerLargeTitle: true
-          headerTransparent: true,
+          headerTransparent: isIos,
           headerLeft: () => <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} />
           ,
           headerRight: () => {
@@ -207,7 +207,7 @@ export default function PhotosScreen() {
           onSelectPhoto={handleSelectPhoto}
           onDeselectPhoto={handleDeselectPhoto}
           onQuickAction={handleQuickAction}
-          headerComponent={<View style={{ paddingTop: headerHeight }} >
+          headerComponent={<View style={{ paddingTop: isIos ? headerHeight : 0 }} >
             <DeviceSelectorRow />
           </View>}
         />

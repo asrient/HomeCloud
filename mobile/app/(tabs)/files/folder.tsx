@@ -9,9 +9,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { FileRemoteItem } from '@/lib/types';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
-import ContextMenu from 'react-native-context-menu-view';
+import { UIContextMenu } from '@/components/ui/UIContextMenu';
 import { useInputPopup } from '@/hooks/usePopup';
-import { getLocalServiceController, getServiceController } from '@/lib/utils';
+import { getLocalServiceController, getServiceController, isIos } from '@/lib/utils';
 import { UIText } from '@/components/ui/UIText';
 import { useFolder } from '@/hooks/useFolders';
 import { RemoteItem } from 'shared/types';
@@ -23,7 +23,7 @@ type Props = RouteProp<ParamListBase, string> & {
 };
 
 export default function FolderScreen() {
-  const { selectedFingerprint, filesViewMode, setFilesViewMode, peers } = useAppState();
+  const { selectedFingerprint, filesViewMode, setFilesViewMode } = useAppState();
   const navigation = useNavigation();
   const router = useRouter();
   const route = useRoute<Props>();
@@ -256,55 +256,62 @@ export default function FolderScreen() {
     navigation.setOptions({
       title: folderName,
       headerTitle: selectMode ? `${selectedFiles.length} selected` : folderName,
-      headerTransparent: true,
+      headerTransparent: isIos,
       headerBackButtonDisplayMode: 'minimal',
       headerRight: () => {
         if (!selectMode) {
           return <>
             <UIHeaderButton name="checkmark.circle" onPress={() => { setSelectMode(true) }} />
-            <ContextMenu
-              dropdownMenuMode={true}
+            <UIContextMenu
+              dropdownMenuMode
               actions={[
                 {
+                  id: 'newFolder',
                   title: "New Folder",
-                  systemIcon: "folder.badge.plus",
+                  icon: "folder.badge.plus",
                 },
                 {
+                  id: 'sort',
                   title: "Sort",
-                  systemIcon: "arrow.up.arrow.down",
+                  icon: "arrow.up.arrow.down",
                   actions: [
-                    { title: `Direction: ${sortBy?.direction || 'asc'}`, systemIcon: "arrow.up.arrow.down.circle" },
-                    { title: "Name", systemIcon: "textformat", selected: sortBy?.field === 'name' },
-                    { title: "Date Added", systemIcon: "calendar", selected: sortBy?.field === 'dateAdded' },
-                    { title: "Size", systemIcon: "arrow.up.arrow.down.circle", selected: sortBy?.field === 'size' },
+                    { id: 'toggleDirection', title: `Direction: ${sortBy?.direction || 'asc'}`, icon: "arrow.up.arrow.down.circle" },
+                    { id: 'sortByName', title: "Name", icon: "textformat", selected: sortBy?.field === 'name' },
+                    { id: 'sortByDate', title: "Date Added", icon: "calendar", selected: sortBy?.field === 'dateAdded' },
+                    { id: 'sortBySize', title: "Size", icon: "arrow.up.arrow.down.circle", selected: sortBy?.field === 'size' },
                   ]
                 },
                 {
-                  title: "Display", systemIcon: "rectangle.grid.2x2",
+                  id: 'display',
+                  title: "Display", icon: "rectangle.grid.2x2",
                   inlineChildren: true,
                   actions: [
-                    { title: "Grid", systemIcon: "square.grid.2x2", selected: filesViewMode === 'grid' },
-                    { title: "List", systemIcon: "list.bullet", selected: filesViewMode === 'list' },
+                    { id: 'viewGrid', title: "Grid", icon: "square.grid.2x2", selected: filesViewMode === 'grid' },
+                    { id: 'viewList', title: "List", icon: "list.bullet", selected: filesViewMode === 'list' },
                   ]
                 },
               ]}
-              onPress={(event) => {
-                const action = event.nativeEvent.name;
-                const parentIndex = event.nativeEvent.indexPath.length > 1 ? event.nativeEvent.indexPath[0] : -1;
-                console.log("Folder context menu action pressed", event.nativeEvent);
-                if (action === 'Grid') {
+              onAction={(id) => {
+                console.log("Folder context menu action pressed", id);
+                if (id === 'viewGrid') {
                   setFilesViewMode('grid');
-                } else if (action === 'List') {
+                } else if (id === 'viewList') {
                   setFilesViewMode('list');
-                } else if (parentIndex === 1) {
-                  updatedSortBy(action);
-                } else if (action === 'New Folder') {
+                } else if (id === 'toggleDirection') {
+                  updatedSortBy(`Direction: ${sortBy?.direction || 'asc'}`);
+                } else if (id === 'sortByName') {
+                  updatedSortBy('Name');
+                } else if (id === 'sortByDate') {
+                  updatedSortBy('Date Added');
+                } else if (id === 'sortBySize') {
+                  updatedSortBy('Size');
+                } else if (id === 'newFolder') {
                   newFolder();
                 }
               }}
             >
               <UIHeaderButton name='ellipsis.circle' />
-            </ContextMenu>
+            </UIContextMenu>
           </>;
         }
         return (<>
@@ -315,7 +322,7 @@ export default function FolderScreen() {
       }
       ,
     });
-  }, [navigation, folderName, selectMode, selectedFiles.length, filesViewMode, setFilesViewMode, peers, sortBy, updatedSortBy, newFolder, deleteSelectedItems, selectedFiles]);
+  }, [navigation, folderName, selectMode, selectedFiles.length, filesViewMode, setFilesViewMode, sortBy, updatedSortBy, newFolder, deleteSelectedItems, selectedFiles]);
 
   const sendToDevice = useCallback(async (items: FileRemoteItem[], destFingerprint: string | null) => {
     try {
@@ -406,7 +413,9 @@ export default function FolderScreen() {
           sortBy={sortBy || undefined}
           onQuickAction={handleQuickAction}
           headerComponent={
-            <View style={{ marginTop: headerHeight }} />
+            isIos ?
+              <View style={{ marginTop: headerHeight }} />
+              : undefined
           }
         />
 

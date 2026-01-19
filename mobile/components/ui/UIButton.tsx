@@ -99,7 +99,7 @@ export function UIButton({
         alignItems: 'center',
         paddingVertical,
         paddingHorizontal,
-        borderRadius: isIos ? 100 : 8,
+        borderRadius: (isIos || isIconOnly) ? 100 : 8,
         borderWidth: borderColor ? 2 : 0,
         borderColor: borderColor || 'transparent',
         opacity: disabled ? 0.5 : isIos && !useGlass && isPressed ? 0.7 : 1,

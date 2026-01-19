@@ -1,5 +1,5 @@
 import { FileRemoteItem } from '@/lib/types';
-import { ActivityIndicator, NativeSyntheticEvent, Pressable, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, View, ViewStyle } from 'react-native';
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,7 +10,7 @@ import { useFolder, usePinnedFolders } from '@/hooks/useFolders';
 import { canGenerateThumbnail, pinnedFolderToRemoteItem, getDefautIconUri, getFolderAppRoute, getKind } from '@/lib/fileUtils';
 import { RemoteItem } from 'shared/types';
 import { useRouter } from 'expo-router';
-import ContextMenu, { ContextMenuAction, ContextMenuOnPressNativeEvent } from 'react-native-context-menu-view';
+import { UIContextMenu, UIContextMenuAction } from './ui/UIContextMenu';
 import { UIIcon } from './ui/UIIcon';
 import { getPeerIconName } from './ui/getPeerIconName';
 
@@ -126,52 +126,60 @@ function useFileItemState(
         }
     }, [onPress, item, isSelectable, isSelectedInternal, isSelected]);
 
-    const actions = useMemo(() => {
+    const actions = useMemo((): UIContextMenuAction<string>[] => {
         if (isSelectMode) {
-            const actions_: ContextMenuAction[] = [];
+            const actions_: UIContextMenuAction<string>[] = [];
             if (!disablePreview) {
                 actions_.push({
+                    id: isDir ? 'open' : 'preview',
                     title: isDir ? 'Open' : 'Preview',
-                    systemIcon: isDir ? 'folder' : 'eye',
+                    icon: isDir ? 'folder' : 'eye',
                 });
             }
             if (isSelectable) {
                 actions_.push({
+                    id: isSelectedInternal ? 'deselect' : 'select',
                     title: isSelectedInternal ? 'Deselect' : 'Select',
-                    systemIcon: isSelectedInternal ? 'checkmark.circle.fill' : 'circle',
+                    icon: isSelectedInternal ? 'checkmark.circle.fill' : 'circle',
                 });
             }
             return actions_;
         }
         const localSc = getLocalServiceController();
         const peers = localSc.app.getPeers();
-        let baseActions: ContextMenuAction[] = [
-            { title: "Info", systemIcon: "info.circle" },
-            { title: "Rename", systemIcon: "pencil" },
-            { title: "Move", systemIcon: "folder" },
+        let baseActions: UIContextMenuAction<string>[] = [
+            { id: 'info', title: "Info", icon: "info.circle" },
+            { id: 'rename', title: "Rename", icon: "pencil" },
+            { id: 'move', title: "Move", icon: "folder" },
 
         ];
         if (!isDir) {
-            baseActions.push({ title: "Export", systemIcon: "square.and.arrow.up" });
+            baseActions.push({ id: 'export', title: "Export", icon: "square.and.arrow.up" });
         }
-        baseActions.push({ title: "Delete", systemIcon: "trash", destructive: true });
+        baseActions.push({ id: 'delete', title: "Delete", icon: "trash", destructive: true });
         if (!isDir) {
             baseActions = [
                 ...baseActions,
                 {
+                    id: 'openInDevice',
                     title: "Open in device",
-                    systemIcon: "macbook.and.iphone",
+                    icon: "macbook.and.iphone",
                     actions: peers.filter(peer => peer.fingerprint !== modules.config.FINGERPRINT).map((peer) => ({
+                        id: 'openInDevice',
                         title: peer.deviceName,
-                        systemIcon: getPeerIconName(peer),
+                        icon: getPeerIconName(peer),
+                        data: peer.fingerprint,
                     })),
                 },
                 {
+                    id: 'sendToDevice',
                     title: "Send to device",
-                    systemIcon: "arrow.up.message",
+                    icon: "arrow.up.message",
                     actions: peers.filter(peer => peer.fingerprint !== item.deviceFingerprint).map((peer) => ({
+                        id: 'sendToDevice',
                         title: peer.deviceName,
-                        systemIcon: getPeerIconName(peer),
+                        icon: getPeerIconName(peer),
+                        data: peer.fingerprint,
                     })),
                 },
             ]
@@ -179,61 +187,49 @@ function useFileItemState(
         return baseActions;
     }, [disablePreview, isDir, isSelectMode, isSelectable, isSelectedInternal, item.deviceFingerprint]);
 
-    const handleQuickAction = useCallback((event: NativeSyntheticEvent<ContextMenuOnPressNativeEvent>) => {
+    const handleQuickAction = useCallback((id: string, data: string | undefined) => {
         if (!onQuickAction) {
             return;
         }
-        const action = event.nativeEvent.name;
-        const parentIndex = event.nativeEvent.indexPath.length > 1 ? event.nativeEvent.indexPath[0] : null;
         let type: FileQuickActionType['type'] | null = null;
-        let targetDeviceFingerprint: string | undefined = undefined;
-        switch (action) {
-            case 'Open':
-            case 'Preview':
+        let targetDeviceFingerprint: string | undefined = data;
+        switch (id) {
+            case 'open':
+            case 'preview':
                 // Handled in onPress
                 !disablePreview && handlePress(true);
                 return;
-            case 'Select':
-            case 'Deselect':
+            case 'select':
+            case 'deselect':
                 // Handled in onPress
                 handlePress();
                 return;
-            case 'Info':
+            case 'info':
                 type = 'info';
                 break;
-            case 'Rename':
+            case 'rename':
                 type = 'rename';
                 break;
-            case 'Move':
+            case 'move':
                 type = 'move';
                 break;
-            case 'Delete':
+            case 'delete':
                 type = 'delete';
                 break;
-            case 'Export':
+            case 'export':
                 type = 'export';
+                break;
+            case 'openInDevice':
+                type = 'openInDevice';
+                break;
+            case 'sendToDevice':
+                type = 'sendToDevice';
                 break;
             default:
                 type = null;
         }
-        if ((parentIndex === 6 || parentIndex === 5) && !isDir) {
-            // Open in device or Send to device submenu
-            const deviceName = action;
-            const localSc = getLocalServiceController();
-            const peer = localSc.app.getPeers().find(p => p.deviceName === deviceName);
-            if (!peer) {
-                console.error('Peer not found for quick action:', deviceName);
-                return;
-            }
-            targetDeviceFingerprint = peer.fingerprint;
-            if (parentIndex === 5) {
-                type = 'openInDevice';
-            } else if (parentIndex === 6) {
-                type = 'sendToDevice';
-            }
-        }
         if (!type) {
-            console.error('Unknown quick action type for action:', action);
+            console.error('Unknown quick action type for action:', id);
             return;
         }
         onQuickAction({
@@ -241,7 +237,7 @@ function useFileItemState(
             targetDeviceFingerprint,
             item,
         });
-    }, [disablePreview, handlePress, isDir, item, onQuickAction]);
+    }, [disablePreview, handlePress, item, onQuickAction]);
 
     return {
         thumbnailSrc,
@@ -273,16 +269,18 @@ export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu,
     }, [handlePress]);
 
     return (
-        <ContextMenu
+        <UIContextMenu
             // title='Meow'
             actions={actions}
             disabled={disableContextMenu}
-            onPress={handleQuickAction}
+            onAction={handleQuickAction}
             onPreviewPress={() => handlePress(true)}
         >
+            {/* onLongPress is needed to prevent onPress from firing when context menu opens on Android */}
             <Pressable
                 disabled={isPressed}
                 onPress={handlePressWrapper}
+                onLongPress={() => {}}
                 style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', margin: 2 }}>
                 <Image
                     source={
@@ -312,7 +310,7 @@ export function FileThumbnail({ item, onPress, isSelectMode, disableContextMenu,
                     {fileKind}
                 </UIText>
             </Pressable>
-        </ContextMenu>
+        </UIContextMenu>
     );
 }
 
@@ -334,15 +332,17 @@ export function FileListItem({ item, onPress, isSelectMode, disableContextMenu, 
     }
 
     return (
-        <ContextMenu
+        <UIContextMenu
             actions={actions}
             disabled={disableContextMenu}
-            onPress={handleQuickAction}
+            onAction={handleQuickAction}
             onPreviewPress={() => handlePress(true)}
         >
+            {/* onLongPress is needed to prevent onPress from firing when context menu opens on Android */}
             <Pressable
                 disabled={isPressed}
                 onPress={() => handlePress()}
+                onLongPress={() => {}}
                 style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -381,7 +381,7 @@ export function FileListItem({ item, onPress, isSelectMode, disableContextMenu, 
                     isDir && <UIIcon name="chevron.forward" size={20} themeColor="textTertiary" style={{ marginLeft: 8 }} />
                 )}
             </Pressable>
-        </ContextMenu>
+        </UIContextMenu>
     );
 }
 

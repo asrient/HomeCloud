@@ -10,8 +10,10 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import { useEffect, useMemo, useState } from 'react';
 import { DeviceInfo } from 'shared/types';
 import { DeviceQuickActions } from '@/components/deviceQuickActions';
+import { isIos } from '@/lib/utils';
 
 const MAX_DEVICE_NAME_LENGTH = 23;
+
 
 function printDeviceInfo(info: DeviceInfo | null) {
   if (!info) return 'No Device Info';
@@ -47,7 +49,7 @@ export default function HomeScreen() {
           title: 'Home',
           headerTitle,
           headerLargeTitle: true,
-          headerTransparent: true,
+          headerTransparent: isIos,
           headerRight: () =>
             <View>
               <UIHeaderButton name="gear" onPress={() => router.navigate('/settings')} />

@@ -1,5 +1,6 @@
 import { OSType } from "@/lib/types";
 import { DeviceInfo } from "shared/types";
+import { Platform } from "react-native";
 
 
 export function printFingerprint(fingerprint: string, full = false) {
@@ -43,3 +44,6 @@ export const formatFileSize = (bytes?: number) => {
     if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
 };
+
+
+export const isIos = Platform.OS === 'ios';
