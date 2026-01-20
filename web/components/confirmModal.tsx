@@ -9,6 +9,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
+import { cn, isWin11Theme } from "@/lib/utils";
 
 export default function ConfirmModal({ title, buttonText, children, onConfirm, description, isOpen, onOpenChange, buttonVariant }: {
     title: string,
@@ -70,14 +71,20 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
             <DialogTrigger asChild>
                 {children}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[26rem] overflow-hidden">
+            <DialogContent className={cn(
+                "overflow-hidden",
+                isWin11Theme() ? 'sm:max-w-[26rem] ' : 'sm:max-w-[20rem]'
+            )}>
                 <DialogHeader>
-                    <DialogTitle className="overflow-ellipsis max-w-[22rem] truncate">
+                    <DialogTitle className={cn(
+                        "overflow-ellipsis truncate",
+                        isWin11Theme() ? 'max-w-[22rem]' : 'max-w-[16rem]'
+                    )}>
                         {title}
                     </DialogTitle>
                     {
                         (description || error)
-                        && <DialogDescription  className='break-all'>
+                        && <DialogDescription className='break-all'>
                             {error ? <span className='text-red-500'>{error}</span> : description}
                         </DialogDescription>
                     }
