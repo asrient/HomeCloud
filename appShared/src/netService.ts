@@ -89,7 +89,9 @@ export class NetService extends Service {
         this.connectionInterfaces = connectionInterfaces;
         this.connectionInterfaces.forEach((connectionInterface, type) => {
             connectionInterface.onIncomingConnection((dataChannel) => {
-                this.setupConnection(type, null, dataChannel);
+                this.setupConnection(type, null, dataChannel).catch((error) => {
+                    console.error(`[NetService] Error setting up incoming connection on ${type}:`, error);
+                });
             });
             connectionInterface.onCandidateAvailable((candidate) => {
                 this.handleCandidateAvailable(type, candidate);
@@ -110,7 +112,9 @@ export class NetService extends Service {
                 const connectionInterface = this.connectionInterfaces.get(type);
                 if (connectionInterface) {
                     const dataChannel = await connectionInterface.connect(candidate);
-                    this.setupConnection(type, fingerprint, dataChannel);
+                    this.setupConnection(type, fingerprint, dataChannel).catch((error) => {
+                        console.error(`[NetService] Could not auto-connect to candidate ${fingerprint} on ${type}:`, error);
+                    });
                 }
             } catch (error) {
                 console.error(`[NetService] Error auto-connecting to candidate ${fingerprint} on ${type}:`, error);
@@ -203,7 +207,7 @@ export class NetService extends Service {
 
     private setupConnection(type: ConnectionType, fingerprint_: string | null, dataChannel: GenericDataChannel): Promise<RPCController> {
         const connInterface = this.connectionInterfaces.get(type);
-
+        console.log(`[NetService] Setting up connection for ${fingerprint_ || 'incoming connection'} on ${type}`);
         return new Promise<RPCController>((resolve, reject) => {
             let isResolved = false;
             const rpc = new RPCPeer({
@@ -255,6 +259,9 @@ export class NetService extends Service {
                     },
                     methodCall: async (fqn: string, args: any[]) => {
                         const fingerprint = rpc.getTargetFingerprint();
+                        if (!fingerprint) {
+                            throw new Error(`[NetService] Fingerprint not resolved for method call ${fqn} on ${type}`);
+                        }
                         const serviceController = modules.ServiceController.getLocalInstance();
                         const { obj, funcName } = serviceController.getCallable(fqn);
                         // Check if peer can access the method here
@@ -302,6 +309,7 @@ export class NetService extends Service {
                     }
                     if (!isResolved) {
                         reject(new Error(`Connection closed for ${fingerprint} on ${type}`));
+                        isResolved = true;
                     }
                 },
 
@@ -330,6 +338,7 @@ export class NetService extends Service {
                     });
                     this.connectionSignal.dispatch(SignalEvent.ADD, this.getConnectionInfo(fingerprint));
                     resolve(proxy.controller);
+                    isResolved = true;
                 }
             });
         });

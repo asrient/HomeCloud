@@ -8,6 +8,7 @@ export default class Discovery {
     private bonjour: Bonjour;
     private browser: Browser;
     public port: number;
+    private onFoundCallback: ((pc: PeerCandidate) => void) | null = null;
     constructor(port: number) {
         this.port = port;
         this.bonjour = new Bonjour(undefined, (err: any) => {
@@ -27,16 +28,19 @@ export default class Discovery {
             protocol: 'tcp'
         });
         this.browser.start();
-    }
-
-    onCandidateFound(callback: (candidate: PeerCandidate) => void): void {
         this.browser.on('up', (service: Service) => {
             if (!Discovery.isServiceVaild(service)) {
                 return;
             }
             const candidate = Discovery.serviceToCandidate(service);
-            callback(candidate);
+            if (this.onFoundCallback) {
+                this.onFoundCallback(candidate);
+            }
         });
+    }
+
+    onCandidateFound(callback: (candidate: PeerCandidate) => void): void {
+        this.onFoundCallback = callback;
     }
 
     static isServiceVaild(service: Service): boolean {

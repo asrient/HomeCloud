@@ -1,19 +1,27 @@
-import { PeerCandidate, BonjourTxt, ConnectionType } from 'shared/types';
+import { PeerCandidate, BonjourTxt, ConnectionType, DeviceInfo } from 'shared/types';
+import { getIconKey } from 'shared/utils';
 import Zeroconf, { Service } from 'react-native-zeroconf';
+import { AppState, AppStateStatus } from 'react-native';
 
 const SERVICE_TYPE = 'mcservice';
 
 export default class Discovery {
     private zeroconf: Zeroconf;
     private onFoundCallback: ((pc: PeerCandidate) => void) | null = null;
+    private port: number;
+    private isPublished: boolean = false;
+    private isScanning: boolean = false;
+    private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
 
-    constructor() {
+    constructor(port: number) {
+        console.log('[Discovery] Initializing with port:', port);
+        this.port = port;
         this.zeroconf = new Zeroconf();
         this.zeroconf.on('error', (err) => {
-            console.error('Zeroconf error:', err);
+            console.error('[Discovery] Zeroconf error:', err);
         });
         this.zeroconf.on('resolved', (service) => {
-            console.log('Found service:', service);
+            console.log('[Discovery] Found service:', service);
             if (this.onFoundCallback) {
                 const pc = this.serviceToPeerCandidate(service);
                 if (pc) {
@@ -21,15 +29,86 @@ export default class Discovery {
                 }
             }
         });
-        this.zeroconf.on('start', () => console.log('The bonjour scan has started.'))
+        this.zeroconf.on('start', () => console.log('[Discovery] Bonjour scan has started.'));
+        this.zeroconf.on('stop', () => console.log('[Discovery] Bonjour scan has stopped.'));
+        this.zeroconf.on('published', () => {
+            console.log('[Discovery] Service published.');
+            this.isPublished = true;
+        });
+
+        this.setupAppStateListener();
+    }
+
+    private setupAppStateListener(): void {
+        this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
+    }
+
+    private handleAppStateChange = (state: AppStateStatus): void => {
+        console.log(`[Discovery] App state changed to: ${state}`);
+        if (state === 'background' || state === 'inactive') {
+            this.handleEnterBackground();
+        } else if (state === 'active') {
+            this.handleEnterForeground();
+        }
+    };
+
+    private handleEnterBackground(): void {
+        console.log('[Discovery] Entering background, stopping scan...');
+        if (this.isScanning) {
+            this.zeroconf.stop('DNSSD');
+            // Don't set isScanning to false - we want to remember to restart
+        }
+    }
+
+    private handleEnterForeground(): void {
+        console.log('[Discovery] Entering foreground...');
+        if (this.isScanning) {
+            console.log('[Discovery] Restarting scan...');
+            this.zeroconf.scan(SERVICE_TYPE, 'tcp', 'local.', 'DNSSD');
+        }
     }
 
     onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
         this.onFoundCallback = callback;
     }
 
-    scan() {
+    scan(): void {
+        this.isScanning = true;
         this.zeroconf.scan(SERVICE_TYPE, 'tcp', 'local.', 'DNSSD');
+    }
+
+    stopScan(): void {
+        this.isScanning = false;
+        this.zeroconf.stop('DNSSD');
+    }
+
+    hello(deviceInfo: DeviceInfo, port?: number): void {
+        const name = modules.config.FINGERPRINT.slice(0, 8);
+        if (port) {
+            this.port = port;
+        }
+        console.log(`[Discovery] Publishing service: ${name} on port ${this.port}`);
+        this.zeroconf.publishService(
+            SERVICE_TYPE,
+            'tcp',
+            'local.',
+            name,
+            this.port,
+            {
+                version: modules.config.VERSION || 'dev',
+                iconKey: getIconKey(deviceInfo),
+                deviceName: modules.config.DEVICE_NAME,
+                fingerprint: modules.config.FINGERPRINT,
+            } as BonjourTxt
+        );
+    }
+
+    unpublish(): void {
+        if (this.isPublished) {
+            console.log('[Discovery] Unpublishing service...');
+            this.zeroconf.unpublishService(modules.config.FINGERPRINT.slice(0, 8));
+            this.isPublished = false;
+        }
     }
 
     static isServiceVaild(service: Service): boolean {
@@ -82,7 +161,16 @@ export default class Discovery {
         return candidates;
     }
 
-    async goodbye() {
+    async goodbye(): Promise<void> {
+        console.log('[Discovery] Goodbye - stopping scan and unpublishing...');
+        this.isScanning = false;
+        this.unpublish();
         this.zeroconf.stop('DNSSD');
+
+        // Remove app state listener
+        if (this.appStateSubscription) {
+            this.appStateSubscription.remove();
+            this.appStateSubscription = null;
+        }
     }
 }

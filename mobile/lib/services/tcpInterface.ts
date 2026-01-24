@@ -29,7 +29,7 @@ export default class TCPInterface extends ConnectionInterface {
     constructor(port: number) {
         super();
         this.port = port;
-        this.discovery = new Discovery();
+        this.discovery = new Discovery(port);
         this.setupEventListeners();
     }
 
@@ -172,7 +172,10 @@ export default class TCPInterface extends ConnectionInterface {
 
         if (!this.serverStarted) {
             try {
-                await this.startServer();
+                const port = await this.startServer();
+                const localSc = modules.getLocalServiceController();
+                const deviceInfo = await localSc.system.getDeviceInfo();
+                this.discovery.hello(deviceInfo, port);
             } catch (error) {
                 console.error('[TCPInterface] Failed to start TCP server during start():', error);
             }
@@ -240,10 +243,10 @@ export default class TCPInterface extends ConnectionInterface {
     triggerDCDisconnect(connectionId: string): boolean {
         const connection = this.connections.get(connectionId);
         if (connection) {
-            this.connections.delete(connectionId);
             if (connection.dataChannel.ondisconnect) {
                 connection.dataChannel.ondisconnect();
             }
+            this.connections.delete(connectionId);
             return true;
         }
         return false;
@@ -265,10 +268,13 @@ export default class TCPInterface extends ConnectionInterface {
                 const result = await SupermanModule.tcpSend(connectionId, data);
                 if (result === false) {
                     // Connection was closed on native side
-                    const wasDisconnected = this.triggerDCDisconnect(connectionId);
-                    if (wasDisconnected) {
+                    // Throw error only if its already been cleaned up, i.e a potential memory leak
+                    if (!this.connections.has(connectionId)) {
                         throw new Error(`Can't send data, connection ${connectionId} is closed.`);
                     }
+                    setTimeout(() => {
+                        this.triggerDCDisconnect(connectionId);
+                    }, 0);
                 }
             },
 
