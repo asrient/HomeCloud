@@ -56,14 +56,32 @@ export class NetService extends Service {
 
     private connectionInterfaces: Map<ConnectionType, ConnectionInterface>;
 
-    private autoConnectFingerprints: Set<string> = new Set();
+    private autoConnectFingerprints: Map<string, Set<string>> = new Map();
 
-    public addAutoConnectFingerprint(fingerprint: string) {
-        this.autoConnectFingerprints.add(fingerprint);
+    public addAutoConnectFingerprint(fingerprint: string, key?: string) {
+        if (!this.autoConnectFingerprints.has(fingerprint)) {
+            this.autoConnectFingerprints.set(fingerprint, new Set());
+        }
+        const keys = this.autoConnectFingerprints.get(fingerprint);
+        if (key) {
+            keys?.add(key);
+        } else {
+            keys?.add("__default");
+        }
     }
 
-    public removeAutoConnectFingerprint(fingerprint: string) {
-        this.autoConnectFingerprints.delete(fingerprint);
+    public removeAutoConnectFingerprint(fingerprint: string, key?: string) {
+        if (this.autoConnectFingerprints.has(fingerprint)) {
+            if (key) {
+                const keys = this.autoConnectFingerprints.get(fingerprint);
+                keys?.delete(key);
+                if (keys && keys.size === 0) {
+                    this.autoConnectFingerprints.delete(fingerprint);
+                }
+            } else {
+                this.autoConnectFingerprints.delete(fingerprint);
+            }
+        }
     }
 
     public init(connectionInterfaces: Map<ConnectionType, ConnectionInterface>) {

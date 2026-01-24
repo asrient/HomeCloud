@@ -2,15 +2,17 @@ import { getServiceController } from "@/lib/utils";
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import ServiceController from "shared/controller";
 import { useAppState } from "./useAppState";
+import { useAutoConnect } from "./useAutoConnect";
 
 
 export const useResource = ({
-    deviceFingerprint, load, clearSignals, setupSignals,
+    deviceFingerprint, load, clearSignals, setupSignals, resourceKey
 }: {
     deviceFingerprint: string | null;
     load: (serviceController: ServiceController, shouldAbort: () => boolean) => Promise<void>;
     clearSignals?: (serviceController: ServiceController) => void;
     setupSignals?: (serviceController: ServiceController) => void;
+    resourceKey?: string;
 }) => {
     const isLoadingRef = useRef(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +22,8 @@ export const useResource = ({
     const hasSignalSetupRef = useRef(false);
 
     const { connections } = useAppState();
+
+    useAutoConnect(deviceFingerprint, resourceKey);
 
     const isConnected = useMemo(() => {
         if (deviceFingerprint === null) {
@@ -121,8 +125,10 @@ export const useResource = ({
             isLoadingRef.current = false;
             setIsLoading(false);
         });
-        return () => { clearSignals && serviceControllerRef.current && hasSignalSetupRef.current && clearSignals(serviceControllerRef.current); };
-    }, [clearSignals, isConnected, deviceFingerprint, load, setupSignals]);
+        return () => {
+            clearSignals && serviceControllerRef.current && hasSignalSetupRef.current && clearSignals(serviceControllerRef.current);
+        };
+    }, [clearSignals, isConnected, deviceFingerprint, load, setupSignals, resourceKey]);
 
     return { isLoading, error, reload };
 };

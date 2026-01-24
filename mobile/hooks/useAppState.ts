@@ -11,6 +11,7 @@ export interface AppState {
     isInitialized: boolean;
     filesViewMode: 'grid' | 'list';
     deviceInfo: DeviceInfo | null;
+    instanceKey: string;
 
     initializeStore: (peers: PeerInfo[], connections: ConnectionInfo[], deviceInfo: DeviceInfo) => void;
     selectDevice: (fingerprint: string | null) => void;
@@ -28,6 +29,7 @@ const useAppStore = create<AppState>((set) => ({
     isInitialized: false,
     filesViewMode: 'grid',
     deviceInfo: null,
+    instanceKey: 'mobile',
     initializeStore: (peers, connections, deviceInfo) => set(() => ({
         isInitialized: true,
         peers,
@@ -80,6 +82,7 @@ export function useAppState() {
         filesViewMode,
         setFilesViewMode,
         deviceInfo,
+        instanceKey,
     } = useAppStore();
     const loadingStateRef = useRef<'initial' | 'loading' | 'loaded'>('initial');
     const readySignalRef = useRef<SignalNodeRef<[boolean], string> | null>(null);
@@ -192,5 +195,6 @@ export function useAppState() {
         filesViewMode,
         setFilesViewMode,
         deviceInfo,
+        instanceKey,
     };
 }

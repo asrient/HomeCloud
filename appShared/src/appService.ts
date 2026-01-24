@@ -139,10 +139,9 @@ export class AppService extends Service {
         this.store.setItem('peers', peers);
         await this.store.save();
         this.peerSignal.dispatch(SignalEvent.REMOVE, peer);
-        if (this.autoConnectPeers) {
-            const localSc = modules.getLocalServiceController();
-            localSc.net.removeAutoConnectFingerprint(fingerprint);
-        }
+        // Force remove from auto-connect list
+        const localSc = modules.getLocalServiceController();
+        localSc.net.removeAutoConnectFingerprint(fingerprint);
         return peer;
     }
 

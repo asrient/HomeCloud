@@ -7,6 +7,7 @@ export type AppStateType = {
     peers: PeerInfo[];
     connections: ConnectionInfo[];
     selectedFingerprint: string | null;
+    instanceKey: string;
 };
 
 export enum ActionTypes {
@@ -32,6 +33,7 @@ export const initialAppState: AppStateType = {
     peers: [],
     connections: [],
     selectedFingerprint: null,
+    instanceKey: '',
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
@@ -45,6 +47,7 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
             draft.appError = null;
             draft.peers = payload.peers || [];
             draft.connections = payload.connections || [];
+            draft.instanceKey = payload.instanceKey;
             return draft;
         }
         case ActionTypes.ERROR: {

@@ -21,6 +21,7 @@ export const usePhotoLibraries = (deviceFingerprint: string | null) => {
     const { isLoading, error, reload } = useResource({
         deviceFingerprint,
         load,
+        resourceKey: "photoLibraries",
     });
 
     return {
@@ -46,6 +47,7 @@ export const usePhotoLibrary = (deviceFingerprint: string | null, libraryId: str
     const { isLoading, error, reload } = useResource({
         deviceFingerprint,
         load,
+        resourceKey: `photoLibrary-${libraryId}`,
     });
 
     return {

@@ -29,7 +29,7 @@ export default class Discovery {
     }
 
     scan() {
-        this.zeroconf.scan(SERVICE_TYPE, 'tcp');
+        this.zeroconf.scan(SERVICE_TYPE, 'tcp', 'local.', 'DNSSD');
     }
 
     static isServiceVaild(service: Service): boolean {
@@ -83,6 +83,6 @@ export default class Discovery {
     }
 
     async goodbye() {
-        this.zeroconf.stop();
+        this.zeroconf.stop('DNSSD');
     }
 }

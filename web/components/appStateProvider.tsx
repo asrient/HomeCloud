@@ -33,6 +33,7 @@ function WithInitialState({ children }: {
         dispatch(ActionTypes.INITIALIZE, {
             peers,
             connections,
+            instanceKey: window.modules.crypto.generateRandomKey(),
         });
 
         // Setup signals
