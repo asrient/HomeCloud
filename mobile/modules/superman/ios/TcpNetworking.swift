@@ -78,37 +78,12 @@ class TcpNetworking {
   
   private func handleEnterForeground() {
     networkQueue.async {
-      print("[TcpNetworking] Entering foreground, cleaning up dead connections...")
-      
-      // Clean up dead connections
-      self.cleanupDeadConnections()
+      print("[TcpNetworking] Entering foreground...")
       
       // Auto-restart server if it was running
-      if self.wasServerRunning && self.listener == nil && self.lastServerPort > 0 {
-        print("[TcpNetworking] Auto-restarting server on port \(self.lastServerPort)")
+      if self.wasServerRunning && self.lastServerPort > 0 {
+        print("[TcpNetworking] Checking if server needs restart on port \(self.lastServerPort)")
         self.restartServer(port: self.lastServerPort)
-      }
-    }
-  }
-  
-  private func cleanupDeadConnections() {
-    // Check each connection's state and remove dead ones
-    for (connectionId, tcpConnection) in self.connections {
-      let state = tcpConnection.connection.state
-      switch state {
-      case .cancelled, .failed:
-        print("[TcpNetworking] Removing dead connection: \(connectionId) (state: \(state))")
-        self.connections.removeValue(forKey: connectionId)
-        self.sendEvent?("tcpClose", ["connectionId": connectionId])
-      case .waiting:
-        // Connection is waiting, might be stale - cancel and remove
-        print("[TcpNetworking] Cancelling waiting connection: \(connectionId)")
-        tcpConnection.connection.cancel()
-        self.connections.removeValue(forKey: connectionId)
-        self.sendEvent?("tcpClose", ["connectionId": connectionId])
-      default:
-        // Connection might still be valid, leave it
-        break
       }
     }
   }
@@ -201,8 +176,19 @@ class TcpNetworking {
   func send(connectionId: String, data: Data, promise: Promise) {
     networkQueue.async {
       guard var tcpConnection = self.connections[connectionId] else {
-        promise.reject("TCP_CONNECTION_NOT_FOUND", "Connection not found: \(connectionId)")
+        // Connection not found - it was closed, resolve with false
+        promise.resolve(false)
         return
+      }
+      
+      // Check if connection is still in a valid state
+      switch tcpConnection.connection.state {
+      case .cancelled, .failed:
+        self.connections.removeValue(forKey: connectionId)
+        promise.resolve(false)
+        return
+      default:
+        break
       }
       
       // Add data to the send queue
@@ -220,7 +206,8 @@ class TcpNetworking {
   func close(connectionId: String, promise: Promise) {
     networkQueue.async {
       guard let tcpConnection = self.connections[connectionId] else {
-        promise.reject("TCP_CONNECTION_NOT_FOUND", "Connection not found: \(connectionId)")
+        // Connection not found - already closed, that's fine
+        promise.resolve(true)
         return
       }
       

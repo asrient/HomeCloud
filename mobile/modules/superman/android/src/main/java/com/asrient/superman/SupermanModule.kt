@@ -118,45 +118,14 @@ class SupermanModule : Module(), LifecycleEventObserver {
   }
   
   private fun handleEnterForeground() {
-    android.util.Log.d("SupermanModule", "Entering foreground, cleaning up dead connections...")
+    android.util.Log.d("SupermanModule", "Entering foreground...")
     
     moduleScope.launch {
-      // Clean up dead connections
-      cleanupDeadConnections()
-      
       // Auto-restart server if it was running
-      if (wasServerRunning && tcpServer == null && lastServerPort > 0) {
-        android.util.Log.d("SupermanModule", "Auto-restarting server on port $lastServerPort")
+      if (wasServerRunning && lastServerPort > 0) {
+        android.util.Log.d("SupermanModule", "Checking if server needs restart on port $lastServerPort")
         restartServer(lastServerPort)
       }
-    }
-  }
-  
-  private suspend fun cleanupDeadConnections() {
-    val deadConnections = mutableListOf<String>()
-    
-    for ((connectionId, connection) in tcpConnections) {
-      try {
-        // Check if socket is closed
-        if (connection.socket.isClosed || connection.readerJob.isCancelled || connection.writerJob.isCancelled) {
-          deadConnections.add(connectionId)
-        }
-      } catch (e: Exception) {
-        // If we can't check, assume it's dead
-        deadConnections.add(connectionId)
-      }
-    }
-    
-    for (connectionId in deadConnections) {
-      android.util.Log.d("SupermanModule", "Removing dead connection: $connectionId")
-      tcpConnections[connectionId]?.let { connection ->
-        connection.readerJob.cancel()
-        connection.writerQueue.close()
-        connection.writerJob.cancel()
-        try { connection.socket.close() } catch (_: Exception) {}
-      }
-      tcpConnections.remove(connectionId)
-      sendEvent("tcpClose", mapOf("connectionId" to connectionId))
     }
   }
   
@@ -379,9 +348,24 @@ class SupermanModule : Module(), LifecycleEventObserver {
 
     AsyncFunction("tcpSend") { connectionId: String, data: ByteArray, promise: expo.modules.kotlin.Promise ->
       try {
-        val connection = tcpConnections[connectionId] ?: throw IllegalArgumentException("Connection not found: $connectionId")
+        val connection = tcpConnections[connectionId]
+        if (connection == null) {
+          // Connection not found - it was closed, resolve with false
+          promise.resolve(false)
+          return@AsyncFunction
+        }
+        // Check if connection is still valid
+        if (connection.socket.isClosed || connection.writerJob.isCancelled) {
+          tcpConnections.remove(connectionId)
+          promise.resolve(false)
+          return@AsyncFunction
+        }
         val result = connection.writerQueue.trySend(data)
-        if (!result.isSuccess) throw Exception("Writer queue closed")
+        if (!result.isSuccess) {
+          // Queue closed, connection is dead
+          promise.resolve(false)
+          return@AsyncFunction
+        }
         promise.resolve(true)
       } catch (e: Exception) {
         promise.reject("TCP_SEND", e.message ?: "Unknown error", e)
@@ -390,7 +374,12 @@ class SupermanModule : Module(), LifecycleEventObserver {
 
     AsyncFunction("tcpClose") { connectionId: String, promise: expo.modules.kotlin.Promise ->
       try {
-        val connection = tcpConnections[connectionId] ?: throw IllegalArgumentException("Connection not found: $connectionId")
+        val connection = tcpConnections[connectionId]
+        if (connection == null) {
+          // Connection not found - already closed, that's fine
+          promise.resolve(true)
+          return@AsyncFunction
+        }
         connection.readerJob.cancel()
         connection.writerQueue.close()
         connection.writerJob.cancel()

@@ -41,22 +41,34 @@ export default class TCPInterface extends ConnectionInterface {
             const connection = this.connections.get(params.connectionId);
             if (connection && connection.dataChannel.onmessage) {
                 connection.dataChannel.onmessage(params.data);
+            } else if (!connection) {
+                console.warn(`[TCPInterface] Received data for unknown connection: ${params.connectionId}`);
             }
         });
 
         SupermanModule.addListener('tcpError', (params: { connectionId: string; error: string }) => {
             const connection = this.connections.get(params.connectionId);
-            if (connection && connection.dataChannel.onerror) {
-                connection.dataChannel.onerror(params.error);
+            if (!connection) return;
+
+            // Check if this is a connection abort error (happens on background/foreground)
+            const isConnectionAbort = params.error.includes('error 53') ||
+                params.error.includes('connection abort') ||
+                params.error.includes('Connection reset');
+
+            if (isConnectionAbort) {
+                // Treat as a disconnect rather than an error
+                console.log(`[TCPInterface] Connection ${params.connectionId} was aborted, treating as disconnect`);
+                this.triggerDCDisconnect(params.connectionId);
+            } else {
+                // Regular error
+                if (connection.dataChannel.onerror) {
+                    connection.dataChannel.onerror(params.error);
+                }
             }
         });
 
         SupermanModule.addListener('tcpClose', (params: { connectionId: string }) => {
-            const connection = this.connections.get(params.connectionId);
-            if (connection && connection.dataChannel.ondisconnect) {
-                connection.dataChannel.ondisconnect();
-            }
-            this.connections.delete(params.connectionId);
+            this.triggerDCDisconnect(params.connectionId);
         });
 
         SupermanModule.addListener('tcpIncomingConnection', (params: { connectionId: string }) => {
@@ -225,6 +237,18 @@ export default class TCPInterface extends ConnectionInterface {
         SupermanModule.removeAllListeners('tcpIncomingConnection');
     }
 
+    triggerDCDisconnect(connectionId: string): boolean {
+        const connection = this.connections.get(connectionId);
+        if (connection) {
+            this.connections.delete(connectionId);
+            if (connection.dataChannel.ondisconnect) {
+                connection.dataChannel.ondisconnect();
+            }
+            return true;
+        }
+        return false;
+    }
+
     /**
      * Creates a GenericDataChannel wrapper for a TCP connection.
      * @private
@@ -238,11 +262,13 @@ export default class TCPInterface extends ConnectionInterface {
 
         return {
             send: async (data: Uint8Array) => {
-                try {
-                    await SupermanModule.tcpSend(connectionId, data);
-                } catch (error) {
-                    console.error(`Error sending data on connection ${connectionId}:`, error);
-                    throw error;
+                const result = await SupermanModule.tcpSend(connectionId, data);
+                if (result === false) {
+                    // Connection was closed on native side
+                    const wasDisconnected = this.triggerDCDisconnect(connectionId);
+                    if (wasDisconnected) {
+                        throw new Error(`Can't send data, connection ${connectionId} is closed.`);
+                    }
                 }
             },
 
@@ -272,12 +298,8 @@ export default class TCPInterface extends ConnectionInterface {
 
             disconnect: async () => {
                 console.log(`Disconnecting connection: ${connectionId}`);
-                try {
-                    await SupermanModule.tcpClose(connectionId);
-                    this.connections.delete(connectionId);
-                } catch (error) {
-                    console.error(`Error disconnecting connection ${connectionId}:`, error);
-                }
+                this.connections.delete(connectionId);
+                await SupermanModule.tcpClose(connectionId);
             }
         };
     }
