@@ -8,6 +8,7 @@ const noop = () => { };
 interface TCPConnection {
     connectionId: string;
     dataChannel: GenericDataChannel;
+    isIncoming: boolean;
 }
 
 /**
@@ -18,6 +19,8 @@ export default class TCPInterface extends ConnectionInterface {
     discovery: Discovery;
     private connections: Map<string, TCPConnection> = new Map();
     private port: number;
+    private incomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
+    private serverStarted: boolean = false;
 
     /**
      * Creates an instance of TCPInterface.
@@ -55,6 +58,23 @@ export default class TCPInterface extends ConnectionInterface {
             }
             this.connections.delete(params.connectionId);
         });
+
+        SupermanModule.addListener('tcpIncomingConnection', (params: { connectionId: string }) => {
+            console.log(`[TCPInterface] Incoming connection: ${params.connectionId}`);
+            const dataChannel = this.createDataChannel(params.connectionId);
+
+            const connection: TCPConnection = {
+                connectionId: params.connectionId,
+                dataChannel,
+                isIncoming: true,
+            };
+
+            this.connections.set(params.connectionId, connection);
+
+            if (this.incomingConnectionCallback) {
+                this.incomingConnectionCallback(dataChannel);
+            }
+        });
     }
 
     /**
@@ -62,7 +82,7 @@ export default class TCPInterface extends ConnectionInterface {
      * @param {function} callback - Callback function to handle incoming data channels.
      */
     onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void): void {
-        // ignoring since we do not start a server on mobile
+        this.incomingConnectionCallback = callback;
     }
 
     onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
@@ -78,21 +98,22 @@ export default class TCPInterface extends ConnectionInterface {
         const host = candidate.data?.host || 'localhost';
         const port = candidate.data?.port || this.port;
         console.log(`[TCPInterface] Connecting to ${host}:${port}`, { candidate });
-        
+
         if (host === 'localhost' || host === '127.0.0.1') {
             console.warn('[TCPInterface] WARNING: Using localhost on Android will not work! Use your computer\'s local IP address instead.');
         }
-        
+
         try {
             const connectionId = await SupermanModule.tcpConnect(host, port);
             console.log(`[TCPInterface] Connection established: ${connectionId}`);
             const dataChannel = this.createDataChannel(connectionId);
-            
+
             const connection: TCPConnection = {
                 connectionId,
-                dataChannel
+                dataChannel,
+                isIncoming: false,
             };
-            
+
             this.connections.set(connectionId, connection);
             return dataChannel;
         } catch (error) {
@@ -108,8 +129,13 @@ export default class TCPInterface extends ConnectionInterface {
      */
     async getCandidates(fingerprint?: string): Promise<PeerCandidate[]> {
         return new Promise((resolve) => {
-            // Force discovery update
-            this.discovery.getCandidates(false);
+            const candidates = this.discovery.getCandidates(false); // trigger a scan
+            if (fingerprint) {
+                const filtered = candidates.filter(candidate => candidate.fingerprint === fingerprint);
+                if (filtered.length > 0) {
+                    return resolve(filtered);
+                }
+            }
 
             // Wait a bit for discovery to update
             setTimeout(() => {
@@ -121,7 +147,7 @@ export default class TCPInterface extends ConnectionInterface {
                 } else {
                     resolve(candidates);
                 }
-            }, 1000);
+            }, 2000);
         });
     }
 
@@ -131,6 +157,32 @@ export default class TCPInterface extends ConnectionInterface {
      */
     async start(): Promise<void> {
         this.discovery.scan();
+
+        if (!this.serverStarted) {
+            try {
+                await this.startServer();
+            } catch (error) {
+                console.error('[TCPInterface] Failed to start TCP server during start():', error);
+            }
+        }
+    }
+
+    /**
+     * Starts the TCP server for incoming connections.
+     * @param {number} [port] - Optional port to start the server on. Defaults to the instance port.
+     * @returns {Promise<number>} A promise that resolves to the actual port the server is listening on.
+     */
+    async startServer(port?: number): Promise<number> {
+        const serverPort = port ?? this.port;
+        try {
+            const result = await SupermanModule.tcpStartServer(serverPort);
+            console.log(`[TCPInterface] TCP server started on port ${result.port}`);
+            this.serverStarted = true;
+            return result.port;
+        } catch (error) {
+            console.error('[TCPInterface] Failed to start TCP server:', error);
+            throw error;
+        }
     }
 
     /**
@@ -139,6 +191,17 @@ export default class TCPInterface extends ConnectionInterface {
      */
     async stop(): Promise<void> {
         const promises: Promise<void>[] = [];
+
+        // Stop the server if running
+        if (this.serverStarted) {
+            try {
+                await SupermanModule.tcpStopServer();
+                console.log('[TCPInterface] TCP server stopped');
+                this.serverStarted = false;
+            } catch (error) {
+                console.error('[TCPInterface] Error stopping TCP server:', error);
+            }
+        }
 
         // Close all connections
         for (const [connectionId] of this.connections) {
@@ -154,11 +217,12 @@ export default class TCPInterface extends ConnectionInterface {
         promises.push(this.discovery.goodbye());
 
         await Promise.all(promises);
-        
+
         // Remove event listeners
         SupermanModule.removeAllListeners('tcpData');
         SupermanModule.removeAllListeners('tcpError');
         SupermanModule.removeAllListeners('tcpClose');
+        SupermanModule.removeAllListeners('tcpIncomingConnection');
     }
 
     /**

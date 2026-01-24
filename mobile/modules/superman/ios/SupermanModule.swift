@@ -49,6 +49,15 @@ public class SupermanModule: Module {
       self.tcpNetworking.close(connectionId: connectionId, promise: promise)
     }
 
+    // TCP Server functions
+    AsyncFunction("tcpStartServer") { (port: Int, promise: Promise) in
+      self.tcpNetworking.startServer(port: port, promise: promise)
+    }
+
+    AsyncFunction("tcpStopServer") { (promise: Promise) in
+      self.tcpNetworking.stopServer(promise: promise)
+    }
+
     // UDP Socket functions
     AsyncFunction("udpCreateSocket") { (promise: Promise) in
       self.udpNetworking.createSocket(promise: promise)
@@ -150,6 +159,6 @@ public class SupermanModule: Module {
     }
 
     // Events
-    Events("tcpData", "tcpError", "tcpClose", "udpMessage", "udpError", "udpListening", "udpClose")
+    Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessage", "udpError", "udpListening", "udpClose")
   }
 }

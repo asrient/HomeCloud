@@ -84,7 +84,7 @@ export default class TCPInterface extends ConnectionInterface {
         const hosts = candidate.data?.hosts || [];
         const port = candidate.data?.port || this.port;
         const host = await this._findReachableHost(hosts, port);
-        
+
         return new Promise((resolve, reject) => {
             let isResolved = false;
             socket.connect(port, host, () => {
@@ -120,8 +120,13 @@ export default class TCPInterface extends ConnectionInterface {
      */
     async getCandidates(fingerprint?: string): Promise<PeerCandidate[]> {
         return new Promise((resolve) => {
-            // Force discovery update
-            this.discovery.getCandidates(false);
+            const candidates = this.discovery.getCandidates(false); // trigger a scan
+            if (fingerprint) {
+                const filtered = candidates.filter(candidate => candidate.fingerprint === fingerprint);
+                if (filtered.length > 0) {
+                    return resolve(filtered);
+                }
+            }
 
             // Wait a bit for discovery to update
             setTimeout(() => {
@@ -133,7 +138,7 @@ export default class TCPInterface extends ConnectionInterface {
                 } else {
                     resolve(candidates);
                 }
-            }, 1000);
+            }, 2000);
         });
     }
 
@@ -325,6 +330,6 @@ export default class TCPInterface extends ConnectionInterface {
     }
 
     onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
-        // No-op for TCP interface
+        this.discovery.onCandidateFound(callback);
     }
 }

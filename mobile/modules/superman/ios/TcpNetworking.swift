@@ -1,10 +1,21 @@
 import ExpoModulesCore
 import Network
+import UIKit
 
 class TcpNetworking {
   private var connections: [String: TcpConnection] = [:]
   private var connectionIdCounter = 0
   private let networkQueue = DispatchQueue(label: "superman.tcp", qos: .userInitiated)
+  
+  // Server properties
+  private var listener: NWListener?
+  private var serverPort: UInt16 = 0
+  private var wasServerRunning: Bool = false
+  private var lastServerPort: Int = 0
+  
+  // Lifecycle observation
+  private var backgroundObserver: NSObjectProtocol?
+  private var foregroundObserver: NSObjectProtocol?
   
   // Closure to send events back to the module
   var sendEvent: ((String, [String: Any]) -> Void)?
@@ -14,6 +25,140 @@ class TcpNetworking {
     let connectionId: String
     var sendQueue: [Data] = []
     var isSending: Bool = false
+    var isIncoming: Bool = false
+  }
+  
+  init() {
+    setupLifecycleObservers()
+  }
+  
+  deinit {
+    removeLifecycleObservers()
+  }
+  
+  // MARK: - Lifecycle Management
+  
+  private func setupLifecycleObservers() {
+    backgroundObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.didEnterBackgroundNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.handleEnterBackground()
+    }
+    
+    foregroundObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.willEnterForegroundNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.handleEnterForeground()
+    }
+  }
+  
+  private func removeLifecycleObservers() {
+    if let observer = backgroundObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    if let observer = foregroundObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
+  }
+  
+  private func handleEnterBackground() {
+    networkQueue.async {
+      // Remember if server was running
+      self.wasServerRunning = self.listener != nil
+      if self.wasServerRunning {
+        self.lastServerPort = Int(self.serverPort)
+      }
+      print("[TcpNetworking] Entering background, server was running: \(self.wasServerRunning)")
+    }
+  }
+  
+  private func handleEnterForeground() {
+    networkQueue.async {
+      print("[TcpNetworking] Entering foreground, cleaning up dead connections...")
+      
+      // Clean up dead connections
+      self.cleanupDeadConnections()
+      
+      // Auto-restart server if it was running
+      if self.wasServerRunning && self.listener == nil && self.lastServerPort > 0 {
+        print("[TcpNetworking] Auto-restarting server on port \(self.lastServerPort)")
+        self.restartServer(port: self.lastServerPort)
+      }
+    }
+  }
+  
+  private func cleanupDeadConnections() {
+    // Check each connection's state and remove dead ones
+    for (connectionId, tcpConnection) in self.connections {
+      let state = tcpConnection.connection.state
+      switch state {
+      case .cancelled, .failed:
+        print("[TcpNetworking] Removing dead connection: \(connectionId) (state: \(state))")
+        self.connections.removeValue(forKey: connectionId)
+        self.sendEvent?("tcpClose", ["connectionId": connectionId])
+      case .waiting:
+        // Connection is waiting, might be stale - cancel and remove
+        print("[TcpNetworking] Cancelling waiting connection: \(connectionId)")
+        tcpConnection.connection.cancel()
+        self.connections.removeValue(forKey: connectionId)
+        self.sendEvent?("tcpClose", ["connectionId": connectionId])
+      default:
+        // Connection might still be valid, leave it
+        break
+      }
+    }
+  }
+  
+  private func restartServer(port: Int) {
+    // Check if server is still running
+    if let existingListener = self.listener {
+      switch existingListener.state {
+      case .ready, .setup:
+        print("[TcpNetworking] Server is still running, skipping restart")
+        return
+      default:
+        // Server is in failed/cancelled/waiting state, clean it up
+        existingListener.cancel()
+        self.listener = nil
+      }
+    }
+    
+    do {
+      let parameters = NWParameters.tcp
+      parameters.allowLocalEndpointReuse = true
+      
+      let newListener = try NWListener(using: parameters, on: NWEndpoint.Port(integerLiteral: UInt16(port)))
+      self.listener = newListener
+      self.serverPort = UInt16(port)
+      
+      newListener.stateUpdateHandler = { [weak self] state in
+        switch state {
+        case .ready:
+          print("[TcpNetworking] Server auto-restarted successfully on port \(port)")
+        case .failed(let error):
+          print("[TcpNetworking] Failed to auto-restart server: \(error.localizedDescription)")
+          self?.listener = nil
+          self?.wasServerRunning = false
+        case .cancelled:
+          self?.listener = nil
+        default:
+          break
+        }
+      }
+      
+      newListener.newConnectionHandler = { [weak self] newConnection in
+        self?.handleIncomingConnection(newConnection)
+      }
+      
+      newListener.start(queue: self.networkQueue)
+    } catch {
+      print("[TcpNetworking] Failed to create listener for auto-restart: \(error.localizedDescription)")
+      self.wasServerRunning = false
+    }
   }
   
   // MARK: - Public Methods
@@ -26,7 +171,7 @@ class TcpNetworking {
       let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: NWEndpoint.Port(integerLiteral: UInt16(port)))
       let connection = NWConnection(to: endpoint, using: .tcp)
       
-      let tcpConnection = TcpConnection(connection: connection, connectionId: connectionId)
+      let tcpConnection = TcpConnection(connection: connection, connectionId: connectionId, isIncoming: false)
       self.connections[connectionId] = tcpConnection
       
       connection.stateUpdateHandler = { [weak self] state in
@@ -83,6 +228,101 @@ class TcpNetworking {
       self.connections.removeValue(forKey: connectionId)
       promise.resolve(true)
     }
+  }
+  
+  // MARK: - Server Methods
+  
+  func startServer(port: Int, promise: Promise) {
+    networkQueue.async {
+      // Stop existing listener if any
+      if self.listener != nil {
+        self.listener?.cancel()
+        self.listener = nil
+      }
+      
+      do {
+        let parameters = NWParameters.tcp
+        parameters.allowLocalEndpointReuse = true
+        
+        let listener = try NWListener(using: parameters, on: NWEndpoint.Port(integerLiteral: UInt16(port)))
+        self.listener = listener
+        self.serverPort = UInt16(port)
+        
+        listener.stateUpdateHandler = { [weak self] state in
+          switch state {
+          case .ready:
+            if let actualPort = listener.port?.rawValue {
+              promise.resolve(["port": Int(actualPort)])
+            } else {
+              promise.resolve(["port": port])
+            }
+          case .failed(let error):
+            self?.listener = nil
+            promise.reject("TCP_SERVER_FAILED", "Failed to start server: \(error.localizedDescription)")
+          case .cancelled:
+            self?.listener = nil
+          default:
+            break
+          }
+        }
+        
+        listener.newConnectionHandler = { [weak self] newConnection in
+          self?.handleIncomingConnection(newConnection)
+        }
+        
+        listener.start(queue: self.networkQueue)
+      } catch {
+        promise.reject("TCP_SERVER_FAILED", "Failed to create listener: \(error.localizedDescription)")
+      }
+    }
+  }
+  
+  func stopServer(promise: Promise) {
+    networkQueue.async {
+      guard let listener = self.listener else {
+        promise.resolve(true)
+        return
+      }
+      
+      listener.cancel()
+      self.listener = nil
+      self.serverPort = 0
+      promise.resolve(true)
+    }
+  }
+  
+  private func handleIncomingConnection(_ connection: NWConnection) {
+    connectionIdCounter += 1
+    let connectionId = "tcp_\(connectionIdCounter)"
+    
+    let tcpConnection = TcpConnection(connection: connection, connectionId: connectionId, isIncoming: true)
+    
+    connection.stateUpdateHandler = { [weak self] state in
+      switch state {
+      case .ready:
+        self?.connections[connectionId] = tcpConnection
+        // Notify JS about the new incoming connection
+        self?.sendEvent?("tcpIncomingConnection", ["connectionId": connectionId])
+        self?.startReceiving(for: tcpConnection)
+      case .failed(let error):
+        self?.networkQueue.async {
+          self?.connections.removeValue(forKey: connectionId)
+        }
+        self?.sendEvent?("tcpError", [
+          "connectionId": connectionId,
+          "error": error.localizedDescription
+        ])
+      case .cancelled:
+        self?.networkQueue.async {
+          self?.connections.removeValue(forKey: connectionId)
+        }
+        self?.sendEvent?("tcpClose", ["connectionId": connectionId])
+      default:
+        break
+      }
+    }
+    
+    connection.start(queue: networkQueue)
   }
   
   // MARK: - Private Methods

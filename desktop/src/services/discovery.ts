@@ -29,8 +29,14 @@ export default class Discovery {
         this.browser.start();
     }
 
-    onUp(cb: (s: Service) => void) {
-        this.browser.on('up', cb);
+    onCandidateFound(callback: (candidate: PeerCandidate) => void): void {
+        this.browser.on('up', (service: Service) => {
+            if (!Discovery.isServiceVaild(service)) {
+                return;
+            }
+            const candidate = Discovery.serviceToCandidate(service);
+            callback(candidate);
+        });
     }
 
     static isServiceVaild(service: Service): boolean {
@@ -49,6 +55,21 @@ export default class Discovery {
         return true;
     }
 
+    static serviceToCandidate(service: Service): PeerCandidate {
+        const txt = service.txt as BonjourTxt;
+        return {
+            data: {
+                host: service.addresses[0],
+                port: service.port,
+                hosts: service.addresses,
+            },
+            connectionType: ConnectionType.LOCAL,
+            fingerprint: txt.fingerprint,
+            deviceName: txt.deviceName,
+            iconKey: txt.iconKey,
+        };
+    }
+
     getCandidates(silent = true): PeerCandidate[] {
         if (!this.browser) {
             throw new Error('Discovery service is not listening.');
@@ -61,19 +82,7 @@ export default class Discovery {
             if (!Discovery.isServiceVaild(service)) {
                 return;
             }
-            const txt = service.txt as BonjourTxt;
-            console.log('Addresses found for service:', service.name, service.addresses);
-            candidates.push({
-                data: {
-                    host: service.addresses[0],
-                    port: service.port,
-                    hosts: service.addresses,
-                },
-                connectionType: ConnectionType.LOCAL,
-                fingerprint: txt.fingerprint,
-                deviceName: txt.deviceName,
-                iconKey: txt.iconKey,
-            });
+            candidates.push(Discovery.serviceToCandidate(service));
         });
         return candidates;
     }

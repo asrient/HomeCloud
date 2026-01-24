@@ -19,13 +19,16 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.SendChannel
-// Removed ClosedReceiveChannelException (unused)
 import java.net.InetAddress
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import io.ktor.network.selector.SelectorManager
 import io.ktor.utils.io.core.*
 import android.os.StatFs
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 
 enum class StandardDirectory(val value: String) : Enumerable {
   DOCUMENTS("Documents"),
@@ -38,10 +41,15 @@ enum class StandardDirectory(val value: String) : Enumerable {
   SD_CARD("SD Card");
 }
 
-class SupermanModule : Module() {
+class SupermanModule : Module(), LifecycleEventObserver {
   // TCP connection management
   private val tcpConnections = ConcurrentHashMap<String, TcpConnection>()
   private val connectionIdCounter = java.util.concurrent.atomic.AtomicInteger(0)
+
+  // TCP server management
+  private var tcpServer: TcpServer? = null
+  private var wasServerRunning = false
+  private var lastServerPort = 0
 
   // UDP socket management
   private val udpSockets = ConcurrentHashMap<String, UdpSocket>()
@@ -50,6 +58,9 @@ class SupermanModule : Module() {
   // Coroutine scope for connection coroutines
   private val moduleScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val ktorSelector = SelectorManager(Dispatchers.IO)
+  
+  // Lifecycle observer registration flag
+  private var lifecycleObserverRegistered = false
 
   data class TcpConnection(
     val socket: Socket,
@@ -57,7 +68,14 @@ class SupermanModule : Module() {
     val writeChannel: ByteWriteChannel,
     val readerJob: Job,
     val writerJob: Job,
-    val writerQueue: SendChannel<ByteArray>
+    val writerQueue: SendChannel<ByteArray>,
+    val isIncoming: Boolean = false
+  )
+
+  data class TcpServer(
+    val serverSocket: ServerSocket,
+    val acceptJob: Job,
+    val port: Int
   )
 
   data class UdpSocket(
@@ -65,6 +83,125 @@ class SupermanModule : Module() {
     val job: Job,
     val socketId: String
   )
+
+  // MARK: - Lifecycle Management
+  
+  override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
+    when (event) {
+      Lifecycle.Event.ON_STOP -> handleEnterBackground()
+      Lifecycle.Event.ON_START -> handleEnterForeground()
+      else -> {}
+    }
+  }
+  
+  private fun registerLifecycleObserver() {
+    if (!lifecycleObserverRegistered) {
+      try {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+          ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+          lifecycleObserverRegistered = true
+          android.util.Log.d("SupermanModule", "Lifecycle observer registered")
+        }
+      } catch (e: Exception) {
+        android.util.Log.e("SupermanModule", "Failed to register lifecycle observer: ${e.message}")
+      }
+    }
+  }
+  
+  private fun handleEnterBackground() {
+    // Remember if server was running
+    wasServerRunning = tcpServer != null
+    if (wasServerRunning) {
+      lastServerPort = tcpServer?.port ?: 0
+    }
+    android.util.Log.d("SupermanModule", "Entering background, server was running: $wasServerRunning")
+  }
+  
+  private fun handleEnterForeground() {
+    android.util.Log.d("SupermanModule", "Entering foreground, cleaning up dead connections...")
+    
+    moduleScope.launch {
+      // Clean up dead connections
+      cleanupDeadConnections()
+      
+      // Auto-restart server if it was running
+      if (wasServerRunning && tcpServer == null && lastServerPort > 0) {
+        android.util.Log.d("SupermanModule", "Auto-restarting server on port $lastServerPort")
+        restartServer(lastServerPort)
+      }
+    }
+  }
+  
+  private suspend fun cleanupDeadConnections() {
+    val deadConnections = mutableListOf<String>()
+    
+    for ((connectionId, connection) in tcpConnections) {
+      try {
+        // Check if socket is closed
+        if (connection.socket.isClosed || connection.readerJob.isCancelled || connection.writerJob.isCancelled) {
+          deadConnections.add(connectionId)
+        }
+      } catch (e: Exception) {
+        // If we can't check, assume it's dead
+        deadConnections.add(connectionId)
+      }
+    }
+    
+    for (connectionId in deadConnections) {
+      android.util.Log.d("SupermanModule", "Removing dead connection: $connectionId")
+      tcpConnections[connectionId]?.let { connection ->
+        connection.readerJob.cancel()
+        connection.writerQueue.close()
+        connection.writerJob.cancel()
+        try { connection.socket.close() } catch (_: Exception) {}
+      }
+      tcpConnections.remove(connectionId)
+      sendEvent("tcpClose", mapOf("connectionId" to connectionId))
+    }
+  }
+  
+  private suspend fun restartServer(port: Int) {
+    // Check if server is still running
+    tcpServer?.let { existingServer ->
+      if (existingServer.acceptJob.isActive && !existingServer.serverSocket.isClosed) {
+        android.util.Log.d("SupermanModule", "Server is still running, skipping restart")
+        return
+      }
+      // Server is in a bad state, clean it up
+      existingServer.acceptJob.cancel()
+      try { existingServer.serverSocket.close() } catch (_: Exception) {}
+      tcpServer = null
+    }
+    
+    try {
+      val serverSocket = aSocket(ktorSelector).tcp().bind(
+        io.ktor.network.sockets.InetSocketAddress("0.0.0.0", port)
+      )
+      val actualPort = (serverSocket.localAddress as? io.ktor.network.sockets.InetSocketAddress)?.port ?: port
+      android.util.Log.d("SupermanModule", "TCP server auto-restarted on port $actualPort")
+
+      val acceptJob = moduleScope.launch {
+        try {
+          while (isActive) {
+            val clientSocket = serverSocket.accept()
+            handleIncomingConnection(clientSocket)
+          }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+          android.util.Log.d("SupermanModule", "TCP server accept loop cancelled")
+        } catch (e: Exception) {
+          android.util.Log.e("SupermanModule", "TCP server accept error: ${e.message}", e)
+        } finally {
+          try { serverSocket.close() } catch (_: Exception) {}
+          tcpServer = null
+        }
+      }
+
+      tcpServer = TcpServer(serverSocket, acceptJob, actualPort)
+    } catch (e: Exception) {
+      android.util.Log.e("SupermanModule", "Failed to auto-restart TCP server on port $port: ${e.message}", e)
+      wasServerRunning = false
+    }
+  }
 
   // Helper function to get MIME type
   private fun getMimeType(filePath: String): String? {
@@ -132,6 +269,10 @@ class SupermanModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("Superman")
+
+    OnCreate {
+      registerLifecycleObserver()
+    }
 
     Function("hello") { "Hello world! 👋" }
 
@@ -226,7 +367,7 @@ class SupermanModule : Module() {
             }
           }
 
-          val connection = TcpConnection(socket, readChannel, writeChannel, readerJob, writerJob, writerQueue)
+          val connection = TcpConnection(socket, readChannel, writeChannel, readerJob, writerJob, writerQueue, isIncoming = false)
           tcpConnections[connectionId] = connection
           promise.resolve(connectionId)
         } catch (e: Exception) {
@@ -258,6 +399,61 @@ class SupermanModule : Module() {
         promise.resolve(true)
       } catch (e: Exception) {
         promise.reject("TCP_CLOSE", e.message ?: "Unknown error", e)
+      }
+    }
+
+    // TCP Server functions
+    AsyncFunction("tcpStartServer") { port: Int, promise: expo.modules.kotlin.Promise ->
+      moduleScope.launch {
+        try {
+          // Stop existing server if any
+          tcpServer?.let { server ->
+            server.acceptJob.cancel()
+            try { server.serverSocket.close() } catch (_: Exception) {}
+          }
+          tcpServer = null
+
+          val serverSocket = aSocket(ktorSelector).tcp().bind(
+            io.ktor.network.sockets.InetSocketAddress("0.0.0.0", port)
+          )
+          val actualPort = (serverSocket.localAddress as? io.ktor.network.sockets.InetSocketAddress)?.port ?: port
+          android.util.Log.d("SupermanModule", "TCP server started on port $actualPort")
+
+          val acceptJob = launch {
+            try {
+              while (isActive) {
+                val clientSocket = serverSocket.accept()
+                handleIncomingConnection(clientSocket)
+              }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+              android.util.Log.d("SupermanModule", "TCP server accept loop cancelled")
+            } catch (e: Exception) {
+              android.util.Log.e("SupermanModule", "TCP server accept error: ${e.message}", e)
+            } finally {
+              try { serverSocket.close() } catch (_: Exception) {}
+              tcpServer = null
+            }
+          }
+
+          tcpServer = TcpServer(serverSocket, acceptJob, actualPort)
+          promise.resolve(mapOf("port" to actualPort))
+        } catch (e: Exception) {
+          android.util.Log.e("SupermanModule", "Failed to start TCP server on port $port: ${e.message}", e)
+          promise.reject("TCP_SERVER", e.message ?: "Unknown error", e)
+        }
+      }
+    }
+
+    AsyncFunction("tcpStopServer") { promise: expo.modules.kotlin.Promise ->
+      try {
+        tcpServer?.let { server ->
+          server.acceptJob.cancel()
+          try { server.serverSocket.close() } catch (_: Exception) {}
+        }
+        tcpServer = null
+        promise.resolve(true)
+      } catch (e: Exception) {
+        promise.reject("TCP_STOP_SERVER", e.message ?: "Unknown error", e)
       }
     }
 
@@ -391,7 +587,67 @@ class SupermanModule : Module() {
       return@AsyncFunction disks
     }
 
-    Events("tcpData", "tcpError", "tcpClose", "udpMessage", "udpError", "udpListening", "udpClose")
+    Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessage", "udpError", "udpListening", "udpClose")
   }
 
+  // Handle incoming TCP connections from the server
+  private fun handleIncomingConnection(socket: Socket) {
+    val connectionId = "tcp_${connectionIdCounter.incrementAndGet()}"
+    android.util.Log.d("SupermanModule", "Incoming TCP connection: $connectionId")
+
+    moduleScope.launch {
+      try {
+        val readChannel = socket.openReadChannel()
+        val writeChannel = socket.openWriteChannel(autoFlush = true)
+        val writerQueue = Channel<ByteArray>(Channel.UNLIMITED)
+
+        val writerJob = launch {
+          try {
+            for (data in writerQueue) {
+              writeChannel.writeFully(data, 0, data.size)
+              writeChannel.flush()
+            }
+          } catch (e: kotlinx.coroutines.CancellationException) {
+          } catch (e: Exception) {
+            android.util.Log.e("SupermanModule", "TCP write error (incoming): ${e.message}", e)
+            sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to e.message))
+          }
+        }
+
+        val readerJob = launch {
+          try {
+            val buffer = ByteArray(4096)
+            while (isActive && !readChannel.isClosedForRead) {
+              val read = readChannel.readAvailable(buffer, 0, buffer.size)
+              if (read > 0) {
+                val data = buffer.copyOfRange(0, read)
+                sendEvent("tcpData", mapOf("connectionId" to connectionId, "data" to data))
+              } else if (read == -1) {
+                break
+              } else {
+                delay(10)
+              }
+            }
+          } catch (e: kotlinx.coroutines.CancellationException) {
+          } catch (e: Exception) {
+            android.util.Log.e("SupermanModule", "TCP read error (incoming): ${e.message}", e)
+            sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to e.message))
+          } finally {
+            sendEvent("tcpClose", mapOf("connectionId" to connectionId))
+            try { socket.close() } catch (_: Exception) {}
+            tcpConnections.remove(connectionId)
+          }
+        }
+
+        val connection = TcpConnection(socket, readChannel, writeChannel, readerJob, writerJob, writerQueue, isIncoming = true)
+        tcpConnections[connectionId] = connection
+
+        // Notify JS about the new incoming connection
+        sendEvent("tcpIncomingConnection", mapOf("connectionId" to connectionId))
+      } catch (e: Exception) {
+        android.util.Log.e("SupermanModule", "Failed to setup incoming connection: ${e.message}", e)
+        try { socket.close() } catch (_: Exception) {}
+      }
+    }
+  }
 }
