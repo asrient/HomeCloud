@@ -64,7 +64,8 @@ export default class Discovery {
         console.log('[Discovery] Entering foreground...');
         if (this.isScanning) {
             console.log('[Discovery] Restarting scan...');
-            this.zeroconf.scan(SERVICE_TYPE, 'tcp', 'local.', 'DNSSD');
+            this.isScanning = false; // Reset to allow scan to start
+            this.scan();
         }
     }
 
@@ -73,11 +74,19 @@ export default class Discovery {
     }
 
     scan(): void {
+        if (this.isScanning) {
+            console.log('[Discovery] Scan already in progress, skipping...');
+            return;
+        }
+        console.log('[Discovery] Starting scan for services...');
         this.isScanning = true;
         this.zeroconf.scan(SERVICE_TYPE, 'tcp', 'local.', 'DNSSD');
     }
 
     stopScan(): void {
+        if (!this.isScanning) {
+            return;
+        }
         this.isScanning = false;
         this.zeroconf.stop('DNSSD');
     }
@@ -163,9 +172,8 @@ export default class Discovery {
 
     async goodbye(): Promise<void> {
         console.log('[Discovery] Goodbye - stopping scan and unpublishing...');
-        this.isScanning = false;
         this.unpublish();
-        this.zeroconf.stop('DNSSD');
+        this.stopScan();
 
         // Remove app state listener
         if (this.appStateSubscription) {

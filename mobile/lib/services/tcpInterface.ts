@@ -2,6 +2,15 @@ import { ConnectionInterface } from "shared/netService";
 import { GenericDataChannel, PeerCandidate } from "shared/types";
 import Discovery from "./discovery";
 import SupermanModule from "../../modules/superman";
+import * as Network from 'expo-network';
+import { NetworkState, NetworkStateType } from "expo-network";
+import { EventSubscription } from 'expo-modules-core';
+
+const UNSUPPORTED_NETWORK_TYPES = [
+    NetworkStateType.CELLULAR,
+    NetworkStateType.NONE,
+    NetworkStateType.UNKNOWN,
+];
 
 const noop = () => { };
 
@@ -21,6 +30,8 @@ export default class TCPInterface extends ConnectionInterface {
     private port: number;
     private incomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
     private serverStarted: boolean = false;
+    private networkSupported: boolean = false;
+    private netChangeSub: EventSubscription | null = null;
 
     /**
      * Creates an instance of TCPInterface.
@@ -107,6 +118,9 @@ export default class TCPInterface extends ConnectionInterface {
      * @returns {Promise<GenericDataChannel>} A promise that resolves to a data channel.
      */
     async connect(candidate: PeerCandidate): Promise<GenericDataChannel> {
+        if (!this.networkSupported) {
+            throw new Error('Network is unsupported, cannot connect to candidate.');
+        }
         const host = candidate.data?.host || 'localhost';
         const port = candidate.data?.port || this.port;
         console.log(`[TCPInterface] Connecting to ${host}:${port}`, { candidate });
@@ -140,6 +154,10 @@ export default class TCPInterface extends ConnectionInterface {
      * @returns {Promise<PeerCandidate[]>} A promise that resolves to an array of peer candidates.
      */
     async getCandidates(fingerprint?: string): Promise<PeerCandidate[]> {
+        if (!this.networkSupported) {
+            console.log('[TCPInterface] Network is unsupported, returning no candidates.');
+            return [];
+        }
         return new Promise((resolve) => {
             const candidates = this.discovery.getCandidates(false); // trigger a scan
             if (fingerprint) {
@@ -168,8 +186,40 @@ export default class TCPInterface extends ConnectionInterface {
      * @returns {Promise<void>} A promise that resolves when the service is started.
      */
     async start(): Promise<void> {
-        this.discovery.scan();
+        const netState = await Network.getNetworkStateAsync();
+        if (this.isNetworkSupported(netState)) {
+            await this.onSupportedNetwork();
+        } else {
+            console.log('[TCPInterface] Network is not supported, not starting server or discovery.', netState);
+        }
+        // Subscribe to network changes
+        this.netChangeSub = Network.addNetworkStateListener(async (state) => {
+            console.log('[TCPInterface] Network state changed:', state);
+            if (this.isNetworkSupported(state)) {
+                await this.onSupportedNetwork();
+            } else {
+                await this.onUnsupportedNetwork();
+            }
+        });
+    }
 
+    isNetworkSupported(netState: NetworkState): boolean {
+        if (!netState.isConnected) {
+            return false;
+        }
+        // For now, if type isnt defined, assume supported (e.g on simulators)
+        if (!netState.type) {
+            console.log('[TCPInterface] Network type is undefined, assuming supported.', netState);
+            return true;
+        }
+        return !UNSUPPORTED_NETWORK_TYPES.includes(netState.type);
+    }
+
+    startDiscoveryScan() {
+        this.discovery.scan();
+    }
+
+    async startServerAndPublish(): Promise<void> {
         if (!this.serverStarted) {
             try {
                 const port = await this.startServer();
@@ -200,13 +250,7 @@ export default class TCPInterface extends ConnectionInterface {
         }
     }
 
-    /**
-     * Stops the TCP server and discovery service.
-     * @returns {Promise<void>} A promise that resolves when the service is stopped.
-     */
-    async stop(): Promise<void> {
-        const promises: Promise<void>[] = [];
-
+    async stopServer(): Promise<void> {
         // Stop the server if running
         if (this.serverStarted) {
             try {
@@ -217,6 +261,23 @@ export default class TCPInterface extends ConnectionInterface {
                 console.error('[TCPInterface] Error stopping TCP server:', error);
             }
         }
+    }
+
+    async stopDiscovery(): Promise<void> {
+        await this.discovery.goodbye();
+    }
+
+    /**
+     * Stops the TCP server and discovery service.
+     * @returns {Promise<void>} A promise that resolves when the service is stopped.
+     */
+    async stop(): Promise<void> {
+        if (this.netChangeSub) {
+            this.netChangeSub.remove();
+            this.netChangeSub = null;
+        }
+
+        await this.stopServer();
 
         // Close all connections
         for (const [connectionId] of this.connections) {
@@ -228,16 +289,27 @@ export default class TCPInterface extends ConnectionInterface {
             this.connections.delete(connectionId);
         }
 
-        // Stop discovery
-        promises.push(this.discovery.goodbye());
-
-        await Promise.all(promises);
+        await this.stopDiscovery();
 
         // Remove event listeners
         SupermanModule.removeAllListeners('tcpData');
         SupermanModule.removeAllListeners('tcpError');
         SupermanModule.removeAllListeners('tcpClose');
         SupermanModule.removeAllListeners('tcpIncomingConnection');
+    }
+
+    async onUnsupportedNetwork() {
+        console.log('[TCPInterface] Network is unsupported, stopping server and discovery.');
+        this.networkSupported = false;
+        await this.stopServer();
+        await this.stopDiscovery();
+    }
+
+    async onSupportedNetwork() {
+        console.log('[TCPInterface] Network is supported, starting server and discovery.');
+        this.networkSupported = true;
+        await this.startServerAndPublish();
+        this.startDiscoveryScan();
     }
 
     triggerDCDisconnect(connectionId: string): boolean {

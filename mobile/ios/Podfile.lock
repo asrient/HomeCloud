@@ -93,6 +93,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - ExpoNetwork (8.0.8):
+    - ExpoModulesCore
   - ExpoQuicklookPreview (0.1.2):
     - ExpoModulesCore
   - ExpoSharing (14.0.8):
@@ -2128,6 +2130,7 @@ DEPENDENCIES:
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
   - ExpoMediaLibrary (from `../node_modules/expo-media-library/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
+  - ExpoNetwork (from `../node_modules/expo-network/ios`)
   - ExpoQuicklookPreview (from `../node_modules/expo-quicklook-preview/ios`)
   - ExpoSharing (from `../node_modules/expo-sharing/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
@@ -2267,6 +2270,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-media-library/ios"
   ExpoModulesCore:
     :path: "../node_modules/expo-modules-core"
+  ExpoNetwork:
+    :path: "../node_modules/expo-network/ios"
   ExpoQuicklookPreview:
     :path: "../node_modules/expo-quicklook-preview/ios"
   ExpoSharing:
@@ -2457,6 +2462,7 @@ SPEC CHECKSUMS:
   ExpoLinking: 8f0aaf69aa56f832913030503b6263dc6f647f37
   ExpoMediaLibrary: a3093b04365b245bb23b25b6eba84eb6ab55fecb
   ExpoModulesCore: f3da4f1ab5a8375d0beafab763739dbee8446583
+  ExpoNetwork: ee1fb67b0de59ab7f36794caf8242955dd8ae046
   ExpoQuicklookPreview: 14a80a46f3769e128d4d7b39e5bca9c6aadc21d1
   ExpoSharing: 0d983394ed4a80334bab5a0d5384f75710feb7e8
   ExpoSplashScreen: bc3cffefca2716e5f22350ca109badd7e50ec14d

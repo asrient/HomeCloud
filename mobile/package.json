@@ -40,6 +40,7 @@
     "expo-keep-awake": "~15.0.8",
     "expo-linking": "~8.0.8",
     "expo-media-library": "~18.2.0",
+    "expo-network": "~8.0.8",
     "expo-quicklook-preview": "^0.1.2",
     "expo-router": "~6.0.13",
     "expo-sharing": "~14.0.8",
