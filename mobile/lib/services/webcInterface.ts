@@ -54,11 +54,6 @@ class Datagram_ extends DatagramCompat {
     private socketId: string | null = null;
     private isListening = false;
 
-    constructor() {
-        super();
-        setupGlobalListeners();
-    }
-
     setListening(listening: boolean) {
         this.isListening = listening;
     }
@@ -146,5 +141,11 @@ class Datagram_ extends DatagramCompat {
 export default class MobileWebcInterface extends WebcInterface {
     createDatagramSocket(): Datagram_ {
         return new Datagram_();
+    }
+
+    override async start(): Promise<void> {
+        console.log("Starting MobileWebcInterface");
+        setupGlobalListeners();
+        await super.start();
     }
 }

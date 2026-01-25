@@ -3,6 +3,7 @@ import { GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, Conne
 import { RPCPeer } from "./rpc";
 import Signal, { SignalNodeRef } from "./signals";
 
+let rpcCounter = 0;
 
 export abstract class ConnectionInterface {
     abstract onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void): void;
@@ -48,6 +49,7 @@ export class NetService extends Service {
         rpc: RPCPeer;
         controllerProxy: RPCControllerProxy;
         signalSubs: Map<string, SignalNodeRef<any, any>>;
+        rpcId: string;
     }> = new Map();
 
     public connectionSignal = new Signal<[SignalEvent, ConnectionInfo]>();
@@ -107,17 +109,32 @@ export class NetService extends Service {
                 console.log(`[NetService] Already connected to candidate ${fingerprint} on ${type}, skipping auto-connect.`);
                 return;
             }
+            // Check if there is already a connection in progress
+            if (this.connectionLock.has(fingerprint)) {
+                console.log(`[NetService] Connection already in progress for ${fingerprint}, skipping auto-connect.`);
+                return;
+            }
+            // Acquire the lock
+            const newSignal = this.setupConnectionLock(fingerprint);
             try {
                 console.log(`[NetService] Auto-connecting to candidate ${fingerprint} on ${type}`);
                 const connectionInterface = this.connectionInterfaces.get(type);
                 if (connectionInterface) {
                     const dataChannel = await connectionInterface.connect(candidate);
-                    this.setupConnection(type, fingerprint, dataChannel).catch((error) => {
-                        console.error(`[NetService] Could not auto-connect to candidate ${fingerprint} on ${type}:`, error);
-                    });
+                    // Check lock still exists
+                    if (!this.connectionLock.has(fingerprint)) {
+                        console.log(`[NetService] Connection lock released for ${fingerprint} while auto-connecting on ${type}, aborting.`);
+                        dataChannel.disconnect();
+                        return;
+                    }
+                    await this.setupConnection(type, fingerprint, dataChannel);
                 }
             } catch (error) {
                 console.error(`[NetService] Error auto-connecting to candidate ${fingerprint} on ${type}:`, error);
+                if (this.connectionLock.has(fingerprint) && this.connectionLock.get(fingerprint) === newSignal) {
+                    newSignal.dispatch(error);
+                    this.connectionLock.delete(fingerprint);
+                }
             }
         }
     }
@@ -164,20 +181,28 @@ export class NetService extends Service {
         }
 
         // if not, create a new one
-        const newSignal = new Signal<[RPCController | Error]>();
-        this.connectionLock.set(fingerprint, newSignal);
+        const newSignal = this.setupConnectionLock(fingerprint);
 
         try {
             const sc = await this.createConnection<T>(fingerprint);
-            newSignal.dispatch(sc);
             return sc;
         } catch (error) {
             console.error(`Error creating connection for ${fingerprint}:`, error);
-            newSignal.dispatch(error);
+            if (this.connectionLock.has(fingerprint) && this.connectionLock.get(fingerprint) === newSignal) {
+                newSignal.dispatch(error);
+                this.connectionLock.delete(fingerprint);
+            }
             throw error;
-        } finally {
-            this.connectionLock.delete(fingerprint);
         }
+    }
+
+    private setupConnectionLock(fingerprint: string): Signal<[RPCController | Error]> {
+        let lockSignal = this.connectionLock.get(fingerprint);
+        if (!lockSignal) {
+            lockSignal = new Signal<[RPCController | Error]>();
+            this.connectionLock.set(fingerprint, lockSignal);
+        }
+        return lockSignal;
     }
 
     private async createConnection<T extends RPCController>(fingerprint: string): Promise<T> {
@@ -192,7 +217,6 @@ export class NetService extends Service {
                     try {
                         console.log(`Connecting to ${fingerprint} on ${candidate.connectionType}`);
                         const dataChannel = await connectionInterface.connect(candidate);
-                        console.log(`Connected to ${fingerprint} on ${candidate.connectionType}`);
                         const sc = await this.setupConnection(candidate.connectionType, fingerprint, dataChannel);
                         return sc as T;
                     }
@@ -208,8 +232,13 @@ export class NetService extends Service {
     private setupConnection(type: ConnectionType, fingerprint_: string | null, dataChannel: GenericDataChannel): Promise<RPCController> {
         const connInterface = this.connectionInterfaces.get(type);
         console.log(`[NetService] Setting up connection for ${fingerprint_ || 'incoming connection'} on ${type}`);
+        // Create a connection lock if fingerprint is known
+        if (fingerprint_) {
+            this.setupConnectionLock(fingerprint_);
+        }
         return new Promise<RPCController>((resolve, reject) => {
             let isResolved = false;
+            const rpcId = `rpc_${rpcCounter++}`;
             const rpc = new RPCPeer({
                 isSecure: connInterface?.isSecure || false,
                 pingIntervalMs: 5000,
@@ -290,9 +319,11 @@ export class NetService extends Service {
 
                 onClose: () => {
                     const fingerprint = rpc.getTargetFingerprint();
-                    console.log(`Connection closed for ${fingerprint} on ${type}`);
+                    console.log(`Connection closed for ${fingerprint} on ${type}`, isResolved ? '(already resolved)' : '');
                     const connection = this.connections.get(fingerprint);
-                    if (!!connection) {
+                    if (!!connection && connection.rpcId === rpcId) {
+                        console.log(`[NetService] Cleaning up connection for ${fingerprint} on ${type}, ID=`, connection.rpcId);
+                        // Clean up
                         const proxy = this.serviceControllerProxyFactory.get(fingerprint);
                         if (proxy) {
                             proxy.unsetHandlers();
@@ -308,6 +339,13 @@ export class NetService extends Service {
                         this.connections.delete(fingerprint);
                     }
                     if (!isResolved) {
+                        if (fingerprint) {
+                            const lockSignal = this.connectionLock.get(fingerprint);
+                            if (lockSignal) {
+                                lockSignal.dispatch(new Error(`Connection closed for ${fingerprint} on ${type}`));
+                                this.connectionLock.delete(fingerprint);
+                            }
+                        }
                         reject(new Error(`Connection closed for ${fingerprint} on ${type}`));
                         isResolved = true;
                     }
@@ -315,6 +353,17 @@ export class NetService extends Service {
 
                 onReady: (rpc) => {
                     const fingerprint = rpc.getTargetFingerprint();
+                    const isLoopback = fingerprint === modules.config.FINGERPRINT;
+                    console.log(`[NetService] Connection ready, ID=`, rpcId);
+                    const oldConnection = isLoopback ? null : this.connections.get(fingerprint);
+                    if (oldConnection) {
+                        const serviceController = modules.ServiceController.getLocalInstance();
+                        // Unsubscribe all signals
+                        for (const [fqn, signalRef] of oldConnection.signalSubs) {
+                            const signal = serviceController.getSignal(fqn);
+                            signal.detach(signalRef);
+                        }
+                    }
                     const proxy = this.serviceControllerProxyFactory.getOrCreate(fingerprint);
                     proxy.setHandlers({
                         signalEvent: (fqn, args) => {
@@ -330,15 +379,34 @@ export class NetService extends Service {
                             return await rpc.call(fqn, args);
                         },
                     });
+
                     this.connections.set(fingerprint, {
                         type,
                         rpc,
                         controllerProxy: proxy,
                         signalSubs: new Map(),
+                        rpcId,
                     });
+
+                    // Check if there is any active connection lock for this fingerprint
+                    const lockSignal = this.connectionLock.get(fingerprint);
+                    if (lockSignal) {
+                        lockSignal.dispatch(proxy.controller);
+                        this.connectionLock.delete(fingerprint);
+                    }
+
+                    // Notify about new connection
                     this.connectionSignal.dispatch(SignalEvent.ADD, this.getConnectionInfo(fingerprint));
                     resolve(proxy.controller);
                     isResolved = true;
+
+                    setTimeout(() => {
+                        // Check if a connection already exists for this fingerprint (race condition with incoming connections)
+                        if (oldConnection) {
+                            console.log(`[NetService] Duplicate connection detected for ${fingerprint} on ${type}, closing the new one.`);
+                            oldConnection.rpc.close();
+                        }
+                    }, 0);
                 }
             });
         });

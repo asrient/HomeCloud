@@ -26,7 +26,7 @@ export function getMethodInfo(method: any): MethodInfo {
 
 export function serviceStartMethod(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
     const originalMethod = descriptor.value;
-    descriptor.value = async function(this: any, ...args: any[]) {
+    descriptor.value = async function (this: any, ...args: any[]) {
         if (this.isRunning) {
             console.log("Service is already running.");
             return;
@@ -47,7 +47,7 @@ export function serviceStartMethod(target: any, methodName: string, descriptor: 
 
 export function serviceStopMethod(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
     const originalMethod = descriptor.value;
-    descriptor.value = async function(this: any, ...args: any[]) {
+    descriptor.value = async function (this: any, ...args: any[]) {
         if (!this.isRunning) {
             console.log("Service is not running.");
             return;
@@ -162,7 +162,7 @@ export class RPCControllerProxy {
                             return target[prop](...args);
                         }
                         if (target[prop].__isExposed) {
-                            if (!this.handlers.methodCall) {
+                            if (!this.handlers || !this.handlers.methodCall) {
                                 throw new Error(`Remote service is not available.`);
                             }
                             return await this.handlers.methodCall(fqn, args);
@@ -192,7 +192,7 @@ export class RPCControllerProxy {
                                 } else {
                                     const signal = new Signal();
                                     this.signals.set(fqn, signal);
-                                    if (this.handlers) {
+                                    if (this.handlers && this.handlers.signalSubscribe) {
                                         this.handlers.signalSubscribe(fqn);
                                     }
                                     return signal.add(fn);
