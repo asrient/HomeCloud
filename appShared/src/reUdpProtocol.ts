@@ -54,10 +54,10 @@ export class ReDatagram {
 
         this.socket.onMessage = (msg, rinfo) => {
             // make sure message is from the expected remote
-            // if (rinfo.address !== this.remote.address || rinfo.port !== this.remote.port) {
-            //     console.warn(`[ReUDP] Ignoring packet from unexpected remote ${rinfo.address}:${rinfo.port}, expected ${this.remote.address}:${this.remote.port}`);
-            //     return;
-            // }
+            if (rinfo.address !== this.remote.address || rinfo.port !== this.remote.port) {
+                console.warn(`[ReUDP] Ignoring packet from unexpected remote ${rinfo.address}:${rinfo.port}, expected ${this.remote.address}:${this.remote.port}`);
+                return;
+            }
             this.handlePacket(msg);
         };
 
@@ -300,7 +300,7 @@ export class ReDatagram {
             this.markReady();
             if (type === FLAG_DATA) {
                 const payload = new Uint8Array(buf.buffer, buf.byteOffset + HEADER_SIZE, buf.length - HEADER_SIZE);
-                console.log(`[ReUDP] Received DATA seq=${seq}, size=${payload.length}`);
+                // console.log(`[ReUDP] Received DATA seq=${seq}, size=${payload.length}`);
                 await this.handleDataPacket(seq, payload);
             }
             else if (type === FLAG_ACK) {
@@ -327,7 +327,7 @@ export class ReDatagram {
                 // this.markReady();
             }
             else if (type === FLAG_PING) {
-                console.log("[ReUDP] Received PING, sending PING back");
+                // console.log("[ReUDP] Received PING, sending PING back");
                 this.lastPingReceived = Date.now();
             }
             else if (type === FLAG_BYE) {

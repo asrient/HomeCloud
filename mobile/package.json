@@ -8,6 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "iosd": "expo run:ios --device",
+    "iosd:release": "expo run:ios --device --configuration Release",
     "web": "expo start --web",
     "lint": "expo lint",
     "prebuild": "expo prebuild --clean"

@@ -278,17 +278,6 @@ export default class TCPInterface extends ConnectionInterface {
         }
 
         await this.stopServer();
-
-        // Close all connections
-        for (const [connectionId] of this.connections) {
-            try {
-                await SupermanModule.tcpClose(connectionId);
-            } catch (error) {
-                console.error(`Error closing connection ${connectionId}:`, error);
-            }
-            this.connections.delete(connectionId);
-        }
-
         await this.stopDiscovery();
 
         // Remove event listeners
@@ -303,6 +292,10 @@ export default class TCPInterface extends ConnectionInterface {
         this.networkSupported = false;
         await this.stopServer();
         await this.stopDiscovery();
+        // Close all connections
+        for (const [connectionId] of this.connections) {
+            this.triggerDCDisconnect(connectionId);
+        }
     }
 
     async onSupportedNetwork() {
