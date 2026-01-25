@@ -19,6 +19,10 @@ export default class Discovery {
         this.zeroconf = new Zeroconf();
         this.zeroconf.on('error', (err) => {
             console.error('[Discovery] Zeroconf error:', err);
+            // Handle DNS-SD errors (like -72000) by retrying
+            if (this.isScanning) {
+                this.handleScanError();
+            }
         });
         this.zeroconf.on('resolved', (service) => {
             console.log('[Discovery] Found service:', service);
@@ -55,7 +59,11 @@ export default class Discovery {
     private handleEnterBackground(): void {
         console.log('[Discovery] Entering background, stopping scan...');
         if (this.isScanning) {
-            this.zeroconf.stop('DNSSD');
+            try {
+                this.zeroconf.stop('DNSSD');
+            } catch (err) {
+                console.warn('[Discovery] Error stopping scan on background:', err);
+            }
             // Don't set isScanning to false - we want to remember to restart
         }
     }
@@ -63,15 +71,27 @@ export default class Discovery {
     private handleEnterForeground(): void {
         console.log('[Discovery] Entering foreground...');
         if (this.isScanning) {
-            console.log('[Discovery] Restarting scan...');
+            console.log('[Discovery] Will restart scan after delay...');
             this.isScanning = false; // Reset to allow scan to start
-            this.scan();
+            
+            // On iOS, we need to wait for the system to fully clean up the previous
+            // DNS-SD session before starting a new one, otherwise we get error -72000
+            setTimeout(() => {
+                // Ensure we're still in foreground and should be scanning
+                if (AppState.currentState === 'active') {
+                    console.log('[Discovery] Restarting scan now...');
+                    this.scan();
+                }
+            }, 2000);
         }
     }
 
     onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
         this.onFoundCallback = callback;
     }
+
+    private scanRetryCount: number = 0;
+    private readonly MAX_SCAN_RETRIES = 3;
 
     scan(): void {
         if (this.isScanning) {
@@ -80,7 +100,33 @@ export default class Discovery {
         }
         console.log('[Discovery] Starting scan for services...');
         this.isScanning = true;
-        this.zeroconf.scan(SERVICE_TYPE, 'tcp', 'local.', 'DNSSD');
+        this.scanRetryCount = 0;
+        this.doScan();
+    }
+
+    private doScan(): void {
+        try {
+            this.zeroconf.scan(SERVICE_TYPE, 'tcp', 'local.', 'DNSSD');
+        } catch (err) {
+            console.error('[Discovery] Error starting scan:', err);
+            this.handleScanError();
+        }
+    }
+
+    private handleScanError(): void {
+        if (this.scanRetryCount < this.MAX_SCAN_RETRIES) {
+            this.scanRetryCount++;
+            const delay = this.scanRetryCount * 1000; // Exponential backoff
+            console.log(`[Discovery] Retrying scan in ${delay}ms (attempt ${this.scanRetryCount}/${this.MAX_SCAN_RETRIES})...`);
+            setTimeout(() => {
+                if (this.isScanning && AppState.currentState === 'active') {
+                    this.doScan();
+                }
+            }, delay);
+        } else {
+            console.error('[Discovery] Max scan retries reached, giving up');
+            this.isScanning = false;
+        }
     }
 
     stopScan(): void {
