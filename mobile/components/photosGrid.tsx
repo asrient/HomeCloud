@@ -1,4 +1,4 @@
-import { PhotosFetchOptions, PhotoView } from '@/lib/types';
+import { PhotosFetchOptions, PhotoView, PhotosQuickAction } from '@/lib/types';
 import { usePhotos } from '@/hooks/usePhotos';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { UIText } from './ui/UIText';
@@ -11,11 +11,14 @@ import { PhotosPreviewModal } from './photosPreviewModal';
 import { UIContextMenu } from './ui/UIContextMenu';
 import { getPeerIconName } from './ui/getPeerIconName';
 
+function formatDuration(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
 
-export type PhotosQuickAction = {
-    type: 'export' | 'openInDevice' | 'sendToDevice' | 'delete' | 'info';
-    targetDeviceFingerprint?: string;
-    photo: PhotoView;
+function isVideoMimeType(mimeType: string): boolean {
+    return mimeType.startsWith('video/');
 }
 
 export function PhotoThumbnail({ item, onPress, isSelectMode, onQuickAction }: { item: PhotoView, onPress?: (item: PhotoView) => void, isSelectMode?: boolean, onQuickAction?: (action: PhotosQuickAction) => void }) {
@@ -141,6 +144,23 @@ export function PhotoThumbnail({ item, onPress, isSelectMode, onQuickAction }: {
                     isSelectMode &&
                     <ThumbnailCheckbox position='top-right' isSelected={isSelected} />
                 }
+                {
+                    isVideoMimeType(item.mimeType) && item.duration > 0 && (
+                        <View style={{
+                            position: 'absolute',
+                            bottom: 4,
+                            right: 4,
+                            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                            borderRadius: 4,
+                            paddingHorizontal: 4,
+                            paddingVertical: 2,
+                        }}>
+                            <UIText style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
+                                {formatDuration(item.duration)}
+                            </UIText>
+                        </View>
+                    )
+                }
             </Pressable>
         </UIContextMenu>
     );
@@ -240,6 +260,9 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
                     startIndex={previewIndex}
                     isOpen={isPreviewOpen}
                     onClose={handleClosePreview}
+                    load={load}
+                    hasMore={hasMore}
+                    onQuickAction={onQuickAction}
                 />
             )}
         </View>

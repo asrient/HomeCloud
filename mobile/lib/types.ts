@@ -69,3 +69,9 @@ export enum ConnectionType {
     WEB = "web",
     LOCAL = "local"
 }
+
+export type PhotosQuickAction = {
+    type: 'export' | 'openInDevice' | 'sendToDevice' | 'delete' | 'info';
+    targetDeviceFingerprint?: string;
+    photo: PhotoView;
+}

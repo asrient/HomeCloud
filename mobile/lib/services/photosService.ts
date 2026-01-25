@@ -104,6 +104,7 @@ export abstract class MobilePhotosService extends PhotosService {
 
     @exposed
     public async deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> {
+        console.log(`Deleting photos from library ${libraryId}:`, ids);
         const success = await MediaLibrary.deleteAssetsAsync(ids);
         if (!success) {
             throw new Error("Failed to delete photos");
@@ -139,7 +140,7 @@ export abstract class MobilePhotosService extends PhotosService {
             first: params.limit || 100,
             after: params.cursor || undefined,
             mediaType: [MediaLibrary.MediaType.photo, MediaLibrary.MediaType.video],
-            // sortBy: [this.mapSortBy(params.sortBy), params.ascending],
+            sortBy: [[this.mapSortBy(params.sortBy), params.ascending]],
         });
         const photos = await this.assetToPhotoBulk(fetchedPhotos.assets);
         return {

@@ -1,5 +1,5 @@
 import { StyleSheet, Modal, Dimensions, ActivityIndicator, View } from 'react-native';
-import { PhotoView } from '@/lib/types';
+import { PhotosQuickAction, PhotoView } from '@/lib/types';
 import { UIText } from './ui/UIText';
 import { Directory, Paths, File } from 'expo-file-system/next';
 import { getServiceController } from '@/lib/utils';
@@ -26,6 +26,7 @@ export type PhotosPreviewModalProps = {
     error?: string | null;
     load?: () => Promise<void>;
     hasMore?: boolean;
+    onQuickAction?: (action: PhotosQuickAction) => void;
 };
 
 function assetHash(remoteFingerprint: string, id: string) {
@@ -245,11 +246,11 @@ function ImageItem({ photo, isActive, onTap, onClose }: { photo: PhotoView; isAc
         .onUpdate((e) => {
             const newScale = savedScale.value * e.scale;
             scale.value = Math.min(Math.max(newScale, 0.3), 5);
-            
+
             // Zoom towards the focal point
             const focalX = e.focalX - SCREEN_WIDTH / 2;
             const focalY = e.focalY - SCREEN_HEIGHT / 2;
-            
+
             translateX.value = savedTranslateX.value + (focalX - focalX * e.scale);
             translateY.value = savedTranslateY.value + (focalY - focalY * e.scale);
         })
@@ -367,7 +368,7 @@ function PhotoItem({ photo, isActive, isFocused, showControls, onTap, onClose }:
     return <ImageItem photo={photo} isActive={isActive} onTap={onTap} onClose={onClose} />;
 }
 
-export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: PhotosPreviewModalProps) {
+export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuickAction }: PhotosPreviewModalProps) {
     const [currentIndex, setCurrentIndex] = useState(startIndex);
     const flashListRef = useRef<any>(null);
     const [viewableIndices, setViewableIndices] = useState<Set<number>>(new Set([startIndex]));
@@ -432,6 +433,16 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
         waitForInteraction: false,
     }), []);
 
+    const handleHeaderAction = useCallback((actionType: 'export' | 'delete') => {
+        const photo = photos[currentIndex];
+        if (!photo || !onQuickAction) return;
+        const action: PhotosQuickAction = {
+            type: actionType,
+            photo,
+        };
+        onQuickAction(action);
+    }, [currentIndex, photos, onQuickAction]);
+
     return (
         <Modal visible={isOpen} transparent={false} animationType="fade" statusBarTranslucent>
             <GestureHandlerRootView style={styles.container}>
@@ -444,8 +455,9 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
                                 <UIButton onPress={exitPreview} color='white' type='secondary' icon='xmark' />
                             </View>
                             <View style={styles.headerGroup}>
-                                <UIButton color='white' type='secondary' icon='square.and.arrow.up' />
-                                <UIButton color='white' type='secondary' icon='ellipsis' />
+                                <UIButton color='white' type='secondary' icon='square.and.arrow.up'
+                                    onPress={() => handleHeaderAction('export')} />
+                                <UIButton color='white' type='secondary' icon='trash' onPress={() => handleHeaderAction('delete')} />
                             </View>
                         </View>
                     }

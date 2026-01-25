@@ -33,7 +33,7 @@ const MAPPING = {
   'trash': 'delete-outline',
   'square.and.arrow.up': 'share',
   'ellipsis': 'more-horiz',
-  'ellipsis.circle': 'more',
+  'ellipsis.circle': 'more-horiz',
   'chevron.compact.forward': 'chevron-right',
   'iphone': 'smartphone',
   'iphone.gen1': 'smartphone',

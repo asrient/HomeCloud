@@ -9,8 +9,8 @@ import PhotosLibrarySelectorModal from '@/components/photosLibrarySelectorModal'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PhotoLibraryLocation } from 'shared/types';
 import { usePhotoLibraries } from '@/hooks/usePhotos';
-import { PhotosGrid, PhotosQuickAction } from '@/components/photosGrid';
-import { PhotosSortOption, PhotoView } from '@/lib/types';
+import { PhotosGrid } from '@/components/photosGrid';
+import { PhotosSortOption, PhotoView, PhotosQuickAction } from '@/lib/types';
 import { UIButton } from '@/components/ui/UIButton';
 import { getLocalServiceController, getServiceController, isIos } from '@/lib/utils';
 
@@ -89,7 +89,7 @@ export default function PhotosScreen() {
         onPress: async () => {
           try {
             const sc = await getServiceController(selectedFingerprint);
-            const resp = await sc.photos.deletePhotos(selectedLibrary.id, photos.map(p => p.fileId));
+            const resp = await sc.photos.deletePhotos(selectedLibrary.id, photos.map(p => p.id));
             if (resp.deleteCount === 0) {
               Alert.alert("Error", "Could not delete photos. Please try again.");
             } else {
@@ -166,6 +166,7 @@ export default function PhotosScreen() {
       library: selectedLibrary,
       deviceFingerprint: selectedFingerprint,
       sortBy: PhotosSortOption.CapturedOn,
+      ascending: false,
     };
   }, [selectedLibrary, selectedFingerprint]);
 
