@@ -21,6 +21,7 @@ export default function PhotosScreen() {
   const {
     photoLibraries,
     isLoading: isLoadingLibraries,
+    error: librariesError,
   } = usePhotoLibraries(selectedFingerprint);
 
   const [isLibrarySelectorOpen, setIsLibrarySelectorOpen] = useState(false);
@@ -168,6 +169,10 @@ export default function PhotosScreen() {
     };
   }, [selectedLibrary, selectedFingerprint]);
 
+  const header = (<View style={{ paddingTop: isIos ? headerHeight : 0 }} >
+    <DeviceSelectorRow />
+  </View>);
+
   return (
     <UIView style={{ flex: 1 }}>
       <Stack.Screen
@@ -198,20 +203,15 @@ export default function PhotosScreen() {
           }
         }}
       />
-      {
-        fetchOpts &&
-        <PhotosGrid
-          fetchOpts={fetchOpts}
-          deletedIds={deletedPhotoIds}
-          selectMode={selectMode}
-          onSelectPhoto={handleSelectPhoto}
-          onDeselectPhoto={handleDeselectPhoto}
-          onQuickAction={handleQuickAction}
-          headerComponent={<View style={{ paddingTop: isIos ? headerHeight : 0 }} >
-            <DeviceSelectorRow />
-          </View>}
-        />
-      }
+      <PhotosGrid
+        fetchOpts={fetchOpts}
+        deletedIds={deletedPhotoIds}
+        selectMode={selectMode}
+        onSelectPhoto={handleSelectPhoto}
+        onDeselectPhoto={handleDeselectPhoto}
+        onQuickAction={handleQuickAction}
+        headerComponent={header}
+      />
       <PhotosLibrarySelectorModal
         isOpen={isLibrarySelectorOpen}
         onDone={(lib) => {
@@ -221,18 +221,16 @@ export default function PhotosScreen() {
         selectedLibrary={selectedLibrary || undefined}
         libraries={photoLibraries}
       />
-
       {
-        !selectMode &&
+        !selectMode && !isLoadingLibraries && photoLibraries.length > 0 && !librariesError &&
         <View style={{ position: 'absolute', bottom: 90, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
           <UIButton
             size='md'
             type='secondary'
-            disabled={isLoadingLibraries || photoLibraries.length === 0}
             onPress={() => {
               setIsLibrarySelectorOpen(true);
             }}
-            title={selectedLibrary && !isLoadingLibraries ? selectedLibrary.name : 'Loading...'}
+            title={selectedLibrary ? selectedLibrary.name : 'Select Library'}
           />
         </View>
       }

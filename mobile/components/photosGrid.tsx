@@ -148,7 +148,7 @@ export function PhotoThumbnail({ item, onPress, isSelectMode, onQuickAction }: {
 
 
 export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPhoto, onDeselectPhoto, onPreviewPhoto, onQuickAction, deletedIds }: {
-    fetchOpts: PhotosFetchOptions;
+    fetchOpts: PhotosFetchOptions | null;
     deletedIds?: string[];
     headerComponent?: React.ReactElement;
     selectMode?: boolean;
@@ -157,7 +157,6 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
     onPreviewPhoto?: (photo: PhotoView) => void;
     onQuickAction?: (action: PhotosQuickAction) => void;
 }) {
-
     const { photos, isLoading, error, load, hasMore, setPhotos } = usePhotos(fetchOpts);
     const [renderKey, setRenderKey] = useState(0);
     const [previewIndex, setPreviewIndex] = useState<number | null>(null);
@@ -200,26 +199,23 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
         setPreviewIndex(null);
     }, []);
 
-    if (isLoading && photos.length === 0) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                <ActivityIndicator size="large" />
-            </View>
-        );
-    }
-
-    if (error) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                <UIText>Error loading photos: {error}</UIText>
-            </View>
-        );
-    }
-
     return (
         <View style={{ flex: 1 }} >
             <FlashList
                 ListHeaderComponent={headerComponent}
+                ListEmptyComponent={
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, flexDirection: 'column', gap: 6 }} >
+                        {
+                            (isLoading || !fetchOpts) ?
+                                <>
+                                    <ActivityIndicator size={'large'} />
+                                </>
+                                : <UIText>
+                                    {error ? `Could not load photos.` : 'No photos found.'}
+                                </UIText>
+                        }
+                    </View>
+                }
                 data={photos}
                 extraData={renderKey}
                 keyExtractor={(item) => item.id}

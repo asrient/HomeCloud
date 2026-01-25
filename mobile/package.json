@@ -48,6 +48,7 @@
     "expo-status-bar": "~3.0.8",
     "expo-symbols": "~1.0.7",
     "expo-system-ui": "~6.0.8",
+    "expo-video": "~3.0.15",
     "mime": "^4.0.7",
     "react": "19.1.0",
     "react-native": "0.81.5",

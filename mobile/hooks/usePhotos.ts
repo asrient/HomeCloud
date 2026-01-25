@@ -57,7 +57,7 @@ export const usePhotoLibrary = (deviceFingerprint: string | null, libraryId: str
 
 const FETCH_LIMIT = 50;
 
-export const usePhotos = (fetchOpts: PhotosFetchOptions) => {
+export const usePhotos = (fetchOpts: PhotosFetchOptions | null) => {
     const [photos, setPhotos] = useState<PhotoView[]>([]);
     const [hasMore, setHasMore] = useState<boolean>(true);
     const nextCursorRef = useRef<string | null>(null);
@@ -77,6 +77,9 @@ export const usePhotos = (fetchOpts: PhotosFetchOptions) => {
     }, []);
 
     const load = useCallback(async () => {
+        if (!fetchOpts) {
+            return;
+        }
         if (isLoadingRef.current) {
             console.warn("Load called while already loading");
             return;
@@ -119,6 +122,10 @@ export const usePhotos = (fetchOpts: PhotosFetchOptions) => {
         if (isLoadingRef.current) {
             return;
         }
+        if (!fetchOpts) {
+            reset();
+            return;
+        }
         const hash = libraryHashFromId(fetchOpts.deviceFingerprint, fetchOpts.library.id);
         if (currentLibHashRef.current === hash) {
             return;
@@ -127,7 +134,7 @@ export const usePhotos = (fetchOpts: PhotosFetchOptions) => {
         currentLibHashRef.current = hash;
         reset();
         load();
-    }, [fetchOpts.deviceFingerprint, fetchOpts.library.id, load, reset]);
+    }, [fetchOpts, load, reset]);
 
     return {
         photos,

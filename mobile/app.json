@@ -97,6 +97,13 @@
         {
           "photosPermission": "Media Center accesses your photos to let you send them with to your other devices."
         }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": true
+        }
       ]
     ],
     "experiments": {

@@ -15,6 +15,7 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { UIButton } from './ui/UIButton';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 export type PhotosPreviewModalProps = {
     photos: PhotoView[];
@@ -69,8 +70,122 @@ async function getAssetUri(photo: PhotoView): Promise<string> {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+function isVideoMimeType(mimeType: string): boolean {
+    return mimeType.startsWith('video/');
+}
+
+// Video playback component
+function VideoItem({ photo, isActive, isFocused, showControls, onTap, onClose }: { photo: PhotoView; isActive: boolean, isFocused: boolean, showControls: boolean, onTap?: () => void, onClose?: () => void }) {
+    const [videoUri, setVideoUri] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+
+    const player = useVideoPlayer(videoUri, (player) => {
+        player.loop = false;
+    });
+
+    useEffect(() => {
+        if (isActive && !videoUri) {
+            setIsLoading(true);
+            setError(null);
+            getAssetUri(photo)
+                .then((uri) => {
+                    setVideoUri(uri);
+                    setIsLoading(false);
+                })
+                .catch((err) => {
+                    console.error('Error loading video:', err);
+                    setError('Failed to load video');
+                    setIsLoading(false);
+                });
+        }
+    }, [photo, isActive, videoUri]);
+
+    // Listen to player status changes
+    useEffect(() => {
+        if (!player) return;
+        const subscription = player.addListener('playingChange', (event) => {
+            setIsPlaying(event.isPlaying);
+        });
+        return () => subscription.remove();
+    }, [player]);
+
+    // Pause video when not focused (swiped away)
+    useEffect(() => {
+        if (!isFocused && player) {
+            player.pause();
+        }
+    }, [isFocused, player]);
+
+    const handleTap = useCallback(() => {
+        onTap?.();
+    }, [onTap]);
+
+    const togglePlayPause = useCallback(() => {
+        if (!player) return;
+        if (isPlaying) {
+            player.pause();
+        } else {
+            // If video has ended (currentTime at or near duration), seek to beginning
+            if (player.duration > 0 && player.currentTime >= player.duration - 0.1) {
+                player.currentTime = 0;
+            }
+            player.play();
+        }
+    }, [player, isPlaying]);
+
+    if (isLoading) {
+        return (
+            <View style={styles.photoContainer}>
+                <ActivityIndicator size="large" color="#fff" />
+            </View>
+        );
+    }
+
+    if (error || !videoUri) {
+        return (
+            <View style={styles.photoContainer}>
+                <UIText style={{ color: '#fff' }}>{error || 'Failed to load'}</UIText>
+            </View>
+        );
+    }
+
+    const tapGesture = Gesture.Tap()
+        .onEnd(() => {
+            'worklet';
+            scheduleOnRN(handleTap);
+        });
+
+    return (
+        <View style={styles.photoContainer}>
+            <GestureDetector gesture={tapGesture}>
+                <View style={styles.video}>
+                    <VideoView
+                        player={player}
+                        style={styles.video}
+                        contentFit="contain"
+                        nativeControls={false}
+                    />
+                </View>
+            </GestureDetector>
+            {showControls && (
+                <View style={styles.videoControlsOverlay}>
+                    <UIButton
+                        onPress={togglePlayPause}
+                        color="white"
+                        type="secondary"
+                        icon={isPlaying ? 'pause.fill' : 'play.fill'}
+                        style={styles.playPauseButton}
+                    />
+                </View>
+            )}
+        </View>
+    );
+}
+
 // Individual photo item with zoom/pan gestures
-function PhotoItem({ photo, isActive, onTap, onClose }: { photo: PhotoView; isActive: boolean, onTap?: () => void, onClose?: () => void }) {
+function ImageItem({ photo, isActive, onTap, onClose }: { photo: PhotoView; isActive: boolean, onTap?: () => void, onClose?: () => void }) {
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -244,6 +359,14 @@ function PhotoItem({ photo, isActive, onTap, onClose }: { photo: PhotoView; isAc
     );
 }
 
+// Wrapper component that renders either ImageItem or VideoItem based on mimeType
+function PhotoItem({ photo, isActive, isFocused, showControls, onTap, onClose }: { photo: PhotoView; isActive: boolean, isFocused: boolean, showControls: boolean, onTap?: () => void, onClose?: () => void }) {
+    if (isVideoMimeType(photo.mimeType)) {
+        return <VideoItem photo={photo} isActive={isActive} isFocused={isFocused} showControls={showControls} onTap={onTap} onClose={onClose} />;
+    }
+    return <ImageItem photo={photo} isActive={isActive} onTap={onTap} onClose={onClose} />;
+}
+
 export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: PhotosPreviewModalProps) {
     const [currentIndex, setCurrentIndex] = useState(startIndex);
     const flashListRef = useRef<any>(null);
@@ -292,7 +415,14 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
             // Update current index to the first viewable item
             const firstViewable = viewableItems[0];
             if (firstViewable?.index !== null && firstViewable?.index !== undefined) {
-                setCurrentIndex(firstViewable.index);
+                const newIndex = firstViewable.index;
+                setCurrentIndex((prevIndex) => {
+                    // Show UI when swiping to a new photo
+                    if (prevIndex !== newIndex) {
+                        setShowUI(true);
+                    }
+                    return newIndex;
+                });
             }
         }
     }, [photos.length]);
@@ -311,11 +441,11 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
                     {
                         showUI && <View style={styles.header}>
                             <View style={styles.headerGroup}>
-                                <UIButton clearGlass onPress={exitPreview} color='white' type='secondary' icon='xmark' />
+                                <UIButton onPress={exitPreview} color='white' type='secondary' icon='xmark' />
                             </View>
                             <View style={styles.headerGroup}>
-                                <UIButton clearGlass color='white' type='secondary' icon='square.and.arrow.up' />
-                                <UIButton clearGlass color='white' type='secondary' icon='ellipsis' />
+                                <UIButton color='white' type='secondary' icon='square.and.arrow.up' />
+                                <UIButton color='white' type='secondary' icon='ellipsis' />
                             </View>
                         </View>
                     }
@@ -334,6 +464,8 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose }: Phot
                                 onTap={handleTap}
                                 onClose={exitPreview}
                                 isActive={viewableIndices.has(index!)}
+                                isFocused={currentIndex === index}
+                                showControls={showUI}
                             />
                         )}
                         onViewableItemsChanged={onViewableItemsChanged}
@@ -384,5 +516,23 @@ const styles = StyleSheet.create({
     image: {
         width: SCREEN_WIDTH,
         height: SCREEN_HEIGHT,
+    },
+    video: {
+        width: SCREEN_WIDTH,
+        height: SCREEN_HEIGHT,
+    },
+    videoControlsOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: 'center',
+        alignItems: 'center',
+        pointerEvents: 'box-none',
+    },
+    playPauseButton: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });
