@@ -165,35 +165,22 @@ export class NetService extends Service {
         if (connection) {
             return connection.controllerProxy.controller as T;
         }
-        // check if there is already a connection in progress
-        const signal = this.connectionLock.get(fingerprint);
-        if (signal) {
-            return new Promise<T>((resolve, reject) => {
-                const binding = signal.add((data: RPCController | Error) => {
-                    signal.detach(binding);
-                    if (data instanceof Error) {
-                        reject(data);
-                        return;
-                    }
-                    resolve(data as T);
-                });
+
+        const signal = this.setupConnectionLock(fingerprint);
+
+        return new Promise<T>((resolve, reject) => {
+            const binding = signal.add((data: RPCController | Error) => {
+                signal.detach(binding);
+                if (data instanceof Error) {
+                    reject(data);
+                    return;
+                }
+                resolve(data as T);
             });
-        }
 
-        // if not, create a new one
-        const newSignal = this.setupConnectionLock(fingerprint);
-
-        try {
-            const sc = await this.createConnection<T>(fingerprint);
-            return sc;
-        } catch (error) {
-            console.error(`Error creating connection for ${fingerprint}:`, error);
-            if (this.connectionLock.has(fingerprint) && this.connectionLock.get(fingerprint) === newSignal) {
-                newSignal.dispatch(error);
-                this.connectionLock.delete(fingerprint);
-            }
-            throw error;
-        }
+            // Create the connection
+            this.createConnection<T>(fingerprint);
+        });
     }
 
     private setupConnectionLock(fingerprint: string): Signal<[RPCController | Error]> {
@@ -205,10 +192,16 @@ export class NetService extends Service {
         return lockSignal;
     }
 
-    private async createConnection<T extends RPCController>(fingerprint: string): Promise<T> {
+    private async createConnection<T extends RPCController>(fingerprint: string) {
+        const signal = this.setupConnectionLock(fingerprint);
         const candidates = await this.getCandidates(fingerprint);
         if (candidates.length === 0) {
-            throw new Error(`No candidates found for fingerprint ${fingerprint}`);
+            const err = new Error(`No candidates found for fingerprint ${fingerprint}`);
+            if (this.connectionLock.has(fingerprint) && this.connectionLock.get(fingerprint) === signal) {
+                signal.dispatch(err);
+                this.connectionLock.delete(fingerprint);
+            }
+            return null;
         }
         for (const candidate of candidates) {
             if (candidate.fingerprint === fingerprint) {
@@ -226,7 +219,11 @@ export class NetService extends Service {
                 }
             }
         }
-        throw new Error(`No connection interface found for fingerprint ${fingerprint}`);
+        if (this.connectionLock.has(fingerprint) && this.connectionLock.get(fingerprint) === signal) {
+            signal.dispatch(new Error(`No connection interface found for fingerprint ${fingerprint}`));
+            this.connectionLock.delete(fingerprint);
+        }
+        return null;
     }
 
     private setupConnection(type: ConnectionType, fingerprint_: string | null, dataChannel: GenericDataChannel): Promise<RPCController> {
@@ -353,17 +350,7 @@ export class NetService extends Service {
 
                 onReady: (rpc) => {
                     const fingerprint = rpc.getTargetFingerprint();
-                    const isLoopback = fingerprint === modules.config.FINGERPRINT;
                     console.log(`[NetService] Connection ready, ID=`, rpcId);
-                    const oldConnection = isLoopback ? null : this.connections.get(fingerprint);
-                    if (oldConnection) {
-                        const serviceController = modules.ServiceController.getLocalInstance();
-                        // Unsubscribe all signals
-                        for (const [fqn, signalRef] of oldConnection.signalSubs) {
-                            const signal = serviceController.getSignal(fqn);
-                            signal.detach(signalRef);
-                        }
-                    }
                     const proxy = this.serviceControllerProxyFactory.getOrCreate(fingerprint);
                     proxy.setHandlers({
                         signalEvent: (fqn, args) => {
@@ -399,14 +386,6 @@ export class NetService extends Service {
                     this.connectionSignal.dispatch(SignalEvent.ADD, this.getConnectionInfo(fingerprint));
                     resolve(proxy.controller);
                     isResolved = true;
-
-                    setTimeout(() => {
-                        // Check if a connection already exists for this fingerprint (race condition with incoming connections)
-                        if (oldConnection) {
-                            console.log(`[NetService] Duplicate connection detected for ${fingerprint} on ${type}, closing the new one.`);
-                            oldConnection.rpc.close();
-                        }
-                    }, 0);
                 }
             });
         });
