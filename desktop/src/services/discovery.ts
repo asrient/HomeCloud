@@ -6,26 +6,32 @@ import os from 'os';
 
 const SERVICE_TYPE = 'mcservice';
 
+// Use ciao for publishing on Windows by default (better TXT record support)
+// Use bonjour-service on other platforms
+const USE_CIAO = process.platform === 'win32';
+
 export default class Discovery {
     // Use bonjour-service for browsing (discovery)
     private bonjour: Bonjour;
     private browser: Browser;
-    // Use @homebridge/ciao for publishing (better Windows support)
-    private ciaoResponder: Responder;
+    // Use @homebridge/ciao for publishing on Windows (better TXT record support)
+    private ciaoResponder: Responder | null = null;
     private ciaoService: CiaoService | null = null;
     public port: number;
     private onFoundCallback: ((pc: PeerCandidate) => void) | null = null;
 
     constructor(port: number) {
         this.port = port;
-        // Initialize bonjour-service for browsing
+        // Initialize bonjour-service for browsing (and publishing on non-Windows)
         this.bonjour = new Bonjour(undefined, (err: any) => {
             if (err) {
                 console.error('Error starting bonjour browser:', err);
             }
         });
-        // Initialize ciao responder for publishing
-        this.ciaoResponder = getResponder();
+        // Initialize ciao responder for publishing only on Windows
+        if (USE_CIAO) {
+            this.ciaoResponder = getResponder();
+        }
     }
 
     listen() {
@@ -113,37 +119,61 @@ export default class Discovery {
             fpt: String(modules.config.FINGERPRINT),
         };
 
-        // Create and advertise service using ciao (RFC 6762/6763 compliant, better Windows support)
-        this.ciaoService = this.ciaoResponder.createService({
-            name: name,
-            hostname: os.hostname(),
-            type: SERVICE_TYPE,
-            port: this.port,
-            txt: txtRecords,
-        });
+        if (USE_CIAO && this.ciaoResponder) {
+            // Use ciao for publishing (RFC 6762/6763 compliant, better Windows support)
+            this.ciaoService = this.ciaoResponder.createService({
+                name: name,
+                hostname: os.hostname(),
+                type: SERVICE_TYPE,
+                port: this.port,
+                txt: txtRecords,
+            });
 
-        this.ciaoService.advertise().then(() => {
-            console.log('mDNS service published via ciao');
-        }).catch((err) => {
-            console.error('Error publishing mDNS service:', err);
-        });
+            this.ciaoService.advertise().then(() => {
+                console.log('mDNS service published via ciao');
+            }).catch((err) => {
+                console.error('Error publishing mDNS service:', err);
+            });
+        } else {
+            // Use bonjour-service for publishing on non-Windows platforms
+            this.bonjour.publish({
+                name: name,
+                type: SERVICE_TYPE,
+                port: this.port,
+                txt: txtRecords,
+            });
+            console.log('mDNS service published via bonjour-service');
+        }
     }
 
     async goodbye() {
         const promises: Promise<void>[] = [];
 
-        // End ciao service advertisement
-        if (this.ciaoService) {
+        if (USE_CIAO) {
+            // End ciao service advertisement
+            if (this.ciaoService) {
+                promises.push(
+                    this.ciaoService.end().then(() => {
+                        this.ciaoService?.destroy();
+                        this.ciaoService = null;
+                    })
+                );
+            }
+
+            // Shutdown ciao responder
+            if (this.ciaoResponder) {
+                promises.push(this.ciaoResponder.shutdown());
+            }
+        } else {
+            // Unpublish bonjour-service
             promises.push(
-                this.ciaoService.end().then(() => {
-                    this.ciaoService?.destroy();
-                    this.ciaoService = null;
+                new Promise<void>((resolve) => {
+                    this.bonjour.unpublishAll(() => {
+                        resolve();
+                    });
                 })
             );
         }
-
-        // Shutdown ciao responder
-        promises.push(this.ciaoResponder.shutdown());
 
         // Destroy bonjour browser
         promises.push(
