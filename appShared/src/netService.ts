@@ -166,6 +166,7 @@ export class NetService extends Service {
             return connection.controllerProxy.controller as T;
         }
 
+        const isInProgress = this.connectionLock.has(fingerprint);
         const signal = this.setupConnectionLock(fingerprint);
 
         return new Promise<T>((resolve, reject) => {
@@ -178,8 +179,10 @@ export class NetService extends Service {
                 resolve(data as T);
             });
 
-            // Create the connection
-            this.createConnection<T>(fingerprint);
+            if (!isInProgress) {
+                // Create the connection
+                this.createConnection<T>(fingerprint);
+            }
         });
     }
 
