@@ -44,15 +44,18 @@ export default class Discovery {
     }
 
     static isServiceVaild(service: Service): boolean {
+        if (!service.txt) {
+            return false;
+        }
         const txt = service.txt as BonjourTxt;
-        if (!txt.fingerprint || !txt.deviceName || !txt.iconKey) {
+        if (!txt.fpt || !txt.nme || !txt.icn) {
             console.warn('DEBUG: Bonjour Browser returned an unexpected service:', service);
             return false;
         }
         if (service.addresses.length === 0) {
             return false;
         }
-        const fingerprint = service.txt.fingerprint;
+        const fingerprint = txt.fpt;
         if (!modules.config.IS_DEV && fingerprint === modules.config.FINGERPRINT) {
             return false;
         }
@@ -68,9 +71,9 @@ export default class Discovery {
                 hosts: service.addresses,
             },
             connectionType: ConnectionType.LOCAL,
-            fingerprint: txt.fingerprint,
-            deviceName: txt.deviceName,
-            iconKey: txt.iconKey,
+            fingerprint: txt.fpt,
+            deviceName: txt.nme,
+            iconKey: txt.icn,
         };
     }
 
@@ -98,10 +101,10 @@ export default class Discovery {
             type: SERVICE_TYPE,
             port: this.port,
             txt: {
-                version: modules.config.VERSION || 'dev',
-                iconKey: getIconKey(deviceInfo),
-                deviceName: modules.config.DEVICE_NAME,
-                fingerprint: modules.config.FINGERPRINT,
+                ver: modules.config.VERSION || 'dev',
+                icn: getIconKey(deviceInfo),
+                nme: modules.config.DEVICE_NAME,
+                fpt: modules.config.FINGERPRINT,
             } as BonjourTxt,
         });
     }

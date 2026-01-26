@@ -119,10 +119,10 @@ export type PeerInfo = {
 }
 
 export type BonjourTxt = {
-    version: string;
-    iconKey: string;
-    deviceName: string;
-    fingerprint: string;
+    ver: string;
+    icn: string;
+    nme: string;
+    fpt: string;
 }
 
 export type NativeButtonConfig = {
