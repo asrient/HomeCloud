@@ -1,21 +1,30 @@
 import Bonjour, { Browser, Service } from 'bonjour-service';
+import { getResponder, CiaoService, Responder } from '@homebridge/ciao';
 import { getIconKey } from 'shared/utils';
 import { PeerCandidate, BonjourTxt, DeviceInfo, ConnectionType } from 'shared/types';
 
 const SERVICE_TYPE = 'mcservice';
 
 export default class Discovery {
+    // Use bonjour-service for browsing (discovery)
     private bonjour: Bonjour;
     private browser: Browser;
+    // Use @homebridge/ciao for publishing (better Windows support)
+    private ciaoResponder: Responder;
+    private ciaoService: CiaoService | null = null;
     public port: number;
     private onFoundCallback: ((pc: PeerCandidate) => void) | null = null;
+
     constructor(port: number) {
         this.port = port;
+        // Initialize bonjour-service for browsing
         this.bonjour = new Bonjour(undefined, (err: any) => {
             if (err) {
-                console.error('Error starting bonjour service:', err);
+                console.error('Error starting bonjour browser:', err);
             }
         });
+        // Initialize ciao responder for publishing
+        this.ciaoResponder = getResponder();
     }
 
     listen() {
@@ -96,33 +105,57 @@ export default class Discovery {
 
     hello(deviceInfo: DeviceInfo) {
         const name = modules.config.FINGERPRINT.slice(0, 8);
-        // On Windows, TXT record values must be Buffer-encoded for proper transmission
-        const txtRecords: Record<string, Buffer> = {
-            ver: Buffer.from(modules.config.VERSION || 'dev'),
-            icn: Buffer.from(getIconKey(deviceInfo)),
-            nme: Buffer.from(modules.config.DEVICE_NAME),
-            fpt: Buffer.from(modules.config.FINGERPRINT),
+        const txtRecords: Record<string, string> = {
+            ver: String(modules.config.VERSION || 'dev'),
+            icn: String(getIconKey(deviceInfo)),
+            nme: String(modules.config.DEVICE_NAME),
+            fpt: String(modules.config.FINGERPRINT),
         };
-        this.bonjour.publish({
+
+        // Create and advertise service using ciao (RFC 6762/6763 compliant, better Windows support)
+        this.ciaoService = this.ciaoResponder.createService({
             name: name,
             type: SERVICE_TYPE,
             port: this.port,
-            txt: txtRecords as unknown as BonjourTxt,
+            txt: txtRecords,
+        });
+
+        this.ciaoService.advertise().then(() => {
+            console.log('mDNS service published via ciao');
+        }).catch((err) => {
+            console.error('Error publishing mDNS service:', err);
         });
     }
+
     async goodbye() {
-        return new Promise<void>((resolve, reject) => {
-            this.bonjour.unpublishAll(() => {
-                this.bonjour.destroy((err: any) => {
-                    if (err) {
-                        console.error('Error stopping bonjour service:', err);
-                        reject(err);
-                    } else {
-                        resolve();
-                    }
+        const promises: Promise<void>[] = [];
+
+        // End ciao service advertisement
+        if (this.ciaoService) {
+            promises.push(
+                this.ciaoService.end().then(() => {
+                    this.ciaoService?.destroy();
+                    this.ciaoService = null;
+                })
+            );
+        }
+
+        // Shutdown ciao responder
+        promises.push(this.ciaoResponder.shutdown());
+
+        // Destroy bonjour browser
+        promises.push(
+            new Promise<void>((resolve) => {
+                if (this.browser) {
+                    this.browser.stop();
+                }
+                this.bonjour.destroy(() => {
+                    resolve();
                 });
-            });
-        });
+            })
+        );
+
+        await Promise.all(promises);
     }
 }
 
