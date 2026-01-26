@@ -60,4 +60,7 @@ dependencies {
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
   // Android specific coroutine dispatcher
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+  // Lifecycle process for ProcessLifecycleOwner (background/foreground detection)
+  implementation "androidx.lifecycle:lifecycle-process:2.7.0"
+  implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.7.0"
 }

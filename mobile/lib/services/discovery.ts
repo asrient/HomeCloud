@@ -1,9 +1,10 @@
 import { PeerCandidate, BonjourTxt, ConnectionType, DeviceInfo } from 'shared/types';
 import { getIconKey } from 'shared/utils';
 import Zeroconf, { Service } from 'react-native-zeroconf';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 
 const SERVICE_TYPE = 'mcservice';
+type DiscoveryProtocol = 'DNSSD' | 'NSD';
 
 export default class Discovery {
     private zeroconf: Zeroconf;
@@ -20,9 +21,9 @@ export default class Discovery {
         this.zeroconf = new Zeroconf();
         this.zeroconf.on('error', (err) => {
             console.error('[Discovery] Zeroconf error:', err);
-            // Handle DNS-SD errors (like -72000) by retrying
+            // Handle DNS-SD errors (like -72000, -65563) by retrying or stopping
             if (this.isScanning) {
-                this.handleScanError();
+                this.handleScanError(err instanceof Error ? err : new Error(String(err)));
             }
         });
         this.zeroconf.on('resolved', (service) => {
@@ -61,7 +62,7 @@ export default class Discovery {
         console.log('[Discovery] Entering background, stopping scan...');
         if (this.isScanning) {
             try {
-                this.zeroconf.stop('DNSSD');
+                this.zeroconf.stop(this.currentProtocol);
             } catch (err) {
                 console.warn('[Discovery] Error stopping scan on background:', err);
             }
@@ -71,7 +72,7 @@ export default class Discovery {
 
     private handleEnterForeground(): void {
         console.log('[Discovery] Entering foreground...');
-        
+
         // On iOS, we need to wait for the system to fully clean up the previous
         // DNS-SD session before starting a new one, otherwise we get error -72000
         setTimeout(() => {
@@ -83,7 +84,7 @@ export default class Discovery {
                     this.isScanning = false; // Reset to allow scan to start
                     this.scan();
                 }
-                
+
                 // Re-publish service if it was published
                 if (this.isPublished && this.lastPublishedDeviceInfo) {
                     console.log('[Discovery] Re-publishing service...');
@@ -100,13 +101,14 @@ export default class Discovery {
 
     private scanRetryCount: number = 0;
     private readonly MAX_SCAN_RETRIES = 3;
+    private currentProtocol: DiscoveryProtocol = 'DNSSD';
 
     scan(): void {
         if (this.isScanning) {
             console.log('[Discovery] Scan already in progress, skipping...');
             return;
         }
-        console.log('[Discovery] Starting scan for services...');
+        console.log(`[Discovery] Starting scan for services using ${this.currentProtocol}...`);
         this.isScanning = true;
         this.scanRetryCount = 0;
         this.doScan();
@@ -114,14 +116,24 @@ export default class Discovery {
 
     private doScan(): void {
         try {
-            this.zeroconf.scan(SERVICE_TYPE, 'tcp', 'local.', 'DNSSD');
+            this.zeroconf.scan(SERVICE_TYPE, 'tcp', 'local.', this.currentProtocol);
         } catch (err) {
             console.error('[Discovery] Error starting scan:', err);
-            this.handleScanError();
+            this.handleScanError(err instanceof Error ? err : new Error(String(err)));
         }
     }
 
-    private handleScanError(): void {
+    private handleScanError(error?: Error): void {
+        // Check if DNS-SD service is not available (common on emulators)
+        const errorMessage = error?.message || '';
+        const isDnssdNotRunning = errorMessage.includes('SERVICENOTRUNNING') || errorMessage.includes('-65563');
+
+        // On Android, if DNSSD fails, try NSD as fallback
+        if (isDnssdNotRunning && Platform.OS === 'android' && this.currentProtocol === 'DNSSD') {
+            console.warn('[Discovery] DNS-SD service not available, falling back to NSD...');
+            this.currentProtocol = 'NSD';
+        }
+
         if (this.scanRetryCount < this.MAX_SCAN_RETRIES) {
             this.scanRetryCount++;
             const delay = this.scanRetryCount * 1000; // Exponential backoff
@@ -142,7 +154,11 @@ export default class Discovery {
             return;
         }
         this.isScanning = false;
-        this.zeroconf.stop('DNSSD');
+        try {
+            this.zeroconf.stop(this.currentProtocol);
+        } catch (err) {
+            console.warn('[Discovery] Error stopping scan:', err);
+        }
     }
 
     hello(deviceInfo: DeviceInfo, port?: number): void {
@@ -151,7 +167,7 @@ export default class Discovery {
             this.port = port;
         }
         this.lastPublishedDeviceInfo = deviceInfo;
-        console.log(`[Discovery] Publishing service: ${name} on port ${this.port}`);
+        console.log(`[Discovery] Publishing service: ${name} on port ${this.port} using ${this.currentProtocol}`);
         this.zeroconf.publishService(
             SERVICE_TYPE,
             'tcp',
@@ -163,7 +179,8 @@ export default class Discovery {
                 iconKey: getIconKey(deviceInfo),
                 deviceName: modules.config.DEVICE_NAME,
                 fingerprint: modules.config.FINGERPRINT,
-            } as BonjourTxt
+            } as BonjourTxt,
+            this.currentProtocol
         );
     }
 

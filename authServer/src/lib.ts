@@ -299,12 +299,12 @@ export async function createWebcInit(sourcePeerId: string | ObjectId, remotePeer
         serverPort: UDP_PORT,
     };
     // First store the init infos in globalComms for udp service to pick up
-    const sourcePeerCache : WebcInitCache = {
+    const sourcePeerCache: WebcInitCache = {
         targetFingerprint: remotePeer.fingerprint,
         targetId: objectIdtoStr(remotePeer._id),
         targetPin: initForRemote.pin,
     };
-    const remotePeerCache : WebcInitCache = {
+    const remotePeerCache: WebcInitCache = {
         targetFingerprint: sourceFingerprint,
         targetId: objectIdtoStr(sourcePeerId),
         targetPin: initForSource.pin,
@@ -318,7 +318,7 @@ export async function createWebcInit(sourcePeerId: string | ObjectId, remotePeer
 
 export async function relayWebcPeerData(pin: string, address: string, port: number): Promise<void> {
     const isRelayed = await globalComms.getKV(`webc_relayed_${pin}`);
-    if (isRelayed === '1') {
+    if (isRelayed) {
         // already relayed once
         return;
     }
@@ -327,6 +327,15 @@ export async function relayWebcPeerData(pin: string, address: string, port: numb
         throw new Error('No data found for this pin');
     }
     const { targetId, targetPin } = JSON.parse(data) as WebcInitCache;
+
+    // Check if the other peer has already relayed their data
+    // If their IP is the same as this peer's IP, reject as loopback (same network)
+    const otherPeerAddress = await globalComms.getKV(`webc_relayed_${targetPin}`);
+    if (otherPeerAddress && otherPeerAddress === address) {
+        console.warn('Detected loopback WebC relay attempt, rejecting.', address);
+        throw new Error('Network not supported.');
+    }
+
     const message: WebcPeerData = {
         pin: targetPin,
         peerAddress: address,
@@ -336,6 +345,6 @@ export async function relayWebcPeerData(pin: string, address: string, port: numb
     await notifyPeer(targetId, 'webc_peer_data', message);
     // Clean up cache to prevent retriggering
     await globalComms.deleteKV(`webc_init_${pin}`);
-    // Set up a short-lived cache flag for idempotency
-    await globalComms.setKV(`webc_relayed_${pin}`, '1', 2 * 60); // 2 mins
+    // Set up a short-lived cache flag for idempotency, store the IP address for loopback detection
+    await globalComms.setKV(`webc_relayed_${pin}`, address, 2 * 60); // 2 mins
 }
