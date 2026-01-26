@@ -26,6 +26,28 @@ class TcpNetworking {
     var sendQueue: [Data] = []
     var isSending: Bool = false
     var isIncoming: Bool = false
+    var isClosed: Bool = false
+  }
+  
+  // MARK: - Error Handling
+  
+  private func sendErrorAndClose(connectionId: String, error: NWError) {
+    // Check if already closed to prevent duplicate events
+    networkQueue.async {
+      guard var connection = self.connections[connectionId], !connection.isClosed else {
+        return
+      }
+      connection.isClosed = true
+      self.connections[connectionId] = connection
+      
+      self.sendEvent?("tcpError", [
+        "connectionId": connectionId,
+        "error": error.localizedDescription
+      ])
+      // All socket errors mean the connection is dead, send close event
+      self.sendEvent?("tcpClose", ["connectionId": connectionId])
+      self.connections.removeValue(forKey: connectionId)
+    }
   }
   
   init() {
@@ -295,10 +317,7 @@ class TcpNetworking {
         self?.networkQueue.async {
           self?.connections.removeValue(forKey: connectionId)
         }
-        self?.sendEvent?("tcpError", [
-          "connectionId": connectionId,
-          "error": error.localizedDescription
-        ])
+        self?.sendErrorAndClose(connectionId: connectionId, error: error)
       case .cancelled:
         self?.networkQueue.async {
           self?.connections.removeValue(forKey: connectionId)
@@ -341,10 +360,7 @@ class TcpNetworking {
           
           if let error = error {
             print("TCP send error for \(connectionId): \(error.localizedDescription)")
-            self?.sendEvent?("tcpError", [
-              "connectionId": connectionId,
-              "error": error.localizedDescription
-            ])
+            self?.sendErrorAndClose(connectionId: connectionId, error: error)
             // Clear the queue on error
             connection.sendQueue.removeAll()
             connection.isSending = false
@@ -373,19 +389,18 @@ class TcpNetworking {
       }
       
       if let error = error {
-        self?.sendEvent?("tcpError", [
-          "connectionId": tcpConnection.connectionId,
-          "error": error.localizedDescription
-        ])
-        self?.networkQueue.async {
-          self?.connections.removeValue(forKey: tcpConnection.connectionId)
-        }
+        self?.sendErrorAndClose(connectionId: tcpConnection.connectionId, error: error)
         return
       }
       
       if isComplete {
-        self?.sendEvent?("tcpClose", ["connectionId": tcpConnection.connectionId])
         self?.networkQueue.async {
+          guard var connection = self?.connections[tcpConnection.connectionId], !connection.isClosed else {
+            return
+          }
+          connection.isClosed = true
+          self?.connections[tcpConnection.connectionId] = connection
+          self?.sendEvent?("tcpClose", ["connectionId": tcpConnection.connectionId])
           self?.connections.removeValue(forKey: tcpConnection.connectionId)
         }
         return

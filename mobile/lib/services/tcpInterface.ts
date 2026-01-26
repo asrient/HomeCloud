@@ -61,20 +61,11 @@ export default class TCPInterface extends ConnectionInterface {
             const connection = this.connections.get(params.connectionId);
             if (!connection) return;
 
-            // Check if this is a connection abort error (happens on background/foreground)
-            const isConnectionAbort = params.error.includes('error 53') ||
-                params.error.includes('connection abort') ||
-                params.error.includes('Connection reset');
-
-            if (isConnectionAbort) {
-                // Treat as a disconnect rather than an error
-                console.log(`[TCPInterface] Connection ${params.connectionId} was aborted, treating as disconnect`);
-                this.triggerDCDisconnect(params.connectionId);
-            } else {
-                // Regular error
-                if (connection.dataChannel.onerror) {
-                    connection.dataChannel.onerror(params.error);
-                }
+            // Log the error - tcpClose will follow and handle cleanup
+            console.log(`[TCPInterface] Connection ${params.connectionId} error: ${params.error}`);
+            
+            if (connection.dataChannel.onerror) {
+                connection.dataChannel.onerror(params.error);
             }
         });
 

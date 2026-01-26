@@ -14,6 +14,7 @@ class UdpNetworking {
     let socketId: String
     let localPort: NWEndpoint.Port
     var connections: [String: NWConnection] = [:]
+    var isClosed: Bool = false
   }
   
   // MARK: - Public Methods
@@ -159,14 +160,24 @@ class UdpNetworking {
             self?.startReceiving(socketId: socketId, connection: connection, connectionKey: connectionKey)
           case .failed(let error):
             print("[UDP] Connection failed to \(connectionKey): \(error.localizedDescription)")
-            // Remove failed connection
             self?.networkQueue.async {
-              if var socket = self?.sockets[socketId] {
-                socket.connections.removeValue(forKey: connectionKey)
-                self?.sockets[socketId] = socket
+              guard var socket = self?.sockets[socketId], !socket.isClosed else {
+                promise.reject("UDP_SEND_FAILED", "Failed to connect: \(error.localizedDescription)")
+                return
               }
+              socket.isClosed = true
+              self?.sockets[socketId] = socket
+              
+              self?.sendEvent?("udpError", [
+                "socketId": socketId,
+                "error": error.localizedDescription
+              ])
+              socket.connections.removeValue(forKey: connectionKey)
+              self?.sockets[socketId] = socket
+              self?.sendEvent?("udpClose", ["socketId": socketId])
+              self?.sockets.removeValue(forKey: socketId)
+              promise.reject("UDP_SEND_FAILED", "Failed to connect: \(error.localizedDescription)")
             }
-            promise.reject("UDP_SEND_FAILED", "Failed to connect: \(error.localizedDescription)")
           case .cancelled:
             print("[UDP] Connection cancelled to \(connectionKey)")
             // Remove cancelled connection
@@ -191,10 +202,19 @@ class UdpNetworking {
   
   func close(socketId: String, promise: Promise) {
     networkQueue.async {
-      guard let udpSocket = self.sockets[socketId] else {
-        promise.reject("UDP_SOCKET_NOT_FOUND", "Socket not found: \(socketId)")
+      guard var udpSocket = self.sockets[socketId] else {
+        // Already closed, that's fine
+        promise.resolve(true)
         return
       }
+      
+      // Mark as closed to prevent duplicate events
+      if udpSocket.isClosed {
+        promise.resolve(true)
+        return
+      }
+      udpSocket.isClosed = true
+      self.sockets[socketId] = udpSocket
       
       // Close listener
       udpSocket.listener.cancel()
@@ -242,10 +262,20 @@ class UdpNetworking {
       case .failed(let error):
         print("[UDP] Incoming connection failed for \(connectionKey): \(error.localizedDescription)")
         self?.networkQueue.async {
-          if var socket = self?.sockets[socketId] {
-            socket.connections.removeValue(forKey: connectionKey)
-            self?.sockets[socketId] = socket
+          guard var socket = self?.sockets[socketId], !socket.isClosed else {
+            return
           }
+          socket.isClosed = true
+          self?.sockets[socketId] = socket
+          
+          self?.sendEvent?("udpError", [
+            "socketId": socketId,
+            "error": error.localizedDescription
+          ])
+          socket.connections.removeValue(forKey: connectionKey)
+          self?.sockets[socketId] = socket
+          self?.sendEvent?("udpClose", ["socketId": socketId])
+          self?.sockets.removeValue(forKey: socketId)
         }
       case .cancelled:
         print("[UDP] Incoming connection cancelled: \(connectionKey)")
@@ -302,10 +332,22 @@ class UdpNetworking {
       
       if let error = error {
         print("[UDP] Receive error for \(connectionKey): \(error.localizedDescription)")
-        self?.sendEvent?("udpError", [
-          "socketId": socketId,
-          "error": error.localizedDescription
-        ])
+        self?.networkQueue.async {
+          guard var socket = self?.sockets[socketId], !socket.isClosed else {
+            return
+          }
+          socket.isClosed = true
+          self?.sockets[socketId] = socket
+          
+          self?.sendEvent?("udpError", [
+            "socketId": socketId,
+            "error": error.localizedDescription
+          ])
+          socket.connections.removeValue(forKey: connectionKey)
+          self?.sockets[socketId] = socket
+          self?.sendEvent?("udpClose", ["socketId": socketId])
+          self?.sockets.removeValue(forKey: socketId)
+        }
         return
       }
       

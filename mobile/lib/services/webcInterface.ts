@@ -27,8 +27,12 @@ function setupGlobalListeners() {
 
     SupermanModule.addListener('udpError', (params: { socketId: string; error: string }) => {
         const socket = activeSockets.get(params.socketId);
-        if (socket && socket.onError) {
-            socket.onError(new Error(params.error));
+        if (socket) {
+            // Log the error - udpClose will follow and handle cleanup
+            console.log(`[UDP] Socket ${params.socketId} error: ${params.error}`);
+            if (socket.onError) {
+                socket.onError(new Error(params.error));
+            }
         }
     });
 

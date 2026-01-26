@@ -13,14 +13,14 @@ const RETRY_INTERVAL_MS = 600;
 export class UdpConnection {
     private dgram: DatagramCompat;
     private onConnectedCallback?: (reDatagram: ReDatagram) => void;
-    private onErrorCallback?: (err: Error) => void;
+    private onErrorCallback?: (err?: Error) => void;
     private isServerAcked = false;
-    private isError = false;
+    private isClosed = false;
     private peerAddress?: string;
     private peerPort?: number;
     private reDatagram?: ReDatagram;
 
-    constructor(dgram: DatagramCompat, onConnectedCallback?: (reDatagram: ReDatagram) => void, onErrorCallback?: (err: Error) => void) {
+    constructor(dgram: DatagramCompat, onConnectedCallback?: (reDatagram: ReDatagram) => void, onErrorCallback?: (err?: Error) => void) {
         this.dgram = dgram;
         this.onConnectedCallback = onConnectedCallback;
         this.onErrorCallback = onErrorCallback;
@@ -32,9 +32,9 @@ export class UdpConnection {
         const helloMsg = new TextEncoder().encode(`PIN=${pin}`);
         console.log("Starting UDP connection to server:", serverAddress, serverPort, "with PIN:", pin);
         const interval = setInterval(() => {
-            if (this.isServerAcked || this.isError || this.retryAttempts > MAX_RETRY_ATTEMPTS) {
+            if (this.isServerAcked || this.isClosed || this.retryAttempts > MAX_RETRY_ATTEMPTS) {
                 clearInterval(interval);
-                if (this.retryAttempts >= MAX_RETRY_ATTEMPTS && !this.isServerAcked) {
+                if (this.retryAttempts >= MAX_RETRY_ATTEMPTS && !this.isServerAcked && !this.isClosed) {
                     this.dgram.close();
                     this.onErrorCallback?.(new Error("Failed to connect to server: Max retry attempts reached."));
                 }
@@ -63,8 +63,8 @@ export class UdpConnection {
             else if (msgStr.startsWith("ERROR=")) {
                 const errorMsg = msgStr.substring(6);
                 console.error("Server error:", errorMsg);
+                this.isClosed = true;
                 this.onErrorCallback?.(new Error(errorMsg));
-                this.isError = true;
                 this.dgram.onMessage = undefined;
             }
             else {
@@ -73,10 +73,20 @@ export class UdpConnection {
         };
 
         this.dgram.onError = (err) => {
-            console.error("Datagram error:", err);
-            this.onErrorCallback?.(err);
-            this.isError = true;
+            // Socket errors are common during app background/foreground transitions
+            console.warn("Datagram error:", err.message || err);
+            this.isClosed = true;
             this.dgram.onMessage = undefined;
+            this.dgram.close();
+            this.onErrorCallback?.(err);
+        };
+
+        this.dgram.onClose = () => {
+            console.log("Datagram socket closed.");
+            this.isClosed = true;
+            this.dgram.onMessage = undefined;
+            this.dgram.onError = undefined;
+            this.dgram.onClose = undefined;
         };
     }
 
@@ -88,8 +98,13 @@ export class UdpConnection {
     }
 
     private checkConnectionEstablished() {
-        if (this.peerAddress && this.peerPort && this.isServerAcked && !this.isError && !this.reDatagram) {
+        if (this.peerAddress && this.peerPort && this.isServerAcked && !this.isClosed && !this.reDatagram) {
             console.log("UDP server handshake complete. Peer to connect:", this.peerAddress, this.peerPort);
+            // Remove dgram event handlers to avoid interference
+            this.dgram.onMessage = undefined;
+            this.dgram.onError = undefined;
+            this.dgram.onClose = undefined;
+            // Create ReDatagram layer
             this.reDatagram = new ReDatagram(this.dgram, this.peerAddress, this.peerPort, () => {
                 console.log("UDP connection established to peer.");
                 this.onConnectedCallback?.(this.reDatagram);
@@ -130,11 +145,18 @@ export abstract class WebcInterface extends ConnectionInterface {
         await dgram.bind();
         console.log("Datagram socket bound for WebC connection:", dgram.address());
         return new Promise<GenericDataChannel>((resolve, reject) => {
+            let isSettled = false;
             const udpConnection = new UdpConnection(dgram, (reDatagram) => {
                 const dataChannel = this.createDataChannel(reDatagram);
-                resolve(dataChannel);
-            }, (err) => {
-                reject(err);
+                if (!isSettled) {
+                    isSettled = true;
+                    resolve(dataChannel);
+                }
+            }, (err?) => {
+                if (!isSettled) {
+                    isSettled = true;
+                    reject(err || new Error("UDP socket closed."));
+                }
             });
 
             udpConnection.startConnection(
@@ -192,7 +214,6 @@ export abstract class WebcInterface extends ConnectionInterface {
     }
 
     createDataChannel(reDgram: ReDatagram): GenericDataChannel {
-        console.log("Creating data channel");
         let messageHandler: ((ev: Uint8Array) => void) | null = null;
         let errorHandler: ((ev: Error | string) => void) | null = null;
         let disconnectHandler: ((ev?: Error) => void) | null = null;
@@ -258,7 +279,8 @@ export abstract class WebcInterface extends ConnectionInterface {
                     this.onIncomingConnectionCallback(dataChannel);
                 }
             } catch (err) {
-                console.error("Failed to establish incoming WebC connection:", err);
+                // Connection failures are common during app background/foreground transitions
+                console.warn("Failed to establish incoming WebC connection:", err.message || err);
             }
         });
 

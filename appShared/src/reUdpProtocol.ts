@@ -65,7 +65,8 @@ export class ReDatagram {
             if (this.isClosing) {
                 this.isRemoteClosed = true;
             } else {
-                console.error('Socket error:', err);
+                // Socket errors are common during app background/foreground, use warn level
+                console.warn('[ReUDP] Socket error:', err.message || err);
                 this.close();
             }
         };
@@ -123,7 +124,7 @@ export class ReDatagram {
     }
 
     private async sendHello(attempt = 1) {
-        if (this.isReady) return;
+        if (this.isReady || this.isClosing) return;
         if (attempt > MAX_RETRANSMITS) {
             this.onClose?.(new Error('Failed to establish connection: no HELLO_ACK received'));
             this.socket.close();
@@ -143,6 +144,10 @@ export class ReDatagram {
     }
 
     async send(data: Uint8Array) {
+        if (this.isClosing) {
+            console.warn('[ReUDP] Attempting to send after close');
+            return;
+        }
         if (data.length === 0) {
             console.warn('[ReUDP] Attempting to send empty data');
             return;
@@ -184,6 +189,7 @@ export class ReDatagram {
     }
 
     private async sendPacket(data: Uint8Array) {
+        if (this.isClosing) return;
         if (data.length > MAX_PACKET_PAYLOAD) {
             throw new Error(`Packet payload too large: ${data.length} > ${MAX_PACKET_PAYLOAD}`);
         }
@@ -210,6 +216,7 @@ export class ReDatagram {
     }
 
     private async retransmit(seq: number, attempt = 1) {
+        if (this.isClosing) return;
         const pkt = this.sendWindow.get(seq);
         if (!pkt || !this.remote) return;
         console.warn(`Retransmitting seq=${seq}`);
@@ -231,6 +238,7 @@ export class ReDatagram {
     private ackDelayTimeout: number | null = null;
 
     private sendPendingAcks() {
+        if (this.isClosing) return;
         if (this.ackPending > 0) {
             this.sendAck(this.recvSeq - 1);
             this.ackPending = 0;
@@ -346,12 +354,15 @@ export class ReDatagram {
     }
 
     private async sendAck(seq: number) {
+        if (this.isClosing) return;
         // console.log(`[ReUDP] Sending ACK for seq=${seq}`);
         const header = this.encodeHeader(FLAG_ACK, seq);
         await this.socket.send(header, this.remote.port, this.remote.address);
     }
 
     private cleanup() {
+        // Mark as closing to prevent further sends
+        this.isClosing = true;
         // Cleanup all resources
         for (const t of this.retransmitTimers.values()) clearTimeout(t);
         this.sendWindow.clear();

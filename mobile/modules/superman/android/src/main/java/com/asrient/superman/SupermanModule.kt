@@ -307,7 +307,12 @@ class SupermanModule : Module(), LifecycleEventObserver {
             } catch (e: kotlinx.coroutines.CancellationException) {
             } catch (e: Exception) {
               android.util.Log.e("SupermanModule", "TCP write error: ${e.message}", e)
-              sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to e.message))
+              // Only send events if we successfully remove (prevents duplicates)
+              if (tcpConnections.remove(connectionId) != null) {
+                sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to (e.message ?: "Unknown error")))
+                sendEvent("tcpClose", mapOf("connectionId" to connectionId))
+              }
+              try { socket.close() } catch (_: Exception) {}
             }
           }
 
@@ -328,11 +333,16 @@ class SupermanModule : Module(), LifecycleEventObserver {
             } catch (e: kotlinx.coroutines.CancellationException) {
             } catch (e: Exception) {
               android.util.Log.e("SupermanModule", "TCP read error: ${e.message}", e)
-              sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to e.message))
+              // Error event only if connection still exists
+              if (tcpConnections.containsKey(connectionId)) {
+                sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to (e.message ?: "Unknown error")))
+              }
             } finally {
-              sendEvent("tcpClose", mapOf("connectionId" to connectionId))
+              // Only send close if we successfully remove (prevents duplicates)
+              if (tcpConnections.remove(connectionId) != null) {
+                sendEvent("tcpClose", mapOf("connectionId" to connectionId))
+              }
               try { socket.close() } catch (_: Exception) {}
-              tcpConnections.remove(connectionId)
             }
           }
 
@@ -476,7 +486,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
               }
             } catch (e: kotlinx.coroutines.CancellationException) {
             } catch (e: Exception) {
-              sendEvent("udpError", mapOf("socketId" to socketId, "error" to e.message))
+              sendEvent("udpError", mapOf("socketId" to socketId, "error" to (e.message ?: "Unknown error")))
             } finally {
               sendEvent("udpClose", mapOf("socketId" to socketId))
               udpSockets.remove(socketId)
@@ -510,10 +520,12 @@ class SupermanModule : Module(), LifecycleEventObserver {
 
     AsyncFunction("udpClose") { socketId: String, promise: expo.modules.kotlin.Promise ->
       try {
-        val udpSocket = udpSockets[socketId] ?: throw IllegalArgumentException("Socket not found: $socketId")
-        udpSocket.job.cancel()
-        try { udpSocket.socket.close() } catch (_: Exception) {}
-        udpSockets.remove(socketId)
+        val udpSocket = udpSockets.remove(socketId)
+        if (udpSocket != null) {
+          udpSocket.job.cancel()
+          try { udpSocket.socket.close() } catch (_: Exception) {}
+        }
+        // Always resolve true - already closed is fine
         promise.resolve(true)
       } catch (e: Exception) {
         promise.reject("UDP_CLOSE", e.message ?: "Unknown error", e)
@@ -599,7 +611,12 @@ class SupermanModule : Module(), LifecycleEventObserver {
           } catch (e: kotlinx.coroutines.CancellationException) {
           } catch (e: Exception) {
             android.util.Log.e("SupermanModule", "TCP write error (incoming): ${e.message}", e)
-            sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to e.message))
+            // Only send events if we successfully remove (prevents duplicates)
+            if (tcpConnections.remove(connectionId) != null) {
+              sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to (e.message ?: "Unknown error")))
+              sendEvent("tcpClose", mapOf("connectionId" to connectionId))
+            }
+            try { socket.close() } catch (_: Exception) {}
           }
         }
 
@@ -620,11 +637,16 @@ class SupermanModule : Module(), LifecycleEventObserver {
           } catch (e: kotlinx.coroutines.CancellationException) {
           } catch (e: Exception) {
             android.util.Log.e("SupermanModule", "TCP read error (incoming): ${e.message}", e)
-            sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to e.message))
+            // Error event only if connection still exists
+            if (tcpConnections.containsKey(connectionId)) {
+              sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to (e.message ?: "Unknown error")))
+            }
           } finally {
-            sendEvent("tcpClose", mapOf("connectionId" to connectionId))
+            // Only send close if we successfully remove (prevents duplicates)
+            if (tcpConnections.remove(connectionId) != null) {
+              sendEvent("tcpClose", mapOf("connectionId" to connectionId))
+            }
             try { socket.close() } catch (_: Exception) {}
-            tcpConnections.remove(connectionId)
           }
         }
 
