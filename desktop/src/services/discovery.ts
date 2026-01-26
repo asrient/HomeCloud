@@ -96,16 +96,18 @@ export default class Discovery {
 
     hello(deviceInfo: DeviceInfo) {
         const name = modules.config.FINGERPRINT.slice(0, 8);
+        // On Windows, TXT record values must be Buffer-encoded for proper transmission
+        const txtRecords: Record<string, Buffer> = {
+            ver: Buffer.from(modules.config.VERSION || 'dev'),
+            icn: Buffer.from(getIconKey(deviceInfo)),
+            nme: Buffer.from(modules.config.DEVICE_NAME),
+            fpt: Buffer.from(modules.config.FINGERPRINT),
+        };
         this.bonjour.publish({
             name: name,
             type: SERVICE_TYPE,
             port: this.port,
-            txt: {
-                ver: modules.config.VERSION || 'dev',
-                icn: getIconKey(deviceInfo),
-                nme: modules.config.DEVICE_NAME,
-                fpt: modules.config.FINGERPRINT,
-            } as BonjourTxt,
+            txt: txtRecords as unknown as BonjourTxt,
         });
     }
     async goodbye() {
