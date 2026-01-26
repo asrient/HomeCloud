@@ -41,7 +41,7 @@ export interface RPCPeerOptions {
     isSecure: boolean;
     pingIntervalMs?: number; // Optional ping interval in milliseconds
     onError?: (error: Error) => void;
-    onClose?: () => void;
+    onClose?: (rpc: RPCPeer) => void;
     onReady?: (rpc: RPCPeer) => void;
 }
 
@@ -64,6 +64,11 @@ export class RPCPeer {
     private decryptionKey: string | null = null;
 
     private pingIntervalId: number | null = null;
+    private lastPingReceived: number = Date.now();
+    private pingTimeoutMs: number;
+
+    private isStandby: boolean = false;
+    private isRemoteStandby: boolean = false;
 
     constructor(private opts: RPCPeerOptions) {
         this.parser = new DataChannelParser({ onFrame: this.onFrame });
@@ -82,6 +87,10 @@ export class RPCPeer {
         this.startPing();
     }
 
+    setStandby(isStandby: boolean) {
+        this.isStandby = isStandby;
+    }
+
     private startPing() {
         if (this.pingIntervalId || !this.opts.pingIntervalMs) return;
         // Ensure ping interval is min 1 second
@@ -89,9 +98,18 @@ export class RPCPeer {
             console.warn('Ping interval is too short, setting to 1000ms');
             this.opts.pingIntervalMs = 1000;
         }
+        // Set timeout to 3x the ping interval
+        this.pingTimeoutMs = this.opts.pingIntervalMs * 3;
+        this.lastPingReceived = Date.now();
         this.pingIntervalId = setInterval(() => {
             if (this.isReady()) {
                 this.sendPing();
+                // Check if we've received a ping recently
+                const timeSinceLastPing = Date.now() - this.lastPingReceived;
+                if (timeSinceLastPing > this.pingTimeoutMs) {
+                    console.warn(`[RPCPeer] No ping received for ${timeSinceLastPing}ms, closing connection`);
+                    this.onError(new Error('Ping timeout: no ping received from peer'));
+                }
             }
         }, this.opts.pingIntervalMs);
     }
@@ -197,7 +215,7 @@ export class RPCPeer {
         this.streamControllers.forEach(ctrl => ctrl.close());
         this.streamControllers.clear();
         this.stopPing();
-        this.opts.onClose?.();
+        this.opts.onClose?.(this);
     }
 
     private onFrame = async ({ type, flags, payload }: { type: number, payload: Uint8Array, flags: number }) => {
@@ -212,7 +230,7 @@ export class RPCPeer {
         try {
             switch (type) {
                 case MessageType.PING:
-                    // Handle ping if needed, currently no-op
+                    this.handlePing(payload);
                     break;
                 case MessageType.HELLO:
                     console.log('[RPCPeer] Received HELLO message');
@@ -476,8 +494,20 @@ export class RPCPeer {
         await this.sendFrame(MessageType.HELLO, payload);
     }
 
+    private handlePing(buf: Uint8Array) {
+        this.lastPingReceived = Date.now();
+        if (buf.length > 0) {
+            this.isRemoteStandby = buf[0] === 1;
+            // If both sides are on standby, close the connection
+            if (this.isStandby && this.isRemoteStandby) {
+                console.log('[RPCPeer] Both sides are on standby, closing connection');
+                this.close();
+            }
+        }
+    }
+
     public async sendPing() {
-        const pingPayload = new Uint8Array(0);
+        const pingPayload = new Uint8Array([this.isStandby ? 1 : 2]);
         await this.sendFrame(MessageType.PING, pingPayload);
     }
 

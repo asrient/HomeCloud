@@ -12,6 +12,7 @@ export default class Discovery {
     private isPublished: boolean = false;
     private isScanning: boolean = false;
     private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+    private lastPublishedDeviceInfo: DeviceInfo | null = null;
 
     constructor(port: number) {
         console.log('[Discovery] Initializing with port:', port);
@@ -70,20 +71,27 @@ export default class Discovery {
 
     private handleEnterForeground(): void {
         console.log('[Discovery] Entering foreground...');
-        if (this.isScanning) {
-            console.log('[Discovery] Will restart scan after delay...');
-            this.isScanning = false; // Reset to allow scan to start
-            
-            // On iOS, we need to wait for the system to fully clean up the previous
-            // DNS-SD session before starting a new one, otherwise we get error -72000
-            setTimeout(() => {
-                // Ensure we're still in foreground and should be scanning
-                if (AppState.currentState === 'active') {
+        
+        // On iOS, we need to wait for the system to fully clean up the previous
+        // DNS-SD session before starting a new one, otherwise we get error -72000
+        setTimeout(() => {
+            // Ensure we're still in foreground
+            if (AppState.currentState === 'active') {
+                // Restart scan if it was running
+                if (this.isScanning) {
                     console.log('[Discovery] Restarting scan now...');
+                    this.isScanning = false; // Reset to allow scan to start
                     this.scan();
                 }
-            }, 2000);
-        }
+                
+                // Re-publish service if it was published
+                if (this.isPublished && this.lastPublishedDeviceInfo) {
+                    console.log('[Discovery] Re-publishing service...');
+                    this.isPublished = false; // Reset to allow re-publish
+                    this.hello(this.lastPublishedDeviceInfo, this.port);
+                }
+            }
+        }, 2000);
     }
 
     onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
@@ -142,6 +150,7 @@ export default class Discovery {
         if (port) {
             this.port = port;
         }
+        this.lastPublishedDeviceInfo = deviceInfo;
         console.log(`[Discovery] Publishing service: ${name} on port ${this.port}`);
         this.zeroconf.publishService(
             SERVICE_TYPE,
@@ -163,6 +172,7 @@ export default class Discovery {
             console.log('[Discovery] Unpublishing service...');
             this.zeroconf.unpublishService(modules.config.FINGERPRINT.slice(0, 8));
             this.isPublished = false;
+            this.lastPublishedDeviceInfo = null;
         }
     }
 

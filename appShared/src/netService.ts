@@ -5,6 +5,14 @@ import Signal, { SignalNodeRef } from "./signals";
 
 let rpcCounter = 0;
 
+type ConnectionRecord = {
+    type: ConnectionType;
+    rpc: RPCPeer;
+    controllerProxy: RPCControllerProxy;
+    signalSubs: Map<string, SignalNodeRef<any, any>>;
+    rpcId: string;
+};
+
 export abstract class ConnectionInterface {
     abstract onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void): void;
     abstract connect(candidate: PeerCandidate): Promise<GenericDataChannel>;
@@ -34,23 +42,15 @@ class ServiceControllerProxyFactory {
         this.instances.set(fingerprint, proxy);
         return proxy;
     }
-
-    remove(fingerprint: string): void {
-        this.instances.delete(fingerprint);
-    }
 }
 
 export class NetService extends Service {
 
     private serviceControllerProxyFactory = new ServiceControllerProxyFactory();
 
-    private connections: Map<string, {
-        type: ConnectionType;
-        rpc: RPCPeer;
-        controllerProxy: RPCControllerProxy;
-        signalSubs: Map<string, SignalNodeRef<any, any>>;
-        rpcId: string;
-    }> = new Map();
+    private connections: Map<string, ConnectionRecord> = new Map();
+
+    private standbyConnections: Map<string, ConnectionRecord[]> = new Map();
 
     public connectionSignal = new Signal<[SignalEvent, ConnectionInfo]>();
 
@@ -104,11 +104,11 @@ export class NetService extends Service {
     private async handleCandidateAvailable(type: ConnectionType, candidate: PeerCandidate) {
         const fingerprint = candidate.fingerprint;
         if (fingerprint && this.autoConnectFingerprints.has(fingerprint)) {
-            if (this.connections.has(fingerprint)) {
-                // already connected
-                console.log(`[NetService] Already connected to candidate ${fingerprint} on ${type}, skipping auto-connect.`);
-                return;
-            }
+            // Check if already connected
+            // if (this.connections.has(fingerprint)) {
+            //     console.log(`[NetService] Already connected to ${fingerprint}, skipping auto-connect.`);
+            //     return;
+            // }
             // Check if there is already a connection in progress
             if (this.connectionLock.has(fingerprint)) {
                 console.log(`[NetService] Connection already in progress for ${fingerprint}, skipping auto-connect.`);
@@ -226,6 +226,46 @@ export class NetService extends Service {
         return null;
     }
 
+    // Looks up connections and standby connections
+    private getConnectionRecord(fingerprint: string, rpcId?: string): ConnectionRecord | null {
+        const connection = this.connections.get(fingerprint);
+        if (connection) {
+            if (!rpcId || connection.rpcId === rpcId) {
+                return connection;
+            }
+        }
+        const standbyList = this.standbyConnections.get(fingerprint);
+        if (standbyList && standbyList.length > 0) {
+            if (!rpcId) {
+                return standbyList[0];
+            }
+            for (const standbyConnection of standbyList) {
+                if (standbyConnection.rpcId === rpcId) {
+                    return standbyConnection;
+                }
+            }
+        }
+        return null;
+    }
+
+    private removeConnectionRecord(fingerprint: string, rpcId: string): void {
+        const connection = this.connections.get(fingerprint);
+        if (connection && connection.rpcId === rpcId) {
+            this.connections.delete(fingerprint);
+            return;
+        }
+        const standbyList = this.standbyConnections.get(fingerprint);
+        if (standbyList && standbyList.length > 0) {
+            const index = standbyList.findIndex(conn => conn.rpcId === rpcId);
+            if (index !== -1) {
+                standbyList.splice(index, 1);
+                if (standbyList.length === 0) {
+                    this.standbyConnections.delete(fingerprint);
+                }
+            }
+        }
+    }
+
     private setupConnection(type: ConnectionType, fingerprint_: string | null, dataChannel: GenericDataChannel): Promise<RPCController> {
         const connInterface = this.connectionInterfaces.get(type);
         console.log(`[NetService] Setting up connection for ${fingerprint_ || 'incoming connection'} on ${type}`);
@@ -244,7 +284,7 @@ export class NetService extends Service {
                 handlers: {
                     signalEvent: (fqn, args) => {
                         const fingerprint = rpc.getTargetFingerprint();
-                        const connection = this.connections.get(fingerprint);
+                        const connection = this.getConnectionRecord(fingerprint, rpcId);
                         if (connection) {
                             const proxy = connection.controllerProxy;
                             proxy.publishSignal(fqn, args);
@@ -252,7 +292,7 @@ export class NetService extends Service {
                     },
                     signalSubscribe: (fqn) => {
                         const fingerprint = rpc.getTargetFingerprint();
-                        const connection = this.connections.get(fingerprint);
+                        const connection = this.getConnectionRecord(fingerprint, rpcId);
                         const serviceController = modules.ServiceController.getLocalInstance();
                         const signal = serviceController.getSignal(fqn);
                         // Check if already subscribed.
@@ -264,7 +304,7 @@ export class NetService extends Service {
                             throw new Error(`Signal ${fqn} is not exposed.`);
                         }
                         const signalRef = signal.add((...args) => {
-                            const connection = this.connections.get(fingerprint);
+                            const connection = this.getConnectionRecord(fingerprint, rpcId);
                             if (connection) {
                                 const rpc = connection.rpc;
                                 rpc.sendSignal(fqn, args);
@@ -274,7 +314,7 @@ export class NetService extends Service {
                     },
                     signalUnsubscribe: (fqn) => {
                         const fingerprint = rpc.getTargetFingerprint();
-                        const connection = this.connections.get(fingerprint);
+                        const connection = this.getConnectionRecord(fingerprint, rpcId);
                         const serviceController = modules.ServiceController.getLocalInstance();
                         const signal = serviceController.getSignal(fqn);
                         const signalRef = connection.signalSubs.get(fqn);
@@ -314,15 +354,16 @@ export class NetService extends Service {
                     },
                 },
 
-                onClose: () => {
+                onClose: (rpc) => {
                     const fingerprint = rpc.getTargetFingerprint();
                     console.log(`Connection closed for ${fingerprint} on ${type}`, isResolved ? '(already resolved)' : '');
-                    const connection = this.connections.get(fingerprint);
-                    if (!!connection && connection.rpcId === rpcId) {
+                    const connection = this.getConnectionRecord(fingerprint, rpcId);
+                    const isprimaryLine = this.connections.get(fingerprint)?.rpcId === rpcId;
+                    if (!!connection) {
                         console.log(`[NetService] Cleaning up connection for ${fingerprint} on ${type}, ID=`, connection.rpcId);
                         // Clean up
                         const proxy = this.serviceControllerProxyFactory.get(fingerprint);
-                        if (proxy) {
+                        if (proxy && isprimaryLine) {
                             proxy.unsetHandlers();
                         }
                         const serviceController = modules.ServiceController.getLocalInstance();
@@ -331,9 +372,12 @@ export class NetService extends Service {
                             const signal = serviceController.getSignal(fqn);
                             signal.detach(signalRef);
                         }
-                        this.connectionSignal.dispatch(SignalEvent.REMOVE, this.getConnectionInfo(fingerprint));
+                        if (isprimaryLine) {
+                            // Notify about removed connection
+                            this.connectionSignal.dispatch(SignalEvent.REMOVE, this.getConnectionInfo(fingerprint));
+                        }
                         // Remove the connection
-                        this.connections.delete(fingerprint);
+                        this.removeConnectionRecord(fingerprint, rpcId);
                     }
                     if (!isResolved) {
                         if (fingerprint) {
@@ -352,37 +396,40 @@ export class NetService extends Service {
                     const fingerprint = rpc.getTargetFingerprint();
                     console.log(`[NetService] Connection ready, ID=`, rpcId);
                     const proxy = this.serviceControllerProxyFactory.getOrCreate(fingerprint);
-                    proxy.setHandlers({
-                        signalEvent: (fqn, args) => {
-                            throw new Error(`Signal events cannot be published remotely, they can only be subscribed to.`);
-                        },
-                        signalSubscribe: (fqn) => {
-                            rpc.subscribeSignal(fqn);
-                        },
-                        signalUnsubscribe: (fqn) => {
-                            rpc.unsubscribeSignal(fqn);
-                        },
-                        methodCall: async (fqn, args) => {
-                            return await rpc.call(fqn, args);
-                        },
-                    });
+                    setProxyHandlers(proxy, rpc);
 
-                    this.connections.set(fingerprint, {
+                    const connRec: ConnectionRecord = {
                         type,
                         rpc,
                         controllerProxy: proxy,
                         signalSubs: new Map(),
                         rpcId,
-                    });
+                    };
 
-                    // Check if there is any active connection lock for this fingerprint
+                    // If there is a primary connection, move it to standby and promote the new one
+                    const existingConnection = this.connections.get(fingerprint);
+                    if (existingConnection) {
+                        console.log(`[NetService] Existing primary connection found for ${fingerprint}, moving it to standby and promoting new connection as primary, ID=`, rpcId);
+                        if (!this.standbyConnections.has(fingerprint)) {
+                            this.standbyConnections.set(fingerprint, []);
+                        }
+                        this.standbyConnections.get(fingerprint)!.push(existingConnection);
+                        existingConnection.rpc.setStandby(true);
+                    } else {
+                        console.log(`[NetService] No existing connection for ${fingerprint}, setting new connection as primary, ID=`, rpcId);
+                    }
+
+                    // Set the new connection as primary
+                    this.connections.set(fingerprint, connRec);
+
+                    // If there is a connection lock, resolve it
                     const lockSignal = this.connectionLock.get(fingerprint);
                     if (lockSignal) {
                         lockSignal.dispatch(proxy.controller);
                         this.connectionLock.delete(fingerprint);
                     }
 
-                    // Notify about new connection
+                    // Notify about new connection (or updated primary)
                     this.connectionSignal.dispatch(SignalEvent.ADD, this.getConnectionInfo(fingerprint));
                     resolve(proxy.controller);
                     isResolved = true;
@@ -427,4 +474,21 @@ export class NetService extends Service {
         }
         await Promise.all(promises);
     }
+}
+
+function setProxyHandlers(proxy: RPCControllerProxy, rpc: RPCPeer) {
+    proxy.setHandlers({
+        signalEvent: (fqn, args) => {
+            throw new Error(`Signal events cannot be published remotely, they can only be subscribed to.`);
+        },
+        signalSubscribe: (fqn) => {
+            rpc.subscribeSignal(fqn);
+        },
+        signalUnsubscribe: (fqn) => {
+            rpc.unsubscribeSignal(fqn);
+        },
+        methodCall: async (fqn, args) => {
+            return await rpc.call(fqn, args);
+        },
+    });
 }
