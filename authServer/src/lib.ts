@@ -5,7 +5,8 @@ import {
     Peer,
     AccountLinkVerifyRequest,
     WebcInit,
-    WebcPeerData
+    WebcPeerData,
+    WebcReject
 } from "./types";
 import globalComms from "./globalComms";
 import { ObjectId } from "mongodb";
@@ -324,15 +325,27 @@ export async function relayWebcPeerData(pin: string, address: string, port: numb
     }
     const data = await globalComms.getKV(`webc_init_${pin}`);
     if (!data) {
-        throw new Error('No data found for this pin');
+        throw new Error('Invalid PIN.');
     }
     const { targetId, targetPin } = JSON.parse(data) as WebcInitCache;
 
     // Check if the other peer has already relayed their data
     // If their IP is the same as this peer's IP, reject as loopback (same network)
     const otherPeerAddress = await globalComms.getKV(`webc_relayed_${targetPin}`);
-    if (otherPeerAddress && otherPeerAddress === address) {
-        console.warn('Detected loopback WebC relay attempt, rejecting.', address);
+    const isLoopback = otherPeerAddress === address;
+
+    // Clean up cache to prevent retriggering
+    await globalComms.deleteKV(`webc_init_${pin}`);
+    // Set up a short-lived cache flag for idempotency, store the IP address for loopback detection
+    await globalComms.setKV(`webc_relayed_${pin}`, address, 2 * 60); // 2 mins
+
+    if (isLoopback) {
+        const rejectMessage: WebcReject = {
+            pin: targetPin,
+            message: 'Network not supported.',
+        };
+        console.log(`Rejecting WebC peer data PIN=${pin} due to loopback`, rejectMessage);
+        await notifyPeer(targetId, 'webc_reject', rejectMessage);
         throw new Error('Network not supported.');
     }
 
@@ -343,8 +356,4 @@ export async function relayWebcPeerData(pin: string, address: string, port: numb
     };
     console.log(`Relaying WebC peer data PIN=${pin}`, message);
     await notifyPeer(targetId, 'webc_peer_data', message);
-    // Clean up cache to prevent retriggering
-    await globalComms.deleteKV(`webc_init_${pin}`);
-    // Set up a short-lived cache flag for idempotency, store the IP address for loopback detection
-    await globalComms.setKV(`webc_relayed_${pin}`, address, 2 * 60); // 2 mins
 }

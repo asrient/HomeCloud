@@ -1,7 +1,7 @@
 import { ReDatagram } from "./reUdpProtocol";
 import { DatagramCompat } from "./compat";
 import { ConnectionInterface } from "./netService";
-import { ConnectionType, GenericDataChannel, PeerCandidate, WebcInit, WebcPeerData } from "./types";
+import { ConnectionType, GenericDataChannel, PeerCandidate, WebcInit, WebcPeerData, WebcReject } from "./types";
 
 /*
 Establishes a UDP connection to another peer using a intermediatory server for NAT traversal.
@@ -15,7 +15,7 @@ export class UdpConnection {
     private onConnectedCallback?: (reDatagram: ReDatagram) => void;
     private onErrorCallback?: (err?: Error) => void;
     private isServerAcked = false;
-    private isClosed = false;
+    private shouldTerminate = false;
     private peerAddress?: string;
     private peerPort?: number;
     private reDatagram?: ReDatagram;
@@ -32,9 +32,10 @@ export class UdpConnection {
         const helloMsg = new TextEncoder().encode(`PIN=${pin}`);
         console.log("Starting UDP connection to server:", serverAddress, serverPort, "with PIN:", pin);
         const interval = setInterval(() => {
-            if (this.isServerAcked || this.isClosed || this.retryAttempts > MAX_RETRY_ATTEMPTS) {
+            if (this.isServerAcked || this.shouldTerminate || this.retryAttempts > MAX_RETRY_ATTEMPTS) {
                 clearInterval(interval);
-                if (this.retryAttempts >= MAX_RETRY_ATTEMPTS && !this.isServerAcked && !this.isClosed) {
+                if (this.retryAttempts >= MAX_RETRY_ATTEMPTS && !this.isServerAcked && !this.shouldTerminate) {
+                    this.shouldTerminate = true;
                     this.dgram.close();
                     this.onErrorCallback?.(new Error("Failed to connect to server: Max retry attempts reached."));
                 }
@@ -63,9 +64,9 @@ export class UdpConnection {
             else if (msgStr.startsWith("ERROR=")) {
                 const errorMsg = msgStr.substring(6);
                 console.error("Server error:", errorMsg);
-                this.isClosed = true;
+                this.shouldTerminate = true;
                 this.onErrorCallback?.(new Error(errorMsg));
-                this.dgram.onMessage = undefined;
+                this.dgram.close();
             }
             else {
                 console.warn("Unexpected message from server:", msgStr);
@@ -75,7 +76,7 @@ export class UdpConnection {
         this.dgram.onError = (err) => {
             // Socket errors are common during app background/foreground transitions
             console.warn("Datagram error:", err.message || err);
-            this.isClosed = true;
+            this.shouldTerminate = true;
             this.dgram.onMessage = undefined;
             this.dgram.close();
             this.onErrorCallback?.(err);
@@ -83,10 +84,11 @@ export class UdpConnection {
 
         this.dgram.onClose = () => {
             console.log("Datagram socket closed.");
-            this.isClosed = true;
+            this.shouldTerminate = true;
             this.dgram.onMessage = undefined;
             this.dgram.onError = undefined;
             this.dgram.onClose = undefined;
+            this.onErrorCallback?.();
         };
     }
 
@@ -97,15 +99,30 @@ export class UdpConnection {
         this.checkConnectionEstablished();
     }
 
+    public terminate() {
+        if (this.shouldTerminate) {
+            return;
+        }
+        this.shouldTerminate = true;
+        if (this.reDatagram) {
+            this.reDatagram.close();
+        } else {
+            this.dgram.close();
+        }
+    }
+
     private checkConnectionEstablished() {
-        if (this.peerAddress && this.peerPort && this.isServerAcked && !this.isClosed && !this.reDatagram) {
+        if (this.peerAddress && this.peerPort && this.isServerAcked && !this.shouldTerminate && !this.reDatagram) {
             console.log("UDP server handshake complete. Peer to connect:", this.peerAddress, this.peerPort);
             // Remove dgram event handlers to avoid interference
             this.dgram.onMessage = undefined;
             this.dgram.onError = undefined;
             this.dgram.onClose = undefined;
             // Create ReDatagram layer
-            this.reDatagram = new ReDatagram(this.dgram, this.peerAddress, this.peerPort, () => {
+            this.reDatagram = new ReDatagram(this.dgram, this.peerAddress, this.peerPort, (isSuccess: boolean) => {
+                if (!isSuccess) {
+                    this.onErrorCallback?.(new Error("Failed to establish ReDatagram connection."));
+                }
                 console.log("UDP connection established to peer.");
                 this.onConnectedCallback?.(this.reDatagram);
             });
@@ -124,6 +141,7 @@ export abstract class WebcInterface extends ConnectionInterface {
     private onIncomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
 
     private waitingForPeerData = new Map<string, { connection: UdpConnection, cleanupTimer: number }>();
+    private waitingPeerData = new Map<string, { isReject: boolean, peerData?: WebcPeerData, cleanupTimer: number }>();
 
     abstract createDatagramSocket(): DatagramCompat;
 
@@ -168,9 +186,14 @@ export abstract class WebcInterface extends ConnectionInterface {
             // check if we already have peer data waiting
             const waitingEntry = this.waitingPeerData.get(webcInit.pin);
             if (waitingEntry) {
-                console.log("Found waiting peer data for PIN:", webcInit.pin, waitingEntry.peerData);
                 clearTimeout(waitingEntry.cleanupTimer);
-                udpConnection.addPeerDetails(waitingEntry.peerData.peerAddress, waitingEntry.peerData.peerPort);
+                if (waitingEntry.isReject || !waitingEntry.peerData) {
+                    udpConnection.terminate();
+                }
+                else {
+                    console.log("Found waiting peer data for PIN:", webcInit.pin, waitingEntry.peerData);
+                    udpConnection.addPeerDetails(waitingEntry.peerData.peerAddress, waitingEntry.peerData.peerPort);
+                }
                 this.waitingPeerData.delete(webcInit.pin);
                 return;
             }
@@ -181,9 +204,13 @@ export abstract class WebcInterface extends ConnectionInterface {
                     return;
                 }
                 const entry = this.waitingForPeerData.get(webcInit.pin);
-                entry.connection.getReDatagram()?.close();
                 this.waitingForPeerData.delete(webcInit.pin);
-                reject(new Error("Timeout waiting for peer data"));
+                if (isSettled) {
+                    return;
+                }
+                isSettled = true;
+                entry.connection.terminate();
+                reject(new Error("Timed out waiting for peer data."));
             }, 60000); // 60 seconds timeout
             this.waitingForPeerData.set(webcInit.pin, { connection: udpConnection, cleanupTimer: timer });
         });
@@ -268,8 +295,6 @@ export abstract class WebcInterface extends ConnectionInterface {
         };
     }
 
-    private waitingPeerData = new Map<string, { peerData: WebcPeerData, cleanupTimer: number }>();
-
     async start(): Promise<void> {
         const localSc = modules.getLocalServiceController();
         localSc.account.webcInitSignal.add(async (webcInit: WebcInit) => {
@@ -295,10 +320,26 @@ export abstract class WebcInterface extends ConnectionInterface {
                 const cleanupTimer = setTimeout(() => {
                     this.waitingPeerData.delete(webcPeerData.pin);
                 }, 2 * 60000); // 2 minutes timeout
-                this.waitingPeerData.set(webcPeerData.pin, { peerData: webcPeerData, cleanupTimer });
+                this.waitingPeerData.set(webcPeerData.pin, { isReject: false, peerData: webcPeerData, cleanupTimer });
+            }
+        });
+
+        localSc.account.webcRejectSignal.add((webcReject: WebcReject) => {
+            const waitingEntry = this.waitingForPeerData.get(webcReject.pin);
+            if (waitingEntry) {
+                clearTimeout(waitingEntry.cleanupTimer);
+                waitingEntry.connection.terminate();
+                this.waitingForPeerData.delete(webcReject.pin);
+                console.warn("WebC connection rejected for PIN:", webcReject.pin, "Message:", webcReject.message);
+            } else {
+                const cleanupTimer = setTimeout(() => {
+                    this.waitingPeerData.delete(webcReject.pin);
+                }, 2 * 60000); // 2 minutes timeout
+                this.waitingPeerData.set(webcReject.pin, { isReject: true, cleanupTimer });
             }
         });
     }
+
     async stop(): Promise<void> {
     }
 }

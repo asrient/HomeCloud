@@ -22,6 +22,7 @@ export const DeviceFormTypeSchema = z.enum([
 export const WebSocketEventSchema = z.enum([
     "webc_request",
     "webc_peer_data",
+    "webc_reject",
     "peer_added",
     "peer_removed",
     "auth_error",
@@ -93,6 +94,12 @@ export const WebcPeerDataSchema = z.object({
     pin: z.string(),
     peerAddress: z.string(),
     peerPort: z.number(),
+}).strict();
+
+// Webc Reject schema
+export const WebcRejectSchema = z.object({
+    pin: z.string(),
+    message: z.string(),
 }).strict();
 
 // Event Schema

@@ -6,7 +6,8 @@ import {
     PeerInfoSchema,
     AccountLinkSignedPayloadSchema,
     WebcInitSchema,
-    WebcPeerDataSchema, 
+    WebcPeerDataSchema,
+    WebcRejectSchema,
     EventSchema,
     HelloSchema,
     WebSocketEventSchema,
@@ -27,6 +28,7 @@ export type PeerInfo = z.infer<typeof PeerInfoSchema>;
 export type AccountLinkSignedPayload = z.infer<typeof AccountLinkSignedPayloadSchema>;
 export type WebcInit = z.infer<typeof WebcInitSchema>;
 export type WebcPeerData = z.infer<typeof WebcPeerDataSchema>;
+export type WebcReject = z.infer<typeof WebcRejectSchema>;
 export type EventType = z.infer<typeof EventSchema>;
 export type HelloType = z.infer<typeof HelloSchema>;
 export type WebSocketEvent = z.infer<typeof WebSocketEventSchema>;

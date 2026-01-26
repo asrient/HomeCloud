@@ -39,14 +39,14 @@ export class ReDatagram {
 
     onMessage?: (data: Uint8Array) => void;
     onClose?: (err: Error | null) => void;
-    private onReady?: () => void;
+    private onReady?: (isSuccess: boolean) => void;
 
     private lastPingReceived = Date.now();
-    
+
     private sendLock = false;
     private sendBuffer: Uint8Array[] = [];
 
-    constructor(socket: DatagramCompat, address: string, port: number, onReady?: () => void) {
+    constructor(socket: DatagramCompat, address: string, port: number, onReady?: (isSuccess: boolean) => void) {
         this.socket = socket;
 
         this.onReady = onReady;
@@ -372,12 +372,17 @@ export class ReDatagram {
             clearInterval(this.pingIntervalId);
             this.pingIntervalId = null;
         }
+        if (this.onReady) {
+            this.onReady(false);
+            this.onReady = undefined;
+        }
     }
 
     private markReady() {
         if (this.isReady) return;
         this.isReady = true;
-        if (this.onReady) this.onReady();
+        if (this.onReady) this.onReady(true);
+        this.onReady = undefined;
     }
 
     async close() {

@@ -2,7 +2,7 @@ import Signal from "./signals";
 import { HttpClientCompat, WsClientCompat } from "./compat";
 import { Service, serviceStartMethod, serviceStopMethod } from "./servicePrimatives";
 import ConfigStorage from "./storage";
-import { AccountLinkResponse, AccountLinkVerifyResponse, PeerInfo, StoreNames, WebcInit, WebcPeerData } from "./types";
+import { AccountLinkResponse, AccountLinkVerifyResponse, PeerInfo, StoreNames, WebcInit, WebcPeerData, WebcReject } from "./types";
 import CustomError, { ErrorType } from "./customError";
 
 const USER_AGENT = "MediaCenter-AppClient/1.0";
@@ -15,6 +15,7 @@ export type AccountOpts = {
 enum WebSocketEvent {
     WEB_CONNECT_REQUEST = "webc_request",
     WEB_CONNECT_PEER_DATA = "webc_peer_data",
+    WEB_CONNECT_REJECT = "webc_reject",
     PEER_ADDED = "peer_added",
     PEER_REMOVED = "peer_removed",
     AUTH_ERROR = "auth_error",
@@ -33,6 +34,7 @@ export class AccountService extends Service {
     // incoming requests
     public webcInitSignal = new Signal<[WebcInit]>();
     public webcPeerDataSignal = new Signal<[WebcPeerData]>();
+    public webcRejectSignal = new Signal<[WebcReject]>();
 
     public peerAddedSignal = new Signal<[PeerInfo]>();
     public peerRemovedSignal = new Signal<[PeerInfo]>();
@@ -93,6 +95,9 @@ export class AccountService extends Service {
                 break;
             case WebSocketEvent.WEB_CONNECT_PEER_DATA:
                 this.webcPeerDataSignal.dispatch(data as WebcPeerData);
+                break;
+            case WebSocketEvent.WEB_CONNECT_REJECT:
+                this.webcRejectSignal.dispatch(data as WebcReject);
                 break;
             case WebSocketEvent.PEER_ADDED:
                 this.peerAddedSignal.dispatch(data as PeerInfo);

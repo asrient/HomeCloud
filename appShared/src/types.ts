@@ -252,6 +252,11 @@ export type WebcPeerData = {
     peerPort: number;
 }
 
+export type WebcReject = {
+    pin: string;
+    message: string;
+}
+
 export type AccountLinkResponse = {
     requestId: string;
     isEmailChange: boolean;
