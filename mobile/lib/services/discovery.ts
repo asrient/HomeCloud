@@ -145,8 +145,12 @@ export default class Discovery {
         this.zeroconf.stop('DNSSD');
     }
 
+    private getName(): string {
+        return `${modules.config.DEVICE_NAME}-${modules.config.FINGERPRINT.slice(0, 8)}`;
+    }
+
     hello(deviceInfo: DeviceInfo, port?: number): void {
-        const name = modules.config.FINGERPRINT.slice(0, 8);
+        const name = this.getName();
         if (port) {
             this.port = port;
         }
@@ -163,14 +167,15 @@ export default class Discovery {
                 icn: getIconKey(deviceInfo),
                 nme: modules.config.DEVICE_NAME,
                 fpt: modules.config.FINGERPRINT,
-            } as BonjourTxt
+            } as BonjourTxt,
+            'DNSSD'
         );
     }
 
     unpublish(): void {
         if (this.isPublished) {
             console.log('[Discovery] Unpublishing service...');
-            this.zeroconf.unpublishService(modules.config.FINGERPRINT.slice(0, 8));
+            this.zeroconf.unpublishService(this.getName(), 'DNSSD');
             this.isPublished = false;
             this.lastPublishedDeviceInfo = null;
         }

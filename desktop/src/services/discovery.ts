@@ -2,6 +2,7 @@ import Bonjour, { Browser, Service } from 'bonjour-service';
 import { getResponder, CiaoService, Responder } from '@homebridge/ciao';
 import { getIconKey } from 'shared/utils';
 import { PeerCandidate, BonjourTxt, DeviceInfo, ConnectionType } from 'shared/types';
+import os from 'os';
 
 const SERVICE_TYPE = 'mcservice';
 
@@ -104,8 +105,8 @@ export default class Discovery {
     }
 
     hello(deviceInfo: DeviceInfo) {
-        const name = modules.config.FINGERPRINT.slice(0, 8);
-        const txtRecords: Record<string, string> = {
+        const name = `${os.hostname()}-${modules.config.FINGERPRINT.slice(0, 8)}`;
+        const txtRecords: BonjourTxt = {
             ver: String(modules.config.VERSION || 'dev'),
             icn: String(getIconKey(deviceInfo)),
             nme: String(modules.config.DEVICE_NAME),
@@ -115,6 +116,7 @@ export default class Discovery {
         // Create and advertise service using ciao (RFC 6762/6763 compliant, better Windows support)
         this.ciaoService = this.ciaoResponder.createService({
             name: name,
+            hostname: os.hostname(),
             type: SERVICE_TYPE,
             port: this.port,
             txt: txtRecords,
