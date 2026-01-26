@@ -120,6 +120,7 @@ export default class Discovery {
             type: SERVICE_TYPE,
             port: this.port,
             txt: txtRecords,
+            disabledIpv6: process.platform === 'win32',
         });
 
         this.ciaoService.advertise().then(() => {
