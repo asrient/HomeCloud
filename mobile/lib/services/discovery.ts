@@ -2,6 +2,7 @@ import { PeerCandidate, BonjourTxt, ConnectionType, DeviceInfo } from 'shared/ty
 import Zeroconf, { Service } from 'react-native-zeroconf';
 import { AppState, AppStateStatus } from 'react-native';
 import { DiscoveryBase } from 'shared/discoveryBase';
+import { getIpAddressAsync } from 'expo-network';
 
 export default class Discovery extends DiscoveryBase {
     private zeroconf: Zeroconf;
@@ -110,7 +111,8 @@ export default class Discovery extends DiscoveryBase {
         this.doScan();
     }
 
-    private doScan(): void {
+    private async doScan(): Promise<void> {
+        await this.updateHostAddress();
         try {
             this.zeroconf.scan(this.SERVICE_TYPE, this.PROTOCOL, this.DOMAIN, 'DNSSD');
         } catch (err) {
@@ -251,7 +253,20 @@ export default class Discovery extends DiscoveryBase {
         return super.goodbye();
     }
 
+    async updateHostAddress(): Promise<void> {
+        try {
+            const ipAddr = await getIpAddressAsync();
+            console.log('[Discovery] Device IP address:', ipAddr);
+            if (ipAddr !== '0.0.0.0') {
+                this.updateMyAddresses([ipAddr]);
+            }
+        } catch (err) {
+            console.warn('[Discovery] Failed to get device IP address:', err);
+        }
+    }
+
     async setup(): Promise<void> {
         await super.setup();
+        await this.updateHostAddress();
     }
 }
