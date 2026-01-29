@@ -1,11 +1,9 @@
 import { PeerCandidate, BonjourTxt, ConnectionType, DeviceInfo } from 'shared/types';
-import { getIconKey } from 'shared/utils';
 import Zeroconf, { Service } from 'react-native-zeroconf';
 import { AppState, AppStateStatus } from 'react-native';
+import { DiscoveryBase } from 'shared/discoveryBase';
 
-const SERVICE_TYPE = 'mcservice';
-
-export default class Discovery {
+export default class Discovery extends DiscoveryBase {
     private zeroconf: Zeroconf;
     private onFoundCallback: ((pc: PeerCandidate) => void) | null = null;
     private port: number;
@@ -13,8 +11,11 @@ export default class Discovery {
     private isScanning: boolean = false;
     private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
     private lastPublishedDeviceInfo: DeviceInfo | null = null;
+    private scanRetryCount: number = 0;
+    private readonly MAX_SCAN_RETRIES = 2;
 
     constructor(port: number) {
+        super();
         console.log('[Discovery] Initializing with port:', port);
         this.port = port;
         this.zeroconf = new Zeroconf();
@@ -71,7 +72,7 @@ export default class Discovery {
 
     private handleEnterForeground(): void {
         console.log('[Discovery] Entering foreground...');
-        
+
         // On iOS, we need to wait for the system to fully clean up the previous
         // DNS-SD session before starting a new one, otherwise we get error -72000
         setTimeout(() => {
@@ -83,7 +84,7 @@ export default class Discovery {
                     this.isScanning = false; // Reset to allow scan to start
                     this.scan();
                 }
-                
+
                 // Re-publish service if it was published
                 if (this.isPublished && this.lastPublishedDeviceInfo) {
                     console.log('[Discovery] Re-publishing service...');
@@ -98,9 +99,6 @@ export default class Discovery {
         this.onFoundCallback = callback;
     }
 
-    private scanRetryCount: number = 0;
-    private readonly MAX_SCAN_RETRIES = 3;
-
     scan(): void {
         if (this.isScanning) {
             console.log('[Discovery] Scan already in progress, skipping...');
@@ -114,7 +112,7 @@ export default class Discovery {
 
     private doScan(): void {
         try {
-            this.zeroconf.scan(SERVICE_TYPE, 'tcp', 'local.', 'DNSSD');
+            this.zeroconf.scan(this.SERVICE_TYPE, this.PROTOCOL, this.DOMAIN, 'DNSSD');
         } catch (err) {
             console.error('[Discovery] Error starting scan:', err);
             this.handleScanError();
@@ -145,29 +143,20 @@ export default class Discovery {
         this.zeroconf.stop('DNSSD');
     }
 
-    private getName(): string {
-        return `${modules.config.DEVICE_NAME}-${modules.config.FINGERPRINT.slice(0, 8)}`;
-    }
-
     hello(deviceInfo: DeviceInfo, port?: number): void {
-        const name = this.getName();
         if (port) {
             this.port = port;
         }
         this.lastPublishedDeviceInfo = deviceInfo;
-        console.log(`[Discovery] Publishing service: ${name} on port ${this.port}`);
+        const serviceInfo = this.buildServiceInfo(deviceInfo);
+        console.log('[Discovery] Publishing service with name:', serviceInfo.name, 'on port:', this.port);
         this.zeroconf.publishService(
-            SERVICE_TYPE,
-            'tcp',
-            'local.',
-            name,
+            serviceInfo.type,
+            serviceInfo.protocol,
+            serviceInfo.domain,
+            serviceInfo.name,
             this.port,
-            {
-                ver: modules.config.VERSION || 'dev',
-                icn: getIconKey(deviceInfo),
-                nme: modules.config.DEVICE_NAME,
-                fpt: modules.config.FINGERPRINT,
-            } as BonjourTxt,
+            serviceInfo.txt,
             'DNSSD'
         );
     }
@@ -181,27 +170,26 @@ export default class Discovery {
         }
     }
 
-    static isServiceVaild(service: Service): boolean {
-        if (!service.txt) {
-            return false;
-        }
-        const txt = service.txt as BonjourTxt;
-        if (!txt.fpt || !txt.nme || !txt.icn) {
-            console.warn('DEBUG: Bonjour Browser returned an unexpected service:', service);
-            return false;
-        }
+    /**
+     * Stops only the publish (keeps scanning active).
+     * Use this when the server goes offline but we still want to discover peers.
+     */
+    stopPublish(): void {
+        this.unpublish();
+    }
+
+    isServiceVaild(service: Service, skipLoopback?: boolean): boolean {
         if (service.addresses.length === 0) {
             return false;
         }
-        const fingerprint = txt.fpt;
-        if (!modules.config.IS_DEV && fingerprint === modules.config.FINGERPRINT) {
-            return false;
-        }
-        return true;
+        return this.validateTxtRecords(service.txt as BonjourTxt, skipLoopback);
     }
 
-    private serviceToPeerCandidate(service: Service): PeerCandidate | null {
-        if (!Discovery.isServiceVaild(service)) {
+    private serviceToPeerCandidate(service: Service, updateCache = true): PeerCandidate | null {
+        if (updateCache && this.isServiceVaild(service, false)) {
+            this.cacheCandidate(service.addresses, service.txt as BonjourTxt, service.port);
+        }
+        if (!this.isServiceVaild(service)) {
             console.warn('Invalid service discovered, skipping:', service.name);
             return null;
         }
@@ -216,6 +204,21 @@ export default class Discovery {
             fingerprint: txt.fpt,
             deviceName: txt.nme,
             iconKey: txt.icn,
+        };
+    }
+
+    getCandidateFromCache(fingerprint: string): PeerCandidate | null {
+        const cached = this.getCandidateAddressCache(fingerprint);
+        if (!cached || cached.addresses.length === 0) {
+            return null;
+        }
+        return {
+            data: {
+                host: cached.addresses[0],
+                port: cached.port,
+            },
+            connectionType: ConnectionType.LOCAL,
+            fingerprint,
         };
     }
 
@@ -244,5 +247,11 @@ export default class Discovery {
             this.appStateSubscription.remove();
             this.appStateSubscription = null;
         }
+
+        return super.goodbye();
+    }
+
+    async setup(): Promise<void> {
+        await super.setup();
     }
 }

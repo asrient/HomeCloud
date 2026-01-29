@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { getFn, getTokenContextOrThrow, postFn } from './expressHelper';
 import { assertAccountPeer, assertPeerById, createWebcInit, getPeersForAccount, healthCheck, linkPeer, removePeer, updatePeer, verifyLink } from './lib';
-import { AccountLinkRequest, AccountLinkVerifyRequest, PeerInfo, PeerFingerprint, PeerFingerprintOptional, Peer } from './types';
-import { AccountLinkRequestSchema, AccountLinkVerifyRequestSchema, PeerInfoSchema, PeerFingerprintSchema, PeerFingerprintOptionalSchema } from './schema';
+import { AccountLinkRequest, AccountLinkVerifyRequest, PeerInfo, WebcInitRequest, PeerFingerprintOptional, Peer } from './types';
+import { AccountLinkRequestSchema, AccountLinkVerifyRequestSchema, PeerInfoSchema, WebcInitRequestSchema, PeerFingerprintOptionalSchema } from './schema';
 import { auth, requireAuth } from './middlewares';
 
 
@@ -45,10 +45,10 @@ appRouter.get('/peer', getFn((data, req) => {
     return getPeersForAccount(accountId);
 }));
 
-appRouter.post('/webc/init', postFn<PeerFingerprint>(async (data, req) => {
+appRouter.post('/webc/init', postFn<WebcInitRequest>(async (data, req) => {
     const { accountId, peerId } = getTokenContextOrThrow(req);
     const remotePeer = await assertAccountPeer(accountId, data.fingerprint);
     return createWebcInit(peerId, remotePeer);
-}, PeerFingerprintSchema));
+}, WebcInitRequestSchema));
 
 export default appRouter;

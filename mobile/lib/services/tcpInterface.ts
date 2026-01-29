@@ -5,6 +5,7 @@ import SupermanModule from "../../modules/superman";
 import * as Network from 'expo-network';
 import { NetworkState, NetworkStateType } from "expo-network";
 import { EventSubscription } from 'expo-modules-core';
+import { getPowerStateAsync, addLowPowerModeListener } from 'expo-battery';
 
 const UNSUPPORTED_NETWORK_TYPES = [
     NetworkStateType.CELLULAR,
@@ -31,7 +32,9 @@ export default class TCPInterface extends ConnectionInterface {
     private incomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
     private serverStarted: boolean = false;
     private networkSupported: boolean = false;
+    private lowPowerMode: boolean = false;
     private netChangeSub: EventSubscription | null = null;
+    private lowPowerModeSub: EventSubscription | null = null;
 
     /**
      * Creates an instance of TCPInterface.
@@ -63,7 +66,7 @@ export default class TCPInterface extends ConnectionInterface {
 
             // Log the error - tcpClose will follow and handle cleanup
             console.log(`[TCPInterface] Connection ${params.connectionId} error: ${params.error}`);
-            
+
             if (connection.dataChannel.onerror) {
                 connection.dataChannel.onerror(params.error);
             }
@@ -155,6 +158,13 @@ export default class TCPInterface extends ConnectionInterface {
                 const filtered = candidates.filter(candidate => candidate.fingerprint === fingerprint);
                 if (filtered.length > 0) {
                     return resolve(filtered);
+                } else {
+                    // check cache from discovery
+                    const cachedCandidate = this.discovery.getCandidateFromCache(fingerprint);
+                    if (cachedCandidate) {
+                        console.log('[TCPInterface] Resolving candidate from cache for fingerprint:', fingerprint, cachedCandidate);
+                        return resolve([cachedCandidate]);
+                    }
                 }
             }
 
@@ -172,29 +182,31 @@ export default class TCPInterface extends ConnectionInterface {
         });
     }
 
-    /**
-     * Starts the TCP server and discovery service.
-     * @returns {Promise<void>} A promise that resolves when the service is started.
-     */
-    async start(): Promise<void> {
-        const netState = await Network.getNetworkStateAsync();
-        if (this.isNetworkSupported(netState)) {
-            await this.onSupportedNetwork();
-        } else {
-            console.log('[TCPInterface] Network is not supported, not starting server or discovery.', netState);
-        }
-        // Subscribe to network changes
-        this.netChangeSub = Network.addNetworkStateListener(async (state) => {
-            console.log('[TCPInterface] Network state changed:', state);
-            if (this.isNetworkSupported(state)) {
-                await this.onSupportedNetwork();
-            } else {
-                await this.onUnsupportedNetwork();
-            }
-        });
+    private expectedServerState(): boolean {
+        return this.networkSupported && !this.lowPowerMode;
     }
 
-    isNetworkSupported(netState: NetworkState): boolean {
+    private expectedScanState(): boolean {
+        return this.networkSupported;
+    }
+
+    private async applyServerState(): Promise<void> {
+        if (this.expectedServerState()) {
+            await this.startServer();
+        } else {
+            await this.stopServer();
+        }
+    }
+
+    private applyScanState(): void {
+        if (this.expectedScanState()) {
+            this.discovery.scan();
+        } else {
+            this.discovery.stopScan();
+        }
+    }
+
+    private isNetworkSupported(netState: NetworkState): boolean {
         if (!netState.isConnected) {
             return false;
         }
@@ -206,34 +218,60 @@ export default class TCPInterface extends ConnectionInterface {
         return !UNSUPPORTED_NETWORK_TYPES.includes(netState.type);
     }
 
-    startDiscoveryScan() {
-        this.discovery.scan();
-    }
-
-    async startServerAndPublish(): Promise<void> {
-        if (!this.serverStarted) {
-            try {
-                const port = await this.startServer();
-                const localSc = modules.getLocalServiceController();
-                const deviceInfo = await localSc.system.getDeviceInfo();
-                this.discovery.hello(deviceInfo, port);
-            } catch (error) {
-                console.error('[TCPInterface] Failed to start TCP server during start():', error);
+    /**
+     * Starts the TCP server and discovery service.
+     * @returns {Promise<void>} A promise that resolves when the service is started.
+     */
+    async start(): Promise<void> {
+        await this.discovery.setup();
+        // Check initial low power mode state
+        const powerState = await getPowerStateAsync();
+        this.lowPowerMode = powerState.lowPowerMode;
+        const netState = await Network.getNetworkStateAsync();
+        this.networkSupported = this.isNetworkSupported(netState);
+        await this.applyServerState();
+        this.applyScanState();
+        // Subscribe to network changes
+        this.netChangeSub = Network.addNetworkStateListener(async (state) => {
+            console.log('[TCPInterface] Network state changed:', state);
+            this.networkSupported = this.isNetworkSupported(state);
+            if (!this.networkSupported) {
+                // Close all connections
+                for (const [connectionId] of this.connections) {
+                    this.triggerDCDisconnect(connectionId);
+                }
             }
-        }
+            await this.applyServerState();
+            this.applyScanState();
+        });
+        // Subscribe to low power mode changes
+        this.lowPowerModeSub = addLowPowerModeListener(async ({ lowPowerMode }) => {
+            console.log('[TCPInterface] Low power mode changed:', lowPowerMode);
+            this.lowPowerMode = lowPowerMode;
+            await this.applyServerState();
+            // Not applying scan state here as scan does not depend on low power mode
+        });
     }
 
     /**
-     * Starts the TCP server for incoming connections.
+     * Starts the TCP server for incoming connections and publishes the service.
      * @param {number} [port] - Optional port to start the server on. Defaults to the instance port.
      * @returns {Promise<number>} A promise that resolves to the actual port the server is listening on.
      */
     async startServer(port?: number): Promise<number> {
+        if (this.serverStarted) {
+            console.log('[TCPInterface] TCP server is already running. Skipping start.');
+            return this.port;
+        }
         const serverPort = port ?? this.port;
         try {
             const result = await SupermanModule.tcpStartServer(serverPort);
             console.log(`[TCPInterface] TCP server started on port ${result.port}`);
             this.serverStarted = true;
+            // Publish service when server starts
+            const localSc = modules.getLocalServiceController();
+            const deviceInfo = await localSc.system.getDeviceInfo();
+            this.discovery.hello(deviceInfo, result.port);
             return result.port;
         } catch (error) {
             console.error('[TCPInterface] Failed to start TCP server:', error);
@@ -241,6 +279,9 @@ export default class TCPInterface extends ConnectionInterface {
         }
     }
 
+    /**
+     * Stops the TCP server and unpublishes the service.
+     */
     async stopServer(): Promise<void> {
         // Stop the server if running
         if (this.serverStarted) {
@@ -248,14 +289,12 @@ export default class TCPInterface extends ConnectionInterface {
                 await SupermanModule.tcpStopServer();
                 console.log('[TCPInterface] TCP server stopped');
                 this.serverStarted = false;
+                // Unpublish service when server stops
+                this.discovery.stopPublish();
             } catch (error) {
                 console.error('[TCPInterface] Error stopping TCP server:', error);
             }
         }
-    }
-
-    async stopDiscovery(): Promise<void> {
-        await this.discovery.goodbye();
     }
 
     /**
@@ -267,33 +306,19 @@ export default class TCPInterface extends ConnectionInterface {
             this.netChangeSub.remove();
             this.netChangeSub = null;
         }
+        if (this.lowPowerModeSub) {
+            this.lowPowerModeSub.remove();
+            this.lowPowerModeSub = null;
+        }
 
         await this.stopServer();
-        await this.stopDiscovery();
+        await this.discovery.goodbye();
 
         // Remove event listeners
         SupermanModule.removeAllListeners('tcpData');
         SupermanModule.removeAllListeners('tcpError');
         SupermanModule.removeAllListeners('tcpClose');
         SupermanModule.removeAllListeners('tcpIncomingConnection');
-    }
-
-    async onUnsupportedNetwork() {
-        console.log('[TCPInterface] Network is unsupported, stopping server and discovery.');
-        this.networkSupported = false;
-        await this.stopServer();
-        await this.stopDiscovery();
-        // Close all connections
-        for (const [connectionId] of this.connections) {
-            this.triggerDCDisconnect(connectionId);
-        }
-    }
-
-    async onSupportedNetwork() {
-        console.log('[TCPInterface] Network is supported, starting server and discovery.');
-        this.networkSupported = true;
-        await this.startServerAndPublish();
-        this.startDiscoveryScan();
     }
 
     triggerDCDisconnect(connectionId: string): boolean {

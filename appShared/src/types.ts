@@ -148,6 +148,7 @@ export enum StoreNames {
     FILES = "files",
     PHOTOS = "photos",
     ACCOUNT = "account",
+    DISCOVERY_CACHE = "discovery_cache",
 }
 
 export type DefaultDirectories = {

@@ -1,16 +1,14 @@
 import Bonjour, { Browser, Service } from 'bonjour-service';
 import { getResponder, CiaoService, Responder } from '@homebridge/ciao';
-import { getIconKey } from 'shared/utils';
 import { PeerCandidate, BonjourTxt, DeviceInfo, ConnectionType } from 'shared/types';
+import { DiscoveryBase } from 'shared/discoveryBase';
 import os from 'os';
-
-const SERVICE_TYPE = 'mcservice';
 
 // Use ciao for publishing on Windows by default (better TXT record support)
 // Use bonjour-service on other platforms
 const USE_CIAO = process.platform === 'win32';
 
-export default class Discovery {
+export default class Discovery extends DiscoveryBase {
     // Use bonjour-service for browsing (discovery)
     private bonjour: Bonjour;
     private browser: Browser;
@@ -21,6 +19,7 @@ export default class Discovery {
     private onFoundCallback: ((pc: PeerCandidate) => void) | null = null;
 
     constructor(port: number) {
+        super();
         this.port = port;
         // Initialize bonjour-service for browsing (and publishing on non-Windows)
         this.bonjour = new Bonjour(undefined, (err: any) => {
@@ -34,51 +33,74 @@ export default class Discovery {
         }
     }
 
+    private getHostAddresses(): string[] {
+        const addresses: string[] = [];
+        const interfaces = os.networkInterfaces();
+        for (const ifaceName of Object.keys(interfaces)) {
+            const iface = interfaces[ifaceName];
+            if (!iface) continue;
+            for (const addrInfo of iface) {
+                if (addrInfo.family === 'IPv4' && !addrInfo.internal) {
+                    addresses.push(addrInfo.address);
+                }
+            }
+        }
+        return addresses;
+    }
+
     listen() {
         if (this.browser) {
             this.browser.stop();
             this.browser.removeAllListeners();
         }
         this.browser = this.bonjour.find({
-            type: SERVICE_TYPE,
-            protocol: 'tcp'
+            type: this.SERVICE_TYPE,
+            protocol: this.PROTOCOL,
         });
         this.browser.start();
         this.browser.on('up', (service: Service) => {
-            if (!Discovery.isServiceVaild(service)) {
+            // Validate service allowing loopback for caching
+            if (this.isServiceVaild(service, false)) {
+                this.cacheCandidate(service.addresses, service.txt as BonjourTxt, service.port);
+            }
+            if (!this.isServiceVaild(service)) {
                 return;
             }
-            const candidate = Discovery.serviceToCandidate(service);
+            const candidate = this.serviceToCandidate(service);
             if (this.onFoundCallback) {
                 this.onFoundCallback(candidate);
             }
         });
     }
 
+    getCandidateFromCache(fingerprint: string): PeerCandidate | null {
+        const cached = this.getCandidateAddressCache(fingerprint);
+        if (!cached || cached.addresses.length === 0) {
+            return null;
+        }
+        return {
+            data: {
+                host: cached.addresses[0],
+                port: cached.port,
+                hosts: cached.addresses,
+            },
+            connectionType: ConnectionType.LOCAL,
+            fingerprint,
+        };
+    }
+
     onCandidateFound(callback: (candidate: PeerCandidate) => void): void {
         this.onFoundCallback = callback;
     }
 
-    static isServiceVaild(service: Service): boolean {
-        if (!service.txt) {
-            return false;
-        }
-        const txt = service.txt as BonjourTxt;
-        if (!txt.fpt || !txt.nme || !txt.icn) {
-            console.warn('DEBUG: Bonjour Browser returned an unexpected service:', service);
-            return false;
-        }
+    isServiceVaild(service: Service, skipLoopback?: boolean): boolean {
         if (service.addresses.length === 0) {
             return false;
         }
-        const fingerprint = txt.fpt;
-        if (!modules.config.IS_DEV && fingerprint === modules.config.FINGERPRINT) {
-            return false;
-        }
-        return true;
+        return this.validateTxtRecords(service.txt as BonjourTxt, skipLoopback);
     }
 
-    static serviceToCandidate(service: Service): PeerCandidate {
+    serviceToCandidate(service: Service): PeerCandidate {
         const txt = service.txt as BonjourTxt;
         return {
             data: {
@@ -102,31 +124,28 @@ export default class Discovery {
         }
         const candidates: PeerCandidate[] = [];
         this.browser.services.forEach((service: Service) => {
-            if (!Discovery.isServiceVaild(service)) {
+            if (this.isServiceVaild(service, false)) {
+                this.cacheCandidate(service.addresses, service.txt as BonjourTxt, service.port);
+            }
+            if (!this.isServiceVaild(service)) {
                 return;
             }
-            candidates.push(Discovery.serviceToCandidate(service));
+            candidates.push(this.serviceToCandidate(service));
         });
         return candidates;
     }
 
     hello(deviceInfo: DeviceInfo) {
-        const name = `${os.hostname()}-${modules.config.FINGERPRINT.slice(0, 8)}`;
-        const txtRecords: BonjourTxt = {
-            ver: String(modules.config.VERSION || 'dev'),
-            icn: String(getIconKey(deviceInfo)),
-            nme: String(modules.config.DEVICE_NAME),
-            fpt: String(modules.config.FINGERPRINT),
-        };
+        const serviceInfo = this.buildServiceInfo(deviceInfo);
 
         if (USE_CIAO && this.ciaoResponder) {
             // Use ciao for publishing (RFC 6762/6763 compliant, better Windows support)
             this.ciaoService = this.ciaoResponder.createService({
-                name: name,
+                name: serviceInfo.name,
                 hostname: os.hostname(),
-                type: SERVICE_TYPE,
+                type: serviceInfo.type,
                 port: this.port,
-                txt: txtRecords,
+                txt: serviceInfo.txt,
             });
 
             this.ciaoService.advertise().then(() => {
@@ -137,13 +156,23 @@ export default class Discovery {
         } else {
             // Use bonjour-service for publishing on non-Windows platforms
             this.bonjour.publish({
-                name: name,
-                type: SERVICE_TYPE,
+                name: serviceInfo.name,
+                type: serviceInfo.type,
                 port: this.port,
-                txt: txtRecords,
+                txt: serviceInfo.txt,
             });
             console.log('mDNS service published via bonjour-service');
         }
+    }
+
+    protected override getName(): string {
+        return `${os.hostname()}-${modules.config.FINGERPRINT.slice(0, 8)}`;
+    }
+
+    async setup(): Promise<void> {
+        await super.setup();
+        const hostAddrs = this.getHostAddresses();
+        this.updateMyAddresses(hostAddrs);
     }
 
     async goodbye() {
@@ -188,6 +217,7 @@ export default class Discovery {
         );
 
         await Promise.all(promises);
+        return super.goodbye();
     }
 }
 

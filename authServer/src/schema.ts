@@ -71,9 +71,10 @@ export const AccountLinkVerifyRequestSchema = z.object({
     pin: z.string().nullable(),
 }).strict();
 
-// Peer fingerprint schema
-export const PeerFingerprintSchema = z.object({
+// Webc init request schema
+export const WebcInitRequestSchema = z.object({
     fingerprint: z.string(),
+    localAddresses: z.array(z.string()).optional(),
 }).strict();
 
 // Peer fingerprint schema

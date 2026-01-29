@@ -125,6 +125,13 @@ export default class TCPInterface extends ConnectionInterface {
                 const filtered = candidates.filter(candidate => candidate.fingerprint === fingerprint);
                 if (filtered.length > 0) {
                     return resolve(filtered);
+                } else {
+                    // check cache from discovery
+                    const cachedCandidate = this.discovery.getCandidateFromCache(fingerprint);
+                    if (cachedCandidate) {
+                        console.log('[TCPInterface] Resolving candidate from cache for fingerprint:', fingerprint, cachedCandidate);
+                        return resolve([cachedCandidate]);
+                    }
                 }
             }
 
@@ -147,8 +154,9 @@ export default class TCPInterface extends ConnectionInterface {
      * @returns {Promise<void>} A promise that resolves when the service is started.
      */
     async start(): Promise<void> {
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             try {
+                await this.discovery.setup();
                 // Start the TCP server
                 this.server = net.createServer({
                     keepAlive: true,
@@ -211,6 +219,7 @@ export default class TCPInterface extends ConnectionInterface {
         promises.push(this.discovery.goodbye());
 
         await Promise.all(promises);
+        await this.discovery.goodbye();
         this.server = null;
     }
 
