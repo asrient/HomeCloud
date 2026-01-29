@@ -28,7 +28,12 @@ export class DiscoveryBase {
     private hostAddresses: string[] = [];
 
     protected updateMyAddresses(addresses: string[]): void {
-        this.hostAddresses = addresses;
+        const filtered = filterValidBonjourIps(addresses);
+        if (filtered.length === 0) {
+            console.warn('[DiscoveryBase] No valid local addresses found to update my addresses:', addresses);
+            return;
+        }
+        this.hostAddresses = filtered;
     }
 
     public getHostLocalAddresses(): string[] {
