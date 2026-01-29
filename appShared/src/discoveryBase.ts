@@ -1,4 +1,4 @@
-import { getIconKey, isLocalIp, isIpV4, isSameNetwork } from "./utils";
+import { getIconKey, isLocalIp, isIpV4, isSameNetwork, filterValidBonjourIps } from "./utils";
 import { BonjourTxt, DeviceInfo, StoreNames } from "./types";
 import ConfigStorage from "./storage";
 
@@ -32,7 +32,7 @@ export class DiscoveryBase {
     }
 
     public getHostLocalAddresses(): string[] {
-        return this.hostAddresses.filter(addr => isLocalIp(addr));
+        return filterValidBonjourIps(this.hostAddresses);
     }
 
     /**

@@ -95,6 +95,18 @@ export function isLocalIp(address: string): boolean {
   );
 }
 
+export function isLoopbackIp(address: string): boolean {
+  if (!isIpV4(address)) {
+    return false;
+  }
+  const parts = address.split('.').map(part => parseInt(part, 10));
+  return parts[0] === 127;
+}
+
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function filterValidBonjourIps(addresses: string[]): string[] {
+  return addresses.filter(addr => isLocalIp(addr) && !isLoopbackIp(addr));
 }

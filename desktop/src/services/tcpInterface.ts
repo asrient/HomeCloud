@@ -2,6 +2,7 @@ import { ConnectionInterface } from "shared/netService";
 import { GenericDataChannel, PeerCandidate, ConnectionType } from "shared/types";
 import net from "node:net";
 import Discovery from "./discovery";
+import { filterValidBonjourIps } from "shared/utils";
 
 /**
  * TCP-based implementation of ConnectionInterface using Bonjour service discovery.
@@ -163,13 +164,18 @@ export default class TCPInterface extends ConnectionInterface {
     private setupConnectListener() {
         const localSc = modules.getLocalServiceController();
         localSc.account.peerConnectRequestSignal.add(async (request) => {
-            console.log('[TCPInterface] Received peer connect request via account server for fingerprint:', request.fingerprint);
+            console.log('[TCPInterface] Received peer connect request via account server:', request);
+            const validHosts = filterValidBonjourIps(request.addresses);
+            if (validHosts.length === 0) {
+                console.warn('[TCPInterface] No valid local addresses in connect request, ignoring.');
+                return;
+            }
             try {
                 const dataChannel = await this.connect({
                     fingerprint: request.fingerprint,
                     connectionType: ConnectionType.LOCAL,
                     data: {
-                        hosts: request.addresses,
+                        hosts: validHosts,
                         port: request.port,
                     },
                 });

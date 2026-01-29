@@ -2,7 +2,7 @@ import { Service, serviceStartMethod, serviceStopMethod, RPCController, getMetho
 import { GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo, SignalEvent } from "./types";
 import { RPCPeer } from "./rpc";
 import Signal, { SignalNodeRef } from "./signals";
-import { sleep } from "./utils";
+import { filterValidBonjourIps, sleep } from "./utils";
 
 let rpcCounter = 0;
 
@@ -537,7 +537,7 @@ export class NetService extends Service {
             console.warn('[NetService] Cannot request local connect, TCP interface not available.');
             return;
         }
-        const addresses = tcpInterface.getServiceAddresses();
+        const addresses = filterValidBonjourIps(tcpInterface.getServiceAddresses());
         const port = tcpInterface.getServicePort();
         if (addresses.length === 0 || !port) {
             console.warn('[NetService] Cannot request local connect, no local addresses or port available.');

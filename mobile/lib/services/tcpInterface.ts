@@ -6,7 +6,7 @@ import * as Network from 'expo-network';
 import { NetworkState, NetworkStateType } from "expo-network";
 import { EventSubscription } from 'expo-modules-core';
 import { getPowerStateAsync, addLowPowerModeListener } from 'expo-battery';
-import { isSameNetwork } from "shared/utils";
+import { filterValidBonjourIps, isSameNetwork } from "shared/utils";
 
 const UNSUPPORTED_NETWORK_TYPES = [
     NetworkStateType.CELLULAR,
@@ -122,7 +122,7 @@ export default class TCPInterface extends ConnectionInterface {
         const localSc = modules.getLocalServiceController();
         localSc.account.peerConnectRequestSignal.add(async (request) => {
             console.log('[TCPInterface] Received peer connect request via account server for fingerprint:', request.fingerprint);
-            const myAddresses = this.discovery.getHostLocalAddresses();
+            const myAddresses = filterValidBonjourIps(this.discovery.getHostLocalAddresses());
             const hosts = request.addresses.filter(addr => myAddresses.some(myAddr => isSameNetwork(myAddr, addr)));
             if (hosts.length === 0) {
                 console.warn('[TCPInterface] No reachable addresses found for requested peer:', request.addresses);
