@@ -94,3 +94,7 @@ export function isLocalIp(address: string): boolean {
     (parts[0] === 127)
   );
 }
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}

@@ -6,6 +6,22 @@ import { authenticate } from "./lib";
 import { IncomingMessage } from "http";
 import mcdb from "./db";
 
+const PEER_ONLINE_EXPIRY = 5 * 60; // 5 minutes expiry for online status
+const PING_TIMEOUT = 5 * 60 * 1000; // 5 minutes timeout for no ping
+
+export async function setPeerOnline(peerId: string): Promise<void> {
+    await globalComms.setKV(`peer_online_${peerId}`, 'true', PEER_ONLINE_EXPIRY);
+}
+
+export async function setPeerOffline(peerId: string): Promise<void> {
+    await globalComms.deleteKV(`peer_online_${peerId}`);
+}
+
+export async function isPeerOnline(peerId: string): Promise<boolean> {
+    const status = await globalComms.getKV(`peer_online_${peerId}`);
+    return status === 'true';
+}
+
 export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
     let accountId: string;
     let peerId: string;
@@ -72,14 +88,27 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
         }
     };
 
-    ws.on('message', function message(data) {
-        // ignoring messages from clients for now.
+    ws.on('message', async function message(data) {
+        try {
+            const msg = JSON.parse(data.toString());
+            if (msg.type === 'ping') {
+                // Refresh online status and reset timeout
+                await setPeerOnline(peerId);
+                resetPingTimeout();
+            }
+        } catch (e) {
+            // Ignore invalid messages
+        }
     });
 
     ws.on('close', function close() {
         console.log('Client disconnected');
+        !!peerId && setPeerOffline(peerId);
         !!peerId && globalComms.unsubscribeEvent(`peer_${peerId}`, handleEvent);
         !!accountId && globalComms.unsubscribeEvent(`account_${accountId}`, handleEvent);
+        if (pingTimeoutTimer) {
+            clearTimeout(pingTimeoutTimer);
+        }
     });
 
     ws.on('error', function error(err) {
@@ -92,4 +121,23 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
 
     globalComms.subscribeEvent(`peer_${peerId}`, handleEvent);
     globalComms.subscribeEvent(`account_${accountId}`, handleEvent);
+
+    // Mark peer as online
+    await setPeerOnline(peerId);
+
+    // Set up ping timeout - close connection if no ping received within timeout period
+    let pingTimeoutTimer: NodeJS.Timeout | null = null;
+    
+    const resetPingTimeout = () => {
+        if (pingTimeoutTimer) {
+            clearTimeout(pingTimeoutTimer);
+        }
+        pingTimeoutTimer = setTimeout(() => {
+            console.log('No ping received from client, closing connection');
+            ws.close();
+        }, PING_TIMEOUT);
+    };
+
+    // Start initial timeout
+    resetPingTimeout();
 }

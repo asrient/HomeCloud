@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { getFn, getTokenContextOrThrow, postFn } from './expressHelper';
-import { assertAccountPeer, assertPeerById, createWebcInit, getPeersForAccount, healthCheck, linkPeer, removePeer, updatePeer, verifyLink } from './lib';
-import { AccountLinkRequest, AccountLinkVerifyRequest, PeerInfo, WebcInitRequest, PeerFingerprintOptional, Peer } from './types';
-import { AccountLinkRequestSchema, AccountLinkVerifyRequestSchema, PeerInfoSchema, WebcInitRequestSchema, PeerFingerprintOptionalSchema } from './schema';
+import { assertAccountPeer, assertPeerById, createWebcInit, getPeersForAccount, healthCheck, isPeerOnline, linkPeer, removePeer, requestPeerConnect, updatePeer, verifyLink } from './lib';
+import { AccountLinkRequest, AccountLinkVerifyRequest, PeerInfo, WebcInitRequest, PeerFingerprintOptional, Peer, PeerFingerprint, PeerConnectRequest } from './types';
+import { AccountLinkRequestSchema, AccountLinkVerifyRequestSchema, PeerInfoSchema, WebcInitRequestSchema, PeerFingerprintOptionalSchema, PeerFingerprintSchema, PeerConnectRequestSchema } from './schema';
 import { auth, requireAuth } from './middlewares';
 
 
@@ -50,5 +50,17 @@ appRouter.post('/webc/init', postFn<WebcInitRequest>(async (data, req) => {
     const remotePeer = await assertAccountPeer(accountId, data.fingerprint);
     return createWebcInit(peerId, remotePeer);
 }, WebcInitRequestSchema));
+
+appRouter.get('/peer/online', getFn<PeerFingerprint>(async (data, req) => {
+    const { accountId } = getTokenContextOrThrow(req);
+    const peer = await assertAccountPeer(accountId, data!.fingerprint);
+    return isPeerOnline(peer);
+}, PeerFingerprintSchema));
+
+appRouter.post('/peer/hello', postFn<PeerConnectRequest>(async (data, req) => {
+    const { accountId, peerId } = getTokenContextOrThrow(req);
+    const targetPeer = await assertAccountPeer(accountId, data.fingerprint);
+    return requestPeerConnect(peerId, targetPeer, data.addresses, data.port);
+}, PeerConnectRequestSchema));
 
 export default appRouter;

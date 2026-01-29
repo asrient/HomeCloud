@@ -85,6 +85,14 @@ export type PeerCandidate = {
     iconKey?: string;
     data?: any;
     connectionType: ConnectionType;
+    expiry?: number;
+    priority?: number;
+}
+
+export type PeerConnectRequest = {
+    fingerprint: string;
+    addresses: string[];
+    port: number;
 }
 
 export enum UITheme {

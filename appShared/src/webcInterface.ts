@@ -9,18 +9,19 @@ Establishes a UDP connection to another peer using a intermediatory server for N
 
 const MAX_RETRY_ATTEMPTS = 8;
 const RETRY_INTERVAL_MS = 600;
+const SAME_NETWORK_ERROR_MSG = 'Same Network';
 
 export class UdpConnection {
     private dgram: DatagramCompat;
     private onConnectedCallback?: (reDatagram: ReDatagram) => void;
-    private onErrorCallback?: (err?: Error) => void;
+    private onErrorCallback?: (err?: Error | string) => void;
     private isServerAcked = false;
-    private shouldTerminate = false;
+    private isTerminated = false;
     private peerAddress?: string;
     private peerPort?: number;
     private reDatagram?: ReDatagram;
 
-    constructor(dgram: DatagramCompat, onConnectedCallback?: (reDatagram: ReDatagram) => void, onErrorCallback?: (err?: Error) => void) {
+    constructor(dgram: DatagramCompat, onConnectedCallback?: (reDatagram: ReDatagram) => void, onErrorCallback?: (err?: Error | string) => void) {
         this.dgram = dgram;
         this.onConnectedCallback = onConnectedCallback;
         this.onErrorCallback = onErrorCallback;
@@ -32,10 +33,10 @@ export class UdpConnection {
         const helloMsg = new TextEncoder().encode(`PIN=${pin}`);
         console.log("Starting UDP connection to server:", serverAddress, serverPort, "with PIN:", pin);
         const interval = setInterval(() => {
-            if (this.isServerAcked || this.shouldTerminate || this.retryAttempts > MAX_RETRY_ATTEMPTS) {
+            if (this.isServerAcked || this.isTerminated || this.retryAttempts > MAX_RETRY_ATTEMPTS) {
                 clearInterval(interval);
-                if (this.retryAttempts >= MAX_RETRY_ATTEMPTS && !this.isServerAcked && !this.shouldTerminate) {
-                    this.shouldTerminate = true;
+                if (this.retryAttempts >= MAX_RETRY_ATTEMPTS && !this.isServerAcked && !this.isTerminated) {
+                    this.isTerminated = true;
                     this.dgram.close();
                     this.onErrorCallback?.(new Error("Failed to connect to server: Max retry attempts reached."));
                 }
@@ -64,7 +65,7 @@ export class UdpConnection {
             else if (msgStr.startsWith("ERROR=")) {
                 const errorMsg = msgStr.substring(6);
                 console.error("Server error:", errorMsg);
-                this.shouldTerminate = true;
+                this.isTerminated = true;
                 this.onErrorCallback?.(new Error(errorMsg));
                 this.dgram.close();
             }
@@ -76,7 +77,7 @@ export class UdpConnection {
         this.dgram.onError = (err) => {
             // Socket errors are common during app background/foreground transitions
             console.warn("Datagram error:", err.message || err);
-            this.shouldTerminate = true;
+            this.isTerminated = true;
             this.dgram.onMessage = undefined;
             this.dgram.close();
             this.onErrorCallback?.(err);
@@ -84,7 +85,7 @@ export class UdpConnection {
 
         this.dgram.onClose = () => {
             console.log("Datagram socket closed.");
-            this.shouldTerminate = true;
+            this.isTerminated = true;
             this.dgram.onMessage = undefined;
             this.dgram.onError = undefined;
             this.dgram.onClose = undefined;
@@ -99,11 +100,14 @@ export class UdpConnection {
         this.checkConnectionEstablished();
     }
 
-    public terminate() {
-        if (this.shouldTerminate) {
+    public terminate(sameNetworkError?: boolean) {
+        if (this.isTerminated) {
             return;
         }
-        this.shouldTerminate = true;
+        this.isTerminated = true;
+        if (sameNetworkError) {
+            this.onErrorCallback?.(SAME_NETWORK_ERROR_MSG);
+        }
         if (this.reDatagram) {
             this.reDatagram.close();
         } else {
@@ -112,7 +116,7 @@ export class UdpConnection {
     }
 
     private checkConnectionEstablished() {
-        if (this.peerAddress && this.peerPort && this.isServerAcked && !this.shouldTerminate && !this.reDatagram) {
+        if (this.peerAddress && this.peerPort && this.isServerAcked && !this.isTerminated && !this.reDatagram) {
             console.log("UDP server handshake complete. Peer to connect:", this.peerAddress, this.peerPort);
             // Remove dgram event handlers to avoid interference
             this.dgram.onMessage = undefined;
@@ -141,7 +145,7 @@ export abstract class WebcInterface extends ConnectionInterface {
     private onIncomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
 
     private waitingForPeerData = new Map<string, { connection: UdpConnection, cleanupTimer: number }>();
-    private waitingPeerData = new Map<string, { isReject: boolean, peerData?: WebcPeerData, cleanupTimer: number }>();
+    private waitingPeerData = new Map<string, { isReject: boolean, peerData?: WebcPeerData, cleanupTimer: number, sameNetworkError?: boolean }>();
 
     abstract createDatagramSocket(): DatagramCompat;
 
@@ -172,6 +176,9 @@ export abstract class WebcInterface extends ConnectionInterface {
                 }
             }, (err?) => {
                 if (!isSettled) {
+                    if (err === SAME_NETWORK_ERROR_MSG) {
+                        console.log('[WebCInterface] Peer is on the same local network.');
+                    }
                     isSettled = true;
                     reject(err || new Error("UDP socket closed."));
                 }
@@ -188,7 +195,7 @@ export abstract class WebcInterface extends ConnectionInterface {
             if (waitingEntry) {
                 clearTimeout(waitingEntry.cleanupTimer);
                 if (waitingEntry.isReject || !waitingEntry.peerData) {
-                    udpConnection.terminate();
+                    udpConnection.terminate(waitingEntry.sameNetworkError);
                 }
                 else {
                     console.log("Found waiting peer data for PIN:", webcInit.pin, waitingEntry.peerData);
@@ -237,6 +244,7 @@ export abstract class WebcInterface extends ConnectionInterface {
                 serverPort: webcInit.serverPort,
                 pin: webcInit.pin,
             } as WebcInit,
+            expiry: Date.now() + 2 * 60 * 1000, // 2 minutes expiry
         }];
     }
 
@@ -328,14 +336,14 @@ export abstract class WebcInterface extends ConnectionInterface {
             const waitingEntry = this.waitingForPeerData.get(webcReject.pin);
             if (waitingEntry) {
                 clearTimeout(waitingEntry.cleanupTimer);
-                waitingEntry.connection.terminate();
+                waitingEntry.connection.terminate(true);
                 this.waitingForPeerData.delete(webcReject.pin);
                 console.warn("WebC connection rejected for PIN:", webcReject.pin, "Message:", webcReject.message);
             } else {
                 const cleanupTimer = setTimeout(() => {
                     this.waitingPeerData.delete(webcReject.pin);
                 }, 2 * 60000); // 2 minutes timeout
-                this.waitingPeerData.set(webcReject.pin, { isReject: true, cleanupTimer });
+                this.waitingPeerData.set(webcReject.pin, { isReject: true, cleanupTimer, sameNetworkError: true });
             }
         });
     }

@@ -1,11 +1,12 @@
 import { ConnectionInterface } from "shared/netService";
-import { GenericDataChannel, PeerCandidate } from "shared/types";
+import { ConnectionType, GenericDataChannel, PeerCandidate } from "shared/types";
 import Discovery from "./discovery";
 import SupermanModule from "../../modules/superman";
 import * as Network from 'expo-network';
 import { NetworkState, NetworkStateType } from "expo-network";
 import { EventSubscription } from 'expo-modules-core';
 import { getPowerStateAsync, addLowPowerModeListener } from 'expo-battery';
+import { isSameNetwork } from "shared/utils";
 
 const UNSUPPORTED_NETWORK_TYPES = [
     NetworkStateType.CELLULAR,
@@ -29,7 +30,7 @@ export default class TCPInterface extends ConnectionInterface {
     discovery: Discovery;
     private connections: Map<string, TCPConnection> = new Map();
     private port: number;
-    private incomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
+    private incomingConnectionCallback: ((dataChannel: GenericDataChannel, fingerprint?: string) => void) | null = null;
     private serverStarted: boolean = false;
     private networkSupported: boolean = false;
     private lowPowerMode: boolean = false;
@@ -45,6 +46,17 @@ export default class TCPInterface extends ConnectionInterface {
         this.port = port;
         this.discovery = new Discovery(port);
         this.setupEventListeners();
+    }
+
+    getServicePort(): number | null {
+        if (this.serverStarted) {
+            return this.port;
+        }
+        return null;
+    }
+
+    getServiceAddresses(): string[] {
+        return this.discovery.getHostLocalAddresses();
     }
 
     /**
@@ -98,12 +110,40 @@ export default class TCPInterface extends ConnectionInterface {
      * Sets the callback for incoming connections.
      * @param {function} callback - Callback function to handle incoming data channels.
      */
-    onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void): void {
+    onIncomingConnection(callback: (dataChannel: GenericDataChannel, fingerprint?: string) => void): void {
         this.incomingConnectionCallback = callback;
     }
 
     onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
         this.discovery.onCandidateAvailable(callback);
+    }
+
+    private setupConnectListener() {
+        const localSc = modules.getLocalServiceController();
+        localSc.account.peerConnectRequestSignal.add(async (request) => {
+            console.log('[TCPInterface] Received peer connect request via account server for fingerprint:', request.fingerprint);
+            const myAddresses = this.discovery.getHostLocalAddresses();
+            const hosts = request.addresses.filter(addr => myAddresses.some(myAddr => isSameNetwork(myAddr, addr)));
+            if (hosts.length === 0) {
+                console.warn('[TCPInterface] No reachable addresses found for requested peer:', request.addresses);
+                return;
+            }
+            try {
+                const dataChannel = await this.connect({
+                    fingerprint: request.fingerprint,
+                    connectionType: ConnectionType.LOCAL,
+                    data: {
+                        host: hosts[0],
+                        port: request.port,
+                    },
+                });
+                if (this.incomingConnectionCallback) {
+                    this.incomingConnectionCallback(dataChannel, request.fingerprint);
+                }
+            } catch (error) {
+                console.error('[TCPInterface] Error connecting to peer from connect request:', error);
+            }
+        });
     }
 
     /**
@@ -224,6 +264,7 @@ export default class TCPInterface extends ConnectionInterface {
      */
     async start(): Promise<void> {
         await this.discovery.setup();
+        this.setupConnectListener();
         // Check initial low power mode state
         const powerState = await getPowerStateAsync();
         this.lowPowerMode = powerState.lowPowerMode;

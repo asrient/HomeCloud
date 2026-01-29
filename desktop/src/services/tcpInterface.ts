@@ -12,7 +12,7 @@ export default class TCPInterface extends ConnectionInterface {
     private server: net.Server | null = null;
     private connections: Map<string, net.Socket> = new Map();
     private port: number;
-    private onIncomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
+    private onIncomingConnectionCallback: ((dataChannel: GenericDataChannel, fingerprint?: string) => void) | null = null;
 
     /**
      * Creates an instance of TCPInterface.
@@ -24,11 +24,22 @@ export default class TCPInterface extends ConnectionInterface {
         this.discovery = new Discovery(port);
     }
 
+    getServicePort(): number | null {
+        if (this.server && this.server.listening) {
+            return this.port;
+        }
+        return null;
+    }
+
+    getServiceAddresses(): string[] {
+        return this.discovery.getHostLocalAddresses();
+    }
+
     /**
      * Sets the callback for incoming connections.
      * @param {function} callback - Callback function to handle incoming data channels.
      */
-    onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void): void {
+    onIncomingConnection(callback: (dataChannel: GenericDataChannel, fingerprint?: string) => void): void {
         this.onIncomingConnectionCallback = callback;
     }
 
@@ -149,6 +160,28 @@ export default class TCPInterface extends ConnectionInterface {
         });
     }
 
+    private setupConnectListener() {
+        const localSc = modules.getLocalServiceController();
+        localSc.account.peerConnectRequestSignal.add(async (request) => {
+            console.log('[TCPInterface] Received peer connect request via account server for fingerprint:', request.fingerprint);
+            try {
+                const dataChannel = await this.connect({
+                    fingerprint: request.fingerprint,
+                    connectionType: ConnectionType.LOCAL,
+                    data: {
+                        hosts: request.addresses,
+                        port: request.port,
+                    },
+                });
+                if (this.onIncomingConnectionCallback) {
+                    this.onIncomingConnectionCallback(dataChannel, request.fingerprint);
+                }
+            } catch (error) {
+                console.error('[TCPInterface] Error connecting to peer from connect request:', error);
+            }
+        });
+    }
+
     /**
      * Starts the TCP server and discovery service.
      * @returns {Promise<void>} A promise that resolves when the service is started.
@@ -157,6 +190,7 @@ export default class TCPInterface extends ConnectionInterface {
         return new Promise(async (resolve, reject) => {
             try {
                 await this.discovery.setup();
+                this.setupConnectListener();
                 // Start the TCP server
                 this.server = net.createServer({
                     keepAlive: true,

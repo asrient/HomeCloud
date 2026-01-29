@@ -2,6 +2,7 @@ import { Service, serviceStartMethod, serviceStopMethod, RPCController, getMetho
 import { GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo, SignalEvent } from "./types";
 import { RPCPeer } from "./rpc";
 import Signal, { SignalNodeRef } from "./signals";
+import { sleep } from "./utils";
 
 let rpcCounter = 0;
 
@@ -14,7 +15,7 @@ type ConnectionRecord = {
 };
 
 export abstract class ConnectionInterface {
-    abstract onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void): void;
+    abstract onIncomingConnection(callback: (dataChannel: GenericDataChannel, fingerprint?: string) => void): void;
     abstract connect(candidate: PeerCandidate): Promise<GenericDataChannel>;
     abstract getCandidates(fingerprint?: string): Promise<PeerCandidate[]>;
     abstract onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void;
@@ -23,6 +24,14 @@ export abstract class ConnectionInterface {
 
     abstract start(): Promise<void>;
     abstract stop(): Promise<void>;
+
+    getServicePort(): number | null {
+        return null;
+    }
+
+    getServiceAddresses(): string[] {
+        return [];
+    }
 }
 
 class ServiceControllerProxyFactory {
@@ -55,6 +64,8 @@ export class NetService extends Service {
     public connectionSignal = new Signal<[SignalEvent, ConnectionInfo]>();
 
     private connectionLock: Map<string, Signal<[RPCController | Error]>> = new Map();
+
+    private availableCandidates: Map<string, PeerCandidate[]> = new Map();
 
     private connectionInterfaces: Map<ConnectionType, ConnectionInterface>;
 
@@ -90,8 +101,8 @@ export class NetService extends Service {
         this._init();
         this.connectionInterfaces = connectionInterfaces;
         this.connectionInterfaces.forEach((connectionInterface, type) => {
-            connectionInterface.onIncomingConnection((dataChannel) => {
-                this.setupConnection(type, null, dataChannel).catch((error) => {
+            connectionInterface.onIncomingConnection((dataChannel, fingerprint) => {
+                this.setupConnection(type, fingerprint || null, dataChannel).catch((error) => {
                     console.error(`[NetService] Error setting up incoming connection on ${type}:`, error);
                 });
             });
@@ -101,8 +112,45 @@ export class NetService extends Service {
         });
     }
 
+    private addAvailableCandidate(fingerprint: string, candidate: PeerCandidate) {
+        candidate.expiry = candidate.expiry || Date.now() + 5 * 60 * 1000; // 5 minutes expiry
+        if (!this.availableCandidates.has(fingerprint)) {
+            this.availableCandidates.set(fingerprint, []);
+        }
+        const candidates = this.availableCandidates.get(fingerprint);
+        // Check if candidate already exists
+        candidates?.push(candidate);
+    }
+
+    private getAvailableCandidates(fingerprint: string): PeerCandidate[] {
+        const now = Date.now();
+        const candidates = this.availableCandidates.get(fingerprint) || [];
+        // Filter out expired candidates
+        const validCandidates = candidates.filter(c => c.expiry && c.expiry > now);
+        this.availableCandidates.set(fingerprint, validCandidates);
+        return validCandidates;
+    }
+
+    private removeAvailableCandidate(fingerprint: string, candidate?: PeerCandidate) {
+        const candidates = this.availableCandidates.get(fingerprint);
+        if (candidates) {
+            if (!candidate) {
+                this.availableCandidates.delete(fingerprint);
+                return;
+            }
+            const index = candidates.findIndex(c => c === candidate);
+            if (index !== -1) {
+                candidates.splice(index, 1);
+            }
+        }
+    }
+
     private async handleCandidateAvailable(type: ConnectionType, candidate: PeerCandidate) {
         const fingerprint = candidate.fingerprint;
+        // add to available candidates
+        this.addAvailableCandidate(fingerprint, candidate);
+
+        // Check if auto-connect is needed
         if (fingerprint && this.autoConnectFingerprints.has(fingerprint)) {
             // Check if already connected
             // if (this.connections.has(fingerprint)) {
@@ -111,8 +159,18 @@ export class NetService extends Service {
             // }
             // Check if there is already a connection in progress
             if (this.connectionLock.has(fingerprint)) {
-                console.log(`[NetService] Connection already in progress for ${fingerprint}, skipping auto-connect.`);
-                return;
+                // Wait for existing connection to complete, and then check if failed, if so, try again with this candidate
+                const existingSignal = this.connectionLock.get(fingerprint);
+                const result = await new Promise<RPCController | Error>((resolve) => {
+                    const binding = existingSignal.add((data: RPCController | Error) => {
+                        existingSignal.detach(binding);
+                        resolve(data);
+                    });
+                });
+                if (result instanceof RPCController) {
+                    console.log(`[NetService] Connection to ${fingerprint} already established while waiting for existing connection, skipping auto-connect.`);
+                    return;
+                }
             }
             // Acquire the lock
             const newSignal = this.setupConnectionLock(fingerprint);
@@ -195,9 +253,25 @@ export class NetService extends Service {
         return lockSignal;
     }
 
+    public getConnectionInterface(type: ConnectionType): ConnectionInterface | null {
+        const connectionInterface = this.connectionInterfaces.get(type);
+        if (connectionInterface) {
+            return connectionInterface;
+        }
+        return null;
+    }
+
     private async createConnection<T extends RPCController>(fingerprint: string) {
         const signal = this.setupConnectionLock(fingerprint);
         const candidates = await this.getCandidates(fingerprint);
+        // append available candidates from cache
+        const cachedCandidates = this.getAvailableCandidates(fingerprint);
+        for (const cachedCandidate of cachedCandidates) {
+            // Avoid duplicates
+            if (!candidates.find(c => c === cachedCandidate)) {
+                candidates.push(cachedCandidate);
+            }
+        }
         if (candidates.length === 0) {
             const err = new Error(`No candidates found for fingerprint ${fingerprint}`);
             if (this.connectionLock.has(fingerprint) && this.connectionLock.get(fingerprint) === signal) {
@@ -206,13 +280,20 @@ export class NetService extends Service {
             }
             return null;
         }
+        // Sort candidates by priority (higher priority first)
+        candidates.sort((a, b) => {
+            const priorityA = a.priority || 0;
+            const priorityB = b.priority || 0;
+            return priorityB - priorityA;
+        });
         for (const candidate of candidates) {
             if (candidate.fingerprint === fingerprint) {
-                const connectionInterface = this.connectionInterfaces.get(candidate.connectionType);
+                const connectionInterface = this.getConnectionInterface(candidate.connectionType);
                 if (connectionInterface) {
                     try {
                         console.log(`Connecting to ${fingerprint} on ${candidate.connectionType}`);
                         const dataChannel = await connectionInterface.connect(candidate);
+                        this.removeAvailableCandidate(fingerprint, candidate);
                         const sc = await this.setupConnection(candidate.connectionType, fingerprint, dataChannel);
                         return sc as T;
                     }
@@ -221,6 +302,15 @@ export class NetService extends Service {
                     }
                 }
             }
+        }
+        // No connection could be established, trigger brokered local connect as last resort
+        try {
+            console.log(`[NetService] Trying brokered local connect for ${fingerprint}`);
+            await this.requestConnectLocal(fingerprint);
+            // Sleep for a short while to allow incoming connection to arrive and resolve the lock
+            await sleep(6000);
+        } catch (error) {
+            console.error(`[NetService] Error requesting brokered local connect for ${fingerprint}:`, error);
         }
         if (this.connectionLock.has(fingerprint) && this.connectionLock.get(fingerprint) === signal) {
             signal.dispatch(new Error(`No connection interface found for fingerprint ${fingerprint}`));
@@ -439,6 +529,32 @@ export class NetService extends Service {
                 }
             });
         });
+    }
+
+    async requestConnectLocal(fingerprint: string): Promise<void> {
+        const tcpInterface = this.getConnectionInterface(ConnectionType.LOCAL);
+        if (!tcpInterface) {
+            console.warn('[NetService] Cannot request local connect, TCP interface not available.');
+            return;
+        }
+        const addresses = tcpInterface.getServiceAddresses();
+        const port = tcpInterface.getServicePort();
+        if (addresses.length === 0 || !port) {
+            console.warn('[NetService] Cannot request local connect, no local addresses or port available.');
+            return;
+        }
+        const localSc = modules.getLocalServiceController();
+        const isServerConnected = localSc.account.isServerConnected();
+        if (!isServerConnected) {
+            console.warn('[NetService] Cannot get brokered candidate, not connected to account server.');
+            return;
+        }
+        const isPeerOnline = await localSc.account.isPeerOnline(fingerprint);
+        if (!isPeerOnline) {
+            console.warn('[NetService] Cannot get brokered candidate, peer is offline:', fingerprint);
+            return;
+        }
+        await localSc.account.requestPeerConnect(fingerprint, addresses, port);
     }
 
     @assertServiceRunning

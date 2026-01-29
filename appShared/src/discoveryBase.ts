@@ -31,6 +31,10 @@ export class DiscoveryBase {
         this.hostAddresses = addresses;
     }
 
+    public getHostLocalAddresses(): string[] {
+        return this.hostAddresses.filter(addr => isLocalIp(addr));
+    }
+
     /**
      * Caches IP addresses for a fingerprint along with the interface it was seen on.
      * @param fingerprint - The device fingerprint

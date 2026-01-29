@@ -6,7 +6,8 @@ import {
     AccountLinkVerifyRequest,
     WebcInit,
     WebcPeerData,
-    WebcReject
+    WebcReject,
+    PeerConnectRequest,
 } from "./types";
 import globalComms from "./globalComms";
 import { ObjectId } from "mongodb";
@@ -17,6 +18,7 @@ import { getFingerprintFromPem, verifySignature } from "./signHelper";
 import { AccountLinkSignedPayloadSchema, WebSocketEventSchema } from "./schema";
 import emailService from "./emailService";
 import { UDP_PORT } from "./config";
+import { isPeerOnline as checkPeerOnline } from "./peerDispatch";
 
 export function healthCheck() {
     return { status: 'ok' };
@@ -356,4 +358,37 @@ export async function relayWebcPeerData(pin: string, address: string, port: numb
     };
     console.log(`Relaying WebC peer data PIN=${pin}`, message);
     await notifyPeer(targetId, 'webc_peer_data', message);
+}
+
+export async function isPeerOnline(peer: Peer): Promise<{ isOnline: boolean }> {
+    const isOnline = await checkPeerOnline(objectIdtoStr(peer._id));
+    return { isOnline };
+}
+
+export async function requestPeerConnect(
+    sourcePeerId: string | ObjectId,
+    targetPeer: Peer,
+    addresses: string[],
+    port: number
+): Promise<void> {
+    // Get source peer's fingerprint
+    const sourceFingerprint = await mcdb.getPeerFingerprint(sourcePeerId);
+    if (!sourceFingerprint) {
+        throw CustomError.generic('Source peer fingerprint not found');
+    }
+
+    // Check if target peer is online
+    const isOnline = await checkPeerOnline(objectIdtoStr(targetPeer._id));
+    if (!isOnline) {
+        throw CustomError.generic('Target peer is not online');
+    }
+
+    // Send connect request to target peer
+    const connectRequest: PeerConnectRequest = {
+        fingerprint: sourceFingerprint,
+        addresses,
+        port,
+    };
+    
+    await notifyPeer(targetPeer._id, 'connect_request', connectRequest);
 }

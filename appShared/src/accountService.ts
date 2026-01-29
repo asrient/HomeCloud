@@ -2,7 +2,7 @@ import Signal from "./signals";
 import { HttpClientCompat, WsClientCompat } from "./compat";
 import { Service, serviceStartMethod, serviceStopMethod } from "./servicePrimatives";
 import ConfigStorage from "./storage";
-import { AccountLinkResponse, AccountLinkVerifyResponse, PeerInfo, StoreNames, WebcInit, WebcPeerData, WebcReject } from "./types";
+import { AccountLinkResponse, AccountLinkVerifyResponse, PeerConnectRequest, PeerInfo, StoreNames, WebcInit, WebcPeerData, WebcReject } from "./types";
 import CustomError, { ErrorType } from "./customError";
 
 const USER_AGENT = "MediaCenter-AppClient/1.0";
@@ -19,6 +19,7 @@ enum WebSocketEvent {
     PEER_ADDED = "peer_added",
     PEER_REMOVED = "peer_removed",
     AUTH_ERROR = "auth_error",
+    PEER_CONNECT_REQUEST = "connect_request",
 }
 
 enum WebSocketAction {
@@ -42,6 +43,8 @@ export class AccountService extends Service {
     public accountLinkSignal = new Signal<[boolean]>();
 
     public websocketConnectionSignal = new Signal<[boolean]>();
+
+    public peerConnectRequestSignal = new Signal<[PeerConnectRequest]>();
 
     private buildApiUrl(path: string, params?: Record<string, string | number>): URL {
         const baseUrl = modules.config.SERVER_URL;
@@ -109,6 +112,9 @@ export class AccountService extends Service {
                 console.warn("WebSocket auth error received.");
                 this.resetToken();
                 this.webSocket.close();
+                break;
+            case WebSocketEvent.PEER_CONNECT_REQUEST:
+                this.peerConnectRequestSignal.dispatch(data as PeerConnectRequest);
                 break;
             default:
                 console.warn(`Unknown WebSocket event: ${event}`);
@@ -260,6 +266,22 @@ export class AccountService extends Service {
         return respData as PeerInfo[];
     }
 
+    public async isPeerOnline(fingerprint: string): Promise<boolean> {
+        const resp = await this.getWithAuth("/api/peer/online", { fingerprint });
+        await this.assertSuccess(resp, 'json');
+        const respData = await resp.json();
+        return respData.isOnline as boolean;
+    }
+
+    public async requestPeerConnect(fingerprint: string, addresses: string[], port: number): Promise<void> {
+        const resp = await this.postWithAuth("/api/peer/hello", {
+            fingerprint,
+            addresses,
+            port,
+        });
+        await this.assertSuccess(resp);
+    }
+
     public async updatePeerInfo(peerInfo: PeerInfo): Promise<void> {
         const resp = await this.postWithAuth("/api/peer/update", peerInfo);
         await this.assertSuccess(resp);
@@ -343,6 +365,8 @@ export class AccountService extends Service {
 
     private retryTimer: number | null = null;
     private retryDelay = 40 * 1000; // 40 seconds
+    private pingInterval: number | null = null;
+    private readonly PING_INTERVAL = 90 * 1000; // 90 seconds (1.5 mins)
 
     private retryConnect = () => {
         if (!this.isServiceRunning()) return;
@@ -357,6 +381,7 @@ export class AccountService extends Service {
 
     private handleWebsocketClose = async () => {
         if (!this.isServiceRunning()) return;
+        this.stopPingInterval();
         if (this.isActive) {
             this.websocketConnectionSignal.dispatch(false);
             this.isActive = false;
@@ -380,10 +405,39 @@ export class AccountService extends Service {
             this.retryTimer = null;
         }
         this.retryDelay = 1000; // Reset delay
+        // Start ping interval
+        this.startPingInterval();
         // Send initial auth token
         this.isActive = true;
         this.websocketConnectionSignal.dispatch(true);
     };
+
+    private startPingInterval() {
+        this.stopPingInterval();
+        // Send initial ping
+        this.sendPing();
+        // Set up interval for subsequent pings
+        this.pingInterval = setInterval(() => {
+            this.sendPing();
+        }, this.PING_INTERVAL);
+    }
+
+    private stopPingInterval() {
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+            this.pingInterval = null;
+        }
+    }
+
+    private sendPing() {
+        if (this.webSocket.isConnected()) {
+            try {
+                this.webSocket.send(JSON.stringify({ type: "ping" }));
+            } catch (err) {
+                console.error("Failed to send ping:", err);
+            }
+        }
+    }
 
     private async resetAccountData() {
         this.accountLinkSignal.dispatch(false);

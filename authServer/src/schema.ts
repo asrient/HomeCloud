@@ -26,6 +26,7 @@ export const WebSocketEventSchema = z.enum([
     "peer_added",
     "peer_removed",
     "auth_error",
+    "connect_request",
 ]);
 
 export const WebSocketActionSchema = z.enum([
@@ -80,6 +81,18 @@ export const WebcInitRequestSchema = z.object({
 // Peer fingerprint schema
 export const PeerFingerprintOptionalSchema = z.object({
     fingerprint: z.string().nullable(),
+}).strict();
+
+// Peer fingerprint required schema
+export const PeerFingerprintSchema = z.object({
+    fingerprint: z.string(),
+}).strict();
+
+// Peer connect request schema (used for both API request and WebSocket event payload)
+export const PeerConnectRequestSchema = z.object({
+    fingerprint: z.string(),
+    addresses: z.array(z.string()),
+    port: z.number(),
 }).strict();
 
 // WebcInit schema
