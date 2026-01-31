@@ -69,6 +69,7 @@ export class RPCPeer {
 
     private isStandby: boolean = false;
     private isRemoteStandby: boolean = false;
+    private isClosed: boolean = false;
 
     constructor(private opts: RPCPeerOptions) {
         this.parser = new DataChannelParser({ onFrame: this.onFrame });
@@ -207,6 +208,8 @@ export class RPCPeer {
     }
 
     public close(isDisconnected = false) {
+        if (this.isClosed) return;
+        this.isClosed = true;
         console.log('Closing RPCPeer connection');
         if (!isDisconnected) {
             this.opts.dataChannel.disconnect();
@@ -241,7 +244,7 @@ export class RPCPeer {
                     this.handleTargetReady(payload);
                     break;
                 case MessageType.REQUEST:
-                    this.handleRequest(payload);
+                    await this.handleRequest(payload);
                     break;
                 case MessageType.RESPONSE:
                     this.handleResponse(payload);
@@ -382,23 +385,23 @@ export class RPCPeer {
 
     private parseJson(text: string) {
         try {
-        return JSON.parse(text, (_, v) => {
-            if (!!v && v.__rpc_stream_id__ && typeof v.__rpc_stream_id__ === 'number') {
-                const id = v.__rpc_stream_id__;
-                const stream = new ReadableStream<Uint8Array>({
-                    start: ctrl => {
-                        this.streamControllers.set(id, ctrl);
-                    },
-                    cancel: () => {
-                        this.cancelStream(id);
-                        this.streamControllers.delete(id);
-                    }
-                });
+            return JSON.parse(text, (_, v) => {
+                if (!!v && v.__rpc_stream_id__ && typeof v.__rpc_stream_id__ === 'number') {
+                    const id = v.__rpc_stream_id__;
+                    const stream = new ReadableStream<Uint8Array>({
+                        start: ctrl => {
+                            this.streamControllers.set(id, ctrl);
+                        },
+                        cancel: () => {
+                            this.cancelStream(id);
+                            this.streamControllers.delete(id);
+                        }
+                    });
 
-                return stream;
-            }
-            return v;
-        });
+                    return stream;
+                }
+                return v;
+            });
         } catch (e) {
             console.error('Failed to parse JSON', e);
             console.debug('JSON text:', text);
@@ -435,7 +438,14 @@ export class RPCPeer {
             }
         } catch (e) {
             console.error('Error handling request', e);
-            await this.sendError(callId, e.message || 'Unknown error');
+            try {
+                await this.sendError(callId, e.message || 'Unknown error');
+            } catch (sendErr) {
+                // If we can't send the error (e.g., socket closed), just log it
+                if (!this.isClosed) {
+                    console.error('Failed to send error response:', sendErr);
+                }
+            }
         }
     }
 
@@ -550,21 +560,34 @@ export class RPCPeer {
         const reader = source.getReader();
 
         const pump = async () => {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const payload = new Uint8Array(4 + value.byteLength);
-                new DataView(payload.buffer).setUint32(0, streamId, false);
-                payload.set(value, 4);
-                await this.sendFrame(MessageType.STREAM_CHUNK, payload);
-            }
+            try {
+                while (true) {
+                    if (this.isClosed) {
+                        reader.cancel();
+                        return;
+                    }
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const payload = new Uint8Array(4 + value.byteLength);
+                    new DataView(payload.buffer).setUint32(0, streamId, false);
+                    payload.set(value, 4);
+                    await this.sendFrame(MessageType.STREAM_CHUNK, payload);
+                }
 
-            const end = new Uint8Array(4);
-            new DataView(end.buffer).setUint32(0, streamId, false);
-            await this.sendFrame(MessageType.STREAM_END, end);
+                if (!this.isClosed) {
+                    const end = new Uint8Array(4);
+                    new DataView(end.buffer).setUint32(0, streamId, false);
+                    await this.sendFrame(MessageType.STREAM_END, end);
+                }
+            } catch (e) {
+                if (!this.isClosed) {
+                    console.error('Error in stream pump:', e);
+                }
+                reader.cancel().catch(() => { });
+            }
         };
 
-        pump();
+        pump().catch(() => { });
     }
 
     private async cancelStream(streamId: number) {
@@ -574,7 +597,19 @@ export class RPCPeer {
     }
 
     private async sendFrame(type: MessageType, payload: Uint8Array) {
+        if (this.isClosed) {
+            console.warn("[RPCPeer] Attempted to send frame on closed connection");
+            return; // Silently ignore sends on closed connection
+        }
         const framed = DataChannelParser.encode(type, 0x00, payload);
-        await this.opts.dataChannel.send(framed);
+        try {
+            await this.opts.dataChannel.send(framed);
+        } catch (e) {
+            if (!this.isClosed) {
+                console.error('Error sending frame:', e);
+                throw e;
+            }
+            // If closed, silently ignore the error
+        }
     }
 }
