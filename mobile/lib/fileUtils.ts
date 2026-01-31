@@ -267,5 +267,6 @@ export function extractFolderParamsFromRoute(route: { params: FolderRouteParams 
 
 export function extractNameFromPath(path: string): string {
     // handle both / and \ as path separators
-    return decodeURIComponent(Paths.basename(path));
+    const normalizedPath = path.replace(/\\/g, '/');
+    return decodeURIComponent(Paths.basename(normalizedPath));
 }

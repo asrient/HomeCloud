@@ -323,7 +323,7 @@ export function getPathChain(path: string): RemoteItem[] {
         }
         chain.push({
             path: currentPath,
-            name: part,
+            name: decodeURIComponent(part),
             type: 'directory',
             size: 0,
             mimeType: '',
