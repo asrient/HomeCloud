@@ -82,8 +82,10 @@ export async function linkAccount(payload: AccountLinkSignedPayload): Promise<Ac
 
     await globalComms.setKV(`linkRequest_${requestId}`, JSON.stringify(waitingLink), pin ? 15 * 60 : 5 * 60); // 15 mins if pin, else 5 mins
 
+    const deviceName = peerInfo?.deviceName || 'Your Device';
+
     if (requiresVerification && pin) {
-        emailService.sendEmail(account.email, `Your verification PIN is: ${pin}`);
+        await emailService.sendEmail(account.email, `Login PIN for ${deviceName}`, `Your verification PIN is: ${pin}`);
     }
     return {
         requestId,
@@ -597,6 +599,6 @@ export async function requestPeerConnect(
         addresses,
         port,
     };
-    
+
     await notifyPeer(targetPeer._id, 'connect_request', connectRequest);
 }
