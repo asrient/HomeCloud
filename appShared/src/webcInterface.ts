@@ -2,6 +2,7 @@ import { ReDatagram } from "./reUdpProtocol";
 import { DatagramCompat } from "./compat";
 import { ConnectionInterface } from "./netService";
 import { ConnectionType, GenericDataChannel, PeerCandidate, WebcInit, WebcPeerData, WebcReject } from "./types";
+import { filterValidBonjourIps } from "./utils";
 
 /*
 Establishes a UDP connection to another peer using a intermediatory server for NAT traversal.
@@ -9,31 +10,47 @@ Establishes a UDP connection to another peer using a intermediatory server for N
 
 const MAX_RETRY_ATTEMPTS = 8;
 const RETRY_INTERVAL_MS = 600;
-const SAME_NETWORK_ERROR_MSG = 'Same Network';
+const SAME_NETWORK_ERROR_MSG = 'ERR_LOCAL_NET';
 const CONNECTION_TIMEOUT_MS = 30 * 1000; // 30 seconds
+
+type UdpConnectionOptions = {
+    dgram: DatagramCompat;
+    pin: string;
+    serverAddress: string;
+    serverPort: number;
+    onConnected?: (reDatagram: ReDatagram) => void;
+    onError?: (err?: Error | string) => void;
+};
 
 export class UdpConnection {
     private dgram: DatagramCompat;
+    private pin: string;
+    private serverAddress: string;
+    private serverPort: number;
     private onConnectedCallback?: (reDatagram: ReDatagram) => void;
     private onErrorCallback?: (err?: Error | string) => void;
+
     private isServerAcked = false;
     private isTerminated = false;
     private peerAddress?: string;
     private peerPort?: number;
     private reDatagram?: ReDatagram;
     private connectionTimeoutId?: ReturnType<typeof setTimeout>;
-
-    constructor(dgram: DatagramCompat, onConnectedCallback?: (reDatagram: ReDatagram) => void, onErrorCallback?: (err?: Error | string) => void) {
-        this.dgram = dgram;
-        this.onConnectedCallback = onConnectedCallback;
-        this.onErrorCallback = onErrorCallback;
-    }
-
+    private hasTriedLocalRelay = false;
     private retryAttempts = 0;
 
-    public startConnection(serverAddress: string, serverPort: number, pin: string) {
-        const helloMsg = new TextEncoder().encode(`PIN=${pin}`);
-        console.log("Starting UDP connection to server:", serverAddress, serverPort, "with PIN:", pin);
+    constructor(options: UdpConnectionOptions) {
+        this.dgram = options.dgram;
+        this.pin = options.pin;
+        this.serverAddress = options.serverAddress;
+        this.serverPort = options.serverPort;
+        this.onConnectedCallback = options.onConnected;
+        this.onErrorCallback = options.onError;
+    }
+
+    public startConnection() {
+        const helloMsg = new TextEncoder().encode(`PIN=${this.pin}`);
+        console.log("Starting UDP connection to server:", this.serverAddress, this.serverPort, "with PIN:", this.pin);
 
         // Set a timeout for the entire connection establishment
         this.connectionTimeoutId = setTimeout(() => {
@@ -52,16 +69,16 @@ export class UdpConnection {
                 }
                 return;
             }
-            this.dgram.send(helloMsg, serverPort, serverAddress);
+            this.dgram.send(helloMsg, this.serverPort, this.serverAddress);
             this.retryAttempts++;
         }, RETRY_INTERVAL_MS);
 
         // Send the first hello immediately
-        this.dgram.send(helloMsg, serverPort, serverAddress);
+        this.dgram.send(helloMsg, this.serverPort, this.serverAddress);
 
         this.dgram.onMessage = (msg, rinfo) => {
             // verify it's from the server
-            if (rinfo.port !== serverPort) {
+            if (rinfo.port !== this.serverPort) {
                 console.warn("Received message from unknown source:", rinfo);
                 return;
             }
@@ -110,6 +127,65 @@ export class UdpConnection {
         this.checkConnectionEstablished();
     }
 
+    /**
+ * Get local network addresses for local relay fallback.
+ * Default implementation gets addresses from the LOCAL (TCP) connection interface.
+ * Can be overridden by platform-specific implementations if needed.
+ */
+    private getLocalAddresses(): string[] {
+        try {
+            const localSc = modules.getLocalServiceController();
+            const tcpInterface = localSc.net.getConnectionInterface(ConnectionType.LOCAL);
+            if (tcpInterface) {
+                return filterValidBonjourIps(tcpInterface.getServiceAddresses());
+            }
+        } catch (err) {
+            console.warn('[WebCInterface] Failed to get local addresses:', err);
+        }
+        return [];
+    }
+
+    /**
+     * Handle same network error by requesting local relay.
+     * Gets local addresses and port, then calls the API to request local relay.
+     * Returns true if local relay was requested, false if already tried or failed.
+     */
+    public async switchToLocalNetwork(): Promise<boolean> {
+        if (this.isTerminated) {
+            console.warn('[UdpConnection] Connection already terminated, cannot switch to local network.');
+            return false;
+        }
+
+        if (this.hasTriedLocalRelay) {
+            console.warn('[UdpConnection] Already tried local relay, giving up.');
+            return false;
+        }
+
+        this.hasTriedLocalRelay = true;
+
+        const localAddresses = this.getLocalAddresses();
+        const localPort = this.getLocalPort();
+
+        if (!localAddresses.length || !localPort) {
+            console.warn('[UdpConnection] Cannot request local relay: no local addresses or port available.');
+            this.terminate('No local addresses available for local relay.');
+            return false;
+        }
+
+        console.log('[UdpConnection] Same network detected, requesting local relay. PIN:', this.pin, 'Addresses:', localAddresses, 'Port:', localPort);
+
+        try {
+            const localSc = modules.getLocalServiceController();
+            await localSc.account.requestWebcLocal(this.pin, localAddresses, localPort);
+            console.log('[UdpConnection] Local relay request sent, waiting for new peer data...');
+            return true;
+        } catch (err: any) {
+            console.error('[UdpConnection] Failed to request local relay:', err);
+            this.terminate(err?.message || 'Local relay request failed');
+            return false;
+        }
+    }
+
     public terminate(err?: string) {
         if (this.isTerminated) {
             return;
@@ -156,6 +232,18 @@ export class UdpConnection {
     public getReDatagram(): ReDatagram | undefined {
         return this.reDatagram;
     }
+
+    public getLocalPort(): number | null {
+        try {
+            return this.dgram.address().port;
+        } catch {
+            return null;
+        }
+    }
+
+    public isConnectionTerminated(): boolean {
+        return this.isTerminated;
+    }
 }
 
 const DEFAULT_SERVER_PORT = 9669;
@@ -168,6 +256,8 @@ export abstract class WebcInterface extends ConnectionInterface {
     private waitingPeerData = new Map<string, { isReject: boolean, peerData?: WebcPeerData, cleanupTimer: number, sameNetworkError?: boolean }>();
 
     abstract createDatagramSocket(): DatagramCompat;
+
+
 
     onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void) {
         this.onIncomingConnectionCallback = callback;
@@ -186,36 +276,45 @@ export abstract class WebcInterface extends ConnectionInterface {
         const dgram = this.createDatagramSocket();
         await dgram.bind();
         console.log("[WebCInterface] Datagram socket bound for connection:", dgram.address());
+
+        const localSc = modules.getLocalServiceController();
+
         return new Promise<GenericDataChannel>((resolve, reject) => {
             let isSettled = false;
-            const udpConnection = new UdpConnection(dgram, (reDatagram) => {
-                const dataChannel = this.createDataChannel(reDatagram);
-                if (!isSettled) {
-                    isSettled = true;
-                    resolve(dataChannel);
-                }
-            }, (err?) => {
-                if (!isSettled) {
-                    if (err === SAME_NETWORK_ERROR_MSG) {
-                        console.log('[WebCInterface] Peer is on the same local network.');
+
+            const udpConnection = new UdpConnection({
+                dgram,
+                pin: webcInit.pin,
+                serverAddress: webcInit.serverAddress || this.getDefaultServerAddress(),
+                serverPort: webcInit.serverPort || DEFAULT_SERVER_PORT,
+                onConnected: (reDatagram) => {
+                    const dataChannel = this.createDataChannel(reDatagram);
+                    if (!isSettled) {
+                        isSettled = true;
+                        resolve(dataChannel);
                     }
-                    isSettled = true;
-                    reject(err || new Error("UDP socket closed."));
-                }
+                },
+                onError: (err?) => {
+                    if (!isSettled) {
+                        isSettled = true;
+                        reject(err || new Error("UDP socket closed."));
+                    }
+                },
             });
 
-            udpConnection.startConnection(
-                webcInit.serverAddress || this.getDefaultServerAddress(),
-                webcInit.serverPort || DEFAULT_SERVER_PORT,
-                webcInit.pin
-            );
+            udpConnection.startConnection();
 
             // check if we already have peer data waiting
             const waitingEntry = this.waitingPeerData.get(webcInit.pin);
             if (waitingEntry) {
                 clearTimeout(waitingEntry.cleanupTimer);
                 if (waitingEntry.isReject || !waitingEntry.peerData) {
-                    udpConnection.terminate(waitingEntry.sameNetworkError ? SAME_NETWORK_ERROR_MSG : "Connection rejected.");
+                    if (waitingEntry.sameNetworkError) {
+                        // Handle same network error asynchronously
+                        udpConnection.switchToLocalNetwork();
+                    } else {
+                        udpConnection.terminate("Connection rejected.");
+                    }
                 }
                 else {
                     console.log("[WebCInterface] Found waiting peer data for PIN:", webcInit.pin, waitingEntry.peerData);
@@ -239,7 +338,10 @@ export abstract class WebcInterface extends ConnectionInterface {
                 entry.connection.terminate();
                 reject(new Error("Timed out waiting for peer data."));
             }, 60000); // 60 seconds timeout
-            this.waitingForPeerData.set(webcInit.pin, { connection: udpConnection, cleanupTimer: timer });
+            this.waitingForPeerData.set(webcInit.pin, {
+                connection: udpConnection,
+                cleanupTimer: timer
+            });
         });
     }
 
@@ -358,18 +460,23 @@ export abstract class WebcInterface extends ConnectionInterface {
         });
 
         localSc.account.webcRejectSignal.add((webcReject: WebcReject) => {
-            // todo: check if its actually a same-network error
+            const isSameNetworkError = webcReject.message === SAME_NETWORK_ERROR_MSG;
             const waitingEntry = this.waitingForPeerData.get(webcReject.pin);
             if (waitingEntry) {
                 clearTimeout(waitingEntry.cleanupTimer);
-                waitingEntry.connection.terminate(SAME_NETWORK_ERROR_MSG);
-                this.waitingForPeerData.delete(webcReject.pin);
+                if (isSameNetworkError) {
+                    // Don't terminate, let UdpConnection handle local relay
+                    waitingEntry.connection.switchToLocalNetwork();
+                } else {
+                    waitingEntry.connection.terminate(webcReject.message);
+                    this.waitingForPeerData.delete(webcReject.pin);
+                }
                 console.warn("WebC connection rejected for PIN:", webcReject.pin, "Message:", webcReject.message);
             } else {
                 const cleanupTimer = setTimeout(() => {
                     this.waitingPeerData.delete(webcReject.pin);
                 }, 2 * 60000); // 2 minutes timeout
-                this.waitingPeerData.set(webcReject.pin, { isReject: true, cleanupTimer, sameNetworkError: true });
+                this.waitingPeerData.set(webcReject.pin, { isReject: true, cleanupTimer, sameNetworkError: isSameNetworkError });
             }
         });
     }

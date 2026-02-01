@@ -18,6 +18,7 @@ import {
     WebcInitRequestSchema,
     PeerFingerprintOptionalSchema,
     PeerFingerprintSchema,
+    WebcLocalPeerDataSchema,
     PeerConnectRequestSchema,
 } from './schema';
 import { ObjectId } from 'mongodb';
@@ -41,6 +42,7 @@ export type AccountLinkVerifyRequest = z.infer<typeof AccountLinkVerifyRequestSc
 export type WebcInitRequest = z.infer<typeof WebcInitRequestSchema>;
 export type PeerFingerprintOptional = z.infer<typeof PeerFingerprintOptionalSchema>;
 export type PeerFingerprint = z.infer<typeof PeerFingerprintSchema>;
+export type WebcLocalPeerData = z.infer<typeof WebcLocalPeerDataSchema>;
 export type PeerConnectRequest = z.infer<typeof PeerConnectRequestSchema>;
 
 /* Database Types */

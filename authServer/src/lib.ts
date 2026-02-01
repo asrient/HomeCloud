@@ -12,13 +12,15 @@ import {
 import globalComms from "./globalComms";
 import { ObjectId } from "mongodb";
 import mcdb from "./db";
-import { objectIdtoStr, verifyJwtToken, uniqueCode, generatePin, generateJwtToken, code } from "./utils";
+import { objectIdtoStr, verifyJwtToken, uniqueCode, generatePin, generateJwtToken, code, isSameNetwork } from "./utils";
 import CustomError from "./customError";
 import { getFingerprintFromPem, verifySignature } from "./signHelper";
-import { AccountLinkSignedPayloadSchema, WebSocketEventSchema } from "./schema";
+import { AccountLinkSignedPayloadSchema } from "./schema";
 import emailService from "./emailService";
 import { UDP_PORT } from "./config";
 import { isPeerOnline as checkPeerOnline } from "./peerDispatch";
+
+const LOCAL_NETWORK_ERROR = 'ERR_LOCAL_NET';
 
 export function healthCheck() {
     return { status: 'ok' };
@@ -284,7 +286,13 @@ type WebcInitCache = {
     targetPin: string;
 }
 
-export async function createWebcInit(sourcePeerId: string | ObjectId, remotePeer: Peer): Promise<WebcInit> {
+export async function createWebcInit({
+    sourcePeerId,
+    remotePeer,
+}: {
+    sourcePeerId: string | ObjectId;
+    remotePeer: Peer;
+}): Promise<WebcInit> {
     const sourceFingerprint = await mcdb.getPeerFingerprint(sourcePeerId);
     if (!sourceFingerprint) {
         throw new Error('Source peer fingerprint not found');
@@ -319,6 +327,23 @@ export async function createWebcInit(sourcePeerId: string | ObjectId, remotePeer
     return initForSource;
 }
 
+type WebcPendingPeer = {
+    targetId: string;  // ID of the OTHER peer (to send their data to)
+    pin: string;       // This peer's own PIN
+    address: string;
+    port: number;
+}
+
+/**
+ * Relays WebC peer data between two peers.
+ * 
+ * Peer A: The peer that calls this function first (waits for Peer B)
+ * Peer B: The peer that calls this function second (triggers the relay to both)
+ * 
+ * Flow:
+ * 1. Peer A submits their data → stored, waits for Peer B
+ * 2. Peer B submits their data → both peers' data is relayed simultaneously
+ */
 export async function relayWebcPeerData(pin: string, address: string, port: number): Promise<void> {
     const isRelayed = await globalComms.getKV(`webc_relayed_${pin}`);
     if (isRelayed) {
@@ -331,38 +356,221 @@ export async function relayWebcPeerData(pin: string, address: string, port: numb
     }
     const { targetId, targetPin } = JSON.parse(data) as WebcInitCache;
 
-    // Check if the other peer has already relayed their data
-    // If their IP is the same as this peer's IP, reject as loopback (same network)
-    const otherPeerAddress = await globalComms.getKV(`webc_relayed_${targetPin}`);
-    const isLoopback = otherPeerAddress === address;
+    // Current peer's data (will be Peer A if first, Peer B if second)
+    const currentPeer: WebcPendingPeer = {
+        targetId, // ID of the OTHER peer (to send this peer's data to)
+        pin,
+        address,
+        port,
+    };
+    await globalComms.setKV(`webc_pending_${pin}`, JSON.stringify(currentPeer), 2 * 60); // 2 mins expiry
 
-    // Clean up cache to prevent retriggering
+    // Clean up init cache
     await globalComms.deleteKV(`webc_init_${pin}`);
-    // Set up a short-lived cache flag for idempotency, store the IP address for loopback detection
-    await globalComms.setKV(`webc_relayed_${pin}`, address, 2 * 60); // 2 mins
+    // Set up a short-lived cache flag for idempotency
+    await globalComms.setKV(`webc_relayed_${pin}`, 'true', 2 * 60); // 2 mins
 
-    if (isLoopback) {
-        const rejectMessage: WebcReject = {
-            pin: targetPin,
-            message: 'Network not supported.',
-        };
-        console.log(`Rejecting WebC peer data PIN=${pin} due to loopback`, rejectMessage);
-        await notifyPeer(targetId, 'webc_reject', rejectMessage);
-        throw new Error('Network not supported.');
+    // Check if the other peer (Peer A) has already submitted their data
+    const peerADataStr = await globalComms.getKV(`webc_pending_${targetPin}`);
+    if (!peerADataStr) {
+        // We are Peer A - other peer hasn't submitted yet, wait for them
+        console.log(`WebC: Peer A (PIN=${pin}) stored, waiting for Peer B`);
+        return;
     }
 
-    const message: WebcPeerData = {
-        pin: targetPin,
-        peerAddress: address,
-        peerPort: port,
+    // We are Peer B - Peer A has already submitted, now relay data to both
+    const peerA = JSON.parse(peerADataStr) as WebcPendingPeer;
+    const peerB: WebcPendingPeer = currentPeer;
+
+    // Check for loopback (same network) - both peers have the same public IP
+    const isSameNetwork = peerA.address === peerB.address;
+
+    // Clean up pending caches
+    await globalComms.deleteKV(`webc_pending_${peerA.pin}`);
+    await globalComms.deleteKV(`webc_pending_${peerB.pin}`);
+
+    if (isSameNetwork) {
+        // Store pin mapping for relayWebcLocal to use later
+        // Each pin maps to: who owns it, who the target is, and target's pin
+        const cacheForPeerA: WebcLocalRelayCache = {
+            peerId: peerB.targetId,      // owner of peerA.pin
+            targetPeerId: peerA.targetId, // the other peer (owner of peerB.pin)
+            targetPin: peerB.pin,
+        };
+        const cacheForPeerB: WebcLocalRelayCache = {
+            peerId: peerA.targetId,      // owner of peerB.pin
+            targetPeerId: peerB.targetId, // the other peer (owner of peerA.pin)
+            targetPin: peerA.pin,
+        };
+        await globalComms.setKV(`webc_local_${peerA.pin}`, JSON.stringify(cacheForPeerA), 2 * 60); // 2 mins
+        await globalComms.setKV(`webc_local_${peerB.pin}`, JSON.stringify(cacheForPeerB), 2 * 60); // 2 mins
+
+        // Notify both peers about the rejection so they can attempt local relay
+        const rejectForPeerA: WebcReject = {
+            pin: peerA.pin,
+            message: LOCAL_NETWORK_ERROR,
+        };
+        const rejectForPeerB: WebcReject = {
+            pin: peerB.pin,
+            message: LOCAL_NETWORK_ERROR,
+        };
+        console.log(`WebC: Rejecting Peer A (PIN=${peerA.pin}) and Peer B (PIN=${peerB.pin}) - same network, awaiting local relay`);
+        await Promise.all([
+            notifyPeer(peerB.targetId, 'webc_reject', rejectForPeerA),  // peerB.targetId = owner of peerA.pin
+            notifyPeer(peerA.targetId, 'webc_reject', rejectForPeerB),  // peerA.targetId = owner of peerB.pin
+        ]);
+        throw new Error(LOCAL_NETWORK_ERROR);
+    }
+
+    // Send each peer the other's address info
+    // peerB.targetId = owner of peerA.pin, peerA.targetId = owner of peerB.pin
+    const messageForPeerA: WebcPeerData = {
+        pin: peerA.pin,
+        peerAddress: peerB.address,
+        peerPort: peerB.port,
     };
-    console.log(`Relaying WebC peer data PIN=${pin}`, message);
-    await notifyPeer(targetId, 'webc_peer_data', message);
+    const messageForPeerB: WebcPeerData = {
+        pin: peerB.pin,
+        peerAddress: peerA.address,
+        peerPort: peerA.port,
+    };
+    console.log(`WebC: Relaying data between Peer A (PIN=${peerA.pin}) and Peer B (PIN=${peerB.pin})`);
+    await Promise.all([
+        notifyPeer(peerB.targetId, 'webc_peer_data', messageForPeerA),  // send to owner of peerA.pin
+        notifyPeer(peerA.targetId, 'webc_peer_data', messageForPeerB),  // send to owner of peerB.pin
+    ]);
 }
 
 export async function isPeerOnline(peer: Peer): Promise<{ isOnline: boolean }> {
     const isOnline = await checkPeerOnline(objectIdtoStr(peer._id));
     return { isOnline };
+}
+
+type WebcLocalRelayCache = {
+    peerId: string;       // owner of this pin
+    targetPeerId: string; // the other peer
+    targetPin: string;    // the other peer's pin
+}
+
+type WebcLocalPendingPeer = {
+    peerId: string;
+    targetPeerId: string;
+    addresses: string[];
+    port: number;
+}
+
+/**
+ * Relays local network addresses between two peers on the same network.
+ * 
+ * Called after relayWebcPeerData detects same network (LOCAL_NETWORK_ERROR).
+ * Both peers submit their local addresses, and once both have submitted,
+ * we find matching network addresses and relay them to each other.
+ * 
+ * Peer A: The peer that calls this function first (waits for Peer B)
+ * Peer B: The peer that calls this function second (triggers the relay to both)
+ * 
+ * @param peerId - The ID of the peer making this request (from auth token)
+ * @param pin - The PIN assigned to this peer during webc init
+ * @param addresses - List of local IP addresses of this peer
+ * @param port - The local port this peer is listening on
+ */
+export async function relayWebcLocal(peerId: string, pin: string, addresses: string[], port: number): Promise<void> {
+    // Check if already relayed
+    const isRelayed = await globalComms.getKV(`webc_local_relayed_${pin}`);
+    if (isRelayed) {
+        return;
+    }
+
+    // Get the local relay cache created by relayWebcPeerData
+    const cacheStr = await globalComms.getKV(`webc_local_${pin}`);
+    if (!cacheStr) {
+        throw new Error('Invalid or expired PIN for local relay.');
+    }
+    const cache = JSON.parse(cacheStr) as WebcLocalRelayCache;
+
+    // Verify that the peerId matches the owner of this pin
+    if (cache.peerId !== peerId) {
+        throw CustomError.security('PIN does not belong to this peer');
+    }
+
+    // Store current peer's local data
+    const currentPeer: WebcLocalPendingPeer = {
+        peerId: cache.peerId,
+        targetPeerId: cache.targetPeerId,
+        addresses,
+        port,
+    };
+    await globalComms.setKV(`webc_local_pending_${pin}`, JSON.stringify(currentPeer), 2 * 60); // 2 mins
+
+    // Set idempotency flag
+    await globalComms.setKV(`webc_local_relayed_${pin}`, 'true', 2 * 60); // 2 mins
+
+    // Check if the other peer has already submitted their local data
+    const otherPeerDataStr = await globalComms.getKV(`webc_local_pending_${cache.targetPin}`);
+    if (!otherPeerDataStr) {
+        // Other peer hasn't submitted yet, wait for them
+        console.log(`WebC Local: Peer (PIN=${pin}) stored, waiting for other peer`);
+        return;
+    }
+
+    // Both peers have submitted, now find matching network and relay
+    const otherPeer = JSON.parse(otherPeerDataStr) as WebcLocalPendingPeer;
+
+    // Clean up caches
+    await globalComms.deleteKV(`webc_local_pending_${pin}`);
+    await globalComms.deleteKV(`webc_local_pending_${cache.targetPin}`);
+    await globalComms.deleteKV(`webc_local_${pin}`);
+    await globalComms.deleteKV(`webc_local_${cache.targetPin}`);
+
+    // Find the best matching address pair using isSameNetwork
+    let addressForCurrentPeer: string | null = null;
+    let addressForOtherPeer: string | null = null;
+
+    for (const addrCurrent of currentPeer.addresses) {
+        for (const addrOther of otherPeer.addresses) {
+            if (isSameNetwork(addrCurrent, addrOther)) {
+                addressForCurrentPeer = addrOther; // current peer connects to other's address
+                addressForOtherPeer = addrCurrent; // other peer connects to current's address
+                break;
+            }
+        }
+        if (addressForCurrentPeer) break;
+    }
+
+    if (!addressForCurrentPeer || !addressForOtherPeer) {
+        // No matching network found, reject both peers
+        const rejectForCurrent: WebcReject = {
+            pin: pin,
+            message: 'No matching local network found.',
+        };
+        const rejectForOther: WebcReject = {
+            pin: cache.targetPin,
+            message: 'No matching local network found.',
+        };
+        console.log(`WebC Local: No matching network for PIN=${pin} and PIN=${cache.targetPin}`);
+        await Promise.all([
+            notifyPeer(currentPeer.peerId, 'webc_reject', rejectForCurrent),
+            notifyPeer(otherPeer.peerId, 'webc_reject', rejectForOther),
+        ]);
+        throw new Error('No matching local network found.');
+    }
+
+    // Send each peer the other's local address info
+    const messageForCurrent: WebcPeerData = {
+        pin: pin,
+        peerAddress: addressForCurrentPeer,
+        peerPort: otherPeer.port,
+    };
+    const messageForOther: WebcPeerData = {
+        pin: cache.targetPin,
+        peerAddress: addressForOtherPeer,
+        peerPort: currentPeer.port,
+    };
+    console.log(`WebC Local: Relaying between PIN=${pin} (addr=${addressForOtherPeer}) and PIN=${cache.targetPin} (addr=${addressForCurrentPeer})`);
+    await Promise.all([
+        notifyPeer(currentPeer.peerId, 'webc_peer_data', messageForCurrent),
+        notifyPeer(otherPeer.peerId, 'webc_peer_data', messageForOther),
+    ]);
 }
 
 export async function requestPeerConnect(

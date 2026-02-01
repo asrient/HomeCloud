@@ -91,3 +91,47 @@ export function zodToCustomError(error: any): CustomError {
     }
     return error;
 }
+
+
+export function isIpV4(address: string): boolean {
+    const ipv4Regex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    return ipv4Regex.test(address);
+}
+
+export function isSameNetwork(netA: string, netB: string): boolean {
+    const partsA = netA.split('.').map(part => parseInt(part, 10));
+    const partsB = netB.split('.').map(part => parseInt(part, 10));
+    if (partsA.length !== 4 || partsB.length !== 4) {
+        return false;
+    }
+    return partsA[0] === partsB[0] && partsA[1] === partsB[1];
+}
+
+/* 
+Check if an IP address is in a local/private range
+VALID RANGES:
+- 10.0.0.0 to 10.255.255.255
+- 172.16.0.0 to 172.31.255.255
+- 192.168.0.0 to 192.168.255.255
+- 127.0.0.0 to 127.255.255.255 (localhost)
+*/
+export function isLocalIp(address: string): boolean {
+    if (!isIpV4(address)) {
+        return false;
+    }
+    const parts = address.split('.').map(part => parseInt(part, 10));
+    return (
+        parts[0] === 10 ||
+        (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+        (parts[0] === 192 && parts[1] === 168) ||
+        (parts[0] === 127)
+    );
+}
+
+export function isLoopbackIp(address: string): boolean {
+    if (!isIpV4(address)) {
+        return false;
+    }
+    const parts = address.split('.').map(part => parseInt(part, 10));
+    return parts[0] === 127;
+}

@@ -3,7 +3,7 @@ import * as z from "zod";
 // Enum schemas
 export const OSTypeSchema = z.enum([
     "windows",
-    "macos", 
+    "macos",
     "linux",
     "android",
     "ios",
@@ -13,7 +13,7 @@ export const OSTypeSchema = z.enum([
 export const DeviceFormTypeSchema = z.enum([
     "desktop",
     "laptop",
-    "mobile", 
+    "mobile",
     "tablet",
     "unknown",
     "server"
@@ -75,7 +75,6 @@ export const AccountLinkVerifyRequestSchema = z.object({
 // Webc init request schema
 export const WebcInitRequestSchema = z.object({
     fingerprint: z.string(),
-    localAddresses: z.array(z.string()).optional(),
 }).strict();
 
 // Peer fingerprint schema
@@ -95,19 +94,26 @@ export const PeerConnectRequestSchema = z.object({
     port: z.number(),
 }).strict();
 
+// Webc local peer data schema (request for local relay)
+export const WebcLocalPeerDataSchema = z.object({
+    pin: z.string(),
+    addresses: z.array(z.string()).min(1),
+    port: z.number().min(1).max(65535),
+}).strict();
+
 // WebcInit schema
 export const WebcInitSchema = z.object({
     fingerprint: z.string(),
     pin: z.string(),
     serverAddress: z.string().optional(),
-    serverPort: z.number().optional(),
+    serverPort: z.number().min(1).max(65535).optional(),
 }).strict();
 
 // WebcPeerData schema
 export const WebcPeerDataSchema = z.object({
     pin: z.string(),
     peerAddress: z.string(),
-    peerPort: z.number(),
+    peerPort: z.number().min(1).max(65535),
 }).strict();
 
 // Webc Reject schema
@@ -118,7 +124,7 @@ export const WebcRejectSchema = z.object({
 
 // Event Schema
 export const EventSchema = z.object({
-    type: z.string(),
+    type: WebSocketEventSchema,
     data: z.any(),
 }).strict();
 

@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { getFn, getTokenContextOrThrow, postFn } from './expressHelper';
-import { assertAccountPeer, assertPeerById, createWebcInit, getPeersForAccount, healthCheck, isPeerOnline, linkPeer, removePeer, requestPeerConnect, updatePeer, verifyLink } from './lib';
-import { AccountLinkRequest, AccountLinkVerifyRequest, PeerInfo, WebcInitRequest, PeerFingerprintOptional, Peer, PeerFingerprint, PeerConnectRequest } from './types';
-import { AccountLinkRequestSchema, AccountLinkVerifyRequestSchema, PeerInfoSchema, WebcInitRequestSchema, PeerFingerprintOptionalSchema, PeerFingerprintSchema, PeerConnectRequestSchema } from './schema';
+import { assertAccountPeer, assertPeerById, createWebcInit, getPeersForAccount, healthCheck, isPeerOnline, linkPeer, removePeer, relayWebcLocal, updatePeer, verifyLink, requestPeerConnect } from './lib';
+import { AccountLinkRequest, AccountLinkVerifyRequest, PeerInfo, WebcInitRequest, PeerFingerprintOptional, Peer, PeerFingerprint, WebcLocalPeerData, PeerConnectRequest } from './types';
+import { AccountLinkRequestSchema, AccountLinkVerifyRequestSchema, PeerInfoSchema, WebcInitRequestSchema, PeerFingerprintOptionalSchema, PeerFingerprintSchema, WebcLocalPeerDataSchema, PeerConnectRequestSchema } from './schema';
 import { auth, requireAuth } from './middlewares';
+import { isLocalIp, isLoopbackIp } from './utils';
 
 
 const appRouter = Router();
@@ -48,7 +49,7 @@ appRouter.get('/peer', getFn((data, req) => {
 appRouter.post('/webc/init', postFn<WebcInitRequest>(async (data, req) => {
     const { accountId, peerId } = getTokenContextOrThrow(req);
     const remotePeer = await assertAccountPeer(accountId, data.fingerprint);
-    return createWebcInit(peerId, remotePeer);
+    return createWebcInit({ sourcePeerId: peerId, remotePeer });
 }, WebcInitRequestSchema));
 
 appRouter.get('/peer/online', getFn<PeerFingerprint>(async (data, req) => {
@@ -56,6 +57,19 @@ appRouter.get('/peer/online', getFn<PeerFingerprint>(async (data, req) => {
     const peer = await assertAccountPeer(accountId, data!.fingerprint);
     return isPeerOnline(peer);
 }, PeerFingerprintSchema));
+
+appRouter.post('/webc/local', postFn<WebcLocalPeerData>(async (data, req) => {
+    const { peerId } = getTokenContextOrThrow(req);
+    // Make sure ip addresses are ipv4 and private ranges
+    const filteredAddresses = data.addresses.filter(addr => {
+        return isLocalIp(addr) && !isLoopbackIp(addr);
+    });
+    if (filteredAddresses.length === 0) {
+        throw new Error('No valid local addresses provided');
+    }
+    return relayWebcLocal(peerId, data.pin, filteredAddresses, data.port);
+}, WebcLocalPeerDataSchema));
+
 
 appRouter.post('/peer/hello', postFn<PeerConnectRequest>(async (data, req) => {
     const { accountId, peerId } = getTokenContextOrThrow(req);

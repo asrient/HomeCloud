@@ -311,6 +311,15 @@ export class AccountService extends Service {
         return resp.json();
     }
 
+    public async requestWebcLocal(pin: string, addresses: string[], port: number): Promise<void> {
+        const resp = await this.postWithAuth("/api/webc/local", {
+            pin,
+            addresses,
+            port,
+        });
+        await this.assertSuccess(resp);
+    }
+
     public async init(opts: AccountOpts) {
         this._init();
         this.httpClient = opts.httpClient;
