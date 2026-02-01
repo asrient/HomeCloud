@@ -181,7 +181,7 @@ export default class Discovery extends DiscoveryBase {
     }
 
     isServiceVaild(service: Service, skipLoopback?: boolean): boolean {
-        if (service.addresses.length === 0) {
+        if (!service.addresses || service.addresses.length === 0) {
             return false;
         }
         return this.validateTxtRecords(service.txt as BonjourTxt, skipLoopback);
