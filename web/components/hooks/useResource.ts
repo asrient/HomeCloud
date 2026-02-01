@@ -49,7 +49,7 @@ export const useResource = ({
         setIsLoading(true);
         setError(null);
         try {
-            if (!serviceControllerRef.current) {
+            if (!serviceControllerRef.current || !isConnected) {
                 serviceControllerRef.current = await getServiceController(deviceFingerprint);
             }
             if (shouldAbort()) {
@@ -72,7 +72,7 @@ export const useResource = ({
             isLoadingRef.current = false;
             setIsLoading(false);
         }
-    }, [deviceFingerprint, load]);
+    }, [deviceFingerprint, load, isConnected]);
 
     useEffect(() => {
         if (isLoadingRef.current && deviceFingerprint === currentFingerprint.current) {
