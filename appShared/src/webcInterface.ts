@@ -223,6 +223,7 @@ export class UdpConnection {
                     this.reDatagram = undefined;
                     // reDatagram should have closed the dgram already.
                     this.onErrorCallback?.(new Error("Failed to establish ReDatagram connection."));
+                    return;
                 }
                 this.onConnectedCallback?.(this.reDatagram);
             });
