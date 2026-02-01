@@ -91,6 +91,14 @@ export class UdpConnection {
             }
             else if (msgStr.startsWith("ERROR=")) {
                 const errorMsg = msgStr.substring(6);
+                // Handle same network error specially - don't terminate, switch to local relay
+                if (errorMsg === SAME_NETWORK_ERROR_MSG) {
+                    console.log("[UdpConnection] Received same network error from server, switching to local relay.");
+                    this.isServerAcked = true; // Mark as acked so we can receive peer data
+                    this.dgram.onMessage = undefined; // stop listening for server messages
+                    this.switchToLocalNetwork();
+                    return;
+                }
                 console.error("Server error:", errorMsg);
                 this.isTerminated = true;
                 this.onErrorCallback?.(new Error(errorMsg));
@@ -121,6 +129,10 @@ export class UdpConnection {
     }
 
     public addPeerDetails(peerAddress: string, peerPort: number) {
+        if (this.isTerminated) {
+            console.warn("[UdpConnection] Connection terminated, ignoring peer details.");
+            return;
+        }
         console.log("Received peer details:", peerAddress, peerPort);
         this.peerAddress = peerAddress;
         this.peerPort = peerPort;
