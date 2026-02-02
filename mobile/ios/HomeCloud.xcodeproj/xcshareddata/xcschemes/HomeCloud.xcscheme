@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "MediaCenter.app"
-               BlueprintName = "MediaCenter"
-               ReferencedContainer = "container:MediaCenter.xcodeproj">
+               BuildableName = "HomeCloud.app"
+               BlueprintName = "HomeCloud"
+               ReferencedContainer = "container:HomeCloud.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "MediaCenterTests.xctest"
-               BlueprintName = "MediaCenterTests"
-               ReferencedContainer = "container:MediaCenter.xcodeproj">
+               BuildableName = "HomeCloudTests.xctest"
+               BlueprintName = "HomeCloudTests"
+               ReferencedContainer = "container:HomeCloud.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "MediaCenter.app"
-            BlueprintName = "MediaCenter"
-            ReferencedContainer = "container:MediaCenter.xcodeproj">
+            BuildableName = "HomeCloud.app"
+            BlueprintName = "HomeCloud"
+            ReferencedContainer = "container:HomeCloud.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "MediaCenter.app"
-            BlueprintName = "MediaCenter"
-            ReferencedContainer = "container:MediaCenter.xcodeproj">
+            BuildableName = "HomeCloud.app"
+            BlueprintName = "HomeCloud"
+            ReferencedContainer = "container:HomeCloud.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

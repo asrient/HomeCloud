@@ -7,7 +7,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>Media Center</string>
+    <string>HomeCloud</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -27,8 +27,8 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>mediacenter</string>
-          <string>com.asrient.mediacenter</string>
+          <string>homecloud</string>
+          <string>com.asrient.homecloud</string>
         </array>
       </dict>
     </array>
@@ -57,21 +57,21 @@
     </dict>
     <key>NSBonjourServices</key>
     <array>
-      <string>mcservice._tcp.</string>
-      <string>_mcservice._tcp.</string>
-      <string>_mcservice._tcp</string>
-      <string>mcservice._tcp</string>
+      <string>homecloud._tcp.</string>
+      <string>_homecloud._tcp.</string>
+      <string>_homecloud._tcp</string>
+      <string>homecloud._tcp</string>
     </array>
     <key>NSCameraUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your camera</string>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>Find and connect to your other Media Center devices over wifi.</string>
+    <string>Find and connect to your other HomeCloud devices over wifi.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your microphone</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to save photos</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Media Center accesses your photos to let you send them with to your other devices.</string>
+    <string>HomeCloud accesses your photos to let you send them with to your other devices.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
