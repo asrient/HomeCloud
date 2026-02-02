@@ -230,7 +230,7 @@ export async function authenticate(token: string): Promise<TokenType> {
         const tokenData = verifyJwtToken(token);
         const exists = await peerExistsCached(tokenData.peerId);
         if (!exists) {
-            throw new Error('Peer does not exist');
+            throw CustomError.security('Peer does not exist');
         }
         return tokenData;
     } catch (e: any) {
@@ -297,7 +297,7 @@ export async function createWebcInit({
 }): Promise<WebcInit> {
     const sourceFingerprint = await mcdb.getPeerFingerprint(sourcePeerId);
     if (!sourceFingerprint) {
-        throw new Error('Source peer fingerprint not found');
+        throw CustomError.generic('Source peer fingerprint not found');
     }
     // create 2 webc init objects: one for source peer, one for remote peer
     // return the one for source peer and send the other to remote peer via globalComms
@@ -354,7 +354,7 @@ export async function relayWebcPeerData(pin: string, address: string, port: numb
     }
     const data = await globalComms.getKV(`webc_init_${pin}`);
     if (!data) {
-        throw new Error('Invalid PIN.');
+        throw CustomError.generic('Invalid PIN.');
     }
     const { targetId, targetPin } = JSON.parse(data) as WebcInitCache;
 
@@ -421,7 +421,7 @@ export async function relayWebcPeerData(pin: string, address: string, port: numb
             notifyPeer(peerB.targetId, 'webc_reject', rejectForPeerA),  // peerB.targetId = owner of peerA.pin
             notifyPeer(peerA.targetId, 'webc_reject', rejectForPeerB),  // peerA.targetId = owner of peerB.pin
         ]);
-        throw new Error(LOCAL_NETWORK_ERROR);
+        throw CustomError.generic(LOCAL_NETWORK_ERROR);
     }
 
     // Send each peer the other's address info
@@ -486,7 +486,7 @@ export async function relayWebcLocal(peerId: string, pin: string, addresses: str
     // Get the local relay cache created by relayWebcPeerData
     const cacheStr = await globalComms.getKV(`webc_local_${pin}`);
     if (!cacheStr) {
-        throw new Error('Invalid or expired PIN for local relay.');
+        throw CustomError.generic('Invalid or expired PIN for local relay.');
     }
     const cache = JSON.parse(cacheStr) as WebcLocalRelayCache;
 
@@ -554,7 +554,7 @@ export async function relayWebcLocal(peerId: string, pin: string, addresses: str
             notifyPeer(currentPeer.peerId, 'webc_reject', rejectForCurrent),
             notifyPeer(otherPeer.peerId, 'webc_reject', rejectForOther),
         ]);
-        throw new Error('No matching local network found.');
+        throw CustomError.generic('No matching local network found.');
     }
 
     // Send each peer the other's local address info
