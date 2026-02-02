@@ -3,7 +3,7 @@ import plist from "plist";
 import * as win32Clipboard from "./drivers/win32";
 import { ClipboardFile } from "shared/types";
 
-const CUSTOM_CLIPBOARD_TYPE = 'application/x-mediacenter-files';
+const CUSTOM_CLIPBOARD_TYPE = 'application/x-homecloud-files';
 
 /**
  * Writes file paths to the clipboard using native Windows API.

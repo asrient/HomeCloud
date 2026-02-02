@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/dialog";
 import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { Button } from "../ui/button";
-import { cn, isMacosTheme } from "@/lib/utils";
+import { cn, isMacosTheme, getAppName } from "@/lib/utils";
 import Image from "next/image";
 
 function Bulletin({ icon, title, description }: { icon: string; title: string; description: string }) {
@@ -25,7 +25,7 @@ function IntroHero() {
             <Bulletin
                 icon="/icons/devices.png"
                 title="Multi-device access"
-                description="Access or transfer your media from any device with Media Center."
+                description={`Access or transfer your media from any device with ${getAppName()}.`}
             />
             <Bulletin
                 icon="/icons/photos.png"
@@ -45,7 +45,7 @@ function IntroHero() {
             <Bulletin
                 icon="/icons/internet.png"
                 title="Always connected"
-                description="Dont worry about WiFi networks or internet access, Media Center just works."
+                description={`Dont worry about WiFi networks or internet access, ${getAppName()} just works.`}
             />
             <Bulletin
                 icon="/icons/lock.png"
@@ -72,7 +72,7 @@ export function WelcomePage() {
     return (
         <>
             <DialogHeader>
-                <DialogTitle className="text-3xl font-bold ml-2">Welcome to Media Center</DialogTitle>
+                <DialogTitle className="text-3xl font-bold ml-2">Welcome to {getAppName()}</DialogTitle>
             </DialogHeader>
             <IntroHero />
             <DialogFooter className="flex sm:justify-center sm:items-center sm:w-full">

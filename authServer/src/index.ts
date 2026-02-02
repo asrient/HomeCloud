@@ -27,7 +27,7 @@ app.use(setupRequestContext);
 
 // Attach routes
 app.get('/', function (_req, res) {
-  res.send('MediaCenter Online.');
+  res.send('HomeCloud Online.');
 });
 
 app.use('/api', apiRouter);

@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "Media Center",
-    "slug": "media-center",
+    "name": "HomeCloud",
+    "slug": "homecloud",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mediacenter",
+    "scheme": "homecloud",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.asrient.mediacenter",
+      "bundleIdentifier": "com.asrient.homecloud",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
@@ -22,12 +22,12 @@
           }
         },
         "NSBonjourServices": [
-          "mcservice._tcp.",
-          "_mcservice._tcp.",
-          "_mcservice._tcp",
-          "mcservice._tcp"
+          "homecloud._tcp.",
+          "_homecloud._tcp.",
+          "_homecloud._tcp",
+          "homecloud._tcp"
         ],
-        "NSLocalNetworkUsageDescription": "Find and connect to your other Media Center devices over wifi.",
+        "NSLocalNetworkUsageDescription": "Find and connect to your other HomeCloud devices over wifi.",
         "UISupportsDocumentBrowser": true,
         "UIFileSharingEnabled": true,
         "LSSupportsOpeningDocumentsInPlace": true
@@ -95,7 +95,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Media Center accesses your photos to let you send them with to your other devices."
+          "photosPermission": "HomeCloud accesses your photos to let you send them with to your other devices."
         }
       ],
       [

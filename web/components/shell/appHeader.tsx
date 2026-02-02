@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { DeviceSwitcher } from "../deviceSwitcher";
 import { ArrowLeft } from 'lucide-react';
 import { useNavigation } from "../hooks/useNavigation";
+import { getAppName } from "@/lib/utils";
 
 export default function AppHeader() {
     const { canGoBack, goBack } = useNavigation();
@@ -17,7 +18,7 @@ export default function AppHeader() {
                 </Button>
             </div>
             <div className="grow h-full w-full app-dragable flex items-center pl-2">
-                Media Center
+                {getAppName()}
             </div>
         </div>
         <div className="mx-1">

@@ -10,6 +10,7 @@ import { ThemedIconName } from "@/lib/enums";
 import { DeviceInfo } from "shared/types";
 import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { useAccountState } from "@/components/hooks/useAccountState";
+import { getAppName } from '@/lib/utils';
 
 function Page() {
 
@@ -86,7 +87,7 @@ function Page() {
           <div className='mt-6 mb-5 flex items-center justify-center font-base text-foreground/70'>
             <Image src='/icons/icon.png' priority alt='HomeCloud' width={25} height={25} />
             <div className='pl-2 text-sm'>
-              Media Center. Asrient's Studio, 2025.
+              {getAppName()}. Asrient's Studio, 2025.
             </div>
           </div>
         </FormContainer>

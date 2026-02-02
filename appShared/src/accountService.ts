@@ -5,7 +5,7 @@ import ConfigStorage from "./storage";
 import { AccountLinkResponse, AccountLinkVerifyResponse, PeerConnectRequest, PeerInfo, StoreNames, WebcInit, WebcPeerData, WebcReject } from "./types";
 import CustomError, { ErrorType } from "./customError";
 
-const USER_AGENT = "MediaCenter-AppClient/1.0";
+const USER_AGENT = "HomeCloud-AppClient/1.0";
 
 export type AccountOpts = {
     httpClient: HttpClientCompat;

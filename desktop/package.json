@@ -1,8 +1,8 @@
 {
-  "name": "homecloud-desktop",
-  "productName": "Control Center",
+  "name": "homecloud",
+  "productName": "HomeCloud",
   "version": "1.0.0",
-  "description": "Control Center for your devices",
+  "description": "HomeCloud for your devices",
   "main": "dist/index.js",
   "scripts": {
     "watch": "tsc --watch",

@@ -2,6 +2,13 @@ import { OSType } from "@/lib/types";
 import { DeviceInfo } from "shared/types";
 import { Platform } from "react-native";
 
+export function getAppName() {
+  if ((global as any).modules?.config?.APP_NAME) {
+    return (global as any).modules.config.APP_NAME;
+  }
+  return '[app]';
+}
+
 
 export function printFingerprint(fingerprint: string, full = false) {
     if (full) {

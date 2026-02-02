@@ -206,3 +206,10 @@ export function isMacos(): boolean {
 export function isWindows(): boolean {
   return window.modules.config.OS === OSType.Windows;
 }
+
+export function getAppName() {
+  if (window.modules?.config?.APP_NAME) {
+    return window.modules.config.APP_NAME;
+  }
+  return '[app]';
+}

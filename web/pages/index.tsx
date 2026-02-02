@@ -23,6 +23,7 @@ import { Slider } from "@/components/ui/slider"
 import { DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DisksGrid } from '@/components/DisksGrid';
+import { getAppName } from '@/lib/utils';
 
 const DrivesSection = ({
   fingerprint,
@@ -365,10 +366,10 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Media Center</title>
+        <title>{getAppName()}</title>
       </Head>
 
-      <PageBar icon={ThemedIconName.Home} title='Media Center'>
+      <PageBar icon={ThemedIconName.Home} title={getAppName()}>
       </PageBar>
       <PageContent>
         {peer && <PeerInfoHero peer={peer} isThisDevice={selectedFingerprint === null} />}

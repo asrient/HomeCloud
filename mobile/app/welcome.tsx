@@ -5,6 +5,7 @@ import { UIText } from '@/components/ui/UIText';
 import { useRouter } from 'expo-router';
 import { useAccountState } from '@/hooks/useAccountState';
 import { UIButton } from '@/components/ui/UIButton';
+import { getAppName } from '@/lib/utils';
 
 export default function WelcomeScreen() {
 
@@ -28,7 +29,7 @@ export default function WelcomeScreen() {
         <UIView themeColor='backgroundSecondary' style={styles.container}>
             <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
             <View style={{ padding: 5 }} >
-                <UIText type="title">Welcome to Media Center</UIText>
+                <UIText type="title">Welcome to {getAppName()}</UIText>
             </View>
             <View style={styles.footer}>
                 <UIButton size='lg' stretch onPress={handleGetStarted} title="Get Started" />

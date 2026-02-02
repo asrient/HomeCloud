@@ -10,7 +10,7 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import { useEffect, useMemo, useState } from 'react';
 import { DeviceInfo } from 'shared/types';
 import { DeviceQuickActions } from '@/components/deviceQuickActions';
-import { isIos } from '@/lib/utils';
+import { isIos, getAppName } from '@/lib/utils';
 
 const MAX_DEVICE_NAME_LENGTH = 23;
 
@@ -34,7 +34,7 @@ export default function HomeScreen() {
   const headerTitle = useMemo(() => {
     const deviceName = selectedPeer ? selectedPeer.deviceName : 'This Device';
     if (headerHeight > 118) {
-      return 'Media Center';
+      return getAppName();
     }
     if (deviceName.length > MAX_DEVICE_NAME_LENGTH) {
       return deviceName.substring(0, MAX_DEVICE_NAME_LENGTH - 3) + '...';

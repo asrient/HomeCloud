@@ -28,6 +28,7 @@ import PreviewModal from '@/components/preview'
 import { useFolder, useStat } from '@/components/hooks/useFolders'
 import { useAppState } from '@/components/hooks/useAppState'
 import { ThemedIconName } from '@/lib/enums'
+import { getAppName } from '@/lib/utils'
 
 const Page: NextPageWithConfig = () => {
   const router = useRouter()
@@ -472,7 +473,7 @@ const Page: NextPageWithConfig = () => {
 
   if (isLoading || error) return (
     <>
-      <Head><title>Files - HomeCloud</title></Head>
+      <Head><title>Files - {getAppName()}</title></Head>
       <PageBar title={folderStat?.name || 'Folder'} icon={ThemedIconName.Folder}>
       </PageBar>
       <div className='container h-full flex flex-col justify-center items-center min-h-[90vh] p-5 text-slate-400'>

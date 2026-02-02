@@ -20,7 +20,7 @@ interface AddressCacheEntry {
 const CACHE_EXPIRY_MS = 3 * 60 * 60 * 1000;
 
 export class DiscoveryBase {
-    protected SERVICE_TYPE = 'mcservice';
+    protected SERVICE_TYPE = 'homecloud';
     protected DOMAIN = 'local.';
     protected PROTOCOL: 'tcp' | 'udp' = 'tcp';
 

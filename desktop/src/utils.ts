@@ -3,12 +3,19 @@ import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
 
+export function getAppName(): string {
+  if ((global as any).modules?.config?.APP_NAME) {
+    return (global as any).modules.config.APP_NAME;
+  }
+  return '[app]';
+}
+
 export function importModule(moduleName: string) {
     return require(`../build/Release/${moduleName}.node`);
 }
 
 const tempDir = os.tmpdir();
-const scopedTmpDir = path.join(tempDir, 'Homecloud');
+const scopedTmpDir = path.join(tempDir, 'HomeCloud');
 
 // Does not actually create the directories
 export function getPartionedTmpDir(serviceName: string) {

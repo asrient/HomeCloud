@@ -50,7 +50,7 @@ async function getConfig() {
     // Set the modules for the app
     let dataDir = Paths.join(Paths.document.uri);
     if (Platform.OS === 'ios') {
-        dataDir = Paths.join(Paths.document.uri, '.MediaCenter');
+        dataDir = Paths.join(Paths.document.uri, '.HomeCloud');
         const dir = new Directory(dataDir);
         if (!dir.exists) {
             dir.create();
@@ -70,7 +70,7 @@ async function getConfig() {
         PUBLIC_KEY_PEM: publicKeyPem,
         PRIVATE_KEY_PEM: privateKeyPem,
         FINGERPRINT: fingerprint,
-        APP_NAME: applicationName || 'Media Center',
+        APP_NAME: applicationName || 'HomeCloud',
         UI_THEME: mobilePlatform === MobilePlatform.IOS ? UITheme.Ios : UITheme.Android,
         SERVER_URL: process.env.EXPO_PUBLIC_SERVER_URL || "http://localhost:4000",
         WS_SERVER_URL: process.env.EXPO_PUBLIC_WS_SERVER_URL || "ws://localhost:4000/ws",

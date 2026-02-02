@@ -241,7 +241,7 @@ class MobileSystemService extends SystemService {
                     let deviceName = Device.deviceType === Device.DeviceType.PHONE ? 'iPhone' :
                         Device.deviceType === Device.DeviceType.TABLET ? 'iPad' : 'iOS';
                     name = `${deviceName} Storage`;
-                    path = '/Media Center/';
+                    path = `/${modules.config.APP_NAME}/`;
                 } else if (Platform.OS === 'android') {
                     name = 'Internal Storage';
                 }

@@ -12,6 +12,7 @@ import { AtSign, RectangleEllipsis } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { AccountLinkResponse } from "shared/types";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { getAppName } from "@/lib/utils";
 
 type OnboardingStep = 'email' | 'otp';
 
@@ -114,7 +115,7 @@ export function LoginPage() {
                 <p className="text-sm text-foreground/70 mb-4 w-96">
                     {
                         currentStep === 'email' ?
-                            'To manage secure access across your devices, Media Center requires you to set up an account.' :
+                            `To manage secure access across your devices, ${getAppName()} requires you to set up an account.` :
                             'We have sent a one-time password (OTP) to your email.'
                     }
                 </p>
