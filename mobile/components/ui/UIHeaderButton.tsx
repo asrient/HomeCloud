@@ -19,7 +19,7 @@ export function UIHeaderButton({
 }) {
     const themeColor = useThemeColor({}, 'icon');
 
-    const highlightColor = useThemeColor({ light: '#007AFF', dark: '#0a84ff' }, 'icon');
+    const highlightColor = useThemeColor({}, 'highlight');
 
     const contentColor = isHighlight ? highlightColor : themeColor;
 
@@ -28,7 +28,7 @@ export function UIHeaderButton({
             {
                 name && <UIIcon
                     name={name}
-                    size={28}
+                    size={26}
                     weight='regular'
                     color={contentColor}
                 />

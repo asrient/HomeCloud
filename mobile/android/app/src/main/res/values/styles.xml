@@ -1,9 +1,32 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-  <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+  <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
     <item name="android:enforceNavigationBarContrast" tools:targetApi="29">true</item>
     <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
     <item name="colorPrimary">@color/colorPrimary</item>
-    <item name="android:statusBarColor">#ffffff</item>
+    <item name="android:statusBarColor">@color/colorSurface</item>
+    <item name="colorOnPrimary">@color/colorOnPrimary</item>
+    <item name="colorPrimaryContainer">@color/colorPrimaryContainer</item>
+    <item name="colorOnPrimaryContainer">@color/colorOnPrimaryContainer</item>
+    <item name="colorSecondary">@color/colorSecondary</item>
+    <item name="colorOnSecondary">@color/colorOnSecondary</item>
+    <item name="colorSecondaryContainer">@color/colorSecondaryContainer</item>
+    <item name="colorOnSecondaryContainer">@color/colorOnSecondaryContainer</item>
+    <item name="colorTertiary">@color/colorTertiary</item>
+    <item name="colorOnTertiary">@color/colorOnTertiary</item>
+    <item name="colorTertiaryContainer">@color/colorTertiaryContainer</item>
+    <item name="colorOnTertiaryContainer">@color/colorOnTertiaryContainer</item>
+    <item name="colorError">@color/colorError</item>
+    <item name="colorOnError">@color/colorOnError</item>
+    <item name="colorErrorContainer">@color/colorErrorContainer</item>
+    <item name="colorOnErrorContainer">@color/colorOnErrorContainer</item>
+    <item name="colorSurface">@color/colorSurface</item>
+    <item name="colorOnSurface">@color/colorOnSurface</item>
+    <item name="colorSurfaceVariant">@color/colorSurfaceVariant</item>
+    <item name="colorOnSurfaceVariant">@color/colorOnSurfaceVariant</item>
+    <item name="colorOutline">@color/colorOutline</item>
+    <item name="colorOutlineVariant">@color/colorOutlineVariant</item>
+    <item name="android:colorBackground">@color/colorSurface</item>
+    <item name="android:navigationBarColor">@color/colorSurfaceContainer</item>
   </style>
   <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
     <item name="windowSplashScreenBackground">@color/splashscreen_background</item>

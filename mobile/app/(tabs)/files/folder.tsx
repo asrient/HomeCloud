@@ -1,7 +1,7 @@
 import { UIView } from '@/components/ui/UIView';
 import { useAppState } from '@/hooks/useAppState';
 import { useRouter, useNavigation } from 'expo-router';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 import { FileQuickActionType, FilesGrid, FileSortBy } from '@/components/filesGrid';
 import { ParamListBase, RouteProp, useRoute } from '@react-navigation/native';
 import { extractFolderParamsFromRoute, extractNameFromPath, FolderRouteParams, getKind } from '@/lib/fileUtils';
@@ -11,6 +11,7 @@ import { FileRemoteItem } from '@/lib/types';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UIContextMenu } from '@/components/ui/UIContextMenu';
 import { useInputPopup } from '@/hooks/usePopup';
+import { useAlert } from '@/hooks/useAlert';
 import { getLocalServiceController, getServiceController, isIos } from '@/lib/utils';
 import { UIText } from '@/components/ui/UIText';
 import { useFolder } from '@/hooks/useFolders';
@@ -31,6 +32,7 @@ export default function FolderScreen() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileRemoteItem[]>([]);
   const { openInputPopup } = useInputPopup();
+  const { showAlert } = useAlert();
   const [itemsToMove, setItemsToMove] = useState<FileRemoteItem[] | null>(null);
 
   const [sortBy, setSortBy] = useState<FileSortBy | null>(null);
@@ -118,16 +120,16 @@ export default function FolderScreen() {
             }]);
           } catch (error) {
             console.error('Failed to create folder:', error);
-            Alert.alert('Error', 'Failed to create folder. Please try again.');
+            showAlert('Error', 'Failed to create folder. Please try again.');
           }
         }
       },
     });
-  }, [fingerprint, openInputPopup, path, setRemoteItems]);
+  }, [fingerprint, openInputPopup, path, setRemoteItems, showAlert]);
 
   const deleteItems = useCallback(async (items: FileRemoteItem[]) => {
     return new Promise<boolean>((resolve, reject) => {
-      Alert.alert(
+      showAlert(
         'Delete Items',
         `Are you sure you want to delete ${items.length} item(s)? This action cannot be undone.`,
         [
@@ -150,7 +152,7 @@ export default function FolderScreen() {
                 resolve(true);
               } catch (error) {
                 console.error('Failed to delete items:', error);
-                Alert.alert('Error', 'Failed to delete items. Please try again.');
+                showAlert('Error', 'Failed to delete items. Please try again.');
                 reject(error);
               }
               finally {
@@ -161,7 +163,7 @@ export default function FolderScreen() {
         ]
       );
     });
-  }, [fingerprint, setRemoteItems]);
+  }, [fingerprint, setRemoteItems, showAlert]);
 
   const renameItem = useCallback((item: FileRemoteItem) => {
     const itemKind = getKind(item);
@@ -186,14 +188,14 @@ export default function FolderScreen() {
             );
           } catch (error) {
             console.error('Failed to rename item:', error);
-            Alert.alert('Error', 'Failed to rename item. Please try again.');
+            showAlert('Error', 'Failed to rename item. Please try again.');
           } finally {
             setCurrentOperation(null);
           }
         }
       },
     });
-  }, [fingerprint, openInputPopup, setRemoteItems]);
+  }, [fingerprint, openInputPopup, setRemoteItems, showAlert]);
 
   const deleteSelectedItems = useCallback(async () => {
     if (selectedFiles.length === 0) {
@@ -232,11 +234,11 @@ export default function FolderScreen() {
     }
     catch (error) {
       console.error('Failed to move items:', error);
-      Alert.alert('Error', 'Failed to move items. Please try again.');
+      showAlert('Error', 'Failed to move items. Please try again.');
     } finally {
       // setCurrentOperation(null);
     }
-  }, [setRemoteItems, itemsToMove]);
+  }, [setRemoteItems, itemsToMove, showAlert]);
 
   const shareItem = useCallback(async (item: FileRemoteItem) => {
     try {
@@ -246,11 +248,11 @@ export default function FolderScreen() {
     }
     catch (error) {
       console.error('Failed to share item:', error);
-      Alert.alert('Error', 'Failed to share item. Please try again.');
+      showAlert('Error', 'Failed to share item. Please try again.');
     } finally {
       //setCurrentOperation(null);
     }
-  }, []);
+  }, [showAlert]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -334,11 +336,11 @@ export default function FolderScreen() {
     }
     catch (error) {
       console.error('Failed to send items to device:', error);
-      Alert.alert('Error', 'Failed to send items to device. Please try again.');
+      showAlert('Error', 'Failed to send items to device. Please try again.');
     } finally {
       setCurrentOperation(null);
     }
-  }, []);
+  }, [showAlert]);
 
   const openInDevice = useCallback(async (item: FileRemoteItem, destFingerprint: string) => {
     try {
@@ -349,11 +351,11 @@ export default function FolderScreen() {
     }
     catch (error) {
       console.error('Failed to open item in device:', error);
-      Alert.alert('Error', 'Failed to open item in device. Please try again.');
+      showAlert('Error', 'Failed to open item in device. Please try again.');
     } finally {
       setCurrentOperation(null);
     }
-  }, []);
+  }, [showAlert]);
 
   const handleQuickAction = useCallback((action: FileQuickActionType) => {
     // console.log('Quick action triggered:', action);
@@ -369,7 +371,7 @@ export default function FolderScreen() {
         renameItem(action.item);
         break;
       case 'info':
-        Alert.alert('File Info', `Path: ${action.item.path}\nSize: ${action.item.size} bytes`);
+        showAlert('File Info', `Path: ${action.item.path}\nSize: ${action.item.size} bytes`);
         break;
       case 'openInDevice':
         if (action.targetDeviceFingerprint !== undefined) {
@@ -388,7 +390,7 @@ export default function FolderScreen() {
       default:
         console.warn('Unknown quick action:', action);
     }
-  }, [deleteItems, openInDevice, renameItem, sendToDevice, shareItem]);
+  }, [deleteItems, openInDevice, renameItem, sendToDevice, shareItem, showAlert]);
 
   return (
     <UIView style={{ flex: 1 }}>

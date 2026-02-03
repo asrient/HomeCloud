@@ -1,15 +1,16 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { initModules } from '@/lib/init';
 import { useAppState } from '@/hooks/useAppState';
-import { InputPopup } from '@/components/inputPopup';
 import { useKeepAwake } from 'expo-keep-awake';
+import { InputPopup } from '@/components/inputPopup';
+import { AlertModal } from '@/components/AlertModal';
+import { useNavigationTheme } from '@/hooks/useNavigationTheme';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -21,7 +22,7 @@ SplashScreen.setOptions({
 });
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const theme = useNavigationTheme();
   const [modulesLoaded, setModulesLoaded] = useState(false);
   const { loadAppState, clearSignals, isInitialized } = useAppState();
   useKeepAwake();
@@ -63,7 +64,7 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <ThemeProvider value={theme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
           <Stack.Screen name="settings" options={{
@@ -83,8 +84,9 @@ export default function RootLayout() {
           }} />
           <Stack.Screen name="+not-found" />
         </Stack>
-        <InputPopup />
         <StatusBar style="auto" />
+        <InputPopup />
+        <AlertModal />
       </ThemeProvider>
     </View>
   );

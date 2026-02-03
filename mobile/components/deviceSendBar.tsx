@@ -1,8 +1,7 @@
 import { PeerInfo } from "shared/types";
 import { UIView } from "./ui/UIView";
 import { UIButton } from "./ui/UIButton";
-import { TextInput } from "react-native";
-import { useThemeColor } from "@/hooks/useThemeColor";
+import { UITextInput } from "./ui/UITextInput";
 import { UIContextMenu } from './ui/UIContextMenu';
 import { useCallback, useState } from "react";
 import { getServiceController } from "shared/utils";
@@ -17,7 +16,6 @@ export type DeviceSendBarProps = {
 };
 
 export function DeviceSendBar({ peerInfo }: DeviceSendBarProps) {
-    const textColor = useThemeColor({}, 'text');
     const [isSending, setIsSending] = useState(false);
     const [text, setText] = useState('');
 
@@ -126,11 +124,11 @@ export function DeviceSendBar({ peerInfo }: DeviceSendBarProps) {
             >
                 <UIButton type="link" icon='paperclip' themeColor="icon" />
             </UIContextMenu>
-            <TextInput
+            <UITextInput
+                variant="plain"
                 style={{
                     flex: 1,
                     marginLeft: 8,
-                    color: textColor,
                 }}
                 placeholder="Send message"
                 value={text}

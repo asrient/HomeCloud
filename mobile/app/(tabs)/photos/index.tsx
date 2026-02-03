@@ -3,7 +3,7 @@ import { UIView } from '@/components/ui/UIView';
 import { useAppState } from '@/hooks/useAppState';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { Stack } from 'expo-router';
-import { Alert, Platform, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import PhotosLibrarySelectorModal from '@/components/photosLibrarySelectorModal';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -13,6 +13,7 @@ import { PhotosGrid } from '@/components/photosGrid';
 import { PhotosSortOption, PhotoView, PhotosQuickAction } from '@/lib/types';
 import { UIButton } from '@/components/ui/UIButton';
 import { getLocalServiceController, getServiceController, isIos } from '@/lib/utils';
+import { useAlert } from '@/hooks/useAlert';
 
 export default function PhotosScreen() {
   const headerHeight = useHeaderHeight();
@@ -31,6 +32,7 @@ export default function PhotosScreen() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<PhotoView[]>([]);
   const [deletedPhotoIds, setDeletedPhotoIds] = useState<string[]>([]);
+  const { showAlert } = useAlert();
 
   useEffect(() => {
     setSelectedLibrary(null);
@@ -71,14 +73,14 @@ export default function PhotosScreen() {
       await localSc.files.shareFiles(photo.deviceFingerprint, [photo.fileId], forceCache);
     } catch (e) {
       console.error("Failed to share photo:", e);
-      Alert.alert("Error", "Failed to share photo. Please try again.");
+      showAlert("Error", "Failed to share photo. Please try again.");
     }
-  }, []);
+  }, [showAlert]);
 
   const deletePhotos = useCallback(async (photos: PhotoView[]) => {
     if (!selectedLibrary) return;
 
-    Alert.alert("Confirm Delete", `Are you sure you want to delete ${photos.length} photo(s)? This action cannot be undone.`, [
+    showAlert("Confirm Delete", `Are you sure you want to delete ${photos.length} photo(s)? This action cannot be undone.`, [
       {
         text: "Cancel",
         style: "cancel"
@@ -91,7 +93,7 @@ export default function PhotosScreen() {
             const sc = await getServiceController(selectedFingerprint);
             const resp = await sc.photos.deletePhotos(selectedLibrary.id, photos.map(p => p.id));
             if (resp.deleteCount === 0) {
-              Alert.alert("Error", "Could not delete photos. Please try again.");
+              showAlert("Error", "Could not delete photos. Please try again.");
             } else {
               setDeletedPhotoIds((prev) => [...prev, ...resp.deletedIds]);
               setSelectedPhotos((prevSelected) =>
@@ -100,12 +102,12 @@ export default function PhotosScreen() {
             }
           } catch (e) {
             console.error("Failed to delete photos:", e);
-            Alert.alert("Error", "Failed to delete photos. Please try again.");
+            showAlert("Error", "Failed to delete photos. Please try again.");
           }
         }
       }
     ]);
-  }, [selectedFingerprint, selectedLibrary]);
+  }, [selectedFingerprint, selectedLibrary, showAlert]);
 
   const openInDevice = useCallback(async (photo: PhotoView, destFingerprint: string) => {
     try {
@@ -114,9 +116,9 @@ export default function PhotosScreen() {
     }
     catch (error) {
       console.error('Failed to open item in device:', error);
-      Alert.alert('Error', 'Failed to open item in device. Please try again.');
+      showAlert('Error', 'Failed to open item in device. Please try again.');
     }
-  }, []);
+  }, [showAlert]);
 
   const sendToDevice = useCallback(async (items: PhotoView[], destFingerprint: string | null) => {
     try {
@@ -127,9 +129,9 @@ export default function PhotosScreen() {
     }
     catch (error) {
       console.error('Failed to send items to device:', error);
-      Alert.alert('Error', 'Failed to send items to device. Please try again.');
+      showAlert('Error', 'Failed to send items to device. Please try again.');
     }
-  }, []);
+  }, [showAlert]);
 
   const handleQuickAction = useCallback((action: PhotosQuickAction) => {
     switch (action.type) {
@@ -182,23 +184,26 @@ export default function PhotosScreen() {
           headerTitle: selectMode ? `${selectedPhotos.length} selected` : 'Photos',
           //headerLargeTitle: true
           headerTransparent: isIos,
-          headerLeft: () => <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} />
-          ,
+          headerLeft: isIos ? () => <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} /> : undefined,
           headerRight: () => {
-            if (!selectMode) return null;
             return (
               <>
-                <UIHeaderButton name="trash" disabled={selectedPhotos.length === 0} onPress={() => {
-                  deletePhotos(selectedPhotos);
-                }} />
-                <UIHeaderButton
-                  disabled={selectedPhotos.length !== 1}
-                  name="square.and.arrow.up"
-                  onPress={() => {
-                    if (selectedPhotos.length === 1) {
-                      sharePhoto(selectedPhotos[0]);
-                    }
-                  }} />
+                {!isIos && <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} />}
+                {selectMode && (
+                  <>
+                    <UIHeaderButton name="trash" disabled={selectedPhotos.length === 0} onPress={() => {
+                      deletePhotos(selectedPhotos);
+                    }} />
+                    <UIHeaderButton
+                      disabled={selectedPhotos.length !== 1}
+                      name="square.and.arrow.up"
+                      onPress={() => {
+                        if (selectedPhotos.length === 1) {
+                          sharePhoto(selectedPhotos[0]);
+                        }
+                      }} />
+                  </>
+                )}
               </>
             );
           }

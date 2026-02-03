@@ -91,6 +91,24 @@ function findActionByIndexPath<T>(actions: UIContextMenuAction<T>[], indexPath: 
 }
 
 /**
+ * Finds action by name (used on Android where indexPath may not be available)
+ */
+function findActionByName<T>(actions: UIContextMenuAction<T>[], name: string): { id: string; data: T | undefined } | null {
+    for (const action of actions) {
+        if (action.title === name) {
+            return { id: action.id, data: action.data };
+        }
+        if (action.actions) {
+            const found = findActionByName(action.actions, name);
+            if (found) {
+                return found;
+            }
+        }
+    }
+    return null;
+}
+
+/**
  * UIContextMenu - A wrapper component for react-native-context-menu-view
  * 
  * Provides a simplified API for creating context menus with common patterns:
@@ -165,7 +183,14 @@ export function UIContextMenu<T = unknown>({
             return;
         }
         const indexPath = event.nativeEvent.indexPath || [];
-        const result = findActionByIndexPath(actions, indexPath);
+        const name = event.nativeEvent.name;
+
+        // Try indexPath first (iOS), then fall back to name (Android)
+        let result = findActionByIndexPath(actions, indexPath);
+        if (!result && name) {
+            result = findActionByName(actions, name);
+        }
+
         if (result) {
             onAction(result.id, result.data, indexPath);
         }

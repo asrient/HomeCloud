@@ -76,17 +76,17 @@ export function UIButton({
     const content = (<>
         {icon && <UIIcon name={icon} size={iconSize ?? (size === 'xl' ? 28 : 22)} color={contentColor} style={{ marginRight: title ? 6 : 0 }} />}
         {
-        title && <UIText
-            size={textSize ?? (size === 'xl' ? 'lg' : 'md')}
-            style={{ color: contentColor }}
-            font='medium'>
-            {title}
-        </UIText>
+            title && <UIText
+                size={textSize ?? (size === 'xl' ? 'lg' : 'md')}
+                style={{ color: contentColor }}
+                font='medium'>
+                {title}
+            </UIText>
         }
         {children}
     </>)
 
-    
+
     const isIconOnly = !!icon && !title && !children;
 
     const paddingVertical = size === 'sm' ? 6 : size === 'md' ? 10 : size === 'lg' ? 14 : 18;
@@ -99,14 +99,14 @@ export function UIButton({
         alignItems: 'center',
         paddingVertical,
         paddingHorizontal,
-        borderRadius: (isIos || isIconOnly) ? 100 : 8,
+        borderRadius: (isIos || isIconOnly) ? 100 : 26,
         borderWidth: borderColor ? 2 : 0,
         borderColor: borderColor || 'transparent',
         opacity: disabled ? 0.5 : isIos && !useGlass && isPressed ? 0.7 : 1,
     }, style);
 
     if (!useGlass) {
-        viewStyle = StyleSheet.compose(viewStyle, { backgroundColor: buttonColor, zIndex: 2 } );
+        viewStyle = StyleSheet.compose(viewStyle, { backgroundColor: buttonColor, zIndex: 2 });
     }
 
     marginHorizontal = marginHorizontal ?? margin ?? 4;

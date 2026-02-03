@@ -61,7 +61,7 @@ export default function HomeScreen() {
       <View style={styles.container}>
         <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : null} />
-          <UIText style={{ marginTop: 10, textAlign: 'center' }} type='subtitle' font='medium'>
+          <UIText style={{ marginTop: 10, textAlign: 'center' }} type='subtitle' color='accentText' font='medium'>
             {selectedPeer ? selectedPeer.deviceName : modules.config.DEVICE_NAME}
           </UIText>
           <UIText style={{ textAlign: 'center', padding: 1 }} size='md' color='textSecondary' font='medium'>
@@ -70,7 +70,6 @@ export default function HomeScreen() {
         </View>
         <DeviceQuickActions peerInfo={selectedPeer} />
       </View>
-
     </UIScrollView>
   );
 }

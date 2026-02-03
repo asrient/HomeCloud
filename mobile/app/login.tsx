@@ -1,7 +1,8 @@
-import { StyleSheet, Platform, View, TextInput } from 'react-native';
+import { StyleSheet, Platform, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { UIView } from '@/components/ui/UIView';
 import { UIText } from '@/components/ui/UIText';
+import { UITextInput } from '@/components/ui/UITextInput';
 import { useMemo, useRef, useState } from 'react';
 import { AccountLinkResponse } from 'shared/types';
 import { useRouter } from 'expo-router';
@@ -112,8 +113,7 @@ export default function LoginScreen() {
                 }</UIText>
                 <View style={{ marginTop: 40, justifyContent: 'center' }}>
                 {currentStep === 'email' ? (
-                    <TextInput
-                        style={{ height: 40, borderColor: 'gray', borderWidth: 1, paddingHorizontal: 8 }}
+                    <UITextInput
                         placeholder="Enter your email"
                         keyboardType="email-address"
                         autoCapitalize="none"
@@ -122,8 +122,7 @@ export default function LoginScreen() {
                         editable={!isLoading}
                     />
                 ) : (
-                    <TextInput
-                        style={{ height: 40, borderColor: 'gray', borderWidth: 1, paddingHorizontal: 8 }}
+                    <UITextInput
                         placeholder="Enter OTP"
                         keyboardType="number-pad"
                         value={otpValue}

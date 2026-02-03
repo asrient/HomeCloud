@@ -1,1 +1,30 @@
-<resources/>
+<resources>
+  <color name="colorPrimary">#FFB4A9</color>
+  <color name="colorOnPrimary">#561E18</color>
+  <color name="colorPrimaryContainer">#73342C</color>
+  <color name="colorOnPrimaryContainer">#FFDAD5</color>
+  <color name="colorSecondary">#E7BDB7</color>
+  <color name="colorOnSecondary">#442926</color>
+  <color name="colorSecondaryContainer">#5D3F3B</color>
+  <color name="colorOnSecondaryContainer">#FFDAD5</color>
+  <color name="colorTertiary">#DFC38C</color>
+  <color name="colorOnTertiary">#3E2E04</color>
+  <color name="colorTertiaryContainer">#574419</color>
+  <color name="colorOnTertiaryContainer">#FCDFA6</color>
+  <color name="colorError">#FFB4AB</color>
+  <color name="colorOnError">#690005</color>
+  <color name="colorErrorContainer">#93000A</color>
+  <color name="colorOnErrorContainer">#FFDAD6</color>
+  <color name="colorSurface">#1A1110</color>
+  <color name="colorOnSurface">#F1DEDC</color>
+  <color name="colorSurfaceVariant">#534341</color>
+  <color name="colorOnSurfaceVariant">#D8C2BE</color>
+  <color name="colorSurfaceContainer">#271D1C</color>
+  <color name="colorSurfaceContainerHigh">#322826</color>
+  <color name="colorSurfaceContainerLow">#231918</color>
+  <color name="colorOutline">#A08C89</color>
+  <color name="colorOutlineVariant">#534341</color>
+  <color name="colorPrimaryDark">#FFDAD5</color>
+  <color name="splashscreen_background">#1A1110</color>
+  <color name="iconBackground">#1A1110</color>
+</resources>
