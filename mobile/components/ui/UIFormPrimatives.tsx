@@ -27,7 +27,7 @@ export function Section({ title, children }: SectionProps) {
             )}
             <UIView
                 themeColor={isIos ? 'backgroundSecondary' : 'background'}
-                borderRadius="md"
+                borderRadius="lg"
                 style={[
                     styles.sectionContent,
                     !isIos && {

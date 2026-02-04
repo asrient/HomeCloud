@@ -190,6 +190,9 @@ export default function PhotosScreen() {
           headerTransparent: isIos,
           headerLeft: isIos ? () => <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} /> : undefined,
           headerRight: () => {
+            // On ios if not in select mode, we don't show any buttons on the right
+            // if we return empty View it will show a empty button space
+            if (!selectMode && isIos) return null;
             return (
               <>
                 {!isIos && <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} />}
@@ -233,7 +236,7 @@ export default function PhotosScreen() {
       />
       {
         !selectMode && !isLoadingLibraries && photoLibraries.length > 0 && !librariesError &&
-        <View style={{ position: 'absolute', bottom: tabBarHeight + 36, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ position: 'absolute', bottom: tabBarHeight + (isIos ? 0 : 36), left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
           <UIButton
             size='md'
             type='secondary'

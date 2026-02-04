@@ -38,11 +38,11 @@ export function useNavigationTheme(): Theme {
                 },
                 bold: {
                     fontFamily: 'System',
-                    fontWeight: '700' as const,
+                    fontWeight: Platform.OS === 'ios' ? '600' as const : '700' as const,
                 },
                 heavy: {
                     fontFamily: 'System',
-                    fontWeight: '900' as const,
+                    fontWeight: Platform.OS === 'ios' ? '700' as const : '900' as const,
                 },
             },
         };

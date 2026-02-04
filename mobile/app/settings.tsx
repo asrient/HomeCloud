@@ -1,6 +1,7 @@
 
 import { StyleSheet, View, Image, Pressable } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { UIScrollView } from '@/components/ui/UIScrollView';
 import { UIText } from '@/components/ui/UIText';
 import { UIIcon } from '@/components/ui/UIIcon';
@@ -16,6 +17,7 @@ import DeviceIcon from '@/components/deviceIcon';
 export default function SettingsScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
+  const headerHeight = useHeaderHeight();
 
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const { isLinked, accountEmail } = useAccountState();
@@ -79,6 +81,7 @@ export default function SettingsScreen() {
           headerTransparent: isIos,
         }}
       />
+      {isIos && <View style={{ height: headerHeight }} />}
       <FormContainer>
         <Section title="About">
           <Line title="Version" value={modules.config.VERSION} />

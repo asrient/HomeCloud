@@ -63,7 +63,7 @@ export default function HomeScreen() {
         }}
       />
       <DeviceSelectorRow />
-      <View style={[styles.container, { paddingBottom: tabBarHeight + 40 }]}>
+      <View style={[styles.container, { paddingBottom: tabBarHeight + (isIos ? 15 : 40) }]}>
         <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : null} />
           <UIText style={{ marginTop: 10, textAlign: 'center' }} type='subtitle' color='accentText' font='medium'>
