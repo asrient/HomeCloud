@@ -1,12 +1,15 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
-import { DeletePhotosResponse, GetPhotosParams, GetPhotosResponse, Photo, PhotoLibraryLocation, StoreNames } from "./types";
+import { DeletePhotosResponse, GetPhotosParams, GetPhotosResponse, Photo, PhotoLibraryLocation, SignalEvent, StoreNames } from "./types";
 import ConfigStorage from "./storage";
+import Signal from "./signals";
 
 
 export abstract class PhotosService extends Service {
     protected store: ConfigStorage;
 
     protected PH_LIBS_KEY = "libraries";
+
+    public locationsSignal = new Signal<[SignalEvent, PhotoLibraryLocation]>({ isExposed: true, isAllowAll: false });
 
     public async init() {
         this._init();
@@ -65,6 +68,7 @@ export abstract class PhotosService extends Service {
         locations.push(newLocation);
         this.store.setItem(this.PH_LIBS_KEY, locations);
         await this._onLocationAdd(newLocation);
+        this.locationsSignal.dispatch(SignalEvent.ADD, newLocation);
         return newLocation;
     }
 
@@ -82,6 +86,7 @@ export abstract class PhotosService extends Service {
         const updatedLocations = locations.filter(loc => loc.id !== id);
         this.store.setItem(this.PH_LIBS_KEY, updatedLocations);
         await this._onLocationRemove(locationToRemove);
+        this.locationsSignal.dispatch(SignalEvent.REMOVE, locationToRemove);
     }
 
     @exposed

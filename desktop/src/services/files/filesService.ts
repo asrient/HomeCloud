@@ -8,9 +8,52 @@ import { exposed } from "shared/servicePrimatives";
 import { FileFilter, RemoteItem } from "shared/types";
 import { dialog, OpenDialogOptions } from 'electron';
 
+const DEFAULT_PINS_KEY = "defaultPinsAdded";
+
 export default class DesktopFilesService extends FilesService {
   public fs = new LocalFsDriver();
   public separator = path.sep;
+
+  public async start() {
+    await super.start();
+    await this.addDefaultPinnedFolders();
+  }
+
+  private async addDefaultPinnedFolders(): Promise<void> {
+    const defaultPinsAdded = this.store.getItem<boolean>(DEFAULT_PINS_KEY);
+    if (defaultPinsAdded) {
+      return;
+    }
+
+    try {
+      const localSc = modules.getLocalServiceController();
+      const defaultDirs = await localSc.system.getDefaultDirectories();
+
+      const foldersToPin: { path: string | null; name: string }[] = [
+        { path: defaultDirs.Desktop, name: 'Desktop' },
+        { path: defaultDirs.Downloads, name: 'Downloads' },
+        { path: defaultDirs.Pictures, name: 'Pictures' },
+        { path: defaultDirs.Documents, name: 'Documents' },
+      ];
+
+      for (const folder of foldersToPin) {
+        if (folder.path) {
+          try {
+            await this.addPinnedFolder(folder.path, folder.name);
+          } catch (e) {
+            // Ignore errors for individual folders (e.g., already exists)
+            console.warn(`Failed to add default pinned folder "${folder.name}":`, e);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to add default pinned folders:", e);
+    }
+
+    // Mark as done regardless of success to avoid retrying on every start
+    this.store.setItem(DEFAULT_PINS_KEY, true);
+    await this.store.save();
+  }
 
   @exposed
   async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {

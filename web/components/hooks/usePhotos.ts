@@ -5,9 +5,12 @@ import { PhotoLibraryLocation } from "shared/types";
 import { PhotosFetchOptions, PhotoView } from "@/lib/types";
 import { getServiceController } from "@/lib/utils";
 import { libraryHashFromId } from "@/lib/photoUtils";
+import { SignalNodeRef } from "shared/signals";
+import { SignalEvent } from "@/lib/enums";
 
 export const usePhotoLibraries = (deviceFingerprint: string | null) => {
     const [photoLibraries, setPhotoLibraries] = useState<PhotoLibraryLocation[]>([]);
+    const signalRef = useRef<SignalNodeRef<[SignalEvent, PhotoLibraryLocation], string> | null>(null);
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
         setPhotoLibraries([]);
@@ -18,9 +21,32 @@ export const usePhotoLibraries = (deviceFingerprint: string | null) => {
         setPhotoLibraries(libs);
     }, []);
 
+    const clearSignals = useCallback((serviceController: ServiceController) => {
+        if (signalRef.current) {
+            serviceController.photos.locationsSignal.detach(signalRef.current);
+            signalRef.current = null;
+        }
+    }, []);
+
+    const setupSignals = useCallback((serviceController: ServiceController) => {
+        signalRef.current = serviceController.photos.locationsSignal.add((event: SignalEvent, library: PhotoLibraryLocation) => {
+            if (event === SignalEvent.ADD) {
+                setPhotoLibraries((prev) => [...prev, library]);
+            } else if (event === SignalEvent.REMOVE) {
+                setPhotoLibraries((prev) => prev.filter((lib) => lib.id !== library.id));
+            } else if (event === SignalEvent.UPDATE) {
+                setPhotoLibraries((prev) =>
+                    prev.map((lib) => (lib.id === library.id ? { ...lib, ...library } : lib))
+                );
+            }
+        });
+    }, []);
+
     const { isLoading, error, reload } = useResource({
         deviceFingerprint,
         load,
+        clearSignals,
+        setupSignals,
     });
 
     return {

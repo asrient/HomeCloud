@@ -29,8 +29,8 @@ export function FormContainer({ children }: {
 }
 
 export function Line({ children, title }: {
-    children: React.ReactNode,
-    title?: string,
+    children?: React.ReactNode,
+    title?: React.ReactNode,
 }) {
     return (
         <div className={cn('flex items-center justify-between border-b last-of-type:border-none border-border text-sm',
@@ -41,7 +41,7 @@ export function Line({ children, title }: {
                     {title}
                 </div>
             }
-            <div className='ml-2 text-foreground text-right select-text break-all'>{children}</div>
+            {children && <div className='ml-2 text-foreground text-right select-text break-all'>{children}</div>}
         </div>
     )
 }
