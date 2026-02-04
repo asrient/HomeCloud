@@ -1,7 +1,6 @@
-import { View, Modal, Pressable, ScrollView } from 'react-native';
-import { UIView } from '@/components/ui/UIView';
+import { View, Pressable, ScrollView } from 'react-native';
 import { UIText } from '@/components/ui/UIText';
-import { UIStatusBar } from '@/components/ui/UIStatusBar';
+import { UIPageSheet } from '@/components/ui/UIPageSheet';
 import { FileRemoteItem, RemoteItemWithPeer } from '@/lib/types';
 import { FolderFilesGrid } from '@/components/filesGrid';
 import { useAppState } from '@/hooks/useAppState';
@@ -192,118 +191,81 @@ export function FilePickerModal({ isOpen, onDone, selectedFingerprint, defaultPa
 
     const seperatorColor = useThemeColor({}, 'seperator');
 
+    const titleComponent = (
+        <View style={{ alignItems: 'center' }}>
+            <UIText size='md' font='medium' numberOfLines={1}>
+                {headerTitle}
+            </UIText>
+            {currentFingerprint !== undefined && currentPath && (
+                <UIText size='sm' color='textSecondary' numberOfLines={1}>
+                    {currentDeviceName}
+                </UIText>
+            )}
+        </View>
+    );
+
     return (
-        <Modal
-            animationType="slide"
-            presentationStyle='pageSheet'
-            transparent={false}
-            visible={isOpen}
-            onRequestClose={() => onDone(null)}
+        <UIPageSheet
+            isOpen={isOpen}
+            onClose={() => onDone(null)}
+            title={titleComponent}
+            showBackButton={canGoBack}
+            onBack={handleBack}
         >
-            <UIStatusBar type="sheet" />
-            <UIView themeColor='backgroundSecondary' style={{ flex: 1 }}>
-                {/* Header */}
+            {/* Content */}
+            <View style={{ flex: 1 }}>
+                {showDeviceList ? (
+                    <DeviceListPage onSelect={setCurrentFingerprint} />
+                ) : (
+                    <FolderFilesGrid
+                        deviceFingerprint={currentFingerprint}
+                        path={currentPath}
+                        selectMode={true}
+                        selectKind={pickerType === 'folder' ? 'folder' : 'file'}
+                        onSelect={handleSelect}
+                        onDeselect={handleDeselect}
+                        onPreview={handlePreview}
+                        viewMode="list"
+                        showPageFooter={false}
+                        selectedItems={selectedItems}
+                    />
+                )}
+            </View>
+
+            {/* Footer with selection info and done button */}
+            {currentFingerprint !== undefined && (
                 <View style={{
-                    paddingHorizontal: 6,
-                    paddingVertical: 8,
+                    padding: 16,
+                    paddingBottom: 20,
+                    borderTopWidth: 0.5,
+                    borderTopColor: seperatorColor,
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    gap: 12
                 }}>
-                    <View style={{ width: 70, alignItems: 'flex-start' }}>
-                        {canGoBack ? (
-                            <UIButton
-                                icon='chevron.left'
-                                size='lg'
-                                type='secondary'
-                                onPress={handleBack}
-                            />
+                    <View style={{ flex: 1 }}>
+                        {selectedItems.length > 0 ? (
+                            <UIText size='sm' color='textSecondary'>
+                                {selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'} selected
+                            </UIText>
+                        ) : pickerType === 'folder' ? (
+                            <UIText size='sm' color='textSecondary'>
+                                Select a folder.
+                            </UIText>
                         ) : (
-                            <UIButton
-                                icon='xmark'
-                                size='lg'
-                                type='secondary'
-                                onPress={() => onDone(null)}
-                            />
-                        )}
-                    </View>
-                    <View style={{ flex: 1, alignItems: 'center' }}>
-                        <UIText size='md' font='medium' numberOfLines={1}>
-                            {headerTitle}
-                        </UIText>
-                        {currentFingerprint !== undefined && currentPath && (
-                            <UIText size='sm' color='textSecondary' numberOfLines={1}>
-                                {currentDeviceName}
+                            <UIText size='sm' color='textSecondary'>
+                                Tap a file to select.
                             </UIText>
                         )}
                     </View>
-                    <View style={{ width: 70, alignItems: 'flex-end' }}>
-                        {canGoBack && (
-                            <UIButton
-                                icon='xmark'
-                                size='lg'
-                                type='secondary'
-                                onPress={() => onDone(null)}
-                            />
-                        )}
-                    </View>
+                    <UIButton
+                        title={pickerType === 'folder' && selectedItems.length === 0 ? 'Select This Folder' : 'Done'}
+                        type='primary'
+                        onPress={handleDone}
+                    />
                 </View>
-
-                {/* Content */}
-                <View style={{ flex: 1 }}>
-                    {showDeviceList ? (
-                        <DeviceListPage onSelect={setCurrentFingerprint} />
-                    ) : (
-                        <FolderFilesGrid
-                            deviceFingerprint={currentFingerprint}
-                            path={currentPath}
-                            selectMode={true}
-                            selectKind={pickerType === 'folder' ? 'folder' : 'file'}
-                            onSelect={handleSelect}
-                            onDeselect={handleDeselect}
-                            onPreview={handlePreview}
-                            viewMode="list"
-                            showPageFooter={false}
-                            selectedItems={selectedItems}
-                        />
-                    )}
-                </View>
-
-                {/* Footer with selection info and done button */}
-                {currentFingerprint !== undefined && (
-                    <View style={{
-                        padding: 16,
-                        paddingBottom: 20,
-                        borderTopWidth: 0.5,
-                        borderTopColor: seperatorColor,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 12
-                    }}>
-                        <View style={{ flex: 1 }}>
-                            {selectedItems.length > 0 ? (
-                                <UIText size='sm' color='textSecondary'>
-                                    {selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'} selected
-                                </UIText>
-                            ) : pickerType === 'folder' ? (
-                                <UIText size='sm' color='textSecondary'>
-                                    Select a folder.
-                                </UIText>
-                            ) : (
-                                <UIText size='sm' color='textSecondary'>
-                                    Tap a file to select.
-                                </UIText>
-                            )}
-                        </View>
-                        <UIButton
-                            title={pickerType === 'folder' && selectedItems.length === 0 ? 'Select This Folder' : 'Done'}
-                            type='primary'
-                            onPress={handleDone}
-                        />
-                    </View>
-                )}
-            </UIView>
-        </Modal>
+            )}
+        </UIPageSheet>
     );
 }

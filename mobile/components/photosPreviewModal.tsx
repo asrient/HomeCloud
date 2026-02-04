@@ -2,7 +2,7 @@ import { StyleSheet, Modal, Dimensions, ActivityIndicator, View } from 'react-na
 import { PhotosQuickAction, PhotoView } from '@/lib/types';
 import { UIText } from './ui/UIText';
 import { Directory, Paths, File } from 'expo-file-system/next';
-import { getServiceController } from '@/lib/utils';
+import { getServiceController, isIos } from '@/lib/utils';
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { FlashList } from "@shopify/flash-list";
 import { Image } from 'expo-image';
@@ -452,12 +452,12 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuic
                     {
                         showUI && <View style={styles.header}>
                             <View style={styles.headerGroup}>
-                                <UIButton onPress={exitPreview} color='white' type='secondary' icon='xmark' />
+                                <UIButton onPress={exitPreview} color={isIos ? 'white' : undefined} type='secondary' icon='xmark' />
                             </View>
                             <View style={styles.headerGroup}>
-                                <UIButton color='white' type='secondary' icon='square.and.arrow.up'
+                                <UIButton color={isIos ? 'white' : undefined} type='secondary' icon='square.and.arrow.up'
                                     onPress={() => handleHeaderAction('export')} />
-                                <UIButton color='white' type='secondary' icon='trash' onPress={() => handleHeaderAction('delete')} />
+                                <UIButton color={isIos ? 'white' : undefined} type='secondary' icon='trash' onPress={() => handleHeaderAction('delete')} />
                             </View>
                         </View>
                     }

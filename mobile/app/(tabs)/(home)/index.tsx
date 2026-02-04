@@ -7,6 +7,7 @@ import { UIText } from '@/components/ui/UIText';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UIScrollView } from '@/components/ui/UIScrollView';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useMemo, useState } from 'react';
 import { DeviceInfo } from 'shared/types';
 import { DeviceQuickActions } from '@/components/deviceQuickActions';
@@ -23,7 +24,11 @@ function printDeviceInfo(info: DeviceInfo | null) {
 export default function HomeScreen() {
   const router = useRouter();
   const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   const [thisDeviceInfo, setThisDeviceInfo] = useState<DeviceInfo | null>(null);
+  
+  // Tab bar height is typically 49 on iOS and 56 on Android, plus safe area
+  const tabBarHeight = (isIos ? 49 : 56) + insets.bottom;
 
   useEffect(() => {
     modules.getLocalServiceController().system.getDeviceInfo().then(setThisDeviceInfo);
@@ -58,7 +63,7 @@ export default function HomeScreen() {
         }}
       />
       <DeviceSelectorRow />
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingBottom: tabBarHeight + 40 }]}>
         <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : null} />
           <UIText style={{ marginTop: 10, textAlign: 'center' }} type='subtitle' color='accentText' font='medium'>
@@ -77,7 +82,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingBottom: 80,
     paddingHorizontal: 6,
   },
 });

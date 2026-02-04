@@ -1,6 +1,8 @@
-import { View, ViewStyle } from 'react-native';
-import { UIText } from './ui/UIText';
+import { Platform, View, ViewStyle } from 'react-native';
+import { UIIcon } from './ui/UIIcon';
 import { useThemeColor } from '@/hooks/useThemeColor';
+
+const isIos = Platform.OS === 'ios';
 
 export function ThumbnailCheckbox({ isSelected, position, disabled }: {
     isSelected: boolean;
@@ -34,20 +36,23 @@ export function ThumbnailCheckbox({ isSelected, position, disabled }: {
             positionStyles = {};
     }
 
+    const size = isIos ? 24 : 22;
+    const borderRadius = isIos ? 12 : 6;
+
     return (
         <View style={{
             ...positionStyles,
-            width: 24,
-            height: 24,
-            borderRadius: 12,
+            width: size,
+            height: size,
+            borderRadius,
             backgroundColor: isSelected ? highlightColor : disabled ? disabledColor : 'rgba(255, 255, 255, 0.7)',
             justifyContent: 'center',
             alignItems: 'center',
-            borderWidth: 1,
+            borderWidth: isIos ? 1 : 2,
             borderColor: isSelected ? highlightTextColor : disabledColor,
         }}>
             {isSelected &&
-                <UIText style={{ color: highlightTextColor, fontWeight: 'bold' }}>✓</UIText>}
+                <UIIcon name="checkmark" size={16} color={highlightTextColor} />}
         </View>
     );
 }

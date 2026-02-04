@@ -12,8 +12,6 @@ export default class Discovery extends DiscoveryBase {
     private isScanning: boolean = false;
     private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
     private lastPublishedDeviceInfo: DeviceInfo | null = null;
-    private scanRetryCount: number = 0;
-    private readonly MAX_SCAN_RETRIES = 2;
 
     constructor(port: number) {
         super();
@@ -22,10 +20,6 @@ export default class Discovery extends DiscoveryBase {
         this.zeroconf = new Zeroconf();
         this.zeroconf.on('error', (err) => {
             console.error('[Discovery] Zeroconf error:', err);
-            // Handle DNS-SD errors (like -72000) by retrying
-            if (this.isScanning) {
-                this.handleScanError();
-            }
         });
         this.zeroconf.on('resolved', (service) => {
             console.log('[Discovery] Found service:', service);
@@ -107,7 +101,6 @@ export default class Discovery extends DiscoveryBase {
         }
         console.log('[Discovery] Starting scan for services...');
         this.isScanning = true;
-        this.scanRetryCount = 0;
         this.doScan();
     }
 
@@ -117,23 +110,6 @@ export default class Discovery extends DiscoveryBase {
             this.zeroconf.scan(this.SERVICE_TYPE, this.PROTOCOL, this.DOMAIN, 'DNSSD');
         } catch (err) {
             console.error('[Discovery] Error starting scan:', err);
-            this.handleScanError();
-        }
-    }
-
-    private handleScanError(): void {
-        if (this.scanRetryCount < this.MAX_SCAN_RETRIES) {
-            this.scanRetryCount++;
-            const delay = this.scanRetryCount * 1000; // Exponential backoff
-            console.log(`[Discovery] Retrying scan in ${delay}ms (attempt ${this.scanRetryCount}/${this.MAX_SCAN_RETRIES})...`);
-            setTimeout(() => {
-                if (this.isScanning && AppState.currentState === 'active') {
-                    this.doScan();
-                }
-            }, delay);
-        } else {
-            console.error('[Discovery] Max scan retries reached, giving up');
-            this.isScanning = false;
         }
     }
 

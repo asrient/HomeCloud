@@ -25,9 +25,10 @@ const MAPPING = {
   'gear': 'settings',
   'wifi': 'wifi',
   'cellularbars': 'signal-cellular-4-bar',
+  'checkmark': 'check',
   'checkmark.circle': 'check-circle-outline',
-  'checkmark.circle.fill': 'check-circle',
-  'xmark': 'cancel',
+  'checkmark.circle.fill': 'check-box',
+  'xmark': 'close',
   'xmark.circle': 'cancel',
   'folder.fill': 'folder',
   'trash': 'delete-outline',
@@ -61,6 +62,7 @@ const MAPPING = {
   'backward.fill': 'skip-previous',
   'forward.fill': 'skip-next',
   'arrow.up.circle.fill': 'send',
+  'externaldrive.fill': 'sd-storage',
 } as IconMapping;
 
 /**

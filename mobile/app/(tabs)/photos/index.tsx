@@ -2,6 +2,7 @@ import DeviceSelectorRow from '@/components/deviceSelectorRow';
 import { UIView } from '@/components/ui/UIView';
 import { useAppState } from '@/hooks/useAppState';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Platform, View } from 'react-native';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
@@ -17,6 +18,9 @@ import { useAlert } from '@/hooks/useAlert';
 
 export default function PhotosScreen() {
   const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
+  // Tab bar height is typically 49 on iOS and 56 on Android, plus safe area
+  const tabBarHeight = (isIos ? 49 : 56) + insets.bottom;
 
   const { selectedFingerprint } = useAppState();
   const {
@@ -229,7 +233,7 @@ export default function PhotosScreen() {
       />
       {
         !selectMode && !isLoadingLibraries && photoLibraries.length > 0 && !librariesError &&
-        <View style={{ position: 'absolute', bottom: 90, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ position: 'absolute', bottom: tabBarHeight + 36, left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
           <UIButton
             size='md'
             type='secondary'
