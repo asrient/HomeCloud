@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { getDefaultIcon, getFileUrl } from '@/lib/fileUtils';
+import { getDefaultIcon, getFileUrl, getUnsupportedFormatMessage } from '@/lib/fileUtils';
 import Image from 'next/image';
 import { Button } from './ui/button';
 import { FileRemoteItem } from '@/lib/types';
@@ -53,6 +53,15 @@ function PreviewBar({ item }: { item: FileRemoteItem | null }) {
 function PreviewContent({ item }: { item: FileRemoteItem }) {
     const assetUrl = useMemo<string>(() => getFileUrl(item.deviceFingerprint, item.path), [item]);
     const contentType = useMemo(() => item.mimeType?.split('/')[0], [item]);
+    const unsupportedMessage = useMemo(() => getUnsupportedFormatMessage(item.mimeType || '', item.path || ''), [item.mimeType, item.path]);
+
+    if (unsupportedMessage) {
+        return (
+            <div className='w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground'>
+                <span className='text-center text-sm max-w-xs'>{unsupportedMessage}</span>
+            </div>
+        )
+    }
 
     if (assetUrl && contentType === 'image') {
         return (

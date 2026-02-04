@@ -1,7 +1,7 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed } from "./servicePrimatives";
 import { FsDriver } from "./fsDriver";
 import ConfigStorage from "./storage";
-import { StoreNames, PinnedFolder, SignalEvent, RemoteItem, FileFilter } from "./types";
+import { StoreNames, PinnedFolder, SignalEvent, RemoteItem, FileFilter, FileContent, PreviewOptions } from "./types";
 import Signal from "./signals";
 import { getServiceController } from "./utils"
 
@@ -99,6 +99,17 @@ export abstract class FilesService extends Service {
     @exposed
     public async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
         throw new Error("Method not implemented.");
+    }
+
+    /**
+     * Get a preview of a file. By default, this just returns the file content.
+     * Subclasses can override this to convert files (e.g., HEIC to JPEG) for preview.
+     * @param filePath - Path to the file
+     * @param opts - Preview options (e.g., supportsHeic to skip HEIC conversion)
+     */
+    @exposed
+    public async getPreview(filePath: string, opts?: PreviewOptions): Promise<FileContent> {
+        return this.fs.readFile(filePath);
     }
 
     protected abstract _openRemoteFile(remoteFingerprint: string, remotePath: string): Promise<void>;

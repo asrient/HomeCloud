@@ -3,11 +3,9 @@ import { FileContent, RemoteItem } from "shared/types";
 import { exposed } from "shared/servicePrimatives";
 import { File, Paths, Directory } from 'expo-file-system/next';
 import * as FileSystem from 'expo-file-system/legacy';
-import { getDrivesMapping, pathToUri, uriToPath } from "./fileUtils";
+import { getDrivesMapping, pathToUri, uriToPath, getMimeType, resolveFileUri } from "./fileUtils";
 import { MobilePlatform } from "../types";
-import * as MediaLibrary from 'expo-media-library';
 import { fetch } from "expo/fetch";
-import mime from 'mime';
 
 
 export default class MobileFsDriver extends FsDriver {
@@ -156,13 +154,12 @@ export default class MobileFsDriver extends FsDriver {
 
   @exposed
   public override async readFile(id: string): Promise<FileContent> {
-    if (id.startsWith('ph://') && modules.config.PLATFORM === MobilePlatform.IOS) {
-      const photoId = id.slice(5);
-      const asset = await MediaLibrary.getAssetInfoAsync(photoId);
-      if (!asset) throw new Error("Asset not found");
-      id = asset.localUri || asset.uri;
-      return this.readWithFetch(id);
+    // Use resolveFileUri for ph:// URLs to get proper file info
+    if (id.startsWith('ph://')) {
+      const resolved = await resolveFileUri(id);
+      return this.readWithFetch(resolved.fileUri, resolved.filename, resolved.mimeType || undefined);
     }
+    
     id = pathToUri(id);
     if (modules.config.PLATFORM === MobilePlatform.ANDROID) {
       return this.readWithFetch(id);
@@ -179,29 +176,39 @@ export default class MobileFsDriver extends FsDriver {
     };
   }
 
-  private async readWithFetch(uri: string): Promise<FileContent> {
+  private async readWithFetch(uri: string, overrideName?: string, overrideMime?: string): Promise<FileContent> {
     const response = await fetch(uri);
     if (!response.ok) throw new Error("Failed to fetch file");
     if (!response.body) {
       console.log('fetch details:', response);
       throw new Error("No data in file response");
     }
-    const contentDisposition = response.headers.get('Content-Disposition');
-    let filename = 'file';
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?([^"]+)"?/);
-      if (match && match[1]) {
-        filename = match[1];
+    
+    // Use override name if provided, otherwise extract from response/URL
+    let filename = overrideName;
+    if (!filename) {
+      const contentDisposition = response.headers.get('Content-Disposition');
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) {
+          filename = match[1];
+        }
       }
-    } else {
-      const urlParts = uri.split('/');
-      filename = urlParts[urlParts.length - 1];
+      if (!filename) {
+        const urlParts = uri.split('/');
+        filename = urlParts[urlParts.length - 1];
+      }
     }
-    let mimeType = response.headers.get('Content-Type') || undefined;
+    
+    // Use override mime if provided, otherwise extract from response/filename
+    let mimeType = overrideMime;
     if (!mimeType) {
-      mimeType = mime.getType(filename) || undefined;
+      mimeType = response.headers.get('Content-Type') || undefined;
+      if (!mimeType) {
+        mimeType = getMimeType(filename) || undefined;
+      }
     }
-    // console.log('Fetched file:', filename, 'with mime type:', mimeType);
+    
     const stream = response.body;
     return {
       name: filename,

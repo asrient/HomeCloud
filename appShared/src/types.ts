@@ -195,6 +195,10 @@ export type FileContent = {
     stream: ReadableStream;
 };
 
+export type PreviewOptions = {
+    supportsHeic?: boolean;
+};
+
 export type PinnedFolder = {
     path: string;
     name: string;

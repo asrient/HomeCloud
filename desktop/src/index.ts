@@ -1,6 +1,7 @@
-import { app, BrowserWindow, safeStorage, protocol, net, nativeTheme, Menu, MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, safeStorage, protocol, nativeTheme, Menu, MenuItemConstructorOptions } from 'electron';
 import path from 'node:path';
 import env from './env';
+import { handleProtocols } from './protocols';
 import { DesktopConfigType } from './types';
 import { setModules, ModulesType } from 'shared/modules';
 import CryptoImpl from './cryptoImpl';
@@ -8,7 +9,6 @@ import DesktopServiceController from './services/desktopServiceController';
 import fs from 'node:fs';
 import os from 'node:os';
 import DesktopConfigStorage from './configStorage';
-import { getServiceController } from 'shared/utils';
 import { DeviceFormType, OSType, UITheme } from 'shared/types';
 
 const WEB_APP_SERVER = 'http://localhost:3000';
@@ -230,64 +230,6 @@ const handleContextMenuFromWindow = (win: BrowserWindow) => {
     const menu = Menu.buildFromTemplate(template);
     menu.popup({ window: win, x: params.x, y: params.y });
 
-  });
-}
-
-async function handleMediaRequest(request: Request): Promise<GlobalResponse> {
-  const urlObj = new URL(request.url);
-  if (urlObj.pathname === '/previewFile') {
-    // Handle preview file request
-    let fingerprint = urlObj.searchParams.get('fingerprint') || null;
-    if (fingerprint === 'null') {
-      fingerprint = null; // Convert 'null' string to actual null
-    }
-    const path = urlObj.searchParams.get('path') || '';
-    console.log('Handling media preview request:', { fingerprint, path });
-    const serviceController = await getServiceController(fingerprint);
-    const { name, mime, stream } = await serviceController.files.fs.readFile(path);
-    if (!stream) {
-      throw new Error(`File not found: ${path}`);
-    }
-    const response: GlobalResponse = new Response(stream, {
-      headers: {
-        'Content-Type': mime || 'application/octet-stream',
-        'Content-Disposition': `inline; filename="${name}"`,
-        'Cache-Control': '604800', // 7 days
-      },
-    });
-    return response;
-  }
-  throw new Error(`Unsupported media request: ${request.url}`);
-}
-
-function handleProtocols() {
-  // Register a custom protocol to serve files from assets/web
-  protocol.handle('app', async (request) => {
-    if (request.url.startsWith('app://media')) {
-      // Handle media requests
-      return handleMediaRequest(request);
-    }
-    let url = request.url.replace('app://-', '');
-    // Ensure the URL is safe and does not contain any path traversal characters
-    if (url.includes('..') || url.includes('~')) {
-      throw new Error('Invalid URL');
-    }
-    // add .html if URL does not point to a file
-    const ext = path.extname(url);
-    if (ext === '') {
-      url += '.html';
-    }
-    // Construct the file path
-    const filePath = path.join(__dirname, '../assets/web', url);
-    // Check if the file exists
-    try {
-      fs.promises.access(filePath);
-    }
-    catch (error) {
-      console.error('File not found:', filePath);
-      throw new Error(`File not found: ${filePath}`);
-    }
-    return net.fetch(`file://${filePath}`)
   });
 }
 

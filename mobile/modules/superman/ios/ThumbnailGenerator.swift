@@ -50,11 +50,11 @@ class ThumbnailGenerator {
     
     let options = PHImageRequestOptions()
     options.deliveryMode = .highQualityFormat
-    options.resizeMode = .exact
+    options.resizeMode = .fast
     options.isNetworkAccessAllowed = true
     options.isSynchronous = false
     
-    imageManager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFill, options: options) { image, info in
+    imageManager.requestImage(for: asset, targetSize: targetSize, contentMode: .aspectFit, options: options) { image, info in
       guard let image = image else {
         promise.reject("THUMBNAIL_GENERATION_FAILED", "Failed to generate thumbnail from photo asset")
         return

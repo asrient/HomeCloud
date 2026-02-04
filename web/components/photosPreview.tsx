@@ -14,7 +14,7 @@ import { useSwipeable } from 'react-swipeable'
 import { variants } from '@/lib/animationVariants'
 import type { PhotoView } from '@/lib/types'
 import LazyImage from './lazyImage'
-import { getFileUrl } from '@/lib/fileUtils'
+import { getFileUrl, getUnsupportedFormatMessage } from '@/lib/fileUtils'
 import { toast } from './ui/use-toast'
 import { cn, getServiceController, isMacosTheme } from '@/lib/utils'
 
@@ -190,6 +190,10 @@ export default function PhotosPreview({
     return currentPhoto.mimeType.startsWith('video/');
   }, [currentPhoto.mimeType]);
 
+  const unsupportedMessage = useMemo(() => {
+    return getUnsupportedFormatMessage(currentPhoto.mimeType || '', currentPhoto.fileId || '');
+  }, [currentPhoto.mimeType, currentPhoto.fileId]);
+
   const thumbsButtonClick = useCallback((e: React.MouseEvent) => {
     setShowThumbs((prev) => !prev);
     e.stopPropagation();
@@ -227,20 +231,27 @@ export default function PhotosPreview({
                       <span className='text-center'>{error}</span>
                     </div>
                   )
-                  : isVideo && assetUrl
-                    ? (<video
-                      src={assetUrl}
-                      controls={true}
-                      className='h-full max-h-screen w-auto transform transition relative z-50'
-                    />)
-                    : (<Image
-                      src={assetUrl || currentPhoto.thumbnail || '/img/blank-tile.png'}
-                      width={0}
-                      height={0}
-                      className='h-full max-h-screen w-auto object-contain transform transition'
-                      priority
-                      alt="Preview Image"
-                    />)}
+                  : unsupportedMessage
+                    ? (
+                      <div className='flex flex-col items-center justify-center gap-2 p-4'>
+                        <ArrowDownTrayIcon className='h-10 w-10 text-white/70' />
+                        <span className='text-center text-white/70 text-sm max-w-xs'>{unsupportedMessage}</span>
+                      </div>
+                    )
+                    : isVideo && assetUrl
+                      ? (<video
+                        src={assetUrl}
+                        controls={true}
+                        className='h-full max-h-screen w-auto transform transition relative z-50'
+                      />)
+                      : (<Image
+                        src={assetUrl || currentPhoto.thumbnail || '/img/blank-tile.png'}
+                        width={0}
+                        height={0}
+                        className='h-full max-h-screen w-auto object-contain transform transition'
+                        priority
+                        alt="Preview Image"
+                      />)}
               </motion.div>
             </AnimatePresence>
           </div>

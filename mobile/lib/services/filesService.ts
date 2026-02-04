@@ -3,7 +3,9 @@ import MobileFsDriver from "./fs";
 import { getServiceController } from "shared/utils";
 import { Paths, File, Directory } from 'expo-file-system/next';
 import { exposed } from "shared/servicePrimatives";
-
+import { FileContent, PreviewOptions } from "shared/types";
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { isHeicFile, resolveFileUri } from "./fileUtils";
 
 type PreviewCacheEntry = {
   remoteFingerprint: string;
@@ -37,6 +39,42 @@ export default class MobileFilesService extends FilesService {
     });
     await stream.pipeTo(file.writableStream());
     localSc.system.openFile(file.uri);
+  }
+
+  @exposed
+  async getPreview(filePath: string, opts?: PreviewOptions): Promise<FileContent> {
+    // Resolve the file URI to get actual path, filename, and mime type
+    const supportsHeic = opts?.supportsHeic ?? false;
+    const resolved = await resolveFileUri(filePath);
+    const isHeic = isHeicFile(resolved.mimeType || '', resolved.filename);
+
+    // If it's HEIC, convert directly without reading first
+    if (isHeic && !supportsHeic) {
+      console.log('Converting HEIC image for preview:', filePath, '->', resolved.fileUri);
+      try {
+        const context = ImageManipulator.manipulate(resolved.fileUri);
+        const imageRef = await context.renderAsync();
+        const result = await imageRef.saveAsync({
+          format: SaveFormat.JPEG,
+          compress: 0.9,
+        });
+
+        const convertedFile = new File(result.uri);
+        const convertedName = resolved.filename.replace(/\.(heic|heif)$/i, '.jpg');
+
+        return {
+          name: convertedName,
+          mime: 'image/jpeg',
+          stream: convertedFile.readableStream(),
+        };
+      } catch (error) {
+        console.error('Failed to convert HEIC image:', error);
+        // Fall back to original file if conversion fails
+        return this.fs.readFile(filePath);
+      }
+    }
+
+    return this.fs.readFile(filePath);
   }
 
   private cachedPreviewFiles: Map<string, PreviewCacheEntry> = new Map();

@@ -62,7 +62,7 @@ async function getAssetUri(photo: PhotoView): Promise<string> {
         return cacheFile.uri;
     }
     const serviceController = await getServiceController(photo.deviceFingerprint);
-    const remoteItem = await serviceController.files.fs.readFile(photo.fileId);
+    const remoteItem = await serviceController.files.getPreview(photo.fileId, { supportsHeic: isIos });
     cacheFile.create({ overwrite: true, intermediates: true });
     await remoteItem.stream.pipeTo(cacheFile.writableStream());
     photo.assetUrl = cacheFile.uri;

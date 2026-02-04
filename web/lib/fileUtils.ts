@@ -265,9 +265,16 @@ export function getDefaultIcon(item: RemoteItem) {
     return iconUrl(getKind(item));
 }
 
+const supportedThumbnailKinds = new Set<FileType>([
+    FileType.Image,
+    FileType.Video,
+    FileType.PDF,
+    FileType.EPUB,
+]);
+
 export function canGenerateThumbnail(item: RemoteItem) {
     const kind = getKind(item);
-    return kind === FileType.Image || kind === FileType.Video;
+    return supportedThumbnailKinds.has(kind);
 }
 
 export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder, fingerprint: string | null): RemoteItemWithPeer {
@@ -338,6 +345,65 @@ export function getPathChain(path: string): RemoteItem[] {
 
 export function getFileUrl(fingerprint: string | null, path: string) {
     return `app://media/previewFile?fingerprint=${fingerprint}&path=${path}`;
+}
+
+// MIME types that browsers typically don't support for playback
+// Note: HEIC/HEIF is handled by getPreview API which converts to JPEG
+const UNSUPPORTED_IMAGE_TYPES: string[] = [
+    // HEIC/HEIF removed - now supported via getPreview conversion
+];
+
+const UNSUPPORTED_VIDEO_TYPES = [
+    'video/hevc',
+    'video/x-hevc',
+];
+
+/**
+ * Check if an image format is supported by web browsers
+ * Note: HEIC/HEIF is now supported via getPreview API conversion
+ */
+export function isImageFormatSupported(mimeType: string, filePath?: string): boolean {
+    const lowerMime = mimeType.toLowerCase();
+
+    // Check by MIME type
+    if (UNSUPPORTED_IMAGE_TYPES.includes(lowerMime)) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Check if a video format is supported by web browsers
+ * Note: HEVC detection is tricky - .mov and .mp4 can contain HEVC
+ */
+export function isVideoFormatSupported(mimeType: string, filePath?: string): boolean {
+    const lowerMime = mimeType.toLowerCase();
+
+    // Explicit HEVC mime types
+    if (UNSUPPORTED_VIDEO_TYPES.includes(lowerMime)) {
+        return false;
+    }
+
+    // For video/quicktime (.mov) - iOS often records in HEVC
+    // We can't know for sure without parsing, so we'll assume it might not be supported
+    // The video element will fail gracefully anyway
+
+    return true;
+}
+
+/**
+ * Get a user-friendly message for unsupported formats
+ * Note: HEIC/HEIF is now supported via getPreview API conversion
+ */
+export function getUnsupportedFormatMessage(mimeType: string, filePath?: string): string | null {
+    const lowerMime = mimeType.toLowerCase();
+
+    if (UNSUPPORTED_VIDEO_TYPES.includes(lowerMime)) {
+        return 'HEVC video format is not supported. Download the file to view.';
+    }
+
+    return null;
 }
 
 export function canPreview(mimeType: string) {

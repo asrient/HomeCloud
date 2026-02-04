@@ -33,10 +33,18 @@ type ThumbnailPhotoProps = {
     item: PhotoView;
     isSelected: boolean;
     className?: string;
+    maintainAspectRatio?: boolean;
 } & ClickProps;
 
-function ThumbnailPhoto({ item, isSelected, className, onClick, onDoubleClick, onRightClick }: ThumbnailPhotoProps) {
+function formatDuration(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function ThumbnailPhoto({ item, isSelected, className, maintainAspectRatio, onClick, onDoubleClick, onRightClick }: ThumbnailPhotoProps) {
     const dafaultSrc = '/img/blank-tile.png';
+    const isVideo = item.mimeType?.startsWith('video/');
 
     const fetchThumbnailSrc = useCallback(async () => {
         if (item.thumbnail) {
@@ -59,19 +67,29 @@ function ThumbnailPhoto({ item, isSelected, className, onClick, onDoubleClick, o
         onClick(item, e);
     }, [item, onClick]);
 
-    return (<LazyImage
-        fetchSrc={fetchThumbnailSrc}
-        src={dafaultSrc}
-        alt={item.id.toString()}
-        onClick={handleOnClick}
-        onDoubleClick={handleDoubleClick}
-        onContextMenu={handleRightClick}
-        width="0"
-        height="0"
-        className={cn("photoThumbnail h-full w-full object-cover transform dark:brightness-90 brightness-105 transition will-change-auto dark:hover:brightness-110 hover:brightness-75",
-            className,
-            isSelected && 'ring-4 ring-primary opacity-80')}
-    />)
+    return (
+        <div className={cn("relative h-full w-full")}>
+            <LazyImage
+                fetchSrc={fetchThumbnailSrc}
+                src={dafaultSrc}
+                alt={item.id.toString()}
+                onClick={handleOnClick}
+                onDoubleClick={handleDoubleClick}
+                onContextMenu={handleRightClick}
+                width="0"
+                height="0"
+                style={{ objectFit: maintainAspectRatio ? 'contain' : 'cover' }}
+                className={cn("photoThumbnail h-full w-full transform dark:brightness-90 brightness-105 transition will-change-auto dark:hover:brightness-110 hover:brightness-75",
+                    className,
+                    isSelected && 'border-4 border-primary opacity-80')}
+            />
+            {isVideo && item.duration > 0 && (
+                <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded pointer-events-none">
+                    {formatDuration(item.duration)}
+                </div>
+            )}
+        </div>
+    )
 }
 
 type PhotoGridProps = {
@@ -83,6 +101,7 @@ type PhotoGridProps = {
     hasMore: boolean;
     isLoading: boolean;
     onLoadMore: () => void;
+    maintainAspectRatio?: boolean;
 } & ClickProps;
 
 // Hardcoded columns for each zoom level at different viewport widths
@@ -122,7 +141,7 @@ function getPhotoKey(photo: PhotoView): string {
     return `${photo.id}-${photo.deviceFingerprint}-${photo.libraryId}`;
 }
 
-function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMore, isLoading, onLoadMore, ...clickProps }: PhotoGridProps) {
+function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMore, isLoading, onLoadMore, maintainAspectRatio, ...clickProps }: PhotoGridProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState(0);
     const [currentSectionTitle, setCurrentSectionTitle] = useState<string | null>(null);
@@ -193,6 +212,7 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
         totalPhotos: number;
         clickProps: ClickProps;
         onLoadMore: () => void;
+        maintainAspectRatio?: boolean;
     };
 
     const CellComponent = useCallback(({
@@ -206,6 +226,7 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
         totalPhotos,
         clickProps,
         onLoadMore,
+        maintainAspectRatio,
     }: {
         rowIndex: number;
         columnIndex: number;
@@ -237,7 +258,7 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
         const isSelected = selectedIds.has(getPhotoKey(photo));
         return (
             <div style={style} className="p-[2px]">
-                <ThumbnailPhoto item={photo} isSelected={isSelected} {...clickProps} />
+                <ThumbnailPhoto item={photo} isSelected={isSelected} maintainAspectRatio={maintainAspectRatio} {...clickProps} />
             </div>
         );
     }, []);
@@ -250,7 +271,8 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
         totalPhotos,
         clickProps,
         onLoadMore,
-    }), [photos, selectedIds, columnCount, hasMore, totalPhotos, clickProps, onLoadMore]);
+        maintainAspectRatio,
+    }), [photos, selectedIds, columnCount, hasMore, totalPhotos, clickProps, onLoadMore, maintainAspectRatio]);
 
     const getRowHeight = useCallback((index: number): number => {
         const isLastRow = index === Math.ceil(totalPhotos / columnCount);
@@ -295,6 +317,7 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
 export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: PhotosPageProps) {
     const [zoom, setZoom] = useState(3);
     const [selectMode, setSelectMode] = useState(false);
+    const [maintainAspectRatio, setMaintainAspectRatio] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [containerHeight, setContainerHeight] = useState(600);
     const contentContainerRef = useRef<HTMLDivElement>(null);
@@ -419,6 +442,10 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const toggleSelectMode = useCallback(() => {
         setSelectMode((prev) => !prev);
+    }, []);
+
+    const toggleAspectRatio = useCallback(() => {
+        setMaintainAspectRatio((prev) => !prev);
     }, []);
 
     const selectAll = useCallback(() => {
@@ -576,6 +603,13 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                     </MenuButton>
                 </MenuGroup>
                 <MenuGroup>
+                    <MenuButton title='Maintain aspect ratio' onClick={toggleAspectRatio} selected={maintainAspectRatio}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+                        </svg>
+                    </MenuButton>
+                </MenuGroup>
+                <MenuGroup>
                     <MenuButton title='Zoom In' disabled={zoom >= 4} onClick={zoomIn}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
@@ -612,6 +646,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                             hasMore={hasMore}
                             isLoading={isLoading}
                             onLoadMore={fetchNew}
+                            maintainAspectRatio={maintainAspectRatio}
                         />
                         {
                             !error && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>

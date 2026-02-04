@@ -2,8 +2,8 @@ import { exposed } from "shared/servicePrimatives";
 import { DeletePhotosResponse, GetPhotosParams, Photo, PhotoLibraryLocation, GetPhotosResponse } from "shared/types";
 import { PhotosService } from "shared/photosService";
 import * as MediaLibrary from 'expo-media-library';
-import mime from 'mime';
 import { MobilePlatform } from "../types";
+import { getMimeType } from "./fileUtils";
 
 
 export abstract class MobilePhotosService extends PhotosService {
@@ -34,7 +34,9 @@ export abstract class MobilePhotosService extends PhotosService {
         if (!uri.startsWith('ph://') && modules.config.PLATFORM === MobilePlatform.IOS) {
             uri = `ph://${asset.id}`;
         }
-        let mimeType = mime.getType(uri);
+        let mimeType = getMimeType(asset.filename || uri);
+
+        // Set default mime types if not detected
         if (!mimeType) {
             if (asset.mediaType === MediaLibrary.MediaType.photo) {
                 mimeType = 'image/jpeg'; // Default to JPEG for photos
@@ -42,6 +44,12 @@ export abstract class MobilePhotosService extends PhotosService {
                 mimeType = 'video/mp4'; // Default to MP4 for videos
             }
         }
+
+        // Note: We can't reliably detect HEVC codec without parsing the file.
+        // iOS records in HEVC by default (iPhone 7+), but the container is still .mov/.mp4
+        // The mime type will be 'video/quicktime' for .mov files.
+        // Web preview will try to play and fail gracefully for unsupported codecs.
+
         const photo: Photo = {
             id: asset.id,
             fileId: uri,
