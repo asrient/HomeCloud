@@ -6,6 +6,7 @@ import { exposed } from "shared/servicePrimatives";
 import { FileContent, PreviewOptions } from "shared/types";
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { isHeicFile, resolveFileUri } from "./fileUtils";
+import { PreviewCache } from "./previewCache";
 
 type PreviewCacheEntry = {
   remoteFingerprint: string;
@@ -20,6 +21,7 @@ function locationHash(remoteFingerprint: string, remotePath: string) {
 export default class MobileFilesService extends FilesService {
   public fs = new MobileFsDriver();
   public separator = '/';
+  private previewCache = new PreviewCache();
 
   @exposed
   async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
@@ -50,6 +52,19 @@ export default class MobileFilesService extends FilesService {
 
     // If it's HEIC, convert directly without reading first
     if (isHeic && !supportsHeic) {
+      // Check if we have a cached converted version
+      const cachedPath = this.previewCache.get(filePath);
+      if (cachedPath) {
+        console.log('Using cached converted HEIC preview:', cachedPath);
+        const cachedFile = new File(cachedPath);
+        const convertedName = resolved.filename.replace(/\.(heic|heif)$/i, '.jpg');
+        return {
+          name: convertedName,
+          mime: 'image/jpeg',
+          stream: cachedFile.readableStream(),
+        };
+      }
+
       console.log('Converting HEIC image for preview:', filePath, '->', resolved.fileUri);
       try {
         const context = ImageManipulator.manipulate(resolved.fileUri);
@@ -59,9 +74,11 @@ export default class MobileFilesService extends FilesService {
           compress: 0.9,
         });
 
+        // Track the converted file in cache (file stays where ImageManipulator saved it)
+        this.previewCache.add(filePath, result.uri);
+
         const convertedFile = new File(result.uri);
         const convertedName = resolved.filename.replace(/\.(heic|heif)$/i, '.jpg');
-
         return {
           name: convertedName,
           mime: 'image/jpeg',
@@ -153,6 +170,17 @@ export default class MobileFilesService extends FilesService {
     // Mobile-specific startup logic can go here
     await this.clearCache();
     this.startCleanupTimer();
-    return super.start();
+    await super.start();
+    await this.previewCache.start();
+  }
+
+  async stop() {
+    // Mobile-specific shutdown logic can go here
+    if (this.cleanupTimer) {
+      clearTimeout(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+    this.previewCache.stop();
+    await super.stop();
   }
 }
