@@ -14,9 +14,9 @@ export function PageBar({ children, title, icon }: {
     const { canGoBack, goBack } = useNavigation();
     return (
         <div className={cn(
-            'w-full flex justify-between items-center z-20',
-            isMacosTheme() && 'h-[3rem] py-1 px-3 sticky top-0',
-            !isMacosTheme() && 'h-[4rem] pt-4 px-8 relative'
+            'flex justify-between items-center z-20',
+            isMacosTheme() && 'h-[3rem] py-1 px-3 fixed top-0 md:left-[220px] lg:left-[240px] right-0',
+            !isMacosTheme() && 'w-full h-[4rem] pt-4 px-8 relative'
         )}>
             {/* Progressive blur background for macOS */}
             {isMacosTheme() && (
@@ -47,9 +47,9 @@ export function PageBar({ children, title, icon }: {
                     isMacosTheme() && 'app-dragable text-base font-semibold'
                 )}>{title}</div>
             </div>
-            <div className={cn('grow w-full h-full relative z-10', isMacosTheme() && 'app-dragable')}></div>
-            {children && (<div className='flex justify-center items-center md:space-x-1 text-primary/90 p-1 relative z-10'>{children}</div>)}
-            {isMacosTheme() && <div className='app-titlebar-space-end'></div>}
+            <div className={cn('flex-1 min-w-0 h-full relative z-10', isMacosTheme() && 'app-dragable')}></div>
+            {children && (<div className='flex justify-center items-center md:space-x-1 text-primary/90 p-1 relative z-10 shrink-0'>{children}</div>)}
+            {isMacosTheme() && <div className='app-titlebar-space-end shrink-0'></div>}
         </div>
     )
 }
@@ -59,7 +59,7 @@ export function PageContent({ children, className, onDrop }: { children: React.R
         <div
             className={cn(
                 'relative overflow-y-auto w-full',
-                isMacosTheme() ? 'h-full -mt-[3rem] pt-[3rem]' : 'h-[calc(100%-4rem)]',
+                isMacosTheme() ? 'h-full pt-[3rem]' : 'h-[calc(100%-4rem)]',
                 className
             )}
             onDragOver={onDrop ? (e) => {
@@ -94,7 +94,7 @@ export const MenuButton = forwardRef<HTMLButtonElement, MenuButtonProps>(
                         ? cn(
                             'rounded-full px-2.5 py-[1.15rem]',
                             selected
-                                ? 'bg-muted hover:bg-muted'
+                                ? 'bg-secondary hover:bg-muted'
                                 : 'hover:bg-muted/50',
                             'text-foreground hover:text-foreground'
                         )

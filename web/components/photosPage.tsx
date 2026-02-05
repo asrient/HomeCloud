@@ -102,6 +102,7 @@ type PhotoGridProps = {
     isLoading: boolean;
     onLoadMore: () => void;
     maintainAspectRatio?: boolean;
+    changeTitle?: (title: string | null) => void;
 } & ClickProps;
 
 // Hardcoded columns for each zoom level at different viewport widths
@@ -141,7 +142,7 @@ function getPhotoKey(photo: PhotoView): string {
     return `${photo.id}-${photo.deviceFingerprint}-${photo.libraryId}`;
 }
 
-function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMore, isLoading, onLoadMore, maintainAspectRatio, ...clickProps }: PhotoGridProps) {
+function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMore, isLoading, onLoadMore, maintainAspectRatio, changeTitle, ...clickProps }: PhotoGridProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState(0);
     const [currentSectionTitle, setCurrentSectionTitle] = useState<string | null>(null);
@@ -189,9 +190,14 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
     useEffect(() => {
         if (photos.length > 0) {
             const date = new Date(photos[0][dateKey]);
-            setCurrentSectionTitle(dateToTitle(date, size <= 2 ? 'month' : 'day', new Date()));
+            const title = dateToTitle(date, size <= 2 ? 'month' : 'day', new Date());
+            if (isMacosTheme()) {
+                changeTitle?.(title);
+            } else {
+                setCurrentSectionTitle(title);
+            }
         }
-    }, [photos, dateKey, size]);
+    }, [photos, dateKey, size, changeTitle]);
 
     // Handle visible cells to update date indicator
     const handleCellsRendered = useCallback((visibleCells: { rowStartIndex: number; rowStopIndex: number; columnStartIndex: number; columnStopIndex: number }) => {
@@ -200,9 +206,14 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
         if (photoIndex < photos.length) {
             const photo = photos[photoIndex];
             const date = new Date(photo[dateKey]);
-            setCurrentSectionTitle(dateToTitle(date, size <= 2 ? 'month' : 'day', new Date()));
+            const title = dateToTitle(date, size <= 2 ? 'month' : 'day', new Date());
+            if (isMacosTheme()) {
+                changeTitle?.(title);
+            } else {
+                setCurrentSectionTitle(title);
+            }
         }
-    }, [photos, columnCount, dateKey, size]);
+    }, [photos, columnCount, dateKey, size, changeTitle]);
 
     type CellProps = {
         photos: PhotoView[];
@@ -288,14 +299,9 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
 
     return (
         <div ref={containerRef} className='select-none w-full relative'>
-            {/* Fixed date indicator */}
-            {currentSectionTitle && (
-                <div className={cn(
-                    'absolute top-2 left-4 z-20 font-medium pointer-events-none text-sm px-3 py-2 ',
-                    isMacosTheme()
-                        ? 'backdrop-blur-xl bg-background/70 rounded-lg shadow-sm'
-                        : 'bg-background/90 rounded-md shadow-sm'
-                )}>
+            {/* Fixed date indicator - only show for non-macOS */}
+            {!isMacosTheme() && currentSectionTitle && (
+                <div className='absolute top-2 left-4 z-20 font-medium pointer-events-none text-sm px-3 py-2 bg-background/90 rounded-md shadow-sm'>
                     {currentSectionTitle}
                 </div>
             )}
@@ -328,6 +334,8 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const { peers } = useAppState();
 
+    const [currentSectionTitle, setCurrentSectionTitle] = useState<string | null>(null);
+
     // Observe content container height
     useEffect(() => {
         const container = contentContainerRef.current;
@@ -336,7 +344,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         const updateHeight = () => {
             // Get available height (viewport height minus page bar and padding)
             const rect = container.getBoundingClientRect();
-            const availableHeight = window.innerHeight - rect.top - (isMacosTheme() ? 4 : 10);
+            let availableHeight = window.innerHeight - rect.top - (isMacosTheme() ? 0 : 10);
             setContainerHeight(Math.max(400, availableHeight));
         };
 
@@ -594,7 +602,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 photo={photoForPreview}
                 changePhoto={(photo) => setPhotoForPreview(photo)}
             />
-            <PageBar title={pageTitle} icon={pageIcon}>
+            <PageBar title={currentSectionTitle || pageTitle} icon={pageIcon}>
                 <MenuGroup>
                     <MenuButton title='Toggle select mode' onClick={toggleSelectMode} selected={selectMode}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -622,7 +630,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                     </MenuButton>
                 </MenuGroup>
             </PageBar>
-            <PageContent>
+            <PageContent className='pt-0'>
                 <ContextMenuArea
                     onMenuOpen={getContainerContextMenuItems}
                     onMenuItemClick={handleContextMenuClick}
@@ -647,6 +655,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                             isLoading={isLoading}
                             onLoadMore={fetchNew}
                             maintainAspectRatio={maintainAspectRatio}
+                            changeTitle={setCurrentSectionTitle}
                         />
                         {
                             !error && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
