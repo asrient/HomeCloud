@@ -54,8 +54,12 @@ export function getOSIconUrl(deviceInfo: DeviceInfo) {
     case OSType.Windows:
       iconKey = 'windows';
       break;
+    case OSType.Android:
+      iconKey = 'android';
+      break;
     case OSType.MacOS:
-      iconKey = 'macos';
+    case OSType.iOS:
+      iconKey = 'apple';
       break;
     case OSType.Linux:
       iconKey = 'linux';

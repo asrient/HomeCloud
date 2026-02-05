@@ -39,10 +39,14 @@ export function getIconKey(deviceInfo: DeviceInfo) {
       if (major <= 10) {
         return `${macff}_10`;
       }
-      if (major <= 15) {
+      if (major <= 15 || (major >= 26 && major <= 26)) { // Update this condition as new macOS versions are released
         return `${macff}_${major}`;
       }
       return macff;
+    case OSType.iOS:
+      return formFactor === DeviceFormType.Tablet ? "ipad" : "iphone";
+    case OSType.Android:
+      return "phone";
     case OSType.Linux:
     default:
       return formFactor === DeviceFormType.Desktop ? "pc" : "laptop";

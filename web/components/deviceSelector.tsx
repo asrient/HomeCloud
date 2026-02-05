@@ -25,7 +25,7 @@ export enum DeviceIconSize {
     XLARGE = 180,
 }
 
-export const DeviceIcon = ({
+export const DeviceIconWithStatus = ({
     iconKey,
     isOnline,
     className,
@@ -37,12 +37,15 @@ export const DeviceIcon = ({
     size?: DeviceIconSize;
 }) => {
     return (
-        <div className={cn('flex items-center justify-center relative', className)}>
-            <Image src={getUrlFromIconKey(iconKey)} width={size} height={size} alt="Device icon" />
+        <div className={cn('flex items-center justify-center relative', className)} style={{ width: size, height: size }}>
+            <Image src={getUrlFromIconKey(iconKey)} width={size} height={size} alt="Device icon" className="object-contain max-w-full max-h-full" />
             <OnlineIndicator isOnline={isOnline} className="absolute bottom-0 right-0" />
         </div>
     );
 }
+
+// Alias for backwards compatibility
+export const DeviceIcon = DeviceIconWithStatus;
 
 export const DeviceButton = ({
     fingerprint,
@@ -61,7 +64,7 @@ export const DeviceButton = ({
         <Button key={fingerprint}
             variant='ghost' className="h-max flex flex-col items-center justify-center rounded-none p-2 w-[8rem]"
             onClick={() => onClick(fingerprint)}>
-            <DeviceIcon iconKey={iconKey} isOnline={isOnline} size={DeviceIconSize.SMALL} className="mb-1" />
+            <DeviceIconWithStatus iconKey={iconKey} isOnline={isOnline} size={DeviceIconSize.SMALL} className="mb-1" />
             <div className="max-w-[6rem] text-sm text-foreground/70 text-ellipsis truncate">{deviceName || 'Anonymous device'}</div>
             <div className="max-w-[6rem] text-xs text-foreground/40 text-ellipsis truncate">
                 {printFingerprint(fingerprint)}

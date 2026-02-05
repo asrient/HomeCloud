@@ -25,6 +25,9 @@
     <item name="colorOnSurfaceVariant">@color/colorOnSurfaceVariant</item>
     <item name="colorOutline">@color/colorOutline</item>
     <item name="colorOutlineVariant">@color/colorOutlineVariant</item>
+    <item name="colorSurfaceContainer">@color/colorSurfaceContainer</item>
+    <item name="colorSurfaceContainerHigh">@color/colorSurfaceContainerHigh</item>
+    <item name="colorSurfaceContainerLow">@color/colorSurfaceContainerLow</item>
     <item name="android:colorBackground">@color/colorSurface</item>
     <item name="android:navigationBarColor">@color/colorSurfaceContainer</item>
   </style>

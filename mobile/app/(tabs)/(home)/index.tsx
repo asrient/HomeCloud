@@ -9,7 +9,7 @@ import { UIScrollView } from '@/components/ui/UIScrollView';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useMemo, useState } from 'react';
-import { DeviceInfo } from 'shared/types';
+import { DeviceInfo, PeerInfo } from 'shared/types';
 import { DeviceQuickActions } from '@/components/deviceQuickActions';
 import { isIos, getAppName } from '@/lib/utils';
 
@@ -25,13 +25,13 @@ export default function HomeScreen() {
   const router = useRouter();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
-  const [thisDeviceInfo, setThisDeviceInfo] = useState<DeviceInfo | null>(null);
-  
+  const [thisPeerInfo, setThisPeerInfo] = useState<PeerInfo | null>(null);
+
   // Tab bar height is typically 49 on iOS and 56 on Android, plus safe area
   const tabBarHeight = (isIos ? 49 : 56) + insets.bottom;
 
   useEffect(() => {
-    modules.getLocalServiceController().system.getDeviceInfo().then(setThisDeviceInfo);
+    modules.getLocalServiceController().app.peerInfo().then(peerInfo => setThisPeerInfo(peerInfo));
   }, []);
 
   const { selectedPeer } = useAppState();
@@ -65,12 +65,12 @@ export default function HomeScreen() {
       <DeviceSelectorRow />
       <View style={[styles.container, { paddingBottom: tabBarHeight + (isIos ? 15 : 40) }]}>
         <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : null} />
+          <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : thisPeerInfo?.iconKey || null} />
           <UIText style={{ marginTop: 10, textAlign: 'center' }} type='subtitle' color='accentText' font='medium'>
             {selectedPeer ? selectedPeer.deviceName : modules.config.DEVICE_NAME}
           </UIText>
           <UIText style={{ textAlign: 'center', padding: 1 }} size='md' color='textSecondary' font='medium'>
-            {printDeviceInfo(selectedPeer ? selectedPeer.deviceInfo : thisDeviceInfo)}
+            {printDeviceInfo(selectedPeer ? selectedPeer.deviceInfo : thisPeerInfo?.deviceInfo || null)}
           </UIText>
         </View>
         <DeviceQuickActions peerInfo={selectedPeer} />

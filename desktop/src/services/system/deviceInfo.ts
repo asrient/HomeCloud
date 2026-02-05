@@ -71,8 +71,9 @@ function getMacVersion() {
     }
 
     if (major < 20) return `10.${minor}`; // macOS before Big Sur
-    // Starting from Big Sur, the major version is 11 and above
-    return String(major - 9); // 20 -> 11, 21 -> 12, etc.
+    if (major >= 25) return String(major + 1); // macOS Tahoe (Darwin 25 = macOS 26) and above
+    // Big Sur to Sequoia: Darwin 20-24 = macOS 11-15
+    return String(major - 9); // 20 -> 11, 21 -> 12, ..., 24 -> 15
 }
 
 /**

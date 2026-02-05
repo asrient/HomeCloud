@@ -8,6 +8,7 @@ import CryptoImpl from './cryptoImpl';
 import DesktopServiceController from './services/desktopServiceController';
 import fs from 'node:fs';
 import os from 'node:os';
+import { execSync } from 'node:child_process';
 import DesktopConfigStorage from './configStorage';
 import { OSType, UITheme } from 'shared/types';
 import { createTray } from './tray';
@@ -77,6 +78,45 @@ async function getOrGenerateKeys(dataDir: string) {
   };
 }
 
+/**
+ * Parse a macOS hostname to make it more presentable.
+ * e.g., "Aritras-MacBook-Air-13307.local" -> "Aritras MacBook Air"
+ */
+function parseHostname(hostname: string): string {
+  let name = hostname;
+  // Remove .local suffix
+  name = name.replace(/\.local$/, '');
+  // Remove trailing numbers (e.g., -13307)
+  name = name.replace(/-\d+$/, '');
+  // Replace hyphens with spaces
+  name = name.replace(/-/g, ' ');
+  // Fix possessive: "Aritras " -> "Aritra's " (common pattern)
+  // name = name.replace(/^(\w+)s\s/, "$1's ");
+  return name.trim();
+}
+
+/**
+ * Get the user-friendly device name.
+ * On macOS, this returns the "Computer Name" from System Preferences.
+ * On other platforms, falls back to os.hostname().
+ */
+function getDeviceName(): string {
+  if (process.platform === 'darwin') {
+    try {
+      // Get the friendly "Computer Name" on macOS (e.g., "Aritra's MacBook Air")
+      const computerName = execSync('scutil --get ComputerName', { encoding: 'utf-8' }).trim();
+      if (computerName) {
+        return computerName;
+      }
+    } catch {
+      // Fall back to parsed hostname if scutil fails
+    }
+    // Parse the hostname to make it more presentable
+    return parseHostname(os.hostname());
+  }
+  return os.hostname();
+}
+
 async function getConfig() {
   // Set the modules for the app
   const isPackaged = app.isPackaged;
@@ -102,7 +142,7 @@ async function getConfig() {
     DATA_DIR: dataDir,
     SECRET_KEY: createOrGetSecretKey(dataDir),
     VERSION: app.getVersion(),
-    DEVICE_NAME: os.hostname(),
+    DEVICE_NAME: getDeviceName(),
     PUBLIC_KEY_PEM: publicKeyPem,
     PRIVATE_KEY_PEM: privateKeyPem,
     FINGERPRINT: fingerprint,

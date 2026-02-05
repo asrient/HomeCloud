@@ -10,7 +10,8 @@ import { FileRemoteItem } from '@/lib/types';
 import { remoteItemToFileRemoteItem } from '@/lib/fileUtils';
 import { useAppDispatch, useAppState } from '@/components/hooks/useAppState';
 import { usePeer, usePeerConnectionState } from '@/components/hooks/usePeerState';
-import { cn, getServiceController, getUrlFromIconKey, isMacosTheme, isWin11Theme } from '@/lib/utils';
+import { cn, getServiceController, isMacosTheme, isWin11Theme } from '@/lib/utils';
+import { DeviceIcon } from '@/components/DeviceIcon';
 import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionIcon } from '@/components/deviceSwitcher';
@@ -80,7 +81,7 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
   return (
     <div className={cn("py-3 px-4 lg:px-6 xl:px-10 lg:min-h-[12rem] flex flex-col lg:flex-row items-center justify-around lg:justify-between relative border-b lg:border-b-0 border-border/70")}>
       <div className='flex items-center space-x-4 w-fit px-5 py-8'>
-        <div><Image src={getUrlFromIconKey(peer.iconKey)} width={150} height={150} alt="Peer icon" /></div>
+        <DeviceIcon iconKey={peer.iconKey} size={150} alt="Peer icon" />
         <div className="flex flex-col text-base">
           <div className={cn("text-foreground", isWin11Theme() ? 'font-light text-lg' : 'font-medium text-md')}>{peer.deviceName || 'Anonymous device'}</div>
           <div className="flex flex-col text-foreground/80 text-sm space-y-2 w-full">

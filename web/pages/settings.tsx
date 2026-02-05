@@ -1,6 +1,6 @@
 import { PageBar, PageContent } from "@/components/pagePrimatives";
 import { FormContainer, Section, Line } from '@/components/formPrimatives'
-import { buildPageConfig, getOSIconUrl, getUrlFromIconKey } from '@/lib/utils'
+import { buildPageConfig, getOSIconUrl } from '@/lib/utils'
 import Head from 'next/head'
 import Image from 'next/image'
 import React, { useEffect, useState, useCallback } from 'react'
@@ -14,6 +14,7 @@ import { useAccountState } from "@/components/hooks/useAccountState";
 import { useAppState } from "@/components/hooks/useAppState";
 import { getAppName } from '@/lib/utils';
 import { Folder, Plus, X } from 'lucide-react';
+import { DeviceIcon } from '@/components/DeviceIcon';
 
 function Page() {
   const [deviceInfo, setDeviceInfo] = useState<null | DeviceInfo>(null);
@@ -195,11 +196,10 @@ function Page() {
               {peers.map((peer: PeerInfo) => (
                 <Line key={peer.fingerprint} title={
                   <div className="flex items-center">
-                    <Image
-                      src={getUrlFromIconKey(peer.iconKey)}
+                    <DeviceIcon
+                      iconKey={peer.iconKey}
                       alt={peer.deviceName}
-                      width={32}
-                      height={32}
+                      size={32}
                       className="mr-3"
                     />
                     <div className="flex flex-col">

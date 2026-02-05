@@ -1,5 +1,4 @@
 import Head from 'next/head'
-import Image from 'next/image'
 import { buildPageConfig } from '@/lib/utils'
 import { PageBar, PageContent } from "@/components/pagePrimatives";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion'
@@ -14,11 +13,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import LoadingIcon from '@/components/ui/loadingIcon'
-import { printFingerprint, getUrlFromIconKey } from '@/lib/utils'
+import { printFingerprint } from '@/lib/utils'
 import { ConnectionInfo, PeerInfo, ServiceDocTree, ServiceDoc, MethodInfo } from 'shared/types'
 import ServiceController from 'shared/controller'
 import { ThemedIconName } from '@/lib/enums';
 import { Input } from '@/components/ui/input';
+import { DeviceIcon } from '@/components/DeviceIcon';
 
 // Take parameters for the func call from userand execute the function located by the FQN and display the result.
 function FunctionPlayground({ fqn, serviceController }:
@@ -250,11 +250,10 @@ function DeviceSelector({ setDeviceCandidate }: {
         peers.map((device) => (
           <div key={device.fingerprint} className='flex items-center justify-between mb-2'>
             <div className='flex items-center space-x-2 pr-6'>
-              <Image
-                src={getUrlFromIconKey(device.iconKey)}
+              <DeviceIcon
+                iconKey={device.iconKey}
                 alt={device.iconKey || 'Unknown Device'}
-                width={40}
-                height={40}
+                size={40}
               />
               <div className='text-sm'>
                 <div>{device.deviceName || 'Unknow Device'}</div>

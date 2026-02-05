@@ -1,7 +1,7 @@
 import { ConnectionInfo } from "shared/types";
 import { usePeerState } from "./hooks/usePeerState";
-import { cn, getUrlFromIconKey, isMacosTheme } from "@/lib/utils";
-import Image from 'next/image';
+import { cn, isMacosTheme } from "@/lib/utils";
+import { DeviceIcon } from "@/components/DeviceIcon";
 import { useCallback } from "react";
 import { useAppState } from "./hooks/useAppState";
 import { useNavigation } from "./hooks/useNavigation";
@@ -46,7 +46,7 @@ export const DeviceItem = ({
     return (
         <div
             className="w-max flex items-center justify-center">
-            <Image src={getUrlFromIconKey(iconKey)} width={16} height={16} alt="Device icon" className='mr-2' />
+            <DeviceIcon iconKey={iconKey} size={16} className='mr-2' />
             <div className={cn("text-ellipsis truncate", isMacosTheme() ? 'text-xs' : 'text-sm')}>{deviceName || 'Anonymous device'}</div>
         </div>
     );
@@ -82,7 +82,7 @@ export function DeviceSwitcher({
                         style={{ width }}>
                         <div>{!!selectedFingerprint && <ConnectionIcon connection={selectedPeer?.connection || null} size={14} />}</div>
                         <div className="flex items-center justify-start text-start text-ellipsis truncate max-w-[70%]">
-                            <Image src={getUrlFromIconKey(selectedPeer?.iconKey)} width={16} height={16} alt="Device icon" className='mr-2' />
+                            <DeviceIcon iconKey={selectedPeer?.iconKey} size={16} className='mr-2' />
                             {selectedPeer ? (selectedPeer.deviceName || 'Anonymous device') : 'This Device'}
                         </div>
                         <div>
