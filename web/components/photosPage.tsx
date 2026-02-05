@@ -182,9 +182,9 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
     // Grid positions cells without gaps, so we use padding inside cells for spacing
     const cellSize = containerWidth > 0 ? Math.floor(containerWidth / columnCount) : 0;
 
-    // Total items = photos + 1 loader/footer row (spanning full width)
+    // Total items = photos + 1 loader/footer row (spanning full width) + 1 spacer row at top
     const totalPhotos = photos.length;
-    const rowCount = Math.ceil(totalPhotos / columnCount) + (hasMore || totalPhotos > 0 ? 1 : 0);
+    const rowCount = 1 + Math.ceil(totalPhotos / columnCount) + (hasMore || totalPhotos > 0 ? 1 : 0);
 
     // Set initial section title
     useEffect(() => {
@@ -202,7 +202,8 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
     // Handle visible cells to update date indicator
     const handleCellsRendered = useCallback((visibleCells: { rowStartIndex: number; rowStopIndex: number; columnStartIndex: number; columnStopIndex: number }) => {
         const { rowStartIndex } = visibleCells;
-        const photoIndex = rowStartIndex * columnCount;
+        const adjustedRowStart = Math.max(0, rowStartIndex - 1); // Account for spacer row
+        const photoIndex = adjustedRowStart * columnCount;
         if (photoIndex < photos.length) {
             const photo = photos[photoIndex];
             const date = new Date(photo[dateKey]);
@@ -243,8 +244,13 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
         columnIndex: number;
         style: React.CSSProperties;
     } & CellProps) => {
-        const photoIndex = rowIndex * columnCount + columnIndex;
-        const isLastRow = rowIndex === Math.ceil(totalPhotos / columnCount);
+        // Row 0 is the spacer row
+        if (rowIndex === 0) {
+            return null;
+        }
+        const adjustedRowIndex = rowIndex - 1;
+        const photoIndex = adjustedRowIndex * columnCount + columnIndex;
+        const isLastRow = adjustedRowIndex === Math.ceil(totalPhotos / columnCount);
 
         // Last row: loader or footer (only render in first column, spanning conceptually)
         if (isLastRow) {
@@ -286,7 +292,11 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
     }), [photos, selectedIds, columnCount, hasMore, totalPhotos, clickProps, onLoadMore, maintainAspectRatio]);
 
     const getRowHeight = useCallback((index: number): number => {
-        const isLastRow = index === Math.ceil(totalPhotos / columnCount);
+        if (index === 0) {
+            return isMacosTheme() ? 48 : 0; // Only add extra space at top for macOS.
+        }
+        const adjustedIndex = index - 1;
+        const isLastRow = adjustedIndex === Math.ceil(totalPhotos / columnCount);
         if (isLastRow) {
             return 80; // loader/footer height
         }
