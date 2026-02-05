@@ -37,7 +37,7 @@ export function trayOnClick() {
 
     const contextMenu = Menu.buildFromTemplate([
         {
-            label: 'Open',
+            label: `Open ${app.getName()}`,
             click: () => {
                 getOrCreateWindow();
             }

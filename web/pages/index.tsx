@@ -52,7 +52,7 @@ const DrivesSection = ({
 
 const BatteryIcon = ({ level, isCharging, size }: { level: number, isCharging: boolean, size?: number }) => {
   if (isCharging) {
-    return <BatteryCharging size={size} color='green' />;
+    return <BatteryCharging size={size} color='#089704' />;
   }
   if (level >= 80) {
     return <BatteryFull size={size} />;
@@ -61,7 +61,7 @@ const BatteryIcon = ({ level, isCharging, size }: { level: number, isCharging: b
     return <BatteryMedium size={size} />;
   }
   if (level >= 30) {
-    return <BatteryLow size={size} color='yellow' />;
+    return <BatteryLow size={size} color='#ff990a' />;
   }
   return <Battery size={size} />;
 }
