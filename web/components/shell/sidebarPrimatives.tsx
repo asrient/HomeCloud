@@ -37,7 +37,6 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick, isParent, isRef
                 isMatch && "bg-foreground/10",
                 isMatch && isWin11Theme() ? 'win11-selected' : 'border-none',
                 !isMacosTheme() && !isParent && 'pl-7',
-                isMacosTheme() && 'font-normal',
                 "rounded-md sidebarItem w-full justify-start text-left text-ellipsis truncate h-8")}
         >
             {item.icon && <ThemedIcon name={item.icon} size={20} className={cn("mr-2")} type={isMacosTheme() ? "symbol" : "image"} />}

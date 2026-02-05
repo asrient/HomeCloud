@@ -33,7 +33,7 @@ export function PageBar({ children, title, icon }: {
                 <div className={cn(
                     'truncate text-base text-foreground font-medium',
                     !isMacosTheme() && 'md:text-2xl',
-                    isMacosTheme() && 'app-dragable text-sm font-semibold'
+                    isMacosTheme() && 'app-dragable text-base font-semibold'
                 )}>{title}</div>
             </div>
             <div className={cn('grow w-full h-full', isMacosTheme() && 'app-dragable')}></div>

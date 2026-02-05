@@ -30,8 +30,8 @@ module.exports = {
 			// macOS typography guidelines (San Francisco font sizes)
 			fontSize: {
 				'xs': '0.72rem',
-				'sm': '0.83rem',
-				'base': '0.93rem',
+				'sm': '0.8125rem',
+				'base': '0.88rem',
 				'lg': '1rem',
 				'xl': '1.125rem',
 				'2xl': '1.25rem',

@@ -73,12 +73,12 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
             </DialogTrigger>
             <DialogContent className={cn(
                 "overflow-hidden",
-                isWin11Theme() ? 'sm:max-w-[26rem] ' : 'sm:max-w-[20rem]'
+                isWin11Theme() ? 'sm:max-w-[26rem] ' : 'sm:max-w-[22rem]'
             )}>
                 <DialogHeader>
                     <DialogTitle className={cn(
                         "overflow-ellipsis truncate",
-                        isWin11Theme() ? 'max-w-[22rem]' : 'max-w-[16rem]'
+                        isWin11Theme() ? 'max-w-[22rem]' : 'max-w-[17rem]'
                     )}>
                         {title}
                     </DialogTitle>
