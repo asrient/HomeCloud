@@ -62,7 +62,7 @@ function getIgnorePatterns(platform) {
     "^/[.]vs$",
     "^/public$",
     "^/out$",
-    // Keep build/Release for native modules, but ignore build config files
+    // Keep build/Release for native modules, but ignore build config files and debug symbols
     "^/build/binding[.]Makefile$",
     "^/build/config[.]gypi$",
     "^/build/gyp-mac-tool$",
@@ -71,6 +71,13 @@ function getIgnorePatterns(platform) {
     "^/build/Release/[.]deps$",
     "^/build/Release/[.]forge-meta$",
     "^/build/Release/obj[.]target$",
+    "^/build/Release/obj$",
+    // Exclude debug symbols and build artifacts (~22MB savings)
+    "[.]pdb$",   // Windows debug symbols
+    "[.]iobj$",  // Incremental linking object files
+    "[.]ipdb$",  // Incremental PDB files
+    "[.]lib$",   // Static library files (not needed at runtime)
+    "[.]exp$",   // Export files (not needed at runtime)
     "^/docs$",
     "^/Debug$",
     "^/src$",
@@ -91,10 +98,12 @@ function getIgnorePatterns(platform) {
     "/node_modules/[^/]+/(test|tests|__tests__|spec|specs|example|examples|doc|docs|coverage|[.]github|[.]vscode)/",
     "/node_modules/[^/]+/[A-Z]+[.]md$",
     "/node_modules/@types/",
+    // Note: source-map and source-map-support are required by sqlite3 at runtime
     // Exclude unnecessary fluent-ffmpeg folders (11MB coverage folder!)
     "/node_modules/fluent-ffmpeg/(coverage|doc|tools|OLD|[.]vscode)/",
     // Exclude moment locale files (~4MB) - Sequelize only needs core moment
     "/node_modules/moment/locale/",
+    // Note: moment-timezone/data is required at runtime - don't exclude it
   ];
 
   // Exclude Windows-only modules on non-Windows platforms
@@ -112,6 +121,7 @@ module.exports = {
     asar: {
       unpackDir: '{assets,build/Release}',
     },
+    prune: true,  // Explicitly prune devDependencies
     overwrite: true, // Overwrite existing files
     icon: "assets/appIcons/icon",
     publisherName: "ASRIENT",
@@ -122,9 +132,18 @@ module.exports = {
   },
   hooks: {
     generateAssets: async () => {
+      const webAssetsDir = path.resolve(__dirname, 'assets/web');
+      const webOutDir = path.resolve(__dirname, '../web/out');
+
+      // Clean existing web assets to remove old build artifacts
+      if (fs.existsSync(webAssetsDir)) {
+        console.log('Cleaning old web assets...');
+        fs.rmSync(webAssetsDir, { recursive: true, force: true });
+      }
+
       return new Promise((resolve, reject) => {
         console.log('Copying web assets...');
-        fs.cp(path.resolve(__dirname, '../web/out'), path.resolve(__dirname, 'assets/web'), { recursive: true }, (err) => {
+        fs.cp(webOutDir, webAssetsDir, { recursive: true }, (err) => {
           if (err) {
             console.error(err);
             reject(err);
@@ -179,6 +198,21 @@ module.exports = {
           console.log(`Removed: ${file}`);
         }
       }
+
+      // Remove unnecessary locale files (keep only en-US.pak)
+      // This saves ~40MB
+      const localesPath = path.join(outputPath, 'locales');
+      if (fs.existsSync(localesPath)) {
+        const localeFiles = fs.readdirSync(localesPath);
+        const keepLocales = ['en-US.pak', 'en-GB.pak']; // Add more if needed
+        for (const file of localeFiles) {
+          if (!keepLocales.includes(file)) {
+            fs.unlinkSync(path.join(localesPath, file));
+          }
+        }
+        console.log(`Removed ${localeFiles.length - keepLocales.length} unused locale files`);
+      }
+
       console.log('Cleanup complete!');
     }
   },

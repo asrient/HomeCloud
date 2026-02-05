@@ -24,6 +24,7 @@ export function buildPageConfig(noAppShell = false): PageUIConfig {
 }
 
 export function isMobile() {
+  if (typeof window === 'undefined') return false;
   return window.innerWidth < 768
 }
 
@@ -71,6 +72,9 @@ export function printFingerprint(fingerprint: string, full = false) {
 }
 
 export async function getServiceController(fingerprint: string | null) {
+  if (typeof window === 'undefined') {
+    throw new Error('getServiceController can only be called in browser environment');
+  }
   if (!fingerprint) {
     return window.modules.getLocalServiceController();
   }
@@ -164,6 +168,9 @@ export function getUITheme(): UITheme {
   if (uiThemeCache) {
     return uiThemeCache;
   }
+  if (typeof window === 'undefined') {
+    return UITheme.Macos; // Default for SSR
+  }
   if (window.modules.config.IS_DEV) {
     const devTheme = localStorage.getItem(DEV_THEME_KEY);
     if (!!devTheme) {
@@ -178,6 +185,9 @@ export function getUITheme(): UITheme {
 }
 
 export function DEV_OverrideUITheme(theme: UITheme | null) {
+  if (typeof window === 'undefined') {
+    throw new Error('DEV_OverrideUITheme can only be called in browser environment');
+  }
   if (!window.modules.config.IS_DEV) {
     throw new Error('Can only override theme in dev mode');
   }
@@ -200,16 +210,19 @@ export function isMacosTheme(): boolean {
 export const UI_THEMES = [UITheme.Macos, UITheme.Win11];
 
 export function isMacos(): boolean {
+  if (typeof window === 'undefined') return false;
   return window.modules.config.OS === OSType.MacOS;
 }
 
 export function isWindows(): boolean {
+  if (typeof window === 'undefined') return false;
   return window.modules.config.OS === OSType.Windows;
 }
 
 export function getAppName() {
+  if (typeof window === 'undefined') return 'App';
   if (window.modules?.config?.APP_NAME) {
     return window.modules.config.APP_NAME;
   }
-  return '[app]';
+  return 'App';
 }

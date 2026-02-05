@@ -8,7 +8,7 @@ import { useFolder } from '@/components/hooks/useFolders';
 import { ClipboardContent, PeerInfo, RemoteItem } from 'shared/types';
 import { FileRemoteItem } from '@/lib/types';
 import { remoteItemToFileRemoteItem } from '@/lib/fileUtils';
-import { useAppState } from '@/components/hooks/useAppState';
+import { useAppDispatch, useAppState } from '@/components/hooks/useAppState';
 import { usePeer, usePeerConnectionState } from '@/components/hooks/usePeerState';
 import { cn, getServiceController, getUrlFromIconKey, isMacosTheme, isWin11Theme } from '@/lib/utils';
 import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard } from 'lucide-react';
@@ -24,6 +24,8 @@ import { DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DisksGrid } from '@/components/DisksGrid';
 import { getAppName } from '@/lib/utils';
+import { useRouter } from 'next/router';
+import { ActionTypes } from '@/lib/state';
 
 const DrivesSection = ({
   fingerprint,
@@ -361,7 +363,16 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
 
 export default function Home() {
   const { selectedFingerprint } = useAppState();
+  const dispatch = useAppDispatch();
   const peer = usePeer(selectedFingerprint);
+  const { query } = useRouter()
+
+  useEffect(() => {
+    console.log('Query params changed:', query);
+    if (query && typeof query.fingerprint === 'string') {
+      dispatch(ActionTypes.SELECT_DEVICE, { fingerprint: query.fingerprint });
+    }
+  }, [dispatch, query]);
 
   return (
     <>
@@ -378,7 +389,7 @@ export default function Home() {
           <div className='mb-3 font-semibold text-md'>
             Storage
           </div>
-        <DisksGrid deviceFingerprint={selectedFingerprint} />
+          <DisksGrid deviceFingerprint={selectedFingerprint} />
         </div>
       </PageContent>
     </>

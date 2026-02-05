@@ -16,6 +16,7 @@ export const staticConfig: StaticConfigType = {
 };
 
 export function setupStaticConfig() {
+    if (typeof window === 'undefined') return;
     staticConfig.baseUrl = window.location.origin;
     staticConfig.webVersion = process.env.NEXT_PUBLIC_WEB_VERSION || 'unknown';
     staticConfig.apiBaseUrl = `http://${API_HOST}:${API_PORT}/api`;

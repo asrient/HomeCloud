@@ -10,5 +10,5 @@ export type DesktopModulesType = ModulesType & {
 }
 
 declare global {
-    var modules: ModulesType;
+    var modules: DesktopModulesType;
 }

@@ -1,6 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 
-const env = process.env.UI_THEME;
+let env = process.env.UI_THEME;
+
+if (!env) {
+	env = process.platform === 'darwin' ? 'macos' : 'windows';
+	console.log(`UI_THEME not set, defaulting to ${env} based on OS`);
+}
 
 const isMacos = env === 'macos';
 const isWindows = env === 'windows';

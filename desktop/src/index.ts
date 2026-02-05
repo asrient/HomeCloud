@@ -1,4 +1,4 @@
-import { app, BrowserWindow, safeStorage, protocol, nativeTheme, Menu, MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, safeStorage, protocol, dialog } from 'electron';
 import path from 'node:path';
 import env from './env';
 import { handleProtocols } from './protocols';
@@ -9,9 +9,9 @@ import DesktopServiceController from './services/desktopServiceController';
 import fs from 'node:fs';
 import os from 'node:os';
 import DesktopConfigStorage from './configStorage';
-import { DeviceFormType, OSType, UITheme } from 'shared/types';
-
-const WEB_APP_SERVER = 'http://localhost:3000';
+import { OSType, UITheme } from 'shared/types';
+import { createTray } from './tray';
+import { createWindow } from './window';
 
 require('@electron/remote/main').initialize();
 
@@ -127,145 +127,57 @@ async function initModules() {
   };
   setModules(modules, global);
   const serviceController = DesktopServiceController.getLocalInstance<DesktopServiceController>();
-  serviceController.setup();
+  await serviceController.setup();
 }
 
-function shouldShowDevTools() {
-  return modules.config.IS_DEV && !(modules.config as DesktopConfigType).IS_DESKTOP_PACKED;
+/**
+ * Check if the app was started with --hidden flag (auto-start in background)
+ */
+export function wasStartedInBackground(): boolean {
+  return process.argv.includes('--hidden');
 }
 
-const createWindow = () => {
-  // Create the browser window.
-  const isSystemDarkMode = nativeTheme.shouldUseDarkColors;
-  console.log('System dark mode:', isSystemDarkMode);
-  const mainWindow = new BrowserWindow({
-    width: process.platform === 'darwin' ? 1040 : 1200,
-    height: process.platform === 'darwin' ? 640 : 860,
-    minWidth: 900,
-    minHeight: 600,
-    // remove the default titlebar
-    titleBarStyle: 'hidden',
-    backgroundMaterial: 'mica',
-    vibrancy: 'titlebar',
-    trafficLightPosition: { x: 20, y: 20 },
-    // expose window controls in Windows/Linux
-    ...(process.platform !== 'darwin' ? {
-      titleBarOverlay: {
-        // make controls transparent
-        color: '#00000000',
-        // make symbol color white if the system is dark mode
-        symbolColor: isSystemDarkMode ? '#ffffff' : '#000000',
-      }
-    } : {}),
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      sandbox: false,
-      contextIsolation: false, // Disable context isolation for remote module
-    },
-  });
 
-  require("@electron/remote/main").enable(mainWindow.webContents);
+let APP_RUNNING = false;
 
-  // and load the index.html of the app.
-  if ((modules.config as DesktopConfigType).USE_WEB_APP_SERVER) {
-    console.log('Loading web app from server:', WEB_APP_SERVER);
-    mainWindow.loadURL(`${WEB_APP_SERVER}?back=off`);
-  } else {
-    // Load the app from the local assets/web directory
-    mainWindow.loadURL(`app://-/index.html?back=off`);
+const startApp = async () => {
+  await initModules();
+  handleProtocols();
+  // Create system tray
+  createTray();
+  // Create the main window (skip if started in background)
+  if (!wasStartedInBackground()) {
+    createWindow();
   }
-
-  handleContextMenuFromWindow(mainWindow);
-
-  // Open the DevTools.
-  if (shouldShowDevTools()) {
-    mainWindow.webContents.openDevTools();
-  }
-};
-
-const handleContextMenuFromWindow = (win: BrowserWindow) => {
-  win.webContents.on('context-menu', (event, params) => {
-    // We handle text and link selection from here.
-    const hasText = params.selectionText.length > 0
-    if (!hasText) {
-      return;
-    }
-    const template: MenuItemConstructorOptions[] = [
-      {
-        label: 'Copy',
-        role: 'copy',
-        accelerator: 'CmdOrCtrl+C',
-        enabled: params.editFlags.canCopy,
-        click: () => {
-          win.webContents.copy();
-        }
-      },
-    ];
-    if (params.editFlags.canCut) {
-      template.unshift({
-        label: 'Cut',
-        role: 'cut',
-        accelerator: 'CmdOrCtrl+X',
-        enabled: params.editFlags.canCut,
-        click: () => {
-          win.webContents.cut();
-        }
-      });
-    }
-    if (params.editFlags.canPaste) {
-      template.push({
-        label: 'Paste',
-        role: 'paste',
-        accelerator: 'CmdOrCtrl+V',
-        enabled: params.editFlags.canPaste,
-        click: () => {
-          win.webContents.paste();
-        }
-      });
-    }
-    if (process.platform === 'darwin') {
-      template.push({
-        label: 'Search with Google',
-        enabled: params.editFlags.canCopy,
-        click: () => {
-          const query = encodeURIComponent(params.selectionText);
-          const url = `https://www.google.com/search?q=${query}`;
-          win.webContents.send('open-external-link', url);
-        }
-      });
-    }
-    const menu = Menu.buildFromTemplate(template);
-    menu.popup({ window: win, x: params.x, y: params.y });
-
-  });
+  // eagerlyConnectPeers();
+  APP_RUNNING = true;
 }
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
-  await initModules();
-  handleProtocols();
-  // Create the main window
-  createWindow();
-  // eagerlyConnectPeers();
+
+  try {
+    await startApp();
+  } catch (error) {
+    console.error('Error during app initialization:', error);
+    // Show error dialog and quit
+    dialog.showErrorBox('Oh my my!', error.message || error);
+  }
 
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (BrowserWindow.getAllWindows().length === 0 && APP_RUNNING) {
       createWindow();
     }
   });
 });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// Don't quit when all windows are closed - keep running in tray
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // Do nothing - app stays in tray
 });
 
 // In this file you can include the rest of your app's specific main process
@@ -280,22 +192,3 @@ protocol.registerSchemesAsPrivileged([
     }
   },
 ]);
-
-function eagerlyConnectPeers() {
-  const localSc = modules.getLocalServiceController();
-  localSc.account.peerAddedSignal.add(async (peer) => {
-    // check if we are already connected
-    const connInfo = localSc.net.getConnectionInfo(peer.fingerprint);
-    if (connInfo) {
-      return;
-    }
-    try {
-      console.log('Eagerly connecting to peer:', peer.fingerprint, peer.deviceName);
-      await localSc.net.getRemoteServiceController(peer.fingerprint);
-      console.log('Successfully connected to peer:', peer.fingerprint);
-    } catch (error) {
-      console.error('Error eagerly connecting to peer:', peer.fingerprint, error);
-    }
-
-  });
-}

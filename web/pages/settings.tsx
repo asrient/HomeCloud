@@ -6,6 +6,7 @@ import Image from 'next/image'
 import React, { useEffect, useState, useCallback } from 'react'
 import ConfirmModal from '@/components/confirmModal'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { ThemedIconName } from "@/lib/enums";
 import { DeviceInfo, PeerInfo, PhotoLibraryLocation } from "shared/types";
 import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
@@ -15,9 +16,10 @@ import { getAppName } from '@/lib/utils';
 import { Folder, Plus, X } from 'lucide-react';
 
 function Page() {
-
   const [deviceInfo, setDeviceInfo] = useState<null | DeviceInfo>(null);
   const [photoLibraries, setPhotoLibraries] = useState<PhotoLibraryLocation[]>([]);
+  const [autoStartEnabled, setAutoStartEnabled] = useState<boolean | null>(null);
+  const [autoStartDisabled, setAutoStartDisabled] = useState(false);
   const { openDialog } = useOnboardingStore();
 
   const fetchPhotoLibraries = useCallback(async () => {
@@ -34,9 +36,32 @@ function Page() {
       const info = await window.modules.getLocalServiceController().system.getDeviceInfo();
       setDeviceInfo(info);
     };
+    const fetchAutoStartStatus = async () => {
+      const localSc = window.modules.getLocalServiceController();
+      // Check if auto-start is supported (returns null if not)
+      const enabled = await localSc.app.isAutoStartEnabled();
+      if (enabled !== null) {
+        setAutoStartEnabled(enabled);
+      }
+    };
     fetchDeviceInfo();
     fetchPhotoLibraries();
+    fetchAutoStartStatus();
   }, [fetchPhotoLibraries]);
+
+  const handleAutoStartToggle = async (checked: boolean) => {
+    setAutoStartDisabled(true);
+    try {
+      const localSc = window.modules.getLocalServiceController();
+      await localSc.app.setAutoStart(checked);
+      setAutoStartEnabled(checked);
+    } catch (e) {
+      console.error('Failed to toggle auto-start:', e);
+    }
+    finally {
+      setAutoStartDisabled(false);
+    }
+  };
 
   const handleAddPhotoLibrary = async () => {
     try {
@@ -89,6 +114,17 @@ function Page() {
               )}
             </Line>
           </Section>
+          {autoStartEnabled !== null && (
+            <Section title="Preferences">
+              <Line title={`Start ${getAppName()} at login`}>
+                <Switch
+                  checked={autoStartEnabled}
+                  onCheckedChange={handleAutoStartToggle}
+                  disabled={autoStartDisabled}
+                />
+              </Line>
+            </Section>
+          )}
           <Section title="Photo Libraries">
             {photoLibraries.map((library) => (
               <Line key={library.id} title={

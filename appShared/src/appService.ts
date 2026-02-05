@@ -270,6 +270,36 @@ export class AppService extends Service {
         return [true, null];
     }
 
+    /**
+     * Check if auto-start at login is enabled.
+     * Returns null if not supported on this platform.
+     * Override in desktop implementation.
+     */
+    @exposed
+    public async isAutoStartEnabled(): Promise<boolean | null> {
+        return null;
+    }
+
+    /**
+     * Set auto-start at login.
+     * No-op if not supported on this platform.
+     * Override in desktop implementation.
+     */
+    @exposed
+    public async setAutoStart(_enable: boolean, _openInBackground: boolean = true): Promise<void> {
+        // No-op on non-desktop platforms
+    }
+
+    /**
+     * Toggle auto-start at login.
+     * Returns null if not supported on this platform.
+     * Override in desktop implementation.
+     */
+    @exposed
+    public async toggleAutoStart(): Promise<boolean | null> {
+        return null;
+    }
+
     @serviceStartMethod
     public async start() {
         this.resyncPeerListIfNeeded();

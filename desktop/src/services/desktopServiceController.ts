@@ -1,6 +1,5 @@
 import ServiceController from "shared/controller";
 import { ConnectionInterface, NetService } from "shared/netService";
-import { AppService } from "shared/appService";
 import TCPInterface from "./tcpInterface";
 import { ConnectionType } from "shared/types";
 import DesktopSystemService from "./system/systemService";
@@ -10,13 +9,14 @@ import { DesktopPhotosService } from "./photos/photosService";
 import { AccountService } from "shared/accountService";
 import { HttpClient_, WebSocket_ } from "../desktopCompat";
 import DesktopWebcInterface from "./webcInterface";
+import DesktopAppService from "./appService";
 
 const TCP_PORT = 7736;
 
 export default class DesktopServiceController extends ServiceController {
 
     public override net = NetService.getInstance<NetService>();
-    public override app = AppService.getInstance<AppService>();
+    public override app = DesktopAppService.getInstance<DesktopAppService>();
     public override account = AccountService.getInstance<AccountService>();
     public override system = DesktopSystemService.getInstance<DesktopSystemService>();
     public override thumbnail = DesktopThumbService.getInstance<DesktopThumbService>();
