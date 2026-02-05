@@ -29,8 +29,8 @@ module.exports = {
 		...(isMacos ? {
 			// macOS typography guidelines (San Francisco font sizes)
 			fontSize: {
-				'xs': ['0.72rem', { lineHeight: '1rem' }],
-				'sm': ['0.8125rem', { lineHeight: '1.125rem' }],
+				'xs': ['0.72rem', { lineHeight: '0.9rem' }],
+				'sm': ['0.8125rem', { lineHeight: '1.12rem' }],
 				'base': ['0.88rem', { lineHeight: '1.25rem' }],
 				'lg': ['1rem', { lineHeight: '1.5rem' }],
 				'xl': ['1.125rem', { lineHeight: '1.625rem' }],
