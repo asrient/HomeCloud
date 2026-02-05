@@ -291,10 +291,10 @@ function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMor
             {/* Fixed date indicator */}
             {currentSectionTitle && (
                 <div className={cn(
-                    'absolute top-2 left-4 z-20 font-medium pointer-events-none',
+                    'absolute top-2 left-4 z-20 font-medium pointer-events-none text-sm px-3 py-2 ',
                     isMacosTheme()
-                        ? 'text-md px-3 py-2 backdrop-blur-xl bg-background/70 rounded-lg shadow-sm'
-                        : 'text-sm px-3 py-2 bg-background/90 rounded-md shadow-sm'
+                        ? 'backdrop-blur-xl bg-background/70 rounded-lg shadow-sm'
+                        : 'bg-background/90 rounded-md shadow-sm'
                 )}>
                     {currentSectionTitle}
                 </div>
