@@ -10,7 +10,7 @@ export default class ThumbGeneratorMac extends ThumbGenerator {
 
     getThumbModule() {
         if (platform() !== "darwin") {
-            throw new Error(`Windows Thumbnail module is not available on ${platform()}`);
+            throw new Error(`Mac Thumbnail module is not available on ${platform()}`);
         }
         if (!this._thumbModule) {
             this._thumbModule = importModule("ThumbnailMac");

@@ -51,31 +51,73 @@ module.exports = env;
   return txt;
 }
 
+// Platform-specific modules to exclude
+const WINDOWS_ONLY_MODULES = [
+  'node-audio-volume-mixer',
+];
+
+function getIgnorePatterns(platform) {
+  const basePatterns = [
+    // Project folders to ignore
+    "^/[.]vs$",
+    "^/public$",
+    "^/out$",
+    // Keep build/Release for native modules, but ignore build config files
+    "^/build/binding[.]Makefile$",
+    "^/build/config[.]gypi$",
+    "^/build/gyp-mac-tool$",
+    "^/build/Makefile$",
+    "^/build/[^/]+[.]target[.]mk$",
+    "^/build/Release/[.]deps$",
+    "^/build/Release/[.]forge-meta$",
+    "^/build/Release/obj[.]target$",
+    "^/docs$",
+    "^/Debug$",
+    "^/src$",
+    "^/addons$",
+    "^/[.]editorconfig$",
+    "^/[.]gitignore$",
+    "^/[.]env$",
+    "^/web-public$",
+    "^/tsconfig[.]json$",
+    "^/binding[.]gyp$",
+    "[.](cmd|user|DotSettings|njsproj|sln)$",
+    // Exclude TypeScript source and definition files
+    "[.]ts$",
+    "[.]tsx$",
+    "[.]d[.]ts$",
+    "[.]map$",
+    // Exclude test and documentation files in node_modules
+    "/node_modules/[^/]+/(test|tests|__tests__|spec|specs|example|examples|doc|docs|coverage|[.]github|[.]vscode)/",
+    "/node_modules/[^/]+/[A-Z]+[.]md$",
+    "/node_modules/@types/",
+    // Exclude unnecessary fluent-ffmpeg folders (11MB coverage folder!)
+    "/node_modules/fluent-ffmpeg/(coverage|doc|tools|OLD|[.]vscode)/",
+    // Exclude moment locale files (~4MB) - Sequelize only needs core moment
+    "/node_modules/moment/locale/",
+  ];
+
+  // Exclude Windows-only modules on non-Windows platforms
+  if (platform !== 'win32') {
+    for (const mod of WINDOWS_ONLY_MODULES) {
+      basePatterns.push(`/node_modules/${mod}/`);
+    }
+  }
+
+  return basePatterns;
+}
+
 module.exports = {
   packagerConfig: {
     asar: {
-      unpackDir: 'assets',
+      unpackDir: '{assets,build/Release}',
     },
     overwrite: true, // Overwrite existing files
     icon: "assets/appIcons/icon",
     publisherName: "ASRIENT",
     appBundleId: "org.homecloud.desktop",
     derefSymlinks: true, // Dereference symlinks
-    ignore: [ // doc: https://electron.github.io/packager/main/interfaces/Options.html#ignore
-      "^/[.]vs$",
-      "^/public$",
-      "^/out$",
-      "^/build$",
-      "^/docs$",
-      "^/Debug$",
-      "^/src$",
-      "^/[.]editorconfig$",
-      "^/[.]gitignore$",
-      "^/[.]env$",
-      "^/web-public$",
-      "^/tsconfig[.]json$",
-      "[.](cmd|user|DotSettings|njsproj|sln)$",
-    ],
+    // ignore is set dynamically in prePackage hook
     appCategoryType: "public.app-category.productivity",
   },
   hooks: {
@@ -95,6 +137,12 @@ module.exports = {
     },
 
     prePackage: async (forgeConfig, options) => {
+      // Set platform-specific ignore patterns
+      const platform = options.platform;
+      console.log(`Packaging for platform: ${platform}`);
+      forgeConfig.packagerConfig.ignore = getIgnorePatterns(platform);
+      console.log(`Ignore patterns set for ${platform}`);
+
       console.log('Generating environment file...');
 
       const envFileContent = getEnvFileContent();
@@ -114,6 +162,24 @@ module.exports = {
         fs.unlinkSync(TMP_DESKTOP_ENV_FILE);
       }
       console.log('Original environment file restored!');
+
+      // Remove unnecessary auto-generated files to reduce package size
+      const outputPath = options.outputPaths[0];
+      const filesToRemove = [
+        'LICENSES.chromium.html',  // ~14MB Chromium licenses
+        'LICENSE',
+        'version',
+      ];
+
+      console.log('Cleaning up unnecessary files...');
+      for (const file of filesToRemove) {
+        const filePath = path.join(outputPath, file);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log(`Removed: ${file}`);
+        }
+      }
+      console.log('Cleanup complete!');
     }
   },
   rebuildConfig: {},

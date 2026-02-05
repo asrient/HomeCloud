@@ -27,10 +27,11 @@ module.exports = {
 			}
 		},
 		...(isMacos ? {
+			// macOS typography guidelines (San Francisco font sizes)
 			fontSize: {
-				'xs': '0.6rem',
-				'sm': '0.75rem',
-				'base': '0.875rem',
+				'xs': '0.72rem',
+				'sm': '0.83rem',
+				'base': '0.93rem',
 				'lg': '1rem',
 				'xl': '1.125rem',
 				'2xl': '1.25rem',
