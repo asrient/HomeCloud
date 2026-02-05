@@ -29,6 +29,13 @@ if (!gotTheLock) {
 console.log('Starting Electron app...');
 console.log('Environment variables:', env);
 
+const isDev = env.NODE_ENV === 'development';
+
+// Use separate data directory for development
+if (isDev) {
+  app.setPath('userData', `${app.getPath('userData')}_DEV`);
+}
+
 const cryptoModule = new CryptoImpl();
 
 function createOrGetSecretKey(dataDir: string) {
@@ -88,7 +95,7 @@ async function getConfig() {
   }
   const desktopConfig: DesktopConfigType = {
     IS_DESKTOP_PACKED: isPackaged,
-    IS_DEV: env.NODE_ENV === 'development',
+    IS_DEV: isDev,
     USE_WEB_APP_SERVER: env.USE_WEB_APP_SERVER,
     SERVER_URL: env.SERVER_URL,
     WS_SERVER_URL: env.WS_SERVER_URL,
