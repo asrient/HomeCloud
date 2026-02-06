@@ -91,26 +91,21 @@ export default class MobileFsDriver extends FsDriver {
     }
     dirPath = pathToUri(dirPath);
 
-    try {
-      const contents = await FileSystem.readDirectoryAsync(dirPath);
-      const promises = contents.map((fileName: string) => {
-        const itemPath = Paths.join(dirPath, fileName);
-        return this.toRemoteItem({ item: itemPath });
-      });
-      const results = await Promise.allSettled(promises);
-      const items: RemoteItem[] = [];
-      results.forEach((result: PromiseSettledResult<RemoteItem>) => {
-        if (result.status === "fulfilled") {
-          items.push(result.value);
-        } else {
-          console.error(`Error reading file: ${dirPath}`, result.reason);
-        }
-      });
-      return items;
-    } catch (error) {
-      console.error('Error reading directory:', error);
-      return [];
-    }
+    const contents = await FileSystem.readDirectoryAsync(dirPath);
+    const promises = contents.map((fileName: string) => {
+      const itemPath = Paths.join(dirPath, fileName);
+      return this.toRemoteItem({ item: itemPath });
+    });
+    const results = await Promise.allSettled(promises);
+    const items: RemoteItem[] = [];
+    results.forEach((result: PromiseSettledResult<RemoteItem>) => {
+      if (result.status === "fulfilled") {
+        items.push(result.value);
+      } else {
+        console.error(`Error reading file: ${dirPath}`, result.reason);
+      }
+    });
+    return items;
   }
 
   @exposed
@@ -159,7 +154,7 @@ export default class MobileFsDriver extends FsDriver {
       const resolved = await resolveFileUri(id);
       return this.readWithFetch(resolved.fileUri, resolved.filename, resolved.mimeType || undefined);
     }
-    
+
     id = pathToUri(id);
     if (modules.config.PLATFORM === MobilePlatform.ANDROID) {
       return this.readWithFetch(id);
@@ -183,7 +178,7 @@ export default class MobileFsDriver extends FsDriver {
       console.log('fetch details:', response);
       throw new Error("No data in file response");
     }
-    
+
     // Use override name if provided, otherwise extract from response/URL
     let filename = overrideName;
     if (!filename) {
@@ -199,7 +194,7 @@ export default class MobileFsDriver extends FsDriver {
         filename = urlParts[urlParts.length - 1];
       }
     }
-    
+
     // Use override mime if provided, otherwise extract from response/filename
     let mimeType = overrideMime;
     if (!mimeType) {
@@ -208,7 +203,7 @@ export default class MobileFsDriver extends FsDriver {
         mimeType = getMimeType(filename) || undefined;
       }
     }
-    
+
     const stream = response.body;
     return {
       name: filename,

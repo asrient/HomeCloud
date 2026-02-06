@@ -158,6 +158,15 @@ public class SupermanModule: Module {
       }
     }
 
+    // Storage permissions (Android-only, no-op on iOS)
+    Function("hasAllFilesAccess") {
+      return true
+    }
+
+    Function("requestAllFilesAccess") {
+      return true
+    }
+
     // Events
     Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessage", "udpError", "udpListening", "udpClose")
   }

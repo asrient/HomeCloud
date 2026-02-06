@@ -92,7 +92,7 @@ export const MenuButton = forwardRef<HTMLButtonElement, MenuButtonProps>(
                     'transition-all duration-150 ease-in-out',
                     isMacosTheme()
                         ? cn(
-                            'rounded-full px-2.5 py-[1.15rem]',
+                            'rounded-full px-2 py-[1rem]',
                             selected ? 'bg-primary/90'
                                 : 'hover:bg-muted/70 text-foreground hover:text-foreground',
                         )

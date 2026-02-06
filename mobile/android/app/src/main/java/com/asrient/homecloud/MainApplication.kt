@@ -1,4 +1,4 @@
-package com.asrient.mediacenter
+package com.asrient.homecloud
 
 import android.app.Application
 import android.content.res.Configuration

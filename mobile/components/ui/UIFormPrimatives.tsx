@@ -18,11 +18,10 @@ export function Section({ title, children }: SectionProps) {
             {title && (
                 <UIText
                     style={styles.sectionTitle}
-                    size="sm"
-                    color="textSecondary"
-                    font="semibold"
-                >
-                    {title.toUpperCase()}
+                    size={"md"}
+                    color={isIos ? 'textTertiary' : 'textSecondary'}
+                    font="semibold">
+                    {title}
                 </UIText>
             )}
             <UIView

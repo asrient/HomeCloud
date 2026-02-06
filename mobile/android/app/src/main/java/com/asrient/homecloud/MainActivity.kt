@@ -1,4 +1,4 @@
-package com.asrient.mediacenter
+package com.asrient.homecloud
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

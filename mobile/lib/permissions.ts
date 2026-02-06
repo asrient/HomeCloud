@@ -1,79 +1,52 @@
-import { PermissionsAndroid, Permission } from 'react-native'
+import { PermissionsAndroid, Platform } from 'react-native'
+import superman from '@/modules/superman';
 
-type AndroidPermissionConfig = {
-    title: string;
-    message: string;
-    permission: Permission;
-    required?: boolean; // If true, permission is mandatory
+/**
+ * Check if the app has full storage access.
+ * - Android 11+ (API 30): Requires MANAGE_EXTERNAL_STORAGE (checked via isExternalStorageManager)
+ * - Android 10 and below: Requires READ_EXTERNAL_STORAGE + WRITE_EXTERNAL_STORAGE
+ * - iOS: Always returns true (not applicable)
+ */
+export async function hasStorageAccess(): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
+
+    // API 30+: MANAGE_EXTERNAL_STORAGE
+    if (Platform.Version >= 30) {
+        return superman.hasAllFilesAccess();
+    }
+
+    // API <30: Check legacy permissions
+    const read = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
+    const write = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE);
+    return read && write;
 }
 
-export const AndroidPermissionGroups: Record<string, AndroidPermissionConfig[]> = {
-    MANAGE_STORAGE: [{
-        title: 'Read External Storage',
-        message: 'This app needs access to read files from your device storage.',
-        permission: PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-        required: true
-    }, {
-        title: 'Write External Storage',
-        message: 'This app needs access to write files to your device storage.',
-        permission: PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-        required: true
-    }],
-};
+/**
+ * Request storage access.
+ * - Android 11+: Opens system Settings for "All files access" toggle
+ * - Android 10 and below: Shows standard runtime permission dialogs
+ * - Returns true if permission was granted (for legacy) or intent was launched (for API 30+)
+ */
+export async function requestStorageAccess(): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
 
-
-export async function requestPermission(config: AndroidPermissionConfig): Promise<boolean> {
-    // Check if the permission is already granted
-    const alreadyGranted = await PermissionsAndroid.check(config.permission);
-    if (alreadyGranted) {
-        return true;
+    // API 30+: Launch Settings intent for MANAGE_EXTERNAL_STORAGE
+    if (Platform.Version >= 30) {
+        if (superman.hasAllFilesAccess()) return true;
+        return superman.requestAllFilesAccess();
     }
-    // If not granted, request the permission
+
+    // API <30: Request legacy permissions
     try {
-        const granted = await PermissionsAndroid.request(
-            config.permission,
-            {
-                title: config.title,
-                message: config.message,
-                buttonPositive: 'Okay',
-            }
+        const results = await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+        ]);
+        return (
+            results[PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE] === PermissionsAndroid.RESULTS.GRANTED &&
+            results[PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE] === PermissionsAndroid.RESULTS.GRANTED
         );
-        return granted === PermissionsAndroid.RESULTS.GRANTED
-    }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    catch (_: any) {
-        //Handle this error
+    } catch {
         return false;
     }
-}
-
-export async function checkGroupPermission(group: string): Promise<boolean> {
-    const permissions = AndroidPermissionGroups[group];
-    if (!permissions) {
-        throw new Error(`Unknown permission group: ${group}`);
-    }
-
-    for (const config of permissions) {
-        const isGranted = await PermissionsAndroid.check(config.permission);
-        // If the permission is not granted and it's required, return false
-        if (!isGranted && config.required) {
-            return false;
-        }
-    }
-    return true;
-}
-
-export async function requestGroupPermission(group: string): Promise<boolean> {
-    const permissions = AndroidPermissionGroups[group];
-    if (!permissions) {
-        throw new Error(`Unknown permission group: ${group}`);
-    }
-
-    for (const config of permissions) {
-        const granted = await requestPermission(config);
-        if (!granted && config.required) {
-            return false; // If any required permission is denied, return false
-        }
-    }
-    return true; // All permissions granted
 }

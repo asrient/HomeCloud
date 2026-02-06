@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.asrient.mediacenter'
+    namespace 'com.asrient.homecloud'
     defaultConfig {
-        applicationId 'com.asrient.mediacenter'
+        applicationId 'com.asrient.homecloud'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

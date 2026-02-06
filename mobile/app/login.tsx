@@ -7,6 +7,8 @@ import { useMemo, useRef, useState } from 'react';
 import { AccountLinkResponse } from 'shared/types';
 import { useRouter } from 'expo-router';
 import { UIButton } from '@/components/ui/UIButton';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { UIFloatingFooter } from '@/components/ui/UIFloatingFooter';
 
 
 type OnboardingStep = 'email' | 'otp';
@@ -104,54 +106,56 @@ export default function LoginScreen() {
 
     return (
         <UIView themeColor='backgroundSecondary' style={styles.container}>
-            <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
-            <View style={{ padding: 5 }} >
-                <UIText style={{ paddingBottom: 5 }} type="title">{
-                    currentStep === 'email' ?
-                        'Account Setup' :
-                        'Verify OTP'
-                }</UIText>
-                <View style={{ marginTop: 40, justifyContent: 'center' }}>
-                {currentStep === 'email' ? (
-                    <UITextInput
-                        placeholder="Enter your email"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        value={emailValue}
-                        onChangeText={setEmailValue}
-                        editable={!isLoading}
-                    />
-                ) : (
-                    <UITextInput
-                        placeholder="Enter OTP"
-                        keyboardType="number-pad"
-                        value={otpValue}
-                        onChangeText={setOtpValue}
-                        maxLength={OTP_LENGTH}
-                        editable={!isLoading}
-                    />
-                )}
-                {errorMessage && (
-                    <UIText style={{ color: 'red', marginTop: 8 }}>
-                        {errorMessage}
-                    </UIText>
-                )}
-                {
-                    currentStep === 'otp' && (
-                        <UIButton type='link' onPress={backToEmailStep} title="Change Email" disabled={isLoading} />
-                    )
-                }
+            <SafeAreaView style={styles.safeArea}>
+                <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
+                <View style={{ padding: 5 }} >
+                    <UIText style={{ paddingBottom: 5 }} type="title">{
+                        currentStep === 'email' ?
+                            'Account Setup' :
+                            'Verify OTP'
+                    }</UIText>
+                    <View style={{ marginTop: 40, justifyContent: 'center' }}>
+                        {currentStep === 'email' ? (
+                            <UITextInput
+                                placeholder="Enter your email"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                value={emailValue}
+                                onChangeText={setEmailValue}
+                                editable={!isLoading}
+                            />
+                        ) : (
+                            <UITextInput
+                                placeholder="Enter OTP"
+                                keyboardType="number-pad"
+                                value={otpValue}
+                                onChangeText={setOtpValue}
+                                maxLength={OTP_LENGTH}
+                                editable={!isLoading}
+                            />
+                        )}
+                        {errorMessage && (
+                            <UIText style={{ color: 'red', marginTop: 8 }}>
+                                {errorMessage}
+                            </UIText>
+                        )}
+                        {
+                            currentStep === 'otp' && (
+                                <UIButton type='link' onPress={backToEmailStep} title="Change Email" disabled={isLoading} />
+                            )
+                        }
+                    </View>
                 </View>
-            </View>
-            <View style={styles.footer}>
-                {
-                    currentStep === 'email' ? (
-                        <UIButton size='lg' stretch onPress={submitEmail} title='Continue' disabled={!isEmailValid || isLoading} />
-                    ) : (
-                        <UIButton size='lg' stretch onPress={submitOtp} title='Verify' disabled={otpValue.length !== OTP_LENGTH || isLoading} />
-                    )
-                }
-            </View>
+                <UIFloatingFooter horizontalPadding={20}>
+                    {
+                        currentStep === 'email' ? (
+                            <UIButton size='lg' stretch onPress={submitEmail} title='Continue' disabled={!isEmailValid || isLoading} />
+                        ) : (
+                            <UIButton size='lg' stretch onPress={submitOtp} title='Verify' disabled={otpValue.length !== OTP_LENGTH || isLoading} />
+                        )
+                    }
+                </UIFloatingFooter>
+            </SafeAreaView>
         </UIView>
     );
 }
@@ -159,11 +163,9 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 40,
     },
-    footer: {
-        marginTop: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-    }
+    safeArea: {
+        flex: 1,
+        padding: 20,
+    },
 });

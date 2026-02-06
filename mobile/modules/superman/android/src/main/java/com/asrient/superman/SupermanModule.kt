@@ -205,8 +205,16 @@ class SupermanModule : Module(), LifecycleEventObserver {
 
   private fun getPhoneStorageRoot(): String? {
     return try {
-      @Suppress("DEPRECATION")
-      Environment.getExternalStorageDirectory()?.let { Uri.fromFile(it).toString() }
+      val context = getContext()
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        val storageManager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+        storageManager.storageVolumes.find { it.isPrimary }?.directory?.let {
+          Uri.fromFile(it).toString()
+        }
+      } else {
+        @Suppress("DEPRECATION")
+        Environment.getExternalStorageDirectory()?.let { Uri.fromFile(it).toString() }
+      }
     } catch (e: Exception) {
       null
     }
@@ -535,57 +543,85 @@ class SupermanModule : Module(), LifecycleEventObserver {
     AsyncFunction("getDisks") {
       val disks = mutableListOf<Map<String, Any>>()
       val context = getContext()
-      
+
       try {
-        // Get internal storage
-        @Suppress("DEPRECATION")
-        val internalStorage = Environment.getExternalStorageDirectory()
-        if (internalStorage != null && internalStorage.exists()) {
-          val stat = StatFs(internalStorage.path)
-          val blockSize = stat.blockSizeLong
-          val totalBlocks = stat.blockCountLong
-          val availableBlocks = stat.availableBlocksLong
-          
-          disks.add(mapOf(
-            "type" to "internal",
-            "name" to "Internal Storage",
-            "path" to internalStorage.path,
-            "size" to (totalBlocks * blockSize),
-            "free" to (availableBlocks * blockSize)
-          ))
-        }
-        
-        // Get external storage (SD Card)
-        val storageManager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
-        storageManager.storageVolumes.forEach { volume ->
-          if (volume.isRemovable && !volume.isPrimary) {
-            volume.directory?.let { sdPath ->
-              if (sdPath.exists()) {
-                try {
-                  val stat = StatFs(sdPath.path)
-                  val blockSize = stat.blockSizeLong
-                  val totalBlocks = stat.blockCountLong
-                  val availableBlocks = stat.availableBlocksLong
-                  
-                  disks.add(mapOf(
-                    "type" to "external",
-                    "name" to (volume.getDescription(context) ?: "SD Card"),
-                    "path" to sdPath.path,
-                    "size" to (totalBlocks * blockSize),
-                    "free" to (availableBlocks * blockSize)
-                  ))
-                } catch (e: Exception) {
-                  android.util.Log.e("SupermanModule", "Failed to read SD card stats: ${e.message}")
-                }
-              }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          val storageManager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+          for (volume in storageManager.storageVolumes) {
+            val dir = volume.directory ?: continue
+            if (!dir.exists()) continue
+            try {
+              val stat = StatFs(dir.path)
+              val type = if (volume.isPrimary) "internal" else "external"
+              val name = if (volume.isPrimary) "Internal Storage" else (volume.getDescription(context) ?: "SD Card")
+              disks.add(mapOf(
+                "type" to type,
+                "name" to name,
+                "path" to dir.path,
+                "size" to (stat.blockCountLong * stat.blockSizeLong),
+                "free" to (stat.availableBlocksLong * stat.blockSizeLong)
+              ))
+            } catch (e: Exception) {
+              android.util.Log.e("SupermanModule", "Failed to read stats for ${dir.path}: ${e.message}")
+            }
+          }
+        } else {
+          @Suppress("DEPRECATION")
+          val dir = Environment.getExternalStorageDirectory()
+          if (dir != null && dir.exists()) {
+            try {
+              val stat = StatFs(dir.path)
+              disks.add(mapOf(
+                "type" to "internal",
+                "name" to "Internal Storage",
+                "path" to dir.path,
+                "size" to (stat.blockCountLong * stat.blockSizeLong),
+                "free" to (stat.availableBlocksLong * stat.blockSizeLong)
+              ))
+            } catch (e: Exception) {
+              android.util.Log.e("SupermanModule", "Failed to read stats for ${dir.path}: ${e.message}")
             }
           }
         }
       } catch (e: Exception) {
         android.util.Log.e("SupermanModule", "Error getting disks: ${e.message}", e)
       }
-      
+
       return@AsyncFunction disks
+    }
+
+    Function("hasAllFilesAccess") {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Environment.isExternalStorageManager()
+      } else {
+        true
+      }
+    }
+
+    Function("requestAllFilesAccess") {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+        try {
+          val context = getContext()
+          val intent = android.content.Intent(
+            android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+            Uri.parse("package:${context.packageName}")
+          )
+          intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+          context.startActivity(intent)
+          true
+        } catch (e: Exception) {
+          try {
+            val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            getContext().startActivity(intent)
+            true
+          } catch (_: Exception) {
+            false
+          }
+        }
+      } else {
+        true
+      }
     }
 
     Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessage", "udpError", "udpListening", "udpClose")

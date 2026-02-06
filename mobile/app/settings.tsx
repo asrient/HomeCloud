@@ -1,18 +1,20 @@
 
-import { StyleSheet, View, Image, Pressable } from 'react-native';
+import { StyleSheet, View, Image, Pressable, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { UIScrollView } from '@/components/ui/UIScrollView';
 import { UIText } from '@/components/ui/UIText';
 import { UIIcon } from '@/components/ui/UIIcon';
 import { Section, Line, LineLink, FormContainer } from '@/components/ui/UIFormPrimatives';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DeviceInfo, PeerInfo } from 'shared/types';
 import { useAccountState } from '@/hooks/useAccountState';
 import { useAppState } from '@/hooks/useAppState';
 import { useAlert } from '@/hooks/useAlert';
 import { getAppName, getOSIconUrl, isIos } from '@/lib/utils';
 import DeviceIcon from '@/components/deviceIcon';
+import { HelpLinkType } from 'shared/helpLinks';
+import { hasStorageAccess, requestStorageAccess } from '@/lib/permissions';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -20,8 +22,17 @@ export default function SettingsScreen() {
   const headerHeight = useHeaderHeight();
 
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
+  const [storageGranted, setStorageGranted] = useState(true);
   const { isLinked, accountEmail } = useAccountState();
-  const { peers } = useAppState();
+  const { peers, setOnboarded } = useAppState();
+
+  const isDev = useMemo(() => {
+    return modules.config.IS_DEV;
+  }, []);
+
+  const showPermissionsSection = useMemo(() => {
+    return !storageGranted;
+  }, [storageGranted]);
 
   useEffect(() => {
     const fetchDeviceInfo = async () => {
@@ -29,6 +40,14 @@ export default function SettingsScreen() {
       setDeviceInfo(info);
     };
     fetchDeviceInfo();
+    if (Platform.OS === 'android') {
+      hasStorageAccess().then(setStorageGranted);
+    }
+  }, []);
+
+  const handleGrantStorage = useCallback(async () => {
+    const granted = await requestStorageAccess();
+    setStorageGranted(granted);
   }, []);
 
   const openLogin = () => {
@@ -71,6 +90,14 @@ export default function SettingsScreen() {
     );
   };
 
+  const openLink = (type: HelpLinkType) => {
+    const localSc = modules.getLocalServiceController();
+    localSc.app.openHelpLink(type).catch((err) => {
+      console.error('Failed to open help link:', err);
+      showAlert('Error', 'Failed to open link.');
+    });
+  };
+
   return (
     <UIScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
       <Stack.Screen
@@ -100,14 +127,28 @@ export default function SettingsScreen() {
           </Line>
         </Section>
 
+        {showPermissionsSection && (
+          <Section title="Permissions">
+            {
+              !storageGranted && (
+                <LineLink
+                  text="Grant Storage Access"
+                  onPress={handleGrantStorage}
+                  color="primary"
+                />
+              )
+            }
+          </Section>
+        )}
+
         <Section title="Account">
           {!isLinked && (
-            <LineLink text="Login to account..." onPress={openLogin} color="primary" />
+            <LineLink text="Login to account" onPress={openLogin} color="primary" />
           )}
           {isLinked && (
             <>
               <Line title="Email" value={accountEmail || ''} />
-              <LineLink text="Unlink device..." onPress={handleUnlink} color="destructive" />
+              <LineLink text="Unlink Device" onPress={handleUnlink} color="destructive" />
             </>
           )}
         </Section>
@@ -139,15 +180,40 @@ export default function SettingsScreen() {
           </Section>
         )}
 
+        {isDev && (
+          <Section title="Development">
+            <LineLink
+              text="Reset Onboarding"
+              onPress={async () => {
+                const localSc = modules.getLocalServiceController();
+                await localSc.app.setOnboarded(false);
+                setOnboarded(false);
+                showAlert('Onboarding flag reset', 'Restart the app to see the welcome screen.');
+              }}
+              color="destructive"
+            />
+            <LineLink
+              text="Open Login"
+              onPress={() => router.navigate('/login')}
+            />
+          </Section>
+        )}
+
+        <Section title="Help">
+          <LineLink text="Privacy Policy" onPress={() => openLink('Privacy')} />
+          <LineLink text="Website" onPress={() => openLink('Website')} />
+        </Section>
+
         <View style={styles.footer}>
           <Image
             source={require('@/assets/images/icon.png')}
             style={styles.appIcon}
           />
           <UIText size="sm" color="textSecondary" style={styles.footerText}>
-            {getAppName()}. Asrient&apos;s Studio, 2025.
+            {getAppName()}. Asrient&apos;s Studio, 2026.
           </UIText>
         </View>
+
       </FormContainer>
     </UIScrollView>
   );

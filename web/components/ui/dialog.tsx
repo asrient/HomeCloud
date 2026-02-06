@@ -50,7 +50,8 @@ const DialogContent = React.forwardRef<
     >
       {children}
       <DialogPrimitive.Close className={cn(
-        "absolute right-3 top-3 rounded-full opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:text-muted-foreground p-2",
+        "absolute right-3 top-3 rounded-full opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:text-muted-foreground",
+        isMacosTheme() ? 'p-1' : 'p-2',
         isWin11Theme() ? 'hover:text-foreground' : 'data-[state=open]:bg-accent bg-muted hover:bg-secondary',
       )}>
         <Cross2Icon className="h-4 w-4" />

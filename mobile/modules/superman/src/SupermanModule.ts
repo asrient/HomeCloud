@@ -16,6 +16,8 @@ declare class SupermanModule extends NativeModule<SupermanModuleEvents> {
   udpSend(socketId: string, data: Uint8Array, port: number, address: string): Promise<boolean>;
   udpClose(socketId: string): Promise<boolean>;
   getDisks(): Promise<DiskInfo[]>;
+  hasAllFilesAccess(): boolean;
+  requestAllFilesAccess(): boolean;
 }
 
 // This call loads the native module object from the JSI.

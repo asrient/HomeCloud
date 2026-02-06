@@ -9,17 +9,19 @@ export interface AppState {
     peers: PeerInfo[];
     selectedFingerprint: string | null;
     isInitialized: boolean;
+    isOnboarded: boolean;
     filesViewMode: 'grid' | 'list';
     deviceInfo: DeviceInfo | null;
     instanceKey: string;
 
-    initializeStore: (peers: PeerInfo[], connections: ConnectionInfo[], deviceInfo: DeviceInfo) => void;
+    initializeStore: (peers: PeerInfo[], connections: ConnectionInfo[], deviceInfo: DeviceInfo, isOnboarded: boolean) => void;
     selectDevice: (fingerprint: string | null) => void;
     addPeer: (peer: PeerInfo) => void;
     removePeer: (fingerprint: string) => void;
     addConnection: (connection: ConnectionInfo) => void;
     removeConnection: (fingerprint: string) => void;
     setFilesViewMode: (mode: 'grid' | 'list') => void;
+    setOnboarded: (value: boolean) => void;
 }
 
 const useAppStore = create<AppState>((set) => ({
@@ -27,14 +29,16 @@ const useAppStore = create<AppState>((set) => ({
     peers: [],
     selectedFingerprint: null,
     isInitialized: false,
+    isOnboarded: false,
     filesViewMode: 'grid',
     deviceInfo: null,
     instanceKey: 'mobile',
-    initializeStore: (peers, connections, deviceInfo) => set(() => ({
+    initializeStore: (peers, connections, deviceInfo, isOnboarded) => set(() => ({
         isInitialized: true,
         peers,
         connections,
         deviceInfo,
+        isOnboarded,
     })),
     selectDevice: (fingerprint) => set(() => ({
         selectedFingerprint: fingerprint,
@@ -65,11 +69,15 @@ const useAppStore = create<AppState>((set) => ({
     setFilesViewMode: (mode: 'grid' | 'list') => set(() => ({
         filesViewMode: mode,
     })),
+    setOnboarded: (value: boolean) => set(() => ({
+        isOnboarded: value,
+    })),
 }));
 
 export function useAppState() {
     const {
         isInitialized,
+        isOnboarded,
         peers,
         connections,
         selectedFingerprint,
@@ -81,6 +89,7 @@ export function useAppState() {
         removeConnection,
         filesViewMode,
         setFilesViewMode,
+        setOnboarded,
         deviceInfo,
         instanceKey,
     } = useAppStore();
@@ -96,7 +105,7 @@ export function useAppState() {
         const peers = localSc.app.getPeers();
         const connections = await localSc.net.getConnectedDevices();
         const deviceInfo = await localSc.system.getDeviceInfo();
-        initializeStore(peers, connections, deviceInfo);
+        initializeStore(peers, connections, deviceInfo, localSc.app.isOnboarded());
 
         // Account state
         setupAccountState();
@@ -184,6 +193,8 @@ export function useAppState() {
 
     return {
         isInitialized,
+        isOnboarded,
+        setOnboarded,
         peers,
         connections,
         selectDevice,

@@ -1,5 +1,4 @@
-import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Platform } from 'react-native';
 import { NativeTabs, Icon, Label, VectorIcon } from 'expo-router/unstable-native-tabs';
 import { useAppState } from '@/hooks/useAppState';
@@ -9,7 +8,6 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 
 export default function TabLayout() {
-  const router = useRouter();
 
   // Get colors for NativeTabs
   const backgroundColor = useThemeColor({}, 'backgroundSecondary');
@@ -21,15 +19,6 @@ export default function TabLayout() {
 
   const { selectedFingerprint } = useAppState();
   useAutoConnect(selectedFingerprint, 'app');
-
-  useEffect(() => {
-    const localSc = modules.getLocalServiceController();
-    if (!localSc.app.isOnboarded()) {
-      // Navigate to the welcome screen
-      console.log('Navigating to welcome screen');
-      router.navigate('/welcome');
-    }
-  }, [router]);
 
   // Only apply custom colors on Android
   const tabProps = Platform.OS === 'android' ? {

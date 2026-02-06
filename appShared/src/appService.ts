@@ -3,6 +3,7 @@ import { MethodContext, MethodInfo, PeerInfo, StoreNames, SignalEvent, NativeBut
 import ConfigStorage from "./storage";
 import { getIconKey } from "./utils";
 import Signal from "./signals";
+import { helpLinks, HelpLinkType } from "./helpLinks";
 
 export class AppService extends Service {
     protected store: ConfigStorage;
@@ -298,6 +299,16 @@ export class AppService extends Service {
     @exposed
     public async toggleAutoStart(): Promise<boolean | null> {
         return null;
+    }
+
+    public async openHelpLink(type: HelpLinkType): Promise<string> {
+        const link = helpLinks[type];
+        if (!link) {
+            throw new Error(`Help link for type ${type} not found.`);
+        }
+        const localSc = modules.getLocalServiceController();
+        await localSc.system.openUrl(link);
+        return link;
     }
 
     @serviceStartMethod

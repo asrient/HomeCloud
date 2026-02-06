@@ -11,6 +11,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { InputPopup } from '@/components/inputPopup';
 import { AlertModal } from '@/components/AlertModal';
 import { useNavigationTheme } from '@/hooks/useNavigationTheme';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -23,16 +24,29 @@ SplashScreen.setOptions({
 
 export default function RootLayout() {
   const theme = useNavigationTheme();
-  const [modulesLoaded, setModulesLoaded] = useState(false);
-  const { loadAppState, clearSignals, isInitialized } = useAppState();
+  const [appReady, setAppReady] = useState(false);
+  const { loadAppState, clearSignals, isInitialized, isOnboarded } = useAppState();
   useKeepAwake();
+  const { requestPermissions } = usePermissions();
+
+  const setupPermissions = useCallback(async () => {
+    const localSc = modules.getLocalServiceController();
+    const isOnboarded = localSc.app.isOnboarded();
+    if (isOnboarded) {
+      // If the user has already onboarded, we can request permissions immediately.
+      // This ensures that we have the necessary permissions before the user starts interacting with the app.
+      return requestPermissions();
+    }
+    return true;
+  }, [requestPermissions]);
 
   useEffect(() => {
     async function loadModules() {
       try {
         await initModules();
         loadAppState();
-        setModulesLoaded(true);
+        await setupPermissions();
+        setAppReady(true);
       } catch (error) {
         console.error('Failed to initialize modules:', error);
       }
@@ -44,10 +58,10 @@ export default function RootLayout() {
     return () => {
       clearSignals();
     };
-  }, [clearSignals, loadAppState]);
+  }, [clearSignals, loadAppState, setupPermissions]);
 
   const onLayoutRootView = useCallback(() => {
-    if (modulesLoaded && isInitialized) {
+    if (appReady && isInitialized) {
       // This tells the splash screen to hide immediately! If we call this after
       // `setAppIsReady`, then we may see a blank screen while the app is
       // loading its initial state and rendering its first pixels. So instead,
@@ -55,9 +69,9 @@ export default function RootLayout() {
       // performed layout.
       SplashScreen.hide();
     }
-  }, [isInitialized, modulesLoaded]);
+  }, [isInitialized, appReady]);
 
-  if (!modulesLoaded || !isInitialized) {
+  if (!appReady || !isInitialized) {
     // Async font loading only occurs in development.
     return null;
   }
@@ -66,21 +80,22 @@ export default function RootLayout() {
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <ThemeProvider value={theme}>
         <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
+          <Stack.Protected guard={isOnboarded}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
+          </Stack.Protected>
+          <Stack.Protected guard={!isOnboarded}>
+            <Stack.Screen name="welcome" options={{ headerShown: false }} />
+          </Stack.Protected>
+          <Stack.Screen name="login" options={{
+            headerShown: false,
+            presentation: 'modal',
+          }} />
           <Stack.Screen name="settings" options={{
             title: 'Settings',
             headerBackButtonDisplayMode: 'minimal',
             headerLargeTitle: true,
             headerShadowVisible: false,
             headerTransparent: true,
-          }} />
-          <Stack.Screen name="welcome" options={{
-            headerShown: false,
-            presentation: 'modal',
-          }} />
-          <Stack.Screen name="login" options={{
-            headerShown: false,
-            presentation: 'modal',
           }} />
           <Stack.Screen name="+not-found" />
         </Stack>
