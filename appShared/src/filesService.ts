@@ -115,7 +115,7 @@ export abstract class FilesService extends Service {
     protected abstract _openRemoteFile(remoteFingerprint: string, remotePath: string): Promise<void>;
 
     private getShareCacheDir() {
-        return this.fs.joinPaths(modules.config.DATA_DIR, SHARE_CACHE_DIRNAME);
+        return this.fs.joinPaths(modules.config.CACHE_DIR, SHARE_CACHE_DIRNAME);
     }
 
     private shareCacheCleanupTimer: any = null;
@@ -124,7 +124,7 @@ export abstract class FilesService extends Service {
         const cacheDir = this.getShareCacheDir();
         await this.fs.unlink(cacheDir);
         // recreate the directory
-        await this.fs.mkDir(SHARE_CACHE_DIRNAME, modules.config.DATA_DIR);
+        await this.fs.mkDir(SHARE_CACHE_DIRNAME, modules.config.CACHE_DIR);
     }
 
     public async shareFiles(fingerprint: string | null, paths: string[], forceCache?: boolean): Promise<void> {

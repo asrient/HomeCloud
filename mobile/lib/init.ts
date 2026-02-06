@@ -64,6 +64,7 @@ async function getConfig() {
         IS_DEV: isDev,
         PLATFORM: mobilePlatform,
         DATA_DIR: dataDir,
+        CACHE_DIR: Paths.cache.uri,
         SECRET_KEY: await createOrGetSecretKey(dataDir),
         VERSION: nativeApplicationVersion || 'unknown',
         DEVICE_NAME: Device.deviceName || Device.modelName || 'My Mobile',

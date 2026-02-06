@@ -121,6 +121,8 @@ async function getConfig() {
   // Set the modules for the app
   const isPackaged = app.isPackaged;
   const dataDir = app.getPath('userData');
+  // Temp is the system level cache dir, for our usage we scope it to a subdirectory.
+  const cacheDir = path.join(app.getPath('temp'), app.getName());
   const { privateKeyPem, publicKeyPem } = await getOrGenerateKeys(dataDir);
   const fingerprint = cryptoModule.getFingerprintFromPem(publicKeyPem);
   let uiTheme: UITheme = process.platform === 'darwin' ? UITheme.Macos : UITheme.Win11;
@@ -140,6 +142,7 @@ async function getConfig() {
     SERVER_URL: env.SERVER_URL,
     WS_SERVER_URL: env.WS_SERVER_URL,
     DATA_DIR: dataDir,
+    CACHE_DIR: cacheDir,
     SECRET_KEY: createOrGetSecretKey(dataDir),
     VERSION: app.getVersion(),
     DEVICE_NAME: getDeviceName(),

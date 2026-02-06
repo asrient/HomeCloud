@@ -71,18 +71,21 @@ export async function resolveFileUri(uri: string): Promise<ResolvedFileInfo> {
 }
 
 export function getDrivesMapping(): Record<string, string> {
+    const drives: Record<string, string> = {};
     if (modules.config.PLATFORM === MobilePlatform.IOS) {
-        return {
-            [modules.config.APP_NAME]: Paths.document.uri
+        drives[modules.config.APP_NAME] = Paths.document.uri;
+    } else {
+        // Android
+        drives['Phone Storage'] = superman.getStandardDirectoryUri('Phone Storage') || Paths.document.uri;
+
+        const sdCardPath = superman.getStandardDirectoryUri('SD Card');
+        if (sdCardPath) {
+            drives['SD Card'] = sdCardPath;
         }
     }
-    // Android
-    const drives: Record<string, string> = {
-        'Phone Storage': superman.getStandardDirectoryUri('Phone Storage') || Paths.document.uri,
-    }
-    const sdCardPath = superman.getStandardDirectoryUri('SD Card');
-    if (sdCardPath) {
-        drives['SD Card'] = sdCardPath;
+    if (modules.config.IS_DEV) {
+        // Add app's cache directory for easy access.
+        drives['App Cache'] = Paths.cache.uri;
     }
     return drives;
 }

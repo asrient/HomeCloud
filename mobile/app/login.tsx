@@ -8,7 +8,7 @@ import { AccountLinkResponse } from 'shared/types';
 import { useRouter } from 'expo-router';
 import { UIButton } from '@/components/ui/UIButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UIFloatingFooter } from '@/components/ui/UIFloatingFooter';
+import { UIFloatingBar } from '@/components/ui/UIFloatingBar';
 
 
 type OnboardingStep = 'email' | 'otp';
@@ -108,7 +108,7 @@ export default function LoginScreen() {
         <UIView themeColor='backgroundSecondary' style={styles.container}>
             <SafeAreaView style={styles.safeArea}>
                 <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
-                <View style={{ padding: 5 }} >
+                <View style={styles.header}>
                     <UIText style={{ paddingBottom: 5 }} type="title">{
                         currentStep === 'email' ?
                             'Account Setup' :
@@ -146,7 +146,7 @@ export default function LoginScreen() {
                         }
                     </View>
                 </View>
-                <UIFloatingFooter horizontalPadding={20}>
+                <UIFloatingBar>
                     {
                         currentStep === 'email' ? (
                             <UIButton size='lg' stretch onPress={submitEmail} title='Continue' disabled={!isEmailValid || isLoading} />
@@ -154,7 +154,7 @@ export default function LoginScreen() {
                             <UIButton size='lg' stretch onPress={submitOtp} title='Verify' disabled={otpValue.length !== OTP_LENGTH || isLoading} />
                         )
                     }
-                </UIFloatingFooter>
+                </UIFloatingBar>
             </SafeAreaView>
         </UIView>
     );
@@ -164,8 +164,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
+    header: {
+        paddingHorizontal: 10,
+        paddingTop: 30,
+    },
     safeArea: {
         flex: 1,
-        padding: 20,
+        padding: 10,
+        justifyContent: 'space-between',
     },
 });

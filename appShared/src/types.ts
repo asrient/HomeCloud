@@ -104,6 +104,7 @@ export enum UITheme {
 
 export type AppConfigType = {
     DATA_DIR: string;
+    CACHE_DIR: string;
     IS_DEV: boolean;
     SECRET_KEY: string;
     VERSION: string;

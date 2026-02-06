@@ -6,22 +6,22 @@ import { exposed } from "shared/servicePrimatives";
 import { FileContent, PreviewOptions } from "shared/types";
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { isHeicFile, resolveFileUri } from "./fileUtils";
-import { PreviewCache } from "./previewCache";
+import { FileCache } from "./fileCache";
 
-type PreviewCacheEntry = {
-  remoteFingerprint: string;
-  remotePath: string;
-  expiry: number;
-};
+function previewId(filePath: string) {
+  return modules.crypto.hashString(filePath, 'md5').slice(0, 12);
+}
 
-function locationHash(remoteFingerprint: string, remotePath: string) {
+function remoteFileId(remoteFingerprint: string, remotePath: string) {
   return modules.crypto.hashString(`${remoteFingerprint}-${remotePath}`, 'md5').slice(0, 12);
 }
 
 export default class MobileFilesService extends FilesService {
   public fs = new MobileFsDriver();
   public separator = '/';
-  private previewCache = new PreviewCache();
+  // expo-image-manipulator stores the converted images in this directory.
+  private previewCache = new FileCache('ImageManipulator', { maxItems: 15 });
+  private remoteFileCache = new FileCache('FilePreviews', { maxItems: 10 });
 
   @exposed
   async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
@@ -53,7 +53,8 @@ export default class MobileFilesService extends FilesService {
     // If it's HEIC, convert directly without reading first
     if (isHeic && !supportsHeic) {
       // Check if we have a cached converted version
-      const cachedPath = this.previewCache.get(filePath);
+      const id = previewId(filePath);
+      const cachedPath = this.previewCache.get(id);
       if (cachedPath) {
         console.log('Using cached converted HEIC preview:', cachedPath);
         const cachedFile = new File(cachedPath);
@@ -65,7 +66,7 @@ export default class MobileFilesService extends FilesService {
         };
       }
 
-      console.log('Converting HEIC image for preview:', filePath, '->', resolved.fileUri);
+      // console.log('Converting HEIC image for preview:', filePath, '->', resolved.fileUri);
       try {
         const context = ImageManipulator.manipulate(resolved.fileUri);
         const imageRef = await context.renderAsync();
@@ -74,8 +75,8 @@ export default class MobileFilesService extends FilesService {
           compress: 0.9,
         });
 
-        // Track the converted file in cache (file stays where ImageManipulator saved it)
-        this.previewCache.add(filePath, result.uri);
+        // Track the converted file in cache
+        this.previewCache.log(id, result.uri);
 
         const convertedFile = new File(result.uri);
         const convertedName = resolved.filename.replace(/\.(heic|heif)$/i, '.jpg');
@@ -94,93 +95,35 @@ export default class MobileFilesService extends FilesService {
     return this.fs.readFile(filePath);
   }
 
-  private cachedPreviewFiles: Map<string, PreviewCacheEntry> = new Map();
-  private cleanupTimer: any = null;
-
-  private getCacheDir() {
-    return Paths.join(modules.config.DATA_DIR, 'FilePreviews');
-  }
-
-  private async clearCache() {
-    const cacheDir = this.getCacheDir();
-    const dir = new Directory(cacheDir);
-    if (dir.exists) {
-      dir.delete();
-    }
-    this.cachedPreviewFiles.clear();
-    // Recreate the directory
-    new Directory(cacheDir).create({ intermediates: true, idempotent: true });
-  }
-
   async _openRemoteFile(remoteFingerprint: string, remotePath: string): Promise<void> {
-    const cacheDir = this.getCacheDir();
-    const locHash = locationHash(remoteFingerprint, remotePath);
+    const id = remoteFileId(remoteFingerprint, remotePath);
     const filename = Paths.basename(remotePath);
-    console.log('Previewing remote file:', remotePath, 'with hash:', locHash);
-    console.log('filename for preview:', filename);
-    let cacheEntry = this.cachedPreviewFiles.get(locHash);
-    let previewFile: File | null = null;
-    if (cacheEntry) {
-      previewFile = new File(Paths.join(cacheDir, locHash, filename));
-      if (!previewFile.exists) {
-        cacheEntry = undefined;
-        this.cachedPreviewFiles.delete(locHash);
-      }
-    }
-    if (!cacheEntry) {
+    console.log('Previewing remote file:', remotePath, 'with id:', id);
+
+    let cachedPath = this.remoteFileCache.get(id);
+    if (!cachedPath) {
       const serviceController = await getServiceController(remoteFingerprint);
       const remoteItem = await serviceController.files.fs.readFile(remotePath);
-      const dir = new Directory(cacheDir, locHash);
-      dir.create({ intermediates: true, idempotent: true });
-      previewFile = new File(Paths.join(dir.uri, filename));
+      const entryDir = new Directory(this.remoteFileCache.dir, id);
+      entryDir.create({ intermediates: true, idempotent: true });
+      const previewFile = new File(Paths.join(entryDir.uri, filename));
       previewFile.create({ overwrite: true });
       await remoteItem.stream.pipeTo(previewFile.writableStream());
-      this.cachedPreviewFiles.set(locHash, {
-        remoteFingerprint,
-        remotePath,
-        expiry: Date.now() + 30 * 60 * 1000 // 30 min expiry
-      });
+      this.remoteFileCache.log(id, previewFile.uri);
+      cachedPath = previewFile.uri;
     }
-    if (previewFile) {
-      const localSc = modules.getLocalServiceController();
-      localSc.system.openFile(previewFile.uri);
-    }
-  }
 
-  private startCleanupTimer() {
-    if (this.cleanupTimer) {
-      clearTimeout(this.cleanupTimer);
-    }
-    this.cleanupTimer = setTimeout(() => {
-      const now = Date.now();
-      for (const [locHash, entry] of this.cachedPreviewFiles.entries()) {
-        if (entry.expiry < now) {
-          const previewFile = new File(Paths.join(this.getCacheDir(), locHash));
-          if (previewFile.exists) {
-            previewFile.delete();
-          }
-          this.cachedPreviewFiles.delete(locHash);
-        }
-      }
-      this.startCleanupTimer();
-    }, 10 * 60 * 1000); // 10 minutes
+    const localSc = modules.getLocalServiceController();
+    localSc.system.openFile(cachedPath);
   }
 
   async start() {
-    // Mobile-specific startup logic can go here
-    await this.clearCache();
-    this.startCleanupTimer();
+    this.previewCache.start();
+    this.remoteFileCache.start();
     await super.start();
-    await this.previewCache.start();
   }
 
   async stop() {
-    // Mobile-specific shutdown logic can go here
-    if (this.cleanupTimer) {
-      clearTimeout(this.cleanupTimer);
-      this.cleanupTimer = null;
-    }
-    this.previewCache.stop();
     await super.stop();
   }
 }
