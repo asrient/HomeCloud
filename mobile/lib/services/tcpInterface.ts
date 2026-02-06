@@ -26,7 +26,7 @@ interface TCPConnection {
  * TCP-based implementation of ConnectionInterface using Bonjour service discovery and Superman native module.
  */
 export default class TCPInterface extends ConnectionInterface {
-    isSecure = true;
+    isSecure = false;
     discovery: Discovery;
     private connections: Map<string, TCPConnection> = new Map();
     private port: number;

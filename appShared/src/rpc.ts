@@ -59,7 +59,6 @@ export class RPCPeer {
 
     private isTargetAuthenticated = false;
     private isTargetReady = false;
-    // todo: utlize these keys:
     private encryptionKey: string | null = null;
     private decryptionKey: string | null = null;
 
@@ -229,6 +228,10 @@ export class RPCPeer {
         if (!this.isReady() && !SETUP_AUTH_TYPES.includes(type)) {
             console.warn('Message type not allowed right now', type);
             return;
+        }
+        // Decrypt payload for non-setup messages when a decryption key is available
+        if (this.decryptionKey && !SETUP_AUTH_TYPES.includes(type)) {
+            payload = this.decryptPayload(payload);
         }
         try {
             switch (type) {
@@ -596,10 +599,22 @@ export class RPCPeer {
         await this.sendFrame(MessageType.STREAM_CANCEL, buf);
     }
 
+    private encryptPayload(payload: Uint8Array): Uint8Array {
+        return modules.crypto.encryptBuffer(payload, this.encryptionKey!);
+    }
+
+    private decryptPayload(payload: Uint8Array): Uint8Array {
+        return modules.crypto.decryptBuffer(payload, this.decryptionKey!);
+    }
+
     private async sendFrame(type: MessageType, payload: Uint8Array) {
         if (this.isClosed) {
             console.warn("[RPCPeer] Attempted to send frame on closed connection");
             return; // Silently ignore sends on closed connection
+        }
+        // Encrypt payload for non-setup messages when an encryption key is available
+        if (this.encryptionKey && !SETUP_AUTH_TYPES.includes(type)) {
+            payload = this.encryptPayload(payload);
         }
         const framed = DataChannelParser.encode(type, 0x00, payload);
         try {

@@ -3,6 +3,17 @@ import { EncryptedData } from "shared/crypto";
 import crypto from "crypto";
 
 export default class CryptoImpl extends CryptoModule {
+    private keyCache = new Map<string, Buffer>();
+
+    private getParsedKey(hexKey: string): Buffer {
+        let parsed = this.keyCache.get(hexKey);
+        if (!parsed) {
+            parsed = Buffer.from(hexKey, 'hex');
+            this.keyCache.set(hexKey, parsed);
+        }
+        return parsed;
+    }
+
     generateKeyPair(): Promise<{
         privateKey: string;
         publicKey: string;
@@ -128,5 +139,25 @@ export default class CryptoImpl extends CryptoModule {
 
     async bufferToBase64(data: Uint8Array): Promise<string> {
         return Buffer.from(data).toString('base64');
+    }
+
+    encryptBuffer(data: Uint8Array, secretKey: string): Uint8Array {
+        const iv = crypto.randomBytes(16);
+        const key = this.getParsedKey(secretKey);
+        const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
+        const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
+        // Prepend IV to ciphertext: [IV (16 bytes)][ciphertext]
+        const result = new Uint8Array(16 + encrypted.length);
+        result.set(iv, 0);
+        result.set(encrypted, 16);
+        return result;
+    }
+
+    decryptBuffer(data: Uint8Array, secretKey: string): Uint8Array {
+        const iv = data.slice(0, 16);
+        const ciphertext = data.slice(16);
+        const key = this.getParsedKey(secretKey);
+        const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv);
+        return new Uint8Array(Buffer.concat([decipher.update(ciphertext), decipher.final()]));
     }
 }

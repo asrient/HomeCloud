@@ -8,7 +8,7 @@ import { filterValidBonjourIps } from "shared/utils";
  * TCP-based implementation of ConnectionInterface using Bonjour service discovery.
  */
 export default class TCPInterface extends ConnectionInterface {
-    isSecure = true; // TCP connections are only established over local networks only so we are avoiding encryption overhead.
+    isSecure = false; // TCP connections are only established over local networks only so we are avoiding encryption overhead.
     discovery: Discovery;
     private server: net.Server | null = null;
     private connections: Map<string, net.Socket> = new Map();

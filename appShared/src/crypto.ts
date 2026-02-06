@@ -49,6 +49,8 @@ export default abstract class CryptoModule {
     abstract verifySignature(data: string | Uint8Array, signature: string | Uint8Array, publicKeyPem: string): Promise<boolean>;
     abstract encryptString(text: string, secretKey: string): EncryptedData;
     abstract decryptString(encryptedData: EncryptedData, secretKey: string): string;
+    abstract encryptBuffer(data: Uint8Array, secretKey: string): Uint8Array;
+    abstract decryptBuffer(data: Uint8Array, secretKey: string): Uint8Array;
     abstract hashString(data: string, type: 'sha256' | 'md5'): string;
     abstract compareHash(data: string, hash: string, type: 'sha256' | 'md5'): boolean;
     abstract generateHmac(data: string, secret: string): string;
