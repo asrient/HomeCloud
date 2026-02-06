@@ -22,8 +22,8 @@ export function PageBar({ children, title, icon }: {
             {isMacosTheme() && (
                 <>
                     <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/40 to-transparent pointer-events-none" />
-                    <div className="absolute inset-0 backdrop-blur-md pointer-events-none" style={{ maskImage: 'linear-gradient(to bottom, black 0%, black 20%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 20%, transparent 100%)' }} />
-                    <div className="absolute inset-0 backdrop-blur-sm pointer-events-none" style={{ maskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 50%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 50%, transparent 100%)' }} />
+                    <div className="absolute inset-0 backdrop-blur-sm pointer-events-none" style={{ maskImage: 'linear-gradient(to bottom, black 0%, black 20%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 20%, transparent 100%)' }} />
+                    <div className="absolute inset-0 backdrop-blur-xs pointer-events-none" style={{ maskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 50%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 50%, transparent 100%)' }} />
                 </>
             )}
             <div className='flex items-center space-x-2 py-2 px-1 min-w-max relative z-10'>
@@ -93,10 +93,8 @@ export const MenuButton = forwardRef<HTMLButtonElement, MenuButtonProps>(
                     isMacosTheme()
                         ? cn(
                             'rounded-full px-2.5 py-[1.15rem]',
-                            selected
-                                ? 'bg-secondary hover:bg-muted'
-                                : 'hover:bg-muted/50',
-                            'text-foreground hover:text-foreground'
+                            selected ? 'bg-primary/90'
+                                : 'hover:bg-muted/70 text-foreground hover:text-foreground',
                         )
                         : 'rounded-md',
                     className
@@ -119,7 +117,7 @@ export function MenuGroup({ children }: {
 }) {
     return (
         <div className={cn('flex flex-row items-center text-xs mx-1 text-foreground',
-            isMacosTheme() && 'bg-white/60 dark:bg-black/20 backdrop-blur-lg backdrop-saturate-150 border border-white/80 dark:border-white/10 rounded-full shadow-2xl'
+            isMacosTheme() && 'bg-white/75 dark:bg-secondary/50 backdrop-blur-sm backdrop-saturate-150 border-white dark:border-zinc-400/30 border rounded-full shadow-2xl'
         )}>
             {children}
         </div>
