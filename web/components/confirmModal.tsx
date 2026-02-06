@@ -9,7 +9,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
-import { cn, isWin11Theme } from "@/lib/utils";
+import { cn, isMacosTheme, isWin11Theme } from "@/lib/utils";
 
 export default function ConfirmModal({ title, buttonText, children, onConfirm, description, isOpen, onOpenChange, buttonVariant }: {
     title: string,
@@ -73,12 +73,13 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
             </DialogTrigger>
             <DialogContent className={cn(
                 "overflow-hidden",
-                isWin11Theme() ? 'sm:max-w-[26rem] ' : 'sm:max-w-[22rem]'
+                isMacosTheme() && 'bg-popover/80 backdrop-blur-sm backdrop-saturate-150',
+                isWin11Theme() ? 'sm:max-w-[26rem] ' : 'sm:max-w-[20rem]'
             )}>
                 <DialogHeader>
                     <DialogTitle className={cn(
                         "overflow-ellipsis truncate",
-                        isWin11Theme() ? 'max-w-[22rem]' : 'max-w-[17rem]'
+                        isWin11Theme() ? 'max-w-[22rem]' : 'max-w-[16rem]'
                     )}>
                         {title}
                     </DialogTitle>
