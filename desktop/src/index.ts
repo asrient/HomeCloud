@@ -123,6 +123,10 @@ async function getConfig() {
   const dataDir = app.getPath('userData');
   // Temp is the system level cache dir, for our usage we scope it to a subdirectory.
   const cacheDir = path.join(app.getPath('temp'), app.getName());
+  // Create the cache directory
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  }
   const { privateKeyPem, publicKeyPem } = await getOrGenerateKeys(dataDir);
   const fingerprint = cryptoModule.getFingerprintFromPem(publicKeyPem);
   let uiTheme: UITheme = process.platform === 'darwin' ? UITheme.Macos : UITheme.Win11;
