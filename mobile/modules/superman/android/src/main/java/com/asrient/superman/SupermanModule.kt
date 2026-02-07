@@ -15,6 +15,7 @@ import android.content.Context
 import android.os.Build
 import android.os.storage.StorageManager
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -622,6 +623,29 @@ class SupermanModule : Module(), LifecycleEventObserver {
       } else {
         true
       }
+    }
+
+    AsyncFunction("openFile") { filePath: String ->
+      val context = getContext()
+      val uri = Uri.parse(filePath)
+      val file = File(uri.path ?: throw IllegalArgumentException("Invalid file path"))
+      if (!file.exists()) throw IllegalArgumentException("File not found: ${file.absolutePath}")
+
+      val contentUri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.superman.provider",
+        file
+      )
+      val mimeType = MimeTypeMap.getSingleton()
+        .getMimeTypeFromExtension(file.extension)
+        ?: "application/octet-stream"
+
+      val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+        setDataAndType(contentUri, mimeType)
+        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      context.startActivity(intent)
     }
 
     Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessage", "udpError", "udpListening", "udpClose")

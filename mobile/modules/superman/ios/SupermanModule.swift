@@ -167,6 +167,11 @@ public class SupermanModule: Module {
       return true
     }
 
+    // Open file with system viewer (Android-only, iOS uses QuickLook via JS)
+    AsyncFunction("openFile") { (filePath: String) in
+      // No-op on iOS; file opening is handled via expo-quicklook-preview in JS
+    }
+
     // Events
     Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessage", "udpError", "udpListening", "udpClose")
   }

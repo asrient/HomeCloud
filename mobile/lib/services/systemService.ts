@@ -11,7 +11,6 @@ import { preview } from "expo-quicklook-preview";
 import * as Clipboard from 'expo-clipboard';
 import { VolumeManager } from 'react-native-volume-manager';
 import { getPowerStateAsync, BatteryState, addBatteryLevelListener, addBatteryStateListener, addLowPowerModeListener } from 'expo-battery';
-// import { startActivityAsync, ActivityAction } from 'expo-intent-launcher';
 import { shareAsync } from 'expo-sharing';
 import mime from 'mime';
 
@@ -153,19 +152,15 @@ class MobileSystemService extends SystemService {
         filePath = pathToUri(filePath);
         console.log('Opening file:', filePath);
         try {
-            // for ios we can use quicklook preview
             if (Platform.OS === 'ios') {
                 await preview({ url: filePath });
-            }
-            // for android we use intent launcher
-            else if (Platform.OS === 'android') {
-                await Linking.openURL(filePath);
+            } else if (Platform.OS === 'android') {
+                await superman.openFile(filePath);
             } else {
                 throw new Error('Unsupported platform for opening files.');
             }
         } catch (error) {
             console.warn('Failed to open file:', error);
-            // Fallback: show alert that file cannot be opened
             Alert.alert('Cannot Open File', 'No application found to open this file type.');
         }
     }

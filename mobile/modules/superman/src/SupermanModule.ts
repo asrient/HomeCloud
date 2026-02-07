@@ -18,6 +18,7 @@ declare class SupermanModule extends NativeModule<SupermanModuleEvents> {
   getDisks(): Promise<DiskInfo[]>;
   hasAllFilesAccess(): boolean;
   requestAllFilesAccess(): boolean;
+  openFile(filePath: string): Promise<void>;
 }
 
 // This call loads the native module object from the JSI.
