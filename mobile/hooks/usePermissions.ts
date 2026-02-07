@@ -1,4 +1,4 @@
-import { hasStorageAccess } from '@/lib/permissions';
+import { hasStorageAccess, requestStorageAccess } from '@/lib/permissions';
 import { useAlert } from '@/hooks/useAlert';
 import { useCallback } from 'react';
 import { Platform } from 'react-native';
@@ -21,11 +21,13 @@ export function usePermissions() {
             });
         };
 
-        const requestStorageAccess = async () => {
+        const askStorageAccess = async () => {
             if (Platform.OS === 'android') {
                 const granted = await hasStorageAccess();
+                console.log('Storage access granted:', granted);
                 if (!granted) {
                     const userConfirmed = await showStorageAccessConfirm();
+                    console.log('User confirmed storage access intent:', userConfirmed);
                     if (userConfirmed) {
                         await requestStorageAccess();
                     }
@@ -34,10 +36,9 @@ export function usePermissions() {
         };
 
         try {
-            await requestStorageAccess();
+            await askStorageAccess();
         } catch (error) {
             console.error('Permission request failed:', error);
-            showAlert('Permissions Missing', error instanceof Error ? error.message : 'Some necessary permissions were not granted.');
             return false;
         }
         return true;

@@ -95,7 +95,6 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
                                 <UIIcon
                                     name={getDeviceIconName(deviceInfo!)}
                                     size={24}
-                                    color={isSelected(null) ? '#007AFF' : undefined}
                                 />
                                 <View style={styles.deviceInfo}>
                                     <UIText size="md" color={isSelected(null) ? 'highlight' : 'text'}>
@@ -108,7 +107,7 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
                                     )}
                                 </View>
                                 {isSelected(null) && (
-                                    <UIIcon name="checkmark" size={18} color="#007AFF" />
+                                    <UIIcon name="checkmark" size={18} themeColor="highlight" />
                                 )}
                             </View>
                         </Line>
@@ -130,7 +129,7 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
                                                 <DeviceSubtext peer={peer} connection={connection} />
                                             </View>
                                             {selected && (
-                                                <UIIcon name="checkmark" size={18} color="#007AFF" />
+                                                <UIIcon name="checkmark" size={18} themeColor="highlight" />
                                             )}
                                         </View>
                                     </Line>

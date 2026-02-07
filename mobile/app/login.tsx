@@ -1,4 +1,4 @@
-import { StyleSheet, Platform, View } from 'react-native';
+import { StyleSheet, Platform, View, KeyboardAvoidingView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { UIView } from '@/components/ui/UIView';
 import { UIText } from '@/components/ui/UIText';
@@ -8,7 +8,6 @@ import { AccountLinkResponse } from 'shared/types';
 import { useRouter } from 'expo-router';
 import { UIButton } from '@/components/ui/UIButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UIFloatingBar } from '@/components/ui/UIFloatingBar';
 
 
 type OnboardingStep = 'email' | 'otp';
@@ -108,13 +107,21 @@ export default function LoginScreen() {
         <UIView themeColor='backgroundSecondary' style={styles.container}>
             <SafeAreaView style={styles.safeArea}>
                 <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
-                <View style={styles.header}>
-                    <UIText style={{ paddingBottom: 5 }} type="title">{
-                        currentStep === 'email' ?
-                            'Account Setup' :
-                            'Verify OTP'
-                    }</UIText>
-                    <View style={{ marginTop: 40, justifyContent: 'center' }}>
+                <View style={styles.topBar}>
+                    <UIButton type='link' onPress={closeScreen} title='Skip' />
+                </View>
+                <KeyboardAvoidingView
+                    style={styles.content}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                >
+                    <UIText size='xxl' font='regular'>
+                        {
+                            currentStep === 'email' ?
+                                'Account Setup' :
+                                'Verify OTP'
+                        }
+                    </UIText>
+                    <View style={{ marginTop: 20 }}>
                         {currentStep === 'email' ? (
                             <UITextInput
                                 placeholder="Enter your email"
@@ -145,16 +152,17 @@ export default function LoginScreen() {
                             )
                         }
                     </View>
-                </View>
-                <UIFloatingBar>
-                    {
-                        currentStep === 'email' ? (
-                            <UIButton size='lg' stretch onPress={submitEmail} title='Continue' disabled={!isEmailValid || isLoading} />
-                        ) : (
-                            <UIButton size='lg' stretch onPress={submitOtp} title='Verify' disabled={otpValue.length !== OTP_LENGTH || isLoading} />
-                        )
-                    }
-                </UIFloatingBar>
+
+                    <View style={{ paddingTop: 20 }}>
+                        {
+                            currentStep === 'email' ? (
+                                <UIButton size='lg' stretch onPress={submitEmail} title='Continue' disabled={!isEmailValid || isLoading} />
+                            ) : (
+                                <UIButton size='lg' stretch onPress={submitOtp} title='Verify' disabled={otpValue.length !== OTP_LENGTH || isLoading} />
+                            )
+                        }
+                    </View>
+                </KeyboardAvoidingView>
             </SafeAreaView>
         </UIView>
     );
@@ -164,13 +172,16 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    header: {
-        paddingHorizontal: 10,
-        paddingTop: 30,
+    topBar: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+    },
+    content: {
+        flex: 1,
+        justifyContent: 'center',
     },
     safeArea: {
         flex: 1,
-        padding: 10,
-        justifyContent: 'space-between',
+        padding: 20,
     },
 });
