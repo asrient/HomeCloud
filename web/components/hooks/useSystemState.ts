@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { useResource, useResourceWithPolling } from "./useResource";
 import { AudioPlaybackInfo, BatteryInfo, ClipboardContent, Disk } from "shared/types";
 import ServiceController from "shared/controller";
-import { getServiceController } from "shared/utils";
+import { getServiceController } from "@/lib/utils";
 import { SignalNodeRef } from "shared/signals";
 
 export const useBatteryInfo = (deviceFingerprint: string | null) => {
