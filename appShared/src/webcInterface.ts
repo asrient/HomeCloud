@@ -94,8 +94,6 @@ export class UdpConnection {
                 // Handle same network error specially - don't terminate, switch to local relay
                 if (errorMsg === SAME_NETWORK_ERROR_MSG) {
                     console.log("[UdpConnection] Received same network error from server, switching to local relay.");
-                    this.isServerAcked = true; // Mark as acked so we can receive peer data
-                    this.dgram.onMessage = undefined; // stop listening for server messages
                     this.switchToLocalNetwork();
                     return;
                 }
@@ -168,8 +166,19 @@ export class UdpConnection {
             return false;
         }
 
+        // Server responded with same-network indication, mark as acked
+        // and stop listening for server UDP messages.
+        // This can be called from both the WebSocket reject handler and the
+        // UDP error handler, so guard against double-setting.
+        if (!this.isServerAcked) {
+            this.isServerAcked = true;
+            this.dgram.onMessage = undefined;
+        }
+
         if (this.hasTriedLocalRelay) {
-            console.warn('[UdpConnection] Already tried local relay, giving up.');
+            // Even though we can't retry, check if connection can now be
+            // established (peer data may have arrived while isServerAcked was false).
+            this.checkConnectionEstablished();
             return false;
         }
 
@@ -190,6 +199,8 @@ export class UdpConnection {
             const localSc = modules.getLocalServiceController();
             await localSc.account.requestWebcLocal(this.pin, localAddresses, localPort);
             console.log('[UdpConnection] Local relay request sent, waiting for new peer data...');
+            // Check in case peer data arrived during the async request
+            this.checkConnectionEstablished();
             return true;
         } catch (err: any) {
             console.error('[UdpConnection] Failed to request local relay:', err);
