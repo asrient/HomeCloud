@@ -172,19 +172,24 @@ export function getUITheme(): UITheme {
   if (uiThemeCache) {
     return uiThemeCache;
   }
-  if (typeof window === 'undefined') {
-    return UITheme.Macos; // Default for SSR
-  }
-  if (window.modules.config.IS_DEV) {
+  // In dev mode, allow localStorage override (client-only)
+  if (typeof window !== 'undefined' && window.modules?.config?.IS_DEV) {
     const devTheme = localStorage.getItem(DEV_THEME_KEY);
     if (!!devTheme) {
       uiThemeCache = devTheme as UITheme;
-    } else {
-      uiThemeCache = window.modules.config.UI_THEME;
+      return uiThemeCache;
     }
-  } else {
-    uiThemeCache = window.modules.config.UI_THEME;
   }
+  // Use build-time env var
+  // Note: We are not using window.modules.config.UI_THEME anymore due to SSR issues. 
+  // Instead, we rely on build-time env variable which is inlined by Next.js. 
+  // This means the theme is determined at build time and cannot be changed at runtime in production, 
+  // which is a trade-off we accept for better SSR support.
+  const buildTheme = process.env.NEXT_PUBLIC_UI_THEME;
+  if (!buildTheme) {
+    throw new Error('NEXT_PUBLIC_UI_THEME environment variable must be set');
+  }
+  uiThemeCache = buildTheme as UITheme;
   return uiThemeCache;
 }
 

@@ -1,18 +1,9 @@
 /** @type {import('tailwindcss').Config} */
+const { resolveUITheme } = require('./lib/resolveUITheme')
 
-let env = process.env.UI_THEME;
-
-if (!env) {
-	env = process.platform === 'darwin' ? 'macos' : 'windows';
-	console.log(`UI_THEME not set, defaulting to ${env} based on OS`);
-}
-
+const env = resolveUITheme();
 const isMacos = env === 'macos';
-const isWindows = env === 'windows';
-
-console.log("UI Theme:", env);
-console.log("Is macOS:", isMacos);
-console.log("Is Windows:", isWindows);
+const isWindows = env === 'win11';
 
 module.exports = {
 	darkMode: ["class"],
