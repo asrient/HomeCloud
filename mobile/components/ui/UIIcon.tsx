@@ -63,6 +63,7 @@ const MAPPING = {
   'forward.fill': 'skip-next',
   'arrow.up.circle.fill': 'send',
   'externaldrive.fill': 'sd-storage',
+  'antenna.radiowaves.left.and.right': 'cell-tower',
 } as IconMapping;
 
 /**

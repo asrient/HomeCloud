@@ -1,9 +1,23 @@
+import React from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { UIView } from './UIView';
 import { UIText } from './UIText';
 import { UIIcon } from './UIIcon';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { isIos } from '@/lib/utils';
+
+function flattenChildren(children: React.ReactNode): React.ReactNode[] {
+    const result: React.ReactNode[] = [];
+    React.Children.forEach(children, (child) => {
+        if (!React.isValidElement(child)) return;
+        if (child.type === React.Fragment) {
+            result.push(...flattenChildren((child as React.ReactElement<{ children: React.ReactNode }>).props.children));
+        } else {
+            result.push(child);
+        }
+    });
+    return result;
+}
 
 export type SectionProps = {
     title?: string;
@@ -12,6 +26,7 @@ export type SectionProps = {
 
 export function Section({ title, children }: SectionProps) {
     const separatorColor = useThemeColor({}, 'seperator');
+    const childArray = flattenChildren(children);
 
     return (
         <View style={styles.sectionContainer}>
@@ -19,7 +34,7 @@ export function Section({ title, children }: SectionProps) {
                 <UIText
                     style={styles.sectionTitle}
                     size={"md"}
-                    color={isIos ? 'textTertiary' : 'textSecondary'}
+                    color={'textSecondary'}
                     font="semibold">
                     {title}
                 </UIText>
@@ -29,13 +44,21 @@ export function Section({ title, children }: SectionProps) {
                 borderRadius="lg"
                 style={[
                     styles.sectionContent,
+                    isIos && { borderRadius: 26 },
                     !isIos && {
                         borderWidth: 1,
                         borderColor: separatorColor,
                     },
                 ]}
             >
-                {children}
+                {childArray.map((child, index) => (
+                    <React.Fragment key={index}>
+                        {child}
+                        {index < childArray.length - 1 && (
+                            <View style={[styles.separator, { backgroundColor: separatorColor }]} />
+                        )}
+                    </React.Fragment>
+                ))}
             </UIView>
         </View>
     );
@@ -64,12 +87,7 @@ export function Line({
 
     const content = (
         <View
-            style={[
-                styles.lineContainer,
-                {
-                    borderBottomColor: separatorColor,
-                },
-            ]}
+            style={styles.lineContainer}
         >
             {title && (
                 <UIText
@@ -123,7 +141,6 @@ export type LineLinkProps = {
 
 export function LineLink({ text, onPress, color = 'default' }: LineLinkProps) {
     const highlightColor = useThemeColor({}, 'highlight');
-    const separatorColor = useThemeColor({}, 'seperator');
     const defaultTextColor = useThemeColor({}, 'text');
     const destructiveColor = '#FF3B30';
 
@@ -139,7 +156,6 @@ export function LineLink({ text, onPress, color = 'default' }: LineLinkProps) {
             onPress={onPress}
             style={({ pressed }) => [
                 styles.lineLinkContainer,
-                { borderBottomColor: separatorColor },
                 pressed && { opacity: 0.7 },
             ]}
         >
@@ -177,7 +193,6 @@ const styles = StyleSheet.create({
         minHeight: isIos ? 44 : 56,
         paddingHorizontal: 16,
         paddingVertical: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
     },
     lineTitle: {
         flex: 1,
@@ -202,6 +217,9 @@ const styles = StyleSheet.create({
         minHeight: isIos ? 44 : 56,
         paddingHorizontal: 16,
         paddingVertical: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    separator: {
+        height: StyleSheet.hairlineWidth,
+        marginLeft: 16,
     },
 });

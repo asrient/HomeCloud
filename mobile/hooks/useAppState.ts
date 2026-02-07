@@ -145,9 +145,6 @@ export function useAppState() {
         if (readySignalRef.current) {
             localSc.readyStateSignal.detach(readySignalRef.current);
             readySignalRef.current = null;
-            if (loadingStateRef.current === 'loading') {
-                loadingStateRef.current = 'initial';
-            }
         }
         if (peerSignalRef.current) {
             localSc.app.peerSignal.detach(peerSignalRef.current);
@@ -157,6 +154,8 @@ export function useAppState() {
             localSc.net.connectionSignal.detach(connectionSignalRef.current);
             connectionSignalRef.current = null;
         }
+        // Always reset so loadAppState can re-initialize (e.g. after React strict mode cleanup)
+        loadingStateRef.current = 'initial';
         clearAccountState();
     }, [clearAccountState]);
 

@@ -2,10 +2,14 @@ import { useAppState } from "@/hooks/useAppState";
 import { ScrollView, View, ViewStyle, StyleSheet, StyleProp } from "react-native";
 import { UIButton } from "./ui/UIButton";
 import { getDeviceIconName } from "./ui/getPeerIconName";
+import { useState } from "react";
+import DeviceSelectorSheet from "./DeviceSelectorSheet";
 
 // Shows a row for selecting a device from the list of peers
 export default function DeviceSelectorRow({ style }: { style?: ViewStyle }) {
-    const { peers, selectedFingerprint, selectDevice, deviceInfo } = useAppState();
+    const { peers, selectedFingerprint, selectDevice, deviceInfo, connections } = useAppState();
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const hasActiveConnections = connections.length > 0;
 
     const scrollViewStyle: StyleProp<ViewStyle> = StyleSheet.compose({
         flexDirection: 'row',
@@ -19,6 +23,14 @@ export default function DeviceSelectorRow({ style }: { style?: ViewStyle }) {
                 style={scrollViewStyle}
                 showsHorizontalScrollIndicator={false}
             >
+                <UIButton
+                    key="device-list"
+                    onPress={() => setSheetOpen(true)}
+                    type={hasActiveConnections ? 'primary' : 'secondary'}
+                    size="md"
+                    icon="antenna.radiowaves.left.and.right"
+                    style={{ paddingVertical: 8 }}
+                />
                 {[null, ...peers].map((peer) => {
                     const fingerprint = peer ? peer.fingerprint : null;
                     const isSelected = fingerprint === selectedFingerprint;
@@ -34,6 +46,7 @@ export default function DeviceSelectorRow({ style }: { style?: ViewStyle }) {
                     />)
                 })}
             </ScrollView>
+            <DeviceSelectorSheet isOpen={sheetOpen} onClose={() => setSheetOpen(false)} />
         </View>
     );
 }

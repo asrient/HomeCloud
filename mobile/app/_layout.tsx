@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { initModules } from '@/lib/init';
 import { useAppState } from '@/hooks/useAppState';
-import { useKeepAwake } from 'expo-keep-awake';
+import { useKeepAwakeControl } from '@/hooks/useKeepAwake';
 import { InputPopup } from '@/components/inputPopup';
 import { AlertModal } from '@/components/AlertModal';
 import { useNavigationTheme } from '@/hooks/useNavigationTheme';
@@ -26,7 +26,7 @@ export default function RootLayout() {
   const theme = useNavigationTheme();
   const [appReady, setAppReady] = useState(false);
   const { loadAppState, clearSignals, isInitialized, isOnboarded } = useAppState();
-  useKeepAwake();
+  useKeepAwakeControl();
   const { requestPermissions } = usePermissions();
 
   const setupPermissions = useCallback(async () => {
