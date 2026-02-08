@@ -558,7 +558,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
               disks.add(mapOf(
                 "type" to type,
                 "name" to name,
-                "path" to dir.path,
+                "path" to Uri.fromFile(dir).toString(),
                 "size" to (stat.blockCountLong * stat.blockSizeLong),
                 "free" to (stat.availableBlocksLong * stat.blockSizeLong)
               ))
@@ -575,7 +575,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
               disks.add(mapOf(
                 "type" to "internal",
                 "name" to "Internal Storage",
-                "path" to dir.path,
+                "path" to Uri.fromFile(dir).toString(),
                 "size" to (stat.blockCountLong * stat.blockSizeLong),
                 "free" to (stat.availableBlocksLong * stat.blockSizeLong)
               ))
