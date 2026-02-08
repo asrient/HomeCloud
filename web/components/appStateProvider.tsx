@@ -30,6 +30,15 @@ function WithInitialState({ children }: {
         const accentColor = localSc.system.getAccentColorHex();
         console.log('Accent color:', accentColor);
         setPrimaryColorHsl(...rgbHexToHsl(accentColor));
+
+        // Fetch device info for app state (used for OS version detection, settings, etc.)
+        try {
+            const deviceInfo = await localSc.system.getDeviceInfo();
+            dispatch(ActionTypes.SET_DEVICE_INFO, deviceInfo);
+        } catch (e) {
+            console.warn('Could not fetch device info:', e);
+        }
+
         dispatch(ActionTypes.INITIALIZE, {
             peers,
             connections,

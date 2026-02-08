@@ -1,6 +1,7 @@
 import { cn, isMacosTheme } from '@/lib/utils';
 import { ChevronLeft } from 'lucide-react';
 import { useNavigation } from './hooks/useNavigation';
+import { useUIFlag } from './hooks/useUIFlag';
 import { Button } from './ui/button';
 import { ThemedIcon } from './themedIcons';
 import { ThemedIconName } from "@/lib/enums";
@@ -12,19 +13,25 @@ export function PageBar({ children, title, icon }: {
     icon?: ThemedIconName,
 }) {
     const { canGoBack, goBack } = useNavigation();
+    const { supportLiquidGlass } = useUIFlag();
+    const liquidGlass = isMacosTheme() && supportLiquidGlass;
+
     return (
         <div className={cn(
             'flex justify-between items-center z-20',
             isMacosTheme() && 'h-[3rem] py-1 px-3 fixed top-0 md:left-[220px] lg:left-[240px] right-0',
             !isMacosTheme() && 'w-full h-[4rem] pt-4 px-8 relative'
         )}>
-            {/* Progressive blur background for macOS */}
-            {isMacosTheme() && (
+            {/* Progressive blur background for liquid glass macOS */}
+            {liquidGlass && (
                 <>
                     <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/40 to-transparent pointer-events-none" />
                     <div className="absolute inset-0 backdrop-blur-sm pointer-events-none" style={{ maskImage: 'linear-gradient(to bottom, black 0%, black 20%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 20%, transparent 100%)' }} />
                     <div className="absolute inset-0 backdrop-blur-xs pointer-events-none" style={{ maskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 50%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 50%, transparent 100%)' }} />
                 </>
+            )}
+            {isMacosTheme() && !liquidGlass && (
+                <div className="absolute inset-0 bg-background/80 backdrop-blur-md border-b border-border/40 pointer-events-none" />
             )}
             <div className='flex items-center space-x-2 py-2 px-1 min-w-max relative z-10'>
                 {
@@ -84,19 +91,28 @@ interface MenuButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
 
 export const MenuButton = forwardRef<HTMLButtonElement, MenuButtonProps>(
     ({ children, onClick, disabled, title, className, selected, ...rest }, ref) => {
+        const { supportLiquidGlass } = useUIFlag();
+        const liquidGlass = isMacosTheme() && supportLiquidGlass;
+
         return (
             <Button
                 size={isMacosTheme() ? 'sm' : 'default'}
                 variant={selected ? 'default' : 'ghost'}
                 className={cn(
                     'transition-all duration-150 ease-in-out',
-                    isMacosTheme()
+                    liquidGlass
                         ? cn(
                             'rounded-full px-2 py-[1rem]',
                             selected ? 'bg-primary/90'
                                 : 'hover:bg-muted/70 text-foreground hover:text-foreground',
                         )
-                        : 'rounded-md',
+                        : isMacosTheme()
+                            ? cn(
+                                'rounded-lg px-2 py-[1rem]',
+                                selected ? 'bg-primary/90'
+                                    : 'bg-transparent hover:bg-muted/70 text-foreground hover:text-foreground',
+                            )
+                            : 'rounded-md',
                     className
                 )}
                 title={title}
@@ -113,11 +129,16 @@ export const MenuButton = forwardRef<HTMLButtonElement, MenuButtonProps>(
 MenuButton.displayName = 'MenuButton'
 
 export function MenuGroup({ children }: {
-    children: React.ReactNode
+    children: React.ReactNode,
 }) {
+    const { supportLiquidGlass } = useUIFlag();
+    const liquidGlass = isMacosTheme() && supportLiquidGlass;
+
     return (
         <div className={cn('flex flex-row items-center text-xs mx-1 text-foreground',
-            isMacosTheme() && 'bg-white/75 dark:bg-secondary/50 backdrop-blur-sm backdrop-saturate-150 border-white dark:border-zinc-400/30 border rounded-full shadow-2xl'
+            liquidGlass
+                ? 'bg-white/75 dark:bg-secondary/50 backdrop-blur-sm backdrop-saturate-150 border-white dark:border-zinc-400/30 border rounded-full shadow-2xl'
+                : isMacosTheme() && 'gap-0.5'
         )}>
             {children}
         </div>

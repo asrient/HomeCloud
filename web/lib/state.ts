@@ -1,5 +1,5 @@
 import { Dispatch, createContext } from 'react';
-import { PeerInfo, ConnectionInfo } from 'shared/types';
+import { PeerInfo, ConnectionInfo, DeviceInfo } from 'shared/types';
 
 export type AppStateType = {
     isInitalized: boolean;
@@ -8,6 +8,7 @@ export type AppStateType = {
     connections: ConnectionInfo[];
     selectedFingerprint: string | null;
     instanceKey: string;
+    deviceInfo: DeviceInfo | null;
 };
 
 export enum ActionTypes {
@@ -19,6 +20,7 @@ export enum ActionTypes {
     ADD_CONNECTION = 'ADD_CONNECTION',
     REMOVE_CONNECTION = 'REMOVE_CONNECTION',
     SELECT_DEVICE = 'SELECT_DEVICE',
+    SET_DEVICE_INFO = 'SET_DEVICE_INFO',
 }
 
 export type AppDispatchType = {
@@ -34,6 +36,7 @@ export const initialAppState: AppStateType = {
     connections: [],
     selectedFingerprint: null,
     instanceKey: '',
+    deviceInfo: null,
 };
 
 export const AppContext = createContext<AppStateType>(initialAppState);
@@ -83,6 +86,10 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
         case ActionTypes.SELECT_DEVICE: {
             const { fingerprint }: { fingerprint: string | null } = payload;
             draft.selectedFingerprint = fingerprint;
+            return draft;
+        }
+        case ActionTypes.SET_DEVICE_INFO: {
+            draft.deviceInfo = payload;
             return draft;
         }
         default:

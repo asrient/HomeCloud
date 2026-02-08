@@ -8,7 +8,7 @@ import ConfirmModal from '@/components/confirmModal'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { ThemedIconName } from "@/lib/enums";
-import { DeviceInfo, PeerInfo, PhotoLibraryLocation } from "shared/types";
+import { PeerInfo, PhotoLibraryLocation } from "shared/types";
 import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { useAccountState } from "@/components/hooks/useAccountState";
 import { useAppState } from "@/components/hooks/useAppState";
@@ -17,7 +17,6 @@ import { Folder, Plus, X } from 'lucide-react';
 import { DeviceIcon } from '@/components/DeviceIcon';
 
 function Page() {
-  const [deviceInfo, setDeviceInfo] = useState<null | DeviceInfo>(null);
   const [photoLibraries, setPhotoLibraries] = useState<PhotoLibraryLocation[]>([]);
   const [autoStartEnabled, setAutoStartEnabled] = useState<boolean | null>(null);
   const [autoStartDisabled, setAutoStartDisabled] = useState(false);
@@ -33,10 +32,6 @@ function Page() {
   }, []);
 
   useEffect(() => {
-    const fetchDeviceInfo = async () => {
-      const info = await window.modules.getLocalServiceController().system.getDeviceInfo();
-      setDeviceInfo(info);
-    };
     const fetchAutoStartStatus = async () => {
       const localSc = window.modules.getLocalServiceController();
       // Check if auto-start is supported (returns null if not)
@@ -45,7 +40,6 @@ function Page() {
         setAutoStartEnabled(enabled);
       }
     };
-    fetchDeviceInfo();
     fetchPhotoLibraries();
     fetchAutoStartStatus();
   }, [fetchPhotoLibraries]);
@@ -90,7 +84,7 @@ function Page() {
   };
 
   const { isLinked, accountEmail } = useAccountState();
-  const { peers } = useAppState();
+  const { peers, deviceInfo } = useAppState();
 
   return (
     <>
