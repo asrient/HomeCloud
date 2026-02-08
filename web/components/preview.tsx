@@ -11,6 +11,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { cn, isMacosTheme } from '@/lib/utils';
 
 function PreviewBar({ item }: { item: FileRemoteItem | null }) {
     const icon = useMemo(() => item ? getDefaultIcon(item) : null, [item]);
@@ -107,7 +108,9 @@ export default function PreviewModal({
         <Dialog open={!!item} onOpenChange={handleOpenChange}>
             <DialogContent
                 className='max-w-3xl lg:max-w-4xl xl:max-w-6xl h-[85vh] max-h-[50rem] overflow-hidden py-0 px-0 gap-0 flex flex-col'>
-                <DialogHeader className='py-3 px-4 h-min'>
+                <DialogHeader className={cn('h-min px-4',
+                    isMacosTheme() ? 'py-2' : 'py-3',
+                )}>
                     <PreviewBar item={item} />
                 </DialogHeader>
                 <div className='w-full h-full overflow-auto'>
