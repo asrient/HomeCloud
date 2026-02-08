@@ -8,10 +8,12 @@ import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UIScrollView } from '@/components/ui/UIScrollView';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DeviceInfo, PeerInfo } from 'shared/types';
 import { DeviceQuickActions } from '@/components/deviceQuickActions';
 import { isIos, getAppName } from '@/lib/utils';
+import { useAccountState } from '@/hooks/useAccountState';
+import InstallLinkModal from '@/components/InstallLinkModal';
 
 const MAX_DEVICE_NAME_LENGTH = 23;
 
@@ -26,6 +28,9 @@ export default function HomeScreen() {
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const [thisPeerInfo, setThisPeerInfo] = useState<PeerInfo | null>(null);
+  const [showInstallLink, setShowInstallLink] = useState(false);
+  const installLinkShownRef = useRef(false);
+  const { isLinked } = useAccountState();
 
   // Tab bar height is typically 49 on iOS and 56 on Android, plus safe area
   const tabBarHeight = (isIos ? 49 : 56) + insets.bottom;
@@ -35,6 +40,15 @@ export default function HomeScreen() {
   }, []);
 
   const { selectedPeer } = useAppState();
+
+  const { peers } = useAppState();
+
+  useEffect(() => {
+    if (!installLinkShownRef.current && isLinked && peers.length === 0) {
+      installLinkShownRef.current = true;
+      setShowInstallLink(true);
+    }
+  }, [isLinked, peers.length]);
 
   const headerTitle = useMemo(() => {
     const deviceName = selectedPeer ? selectedPeer.deviceName : 'This Device';
@@ -75,6 +89,7 @@ export default function HomeScreen() {
         </View>
         <DeviceQuickActions peerInfo={selectedPeer} />
       </View>
+      <InstallLinkModal isOpen={showInstallLink} onClose={() => setShowInstallLink(false)} />
     </UIScrollView>
   );
 }

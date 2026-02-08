@@ -43,6 +43,7 @@ const MAPPING = {
   'desktopcomputer': 'desktop-mac',
   'macbook.and.iphone': 'devices',
   'folder.badge.plus': 'create-new-folder',
+  'plus.circle': 'add-circle-outline',
   'ipad.landscape': 'tablet',
   'smartphone': 'smartphone',
   'tv': 'tv',
@@ -92,5 +93,3 @@ export function UIIcon({
   const themeColorValue = useThemeColor({}, themeColor || 'icon');
   return <MaterialIcons color={color || themeColorValue} size={size} name={MAPPING[name]} style={style} />;
 }
-
-

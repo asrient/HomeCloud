@@ -3,16 +3,11 @@ import { ConnectionType, GenericDataChannel, PeerCandidate } from "shared/types"
 import Discovery from "./discovery";
 import SupermanModule from "../../modules/superman";
 import * as Network from 'expo-network';
-import { NetworkState, NetworkStateType } from "expo-network";
+import { NetworkState } from "expo-network";
 import { EventSubscription } from 'expo-modules-core';
 import { getPowerStateAsync, addLowPowerModeListener } from 'expo-battery';
 import { filterValidBonjourIps, isSameNetwork } from "shared/utils";
-
-const UNSUPPORTED_NETWORK_TYPES = [
-    NetworkStateType.CELLULAR,
-    NetworkStateType.NONE,
-    NetworkStateType.UNKNOWN,
-];
+import { UNSUPPORTED_NETWORK_TYPES } from "../types";
 
 const noop = () => { };
 

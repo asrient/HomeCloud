@@ -1,7 +1,6 @@
 import { StyleSheet, Platform, View, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { UIText } from '@/components/ui/UIText';
-import { useRouter } from 'expo-router';
 import { useAccountState } from '@/hooks/useAccountState';
 import { UIButton } from '@/components/ui/UIButton';
 import { getAppName, getLocalServiceController } from '@/lib/utils';
@@ -10,6 +9,8 @@ import { useAppState } from '@/hooks/useAppState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UIIcon } from '@/components/ui/UIIcon';
 import { UIView } from '@/components/ui/UIView';
+import { LoginModal } from '@/components/LoginModal';
+import { useState } from 'react';
 
 const features = [
     {
@@ -31,18 +32,28 @@ const features = [
 
 export default function WelcomeScreen() {
 
-    const router = useRouter();
     const { isLinked } = useAccountState();
     const { requestPermissions } = usePermissions();
     const { setOnboarded } = useAppState();
+    const [showLogin, setShowLogin] = useState(false);
 
-    const handleGetStarted = async () => {
+    const completeOnboarding = async () => {
         await requestPermissions();
         await getLocalServiceController().setUserOnboarded();
         setOnboarded(true);
+    };
+
+    const handleGetStarted = () => {
         if (!isLinked || modules.config.IS_DEV) {
-            router.navigate('/login');
+            setShowLogin(true);
+        } else {
+            completeOnboarding();
         }
+    };
+
+    const handleLoginComplete = () => {
+        setShowLogin(false);
+        completeOnboarding();
     };
 
     return (
@@ -77,6 +88,7 @@ export default function WelcomeScreen() {
                     <UIButton size='lg' stretch onPress={handleGetStarted} title="Continue" />
                 </View>
             </SafeAreaView>
+            <LoginModal visible={showLogin} onComplete={handleLoginComplete} />
         </UIView>
     );
 }

@@ -1,6 +1,6 @@
 import { View, StyleSheet, Switch } from 'react-native';
 import { UIPageSheet } from './ui/UIPageSheet';
-import { Section, Line, FormContainer } from './ui/UIFormPrimatives';
+import { Section, Line, LineLink, FormContainer } from './ui/UIFormPrimatives';
 import { UIText } from './ui/UIText';
 import { UIIcon } from './ui/UIIcon';
 import { useAppState } from '@/hooks/useAppState';
@@ -12,6 +12,9 @@ import { ConnectionType } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { useKeepAwakeStore } from '@/hooks/useKeepAwake';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useDiscoverable } from '@/hooks/useDiscoverable';
+import { useAccountState } from '@/hooks/useAccountState';
+import InstallLinkModal from './InstallLinkModal';
 
 function DeviceSubtext({ peer, connection }: { peer: PeerInfo; connection: ConnectionInfo | null }) {
     const osText = peer.deviceInfo ? `${peer.deviceInfo.os} ${peer.deviceInfo.osFlavour}` : peer.version;
@@ -51,6 +54,9 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
     const [deviceName, setDeviceName] = useState<string>('This Device');
     const { enabled: keepAwakeEnabled, setEnabled: setKeepAwake } = useKeepAwakeStore();
     const highlightColor = useThemeColor({}, 'highlight');
+    const isDiscoverable = useDiscoverable();
+    const { isLinked } = useAccountState();
+    const [installLinkOpen, setInstallLinkOpen] = useState(false);
 
     useEffect(() => {
         modules.getLocalServiceController().app.peerInfo().then(info => {
@@ -70,15 +76,22 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
             <UIScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                 <FormContainer>
                     <View style={styles.hero}>
-                        <UIIcon name="antenna.radiowaves.left.and.right" size={36} color={highlightColor} />
+                        <UIIcon
+                            name={isDiscoverable ? 'antenna.radiowaves.left.and.right' : 'personalhotspot.slash'}
+                            size={36}
+                            color={highlightColor}
+                            themeColor={isDiscoverable ? undefined : 'textSecondary'}
+                        />
                         <UIText size="md" font="semibold" style={styles.heroTitle}>
-                            Discoverable
+                            {isDiscoverable ? 'Discoverable' : 'Not Discoverable'}
                         </UIText>
                         <UIText size="sm" color="textSecondary" style={styles.heroSubtitle}>
-                            Your device is visible to others as {`"${deviceName}"`}.
+                            {isDiscoverable
+                                ? `Your device is visible to others as "${deviceName}".`
+                                : 'Turn on Wi-Fi or mobile data.'
+                            }
                         </UIText>
                     </View>
-
                     <Section>
                         <Line title="Keep Awake">
                             <Switch
@@ -137,8 +150,19 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
                             })}
                         </Section>
                     )}
+
+                    {isLinked && (
+                        <Section>
+                            <LineLink
+                                text="Add new device"
+                                onPress={() => setInstallLinkOpen(true)}
+                                color="primary"
+                            />
+                        </Section>
+                    )}
                 </FormContainer>
             </UIScrollView>
+            <InstallLinkModal isOpen={installLinkOpen} onClose={() => setInstallLinkOpen(false)} />
         </UIPageSheet>
     );
 }

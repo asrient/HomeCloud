@@ -1,4 +1,11 @@
 import { AppConfigType, ConnectionInfo, PeerInfo, Photo, PhotoLibraryLocation, RemoteItem } from "shared/types";
+import { NetworkStateType } from "expo-network";
+
+export const UNSUPPORTED_NETWORK_TYPES = [
+    NetworkStateType.CELLULAR,
+    NetworkStateType.NONE,
+    NetworkStateType.UNKNOWN,
+];
 
 export enum MobilePlatform {
     ANDROID = "android",

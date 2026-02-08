@@ -119,6 +119,7 @@ export class AppService extends Service {
     }
 
     public getPeers(): PeerInfo[] {
+        if (!this.store) return [];
         return this.store.getItem<PeerInfo[]>('peers') || [];
     }
 
