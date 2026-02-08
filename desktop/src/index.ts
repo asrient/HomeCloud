@@ -34,7 +34,10 @@ const isDev = env.NODE_ENV === 'development';
 
 // Use separate data directory for development
 if (isDev) {
-  app.setPath('userData', `${app.getPath('userData')}_DEV`);
+  console.log('Running in development mode.');
+  app.setName(`${app.getName()}-dev`);
+  app.setPath('userData', `${app.getPath('userData')}-dev`);
+  console.log('Data directory set to:', app.getPath('userData'));
 }
 
 const cryptoModule = new CryptoImpl();
