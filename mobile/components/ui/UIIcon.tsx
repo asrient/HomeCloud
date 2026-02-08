@@ -18,6 +18,7 @@ export type IconSymbolName = keyof typeof MAPPING;
 const MAPPING = {
   'house.fill': 'home',
   'paperplane.fill': 'send',
+  'at': 'alternate-email',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
   'chevron.left': 'chevron-left',
@@ -64,6 +65,9 @@ const MAPPING = {
   'arrow.up.circle.fill': 'send',
   'externaldrive.fill': 'sd-storage',
   'antenna.radiowaves.left.and.right': 'cell-tower',
+  'cloud.rain': 'cloud',
+  'play.circle': 'play-circle-outline',
+  'envelope.badge': 'mail',
 } as IconMapping;
 
 /**

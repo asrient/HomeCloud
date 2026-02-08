@@ -34,11 +34,11 @@ export const ColorsIos: ColorPalette = {
     backgroundSecondary: '#F2F2F7',
     backgroundTertiary: '#E4E4E6',
     icon: '#000000',
-    highlight: '#007AFF',
+    highlight: '#E03429',
     highlightText: '#ffffff',
     seperator: '#C6C6C8',
     accentText: '#000000',
-    primaryRipple: '#007AFF20',
+    primaryRipple: '#E0342920',
   },
   dark: {
     text: '#FFFFFF',
@@ -48,11 +48,11 @@ export const ColorsIos: ColorPalette = {
     backgroundSecondary: '#1C1C1E',
     backgroundTertiary: '#2C2C2E',
     icon: '#FFFFFF',
-    highlight: '#0A84FF',
+    highlight: '#FF5544',
     highlightText: '#ffffff',
     seperator: '#3A3A3C',
     accentText: '#FFFFFF',
-    primaryRipple: '#0A84FF20',
+    primaryRipple: '#FF554420',
   },
 };
 

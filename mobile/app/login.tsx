@@ -8,6 +8,8 @@ import { AccountLinkResponse } from 'shared/types';
 import { useRouter } from 'expo-router';
 import { UIButton } from '@/components/ui/UIButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { UIIcon } from '@/components/ui/UIIcon';
+import { getAppName } from '@/lib/utils';
 
 
 type OnboardingStep = 'email' | 'otp';
@@ -114,14 +116,29 @@ export default function LoginScreen() {
                     style={styles.content}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 >
-                    <UIText size='xxl' font='regular'>
+                    <View style={styles.iconContainer}>
+                        <UIIcon name={
+                            currentStep === 'email' ? 'at' : 'envelope.badge'
+                        } size={48} themeColor='highlight' />
+                    </View>
+
+                    <UIText type='title' font='regular' style={styles.heading}>
                         {
                             currentStep === 'email' ?
-                                'Account Setup' :
+                                "Let's set this device up." :
                                 'Verify OTP'
                         }
                     </UIText>
-                    <View style={{ marginTop: 20 }}>
+
+
+                    <UIText size='md' color='textSecondary' style={styles.subtitle}>
+                        {
+                            currentStep === 'email' ?
+                                `To manage secure access across your devices, ${getAppName()} requires you to set up an account.` :
+                                'We have sent a one-time password (OTP) to your email.'
+                        }
+                    </UIText>
+                    <View style={styles.inputContainer}>
                         {currentStep === 'email' ? (
                             <UITextInput
                                 placeholder="Enter your email"
@@ -141,11 +158,6 @@ export default function LoginScreen() {
                                 editable={!isLoading}
                             />
                         )}
-                        {errorMessage && (
-                            <UIText style={{ color: 'red', marginTop: 8 }}>
-                                {errorMessage}
-                            </UIText>
-                        )}
                         {
                             currentStep === 'otp' && (
                                 <UIButton type='link' onPress={backToEmailStep} title="Change Email" disabled={isLoading} />
@@ -153,7 +165,7 @@ export default function LoginScreen() {
                         }
                     </View>
 
-                    <View style={{ paddingTop: 20 }}>
+                    <View style={styles.buttonContainer}>
                         {
                             currentStep === 'email' ? (
                                 <UIButton size='lg' stretch onPress={submitEmail} title='Continue' disabled={!isEmailValid || isLoading} />
@@ -162,6 +174,17 @@ export default function LoginScreen() {
                             )
                         }
                     </View>
+                    {
+                        (currentStep === 'email' || errorMessage) && (
+                            <UIText size='sm' color='textSecondary' style={{ marginTop: 8, paddingHorizontal: 4, textAlign: 'center' }}>
+                                {
+                                    currentStep === 'email' && !errorMessage ?
+                                        "It's always free and we won't spam your inbox." :
+                                        errorMessage
+                                }
+                            </UIText>
+                        )
+                    }
                 </KeyboardAvoidingView>
             </SafeAreaView>
         </UIView>
@@ -178,10 +201,25 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
-        justifyContent: 'center',
+        paddingTop: 40,
     },
     safeArea: {
         flex: 1,
-        padding: 20,
+        padding: 22,
+    },
+    iconContainer: {
+        marginBottom: 24,
+    },
+    heading: {
+        marginBottom: 8,
+    },
+    subtitle: {
+        marginBottom: 24,
+    },
+    inputContainer: {
+        marginTop: 8,
+    },
+    buttonContainer: {
+        paddingTop: 16,
     },
 });
