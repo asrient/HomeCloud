@@ -1,6 +1,7 @@
 import { OSType } from "@/lib/types";
 import { DeviceInfo } from "shared/types";
 import { Platform } from "react-native";
+import MobileServiceController from "./serviceController";
 
 export function getAppName() {
   if ((global as any).modules?.config?.APP_NAME) {
@@ -25,7 +26,7 @@ export async function getServiceController(fingerprint: string | null) {
 }
 
 export function getLocalServiceController() {
-  return modules.getLocalServiceController();
+  return MobileServiceController.getLocalInstance<MobileServiceController>();
 }
 
 export function libraryHashFromId(fingerprint: string | null, libraryId: string) {

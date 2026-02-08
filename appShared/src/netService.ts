@@ -197,8 +197,10 @@ export class NetService extends Service {
         }
     }
 
-    @assertServiceRunning
     public getConnectionInfo(fingerprint: string): ConnectionInfo | null {
+        if (!this.isServiceRunning()) {
+            return null;
+        }
         const connection = this.connections.get(fingerprint);
         if (connection) {
             return {
@@ -210,8 +212,10 @@ export class NetService extends Service {
         return null;
     }
 
-    @assertServiceRunning
     public async getConnectedDevices(): Promise<ConnectionInfo[]> {
+        if (!this.isServiceRunning()) {
+            return [];
+        }
         const fingerprints = Array.from(this.connections.keys());
         return fingerprints.map(fingerprint => this.getConnectionInfo(fingerprint));
     }

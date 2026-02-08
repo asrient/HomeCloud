@@ -45,13 +45,31 @@ export default class MobileServiceController extends ServiceController {
         this.readyStateSignal.dispatch(this.readyState);
     }
 
+    /**
+     * Mark the user as onboarded and start any deferred services (e.g. networking).
+     * On mobile, networking is deferred until after onboarding to avoid triggering
+     * the iOS local network permission dialog prematurely.
+     */
+    async setUserOnboarded() {
+        await this.app.setOnboarded(true);
+        console.log("[MobileServiceController] User onboarded, starting deferred services...");
+        // Start networking — no-ops if already running.
+        await this.net.start();
+    }
+
     private async startAll() {
         // Start services.
         console.log("Starting services...");
         await this.account.start();
         await this.app.start();
-        await this.net.start();
         await this.system.start();
+        // Defer net.start() until after onboarding to avoid triggering
+        // the iOS local network permission dialog before the user is ready.
+        if (this.app.isOnboarded()) {
+            await this.net.start();
+        } else {
+            console.log("[MobileServiceController] Skipping net.start() — user not onboarded yet.");
+        }
         await this.files.start();
         await this.thumbnail.start();
         await this.photos.start();

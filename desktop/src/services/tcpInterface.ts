@@ -223,10 +223,16 @@ export default class TCPInterface extends ConnectionInterface {
 
                 this.server.on('error', (err) => {
                     console.error('TCP server error:', err);
-                    reject(err);
+                    this.server = null;
+                    const localSc = modules.getLocalServiceController();
+                    localSc.system.alert(
+                        'Local Network Error',
+                        `Other devices won't be able to discover this device on the local network. ${err.message || ''}`,
+                    );
+                    resolve(); // Resolve instead of reject to avoid crashing
                 });
-
             } catch (error) {
+                console.error('Error starting TCPInterface:', error);
                 reject(error);
             }
         });

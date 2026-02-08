@@ -299,7 +299,7 @@ export default class TCPInterface extends ConnectionInterface {
      * @param {number} [port] - Optional port to start the server on. Defaults to the instance port.
      * @returns {Promise<number>} A promise that resolves to the actual port the server is listening on.
      */
-    async startServer(port?: number): Promise<number> {
+    async startServer(port?: number): Promise<number | null> {
         if (this.serverStarted) {
             console.log('[TCPInterface] TCP server is already running. Skipping start.');
             return this.port;
@@ -316,7 +316,14 @@ export default class TCPInterface extends ConnectionInterface {
             return result.port;
         } catch (error) {
             console.error('[TCPInterface] Failed to start TCP server:', error);
-            throw error;
+            try {
+                const localSc = modules.getLocalServiceController();
+                localSc.system.alert(
+                    'Local Network Error',
+                    (error as Error).message || 'Some devices may have trouble discovering this device on the local network.',
+                );
+            } catch { /* ignore alert failure */ }
+            return null;
         }
     }
 

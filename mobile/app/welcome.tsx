@@ -5,7 +5,7 @@ import { UIText } from '@/components/ui/UIText';
 import { useRouter } from 'expo-router';
 import { useAccountState } from '@/hooks/useAccountState';
 import { UIButton } from '@/components/ui/UIButton';
-import { getAppName } from '@/lib/utils';
+import { getAppName, getLocalServiceController } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAppState } from '@/hooks/useAppState';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,9 +19,7 @@ export default function WelcomeScreen() {
 
     const handleGetStarted = async () => {
         await requestPermissions();
-        // First mark onboarded
-        const localSc = modules.getLocalServiceController();
-        await localSc.app.setOnboarded(true);
+        await getLocalServiceController().setUserOnboarded();
         setOnboarded(true);
         if (!isLinked || modules.config.IS_DEV) {
             router.navigate('/login');
