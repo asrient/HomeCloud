@@ -12,7 +12,7 @@ import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UIContextMenu } from '@/components/ui/UIContextMenu';
 import { useInputPopup } from '@/hooks/usePopup';
 import { useAlert } from '@/hooks/useAlert';
-import { getLocalServiceController, getServiceController, isIos } from '@/lib/utils';
+import { getLocalServiceController, getServiceController, isIos, isGlassEnabled } from '@/lib/utils';
 import { UIText } from '@/components/ui/UIText';
 import { useFolder } from '@/hooks/useFolders';
 import { RemoteItem } from 'shared/types';
@@ -258,7 +258,7 @@ export default function FolderScreen() {
     navigation.setOptions({
       title: folderName,
       headerTitle: selectMode ? `${selectedFiles.length} selected` : folderName,
-      headerTransparent: isIos,
+      headerTransparent: isGlassEnabled,
       headerBackButtonDisplayMode: 'minimal',
       headerRight: () => {
         if (!selectMode) {
@@ -415,7 +415,7 @@ export default function FolderScreen() {
           sortBy={sortBy || undefined}
           onQuickAction={handleQuickAction}
           headerComponent={
-            isIos ?
+            isGlassEnabled ?
               <View style={{ marginTop: headerHeight }} />
               : undefined
           }

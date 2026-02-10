@@ -40,7 +40,7 @@ export function Section({ title, children }: SectionProps) {
                 </UIText>
             )}
             <UIView
-                themeColor={isIos ? 'backgroundSecondary' : 'background'}
+                themeColor={isIos ? 'backgroundTertiary' : 'background'}
                 borderRadius="lg"
                 style={[
                     styles.sectionContent,

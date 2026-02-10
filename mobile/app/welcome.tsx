@@ -96,12 +96,18 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     safeArea: {
         flex: 1,
         justifyContent: 'space-between',
         paddingHorizontal: 22,
         paddingVertical: 10,
+        maxWidth: 450,
+        maxHeight: 900,
+        width: '100%',
+        alignSelf: 'center',
     },
     header: {
         marginTop: 60,

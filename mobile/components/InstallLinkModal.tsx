@@ -41,9 +41,9 @@ export default function InstallLinkModal({ isOpen, onClose }: InstallLinkModalPr
         });
     };
 
-    const handleSendMail = async () => {
-        console.log('Send mail clicked!');
-    };
+    // const handleSendMail = async () => {
+    //     console.log('Send mail clicked!');
+    // };
 
     return (
         <UIPageSheet isOpen={isOpen} onClose={onClose} title="">
@@ -70,13 +70,13 @@ export default function InstallLinkModal({ isOpen, onClose }: InstallLinkModalPr
                 </View>
 
                 <View style={styles.footer}>
-                    <UIButton
+                    {/* <UIButton
                         size="lg"
                         stretch
                         type="secondary"
                         onPress={handleSendMail}
                         title="Send me a mail"
-                    />
+                    /> */}
                     <UIButton
                         size="lg"
                         stretch
@@ -97,6 +97,9 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'space-between',
         paddingHorizontal: 22,
+        maxWidth: 450,
+        width: '100%',
+        alignSelf: 'center',
     },
     body: {
         paddingTop: 30,

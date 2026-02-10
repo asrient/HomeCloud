@@ -4,6 +4,7 @@ import { UIText } from './ui/UIText';
 import { Directory, Paths, File } from 'expo-file-system/next';
 import { getServiceController, isIos } from '@/lib/utils';
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { FlashList } from "@shopify/flash-list";
 import { Image } from 'expo-image';
 import Animated, {
@@ -174,7 +175,6 @@ function VideoItem({ photo, isActive, isFocused, showControls, onTap, onClose }:
                 <View style={styles.videoControlsOverlay}>
                     <UIButton
                         onPress={togglePlayPause}
-                        color="white"
                         type="secondary"
                         icon={isPlaying ? 'pause.fill' : 'play.fill'}
                         style={styles.playPauseButton}
@@ -373,6 +373,9 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuic
     const flashListRef = useRef<any>(null);
     const [viewableIndices, setViewableIndices] = useState<Set<number>>(new Set([startIndex]));
     const [showUI, setShowUI] = useState(true);
+    const colorScheme = useColorScheme();
+    const isDark = colorScheme === 'dark';
+    const bgColor = isIos && showUI && !isDark ? '#fff' : '#000';
 
     useEffect(() => {
         if (isOpen) {
@@ -445,19 +448,19 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuic
 
     return (
         <Modal visible={isOpen} transparent={false} animationType="fade" statusBarTranslucent>
-            <GestureHandlerRootView style={styles.container}>
+            <GestureHandlerRootView style={[styles.container, { backgroundColor: bgColor }]}>
 
-                <View style={styles.container}>
+                <View style={[styles.container, { backgroundColor: bgColor }]}>
                     {/* Header with close button and counter */}
                     {
                         showUI && <View style={styles.header}>
                             <View style={styles.headerGroup}>
-                                <UIButton onPress={exitPreview} color={isIos ? 'white' : undefined} type='secondary' icon='xmark' />
+                                <UIButton onPress={exitPreview} type='secondary' icon='xmark' />
                             </View>
                             <View style={styles.headerGroup}>
-                                <UIButton color={isIos ? 'white' : undefined} type='secondary' icon='square.and.arrow.up'
+                                <UIButton type='secondary' icon='square.and.arrow.up'
                                     onPress={() => handleHeaderAction('export')} />
-                                <UIButton color={isIos ? 'white' : undefined} type='secondary' icon='trash' onPress={() => handleHeaderAction('delete')} />
+                                <UIButton type='secondary' icon='trash' onPress={() => handleHeaderAction('delete')} />
                             </View>
                         </View>
                     }
@@ -493,7 +496,6 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuic
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000',
     },
     header: {
         position: 'absolute',
@@ -517,7 +519,6 @@ const styles = StyleSheet.create({
         height: SCREEN_HEIGHT,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#000',
     },
     imageWrapper: {
         width: SCREEN_WIDTH,
@@ -543,7 +544,6 @@ const styles = StyleSheet.create({
         width: 64,
         height: 64,
         borderRadius: 32,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },

@@ -1,5 +1,4 @@
 import { StyleSheet, Platform, View, KeyboardAvoidingView } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { UIView } from '@/components/ui/UIView';
 import { UIText } from '@/components/ui/UIText';
 import { UITextInput } from '@/components/ui/UITextInput';
@@ -17,7 +16,7 @@ const OTP_LENGTH = 6;
 
 interface LoginScreenProps {
     /** Called when the user skips or completes login successfully. */
-    onComplete: () => void;
+    onComplete: (success: boolean) => void;
 }
 
 export function LoginScreen({ onComplete }: LoginScreenProps) {
@@ -59,7 +58,7 @@ export function LoginScreen({ onComplete }: LoginScreenProps) {
             if (!linkData.requiresVerification) {
                 console.log('Account can be linked without OTP');
                 await localSc.account.verifyLink(linkData.requestId, null);
-                onComplete();
+                onComplete(true);
                 return;
             }
             setLinkData(linkData);
@@ -87,7 +86,7 @@ export function LoginScreen({ onComplete }: LoginScreenProps) {
             const localSc = window.modules.getLocalServiceController();
             await localSc.account.verifyLink(linkData.requestId, otpValue);
             console.log('Account linked successfully');
-            onComplete();
+            onComplete(true);
         } catch (error) {
             console.error('Error linking account:', error);
             setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred.');
@@ -106,9 +105,8 @@ export function LoginScreen({ onComplete }: LoginScreenProps) {
     return (
         <UIView themeColor='backgroundSecondary' style={styles.container}>
             <SafeAreaView style={styles.safeArea}>
-                <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
                 <View style={styles.topBar}>
-                    <UIButton type='link' onPress={onComplete} title='Skip' />
+                    <UIButton type='link' onPress={() => onComplete(false)} title='Skip' />
                 </View>
                 <KeyboardAvoidingView
                     style={styles.content}
@@ -200,6 +198,9 @@ const styles = StyleSheet.create({
     content: {
         flex: 1,
         paddingTop: 40,
+        maxWidth: 450,
+        width: '100%',
+        alignSelf: 'center',
     },
     safeArea: {
         flex: 1,

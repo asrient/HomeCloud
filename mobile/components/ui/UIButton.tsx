@@ -1,10 +1,11 @@
 import { Pressable, Platform, View, ViewStyle, StyleSheet, StyleProp } from "react-native";
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { GlassView } from 'expo-glass-effect';
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { IconSymbolName, UIIcon } from "./UIIcon";
 import { UIText, UITextProps } from "./UIText";
 import { useState } from "react";
 import { ThemeColors } from "@/constants/Colors";
+import { isGlassEnabled } from "@/lib/utils";
 
 
 export type UIButtonProps = {
@@ -20,7 +21,7 @@ export type UIButtonProps = {
     stretch?: boolean;
     iconSize?: number;
     textSize?: UITextProps['size'];
-    marginHorizontal?: number;
+    marginHorizontal?: number | 'auto';
     marginVertical?: number;
     margin?: number;
     clearGlass?: boolean;
@@ -57,7 +58,7 @@ export function UIButton({
 
     color = themeColor ? preferredThemeColor : color;
 
-    const useGlass = isLiquidGlassAvailable() && isIos && (type === 'primary' || type === 'secondary');
+    const useGlass = isGlassEnabled && (type === 'primary' || type === 'secondary');
 
     let buttonColor = type === 'primary' ? highlightColor : type === 'secondary' ? (useGlass ? 'transparent' : tertiaryBackgroundColor) : 'transparent';
     let contentColor = type === 'primary' ? highlightTextColor : type === 'secondary' ? textColor : highlightColor;
@@ -109,12 +110,18 @@ export function UIButton({
         viewStyle = StyleSheet.compose(viewStyle, { backgroundColor: buttonColor, zIndex: 2 });
     }
 
-    marginHorizontal = marginHorizontal ?? margin ?? 4;
+    marginHorizontal = marginHorizontal ?? margin ?? (stretch ? 'auto' : 4);
     marginVertical = marginVertical ?? margin ?? 4;
 
     return (
         <Pressable
-            style={{ marginHorizontal, marginVertical, alignSelf: stretch ? 'stretch' : 'auto' }}
+            style={{ 
+                marginHorizontal, 
+                marginVertical, 
+                alignSelf: stretch ? 'stretch' : 'auto',
+                width: stretch ? '100%' : 'auto',
+                maxWidth: 450,  
+             }}
             onPress={onPress}
             onPressIn={() => setIsPressed(true)}
             onPressOut={() => setIsPressed(false)}

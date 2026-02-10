@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import DeviceSelectorRow from '@/components/deviceSelectorRow';
 import DeviceIcon from '@/components/deviceIcon';
 import { useAppState } from '@/hooks/useAppState';
@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DeviceInfo, PeerInfo } from 'shared/types';
 import { DeviceQuickActions } from '@/components/deviceQuickActions';
-import { isIos, getAppName } from '@/lib/utils';
+import { isIos, isGlassEnabled, getAppName } from '@/lib/utils';
 import { useAccountState } from '@/hooks/useAccountState';
 import InstallLinkModal from '@/components/InstallLinkModal';
 
@@ -23,21 +23,42 @@ function printDeviceInfo(info: DeviceInfo | null) {
   return `${info.os} ${info.osFlavour} • ${info.formFactor}`;
 }
 
+function DeviceInfoSection({ peerInfo, size = 200 }: { peerInfo: PeerInfo | null; size?: number }) {
+  const [localPeerInfo, setLocalPeerInfo] = useState<PeerInfo | null>(null);
+
+  useEffect(() => {
+    if (!peerInfo) {
+      modules.getLocalServiceController().app.peerInfo().then(setLocalPeerInfo);
+    }
+  }, [peerInfo]);
+
+  const info = peerInfo || localPeerInfo;
+
+  return (
+    <>
+      <DeviceIcon size={size} iconKey={info?.iconKey || null} />
+      <UIText style={{ marginTop: 10, textAlign: 'center' }} type='subtitle' color='accentText' font='medium'>
+        {info?.deviceName || modules.config.DEVICE_NAME}
+      </UIText>
+      <UIText style={{ textAlign: 'center', padding: 1 }} size='md' color='textSecondary' font='medium'>
+        {printDeviceInfo(info?.deviceInfo || null)}
+      </UIText>
+    </>
+  );
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
-  const [thisPeerInfo, setThisPeerInfo] = useState<PeerInfo | null>(null);
   const [showInstallLink, setShowInstallLink] = useState(false);
   const installLinkShownRef = useRef(false);
   const { isLinked } = useAccountState();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const isWide = screenWidth >= 768 && screenWidth > screenHeight;
 
   // Tab bar height is typically 49 on iOS and 56 on Android, plus safe area
   const tabBarHeight = (isIos ? 49 : 56) + insets.bottom;
-
-  useEffect(() => {
-    modules.getLocalServiceController().app.peerInfo().then(peerInfo => setThisPeerInfo(peerInfo));
-  }, []);
 
   const { selectedPeer } = useAppState();
 
@@ -52,6 +73,9 @@ export default function HomeScreen() {
 
   const headerTitle = useMemo(() => {
     const deviceName = selectedPeer ? selectedPeer.deviceName : 'This Device';
+    if (isWide) {
+      return getAppName();
+    }
     if (headerHeight > 118) {
       return getAppName();
     }
@@ -59,7 +83,7 @@ export default function HomeScreen() {
       return deviceName.substring(0, MAX_DEVICE_NAME_LENGTH - 3) + '...';
     }
     return deviceName;
-  }, [headerHeight, selectedPeer]);
+  }, [headerHeight, selectedPeer, isWide]);
 
   return (
     <UIScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
@@ -67,8 +91,8 @@ export default function HomeScreen() {
         options={{
           title: 'Home',
           headerTitle,
-          headerLargeTitle: true,
-          headerTransparent: isIos,
+          headerLargeTitle: !isWide,
+          headerTransparent: isGlassEnabled,
           headerRight: () =>
             <View>
               <UIHeaderButton name="gear" onPress={() => router.navigate('/settings')} />
@@ -78,16 +102,23 @@ export default function HomeScreen() {
       />
       <DeviceSelectorRow />
       <View style={[styles.container, { paddingBottom: tabBarHeight + (isIos ? 15 : 40) }]}>
-        <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <DeviceIcon size={200} iconKey={selectedPeer ? selectedPeer.iconKey : thisPeerInfo?.iconKey || null} />
-          <UIText style={{ marginTop: 10, textAlign: 'center' }} type='subtitle' color='accentText' font='medium'>
-            {selectedPeer ? selectedPeer.deviceName : modules.config.DEVICE_NAME}
-          </UIText>
-          <UIText style={{ textAlign: 'center', padding: 1 }} size='md' color='textSecondary' font='medium'>
-            {printDeviceInfo(selectedPeer ? selectedPeer.deviceInfo : thisPeerInfo?.deviceInfo || null)}
-          </UIText>
-        </View>
-        <DeviceQuickActions peerInfo={selectedPeer} />
+        {isWide ? (
+          <View style={styles.landscapeGrid}>
+            <View style={styles.landscapeDeviceSection}>
+              <DeviceInfoSection peerInfo={selectedPeer} />
+            </View>
+            <View style={styles.landscapeActionsSection}>
+              <DeviceQuickActions peerInfo={selectedPeer} />
+            </View>
+          </View>
+        ) : (
+          <>
+            <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <DeviceInfoSection peerInfo={selectedPeer} />
+            </View>
+            <DeviceQuickActions peerInfo={selectedPeer} />
+          </>
+        )}
       </View>
       <InstallLinkModal isOpen={showInstallLink} onClose={() => setShowInstallLink(false)} />
     </UIScrollView>
@@ -98,5 +129,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 6,
+  },
+  landscapeGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  landscapeDeviceSection: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  landscapeActionsSection: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

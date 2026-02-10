@@ -1,6 +1,6 @@
 import { PhotosFetchOptions, PhotoView, PhotosQuickAction } from '@/lib/types';
 import { usePhotos } from '@/hooks/usePhotos';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, Pressable, View, useWindowDimensions } from 'react-native';
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -181,6 +181,12 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
     const [renderKey, setRenderKey] = useState(0);
     const [previewIndex, setPreviewIndex] = useState<number | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const { width: screenWidth } = useWindowDimensions();
+
+    // Responsive grid columns: ~120pt per column, minimum 3
+    const gridColumns = useMemo(() => {
+        return Math.max(3, Math.floor(screenWidth / 120));
+    }, [screenWidth]);
 
     useEffect(() => {
         // Force re-render when selectMode changes to update thumbnails
@@ -239,10 +245,11 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
                 data={photos}
                 extraData={renderKey}
                 keyExtractor={(item) => item.id}
-                numColumns={3}
+                numColumns={gridColumns}
+                key={gridColumns}
                 refreshing={isLoading}
                 renderItem={({ item }) => (
-                    <View style={{ flex: 1 / 3, aspectRatio: 1, margin: 1 }}>
+                    <View style={{ flex: 1 / gridColumns, aspectRatio: 1, margin: 1 }}>
                         <PhotoThumbnail item={item} isSelectMode={selectMode} onPress={handlePhotoPress} onQuickAction={onQuickAction} />
                     </View>
                 )}

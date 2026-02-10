@@ -1,5 +1,6 @@
 import { View, type ViewProps, StyleProp, StyleSheet, ViewStyle, Platform } from 'react-native';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { GlassView } from 'expo-glass-effect';
+import { isGlassEnabled } from '@/lib/utils';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { ThemeColors } from '@/constants/Colors';
@@ -16,7 +17,7 @@ export type UIViewProps = ViewProps & {
 
 export function UIView({ style, lightColor, darkColor, themeColor, useGlass, borderRadius = 'none', ...otherProps }: UIViewProps) {
   const backgroundColor = useThemeColor({ light: lightColor, dark: darkColor }, themeColor || 'background');
-  const shouldUseGlass = isLiquidGlassAvailable() && isIos && (useGlass ?? false);
+  const shouldUseGlass = isGlassEnabled && isIos && (useGlass ?? false);
   const effectiveStyle: StyleProp<ViewStyle> = StyleSheet.compose(
     {
       backgroundColor: shouldUseGlass ? 'transparent' : backgroundColor,

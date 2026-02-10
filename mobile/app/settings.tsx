@@ -1,6 +1,6 @@
 
 import { StyleSheet, View, Image, Pressable, Platform } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { UIScrollView } from '@/components/ui/UIScrollView';
 import { UIText } from '@/components/ui/UIText';
@@ -11,7 +11,7 @@ import { DeviceInfo, PeerInfo } from 'shared/types';
 import { useAccountState } from '@/hooks/useAccountState';
 import { useAppState } from '@/hooks/useAppState';
 import { useAlert } from '@/hooks/useAlert';
-import { getAppName, getOSIconUrl, isIos } from '@/lib/utils';
+import { getAppName, getOSIconUrl, isGlassEnabled } from '@/lib/utils';
 import DeviceIcon from '@/components/deviceIcon';
 import { HelpLinkType } from 'shared/helpLinks';
 import { hasStorageAccess, requestStorageAccess } from '@/lib/permissions';
@@ -99,16 +99,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <UIScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-      <Stack.Screen
-        options={{
-          title: 'Settings',
-          headerTitle: 'Settings',
-          headerLargeTitle: true,
-          headerTransparent: isIos,
-        }}
-      />
-      {isIos && <View style={{ height: headerHeight }} />}
+    <UIScrollView themeColor='backgroundSecondary' showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+      {isGlassEnabled && <View style={{ height: headerHeight }} />}
       <FormContainer>
         <Section title="About">
           <Line title="Version" value={modules.config.VERSION} />

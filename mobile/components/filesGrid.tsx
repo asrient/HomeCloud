@@ -1,5 +1,5 @@
 import { FileRemoteItem } from '@/lib/types';
-import { ActivityIndicator, Pressable, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -402,6 +402,12 @@ export type PinnedFoldersGridProps = GridPropsCommon & {
 export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error, disablePreview, viewMode = 'grid', disableContextMenu, sortBy, onQuickAction, selectKind, selectedItems }: FilesGridProps) {
     const [internalRenderKey, setInternalRenderKey] = useState(0);
     const router = useRouter();
+    const { width: screenWidth } = useWindowDimensions();
+
+    // Responsive grid columns: ~120pt per column, minimum 3
+    const gridColumns = useMemo(() => {
+        return Math.max(3, Math.floor(screenWidth / 120));
+    }, [screenWidth]);
 
     const sortedItems = useMemo(() => {
         if (!sortBy) {
@@ -497,7 +503,7 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
         const isSelected = selectedItems ? selectedItems.some(si => si.path === item.path && si.deviceFingerprint === item.deviceFingerprint) : undefined;
         if (viewMode === 'grid') {
             return (
-                <View style={{ flex: 1 / 3, aspectRatio: 1, margin: 1 }}>
+                <View style={{ flex: 1 / gridColumns, aspectRatio: 1, margin: 1 }}>
                     <FileThumbnail
                         item={item}
                         isSelectMode={selectMode || false}
@@ -523,7 +529,7 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
                 disablePreview={disablePreview || false}
             />
         );
-    }, [disableContextMenu, disablePreview, handleFilePress, handleQuickAction, selectKind, selectMode, selectedItems, viewMode]);
+    }, [disableContextMenu, disablePreview, handleFilePress, handleQuickAction, selectKind, selectMode, selectedItems, viewMode, gridColumns]);
 
     if (isLoading) {
         return (
@@ -549,8 +555,8 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
                 data={sortedItems}
                 extraData={internalRenderKey}
                 keyExtractor={(item) => item.deviceFingerprint ? printFingerprint(item.deviceFingerprint) + '|' + item.path : item.path}
-                numColumns={viewMode === 'grid' ? 3 : 1}
-                key={viewMode} // Force remount when switching between grid and list
+                numColumns={viewMode === 'grid' ? gridColumns : 1}
+                key={`${viewMode}-${gridColumns}`} // Force remount when switching between grid/list or column count changes
                 refreshing={isLoading}
                 renderItem={renderItem}
                 ListEmptyComponent={

@@ -58,7 +58,7 @@ export function UIPageSheet({
     return (
         <Modal
             animationType="slide"
-            presentationStyle="pageSheet"
+            presentationStyle="formSheet"
             transparent={false}
             visible={isOpen}
             onRequestClose={onClose}

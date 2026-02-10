@@ -3,6 +3,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { SymbolViewProps } from 'expo-symbols';
 import { UIText } from './UIText';
 import { HeaderButton } from '@react-navigation/elements';
+import { isGlassEnabled, isIos } from '@/lib/utils';
 
 export function UIHeaderButton({
     name,
@@ -21,7 +22,7 @@ export function UIHeaderButton({
 
     const highlightColor = useThemeColor({}, 'highlight');
 
-    const contentColor = isHighlight ? highlightColor : themeColor;
+    const contentColor = (isHighlight || (isIos && !isGlassEnabled)) ? highlightColor : themeColor;
 
     return (
         <HeaderButton disabled={disabled} onPress={onPress}>

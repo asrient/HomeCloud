@@ -73,7 +73,7 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
 
     return (
         <UIPageSheet isOpen={isOpen} onClose={onClose} title="Devices">
-            <UIScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <UIScrollView themeColor='backgroundSecondary' style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                 <FormContainer>
                     <View style={styles.hero}>
                         <UIIcon

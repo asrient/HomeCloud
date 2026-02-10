@@ -1,4 +1,4 @@
-import { StyleSheet, ViewStyle, Pressable, Animated, Dimensions, Modal, View, StyleProp } from "react-native";
+import { StyleSheet, ViewStyle, Pressable, Animated, useWindowDimensions, Modal, View, StyleProp } from "react-native";
 import { BlurView } from "expo-blur";
 import { UIView } from "./ui/UIView";
 import { UIText } from "./ui/UIText";
@@ -7,7 +7,6 @@ import { useState, useRef, useCallback } from "react";
 
 
 const HEIGHT_UNIT = 90;
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export type BentoBoxType = 'half' | 'full' | 'small';
 
@@ -34,6 +33,7 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
     const dismissExpanded = useCallback(() => {
         setIsExpanded(false);
@@ -162,7 +162,7 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
                             onPress={handleCloseExpanded}
                         >
                             <Pressable
-                                style={[styles.expandedBox, config.expandedContentHeight ? { height: config.expandedContentHeight } : {}]}
+                                style={[styles.expandedBox, { width: Math.min(screenWidth * 0.9, 400), maxHeight: Math.min(screenHeight * 0.7, 500) }, config.expandedContentHeight ? { height: config.expandedContentHeight } : {}]}
                                 onPress={(e) => e.stopPropagation()}
                             >
                                 <UIView themeColor='backgroundSecondary' useGlass style={styles.expandedContent}>
@@ -183,7 +183,7 @@ function renderBentoGroup(group: BentoGroup, key: number): React.ReactNode {
     return (
         <View
             key={key}
-            style={[isRow ? styles.bentoRow : styles.bentoColumn, { maxWidth: 400 }]}
+            style={[isRow ? styles.bentoRow : styles.bentoColumn]}
         >
             {group.boxes.map((item, index) => {
                 const isBox = 'type' in item;
@@ -228,9 +228,11 @@ const commonBoxStyle: ViewStyle = {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        flexWrap: 'wrap',
-        flexDirection: 'row',
-        justifyContent: 'center',
+        flexDirection: 'column',
+        alignItems: 'center',
+        maxWidth: 500,
+        alignSelf: 'center',
+        width: '100%',
     },
     bentoRow: {
         flexDirection: 'row',
@@ -263,9 +265,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     expandedBox: {
-        width: SCREEN_WIDTH * 0.9,
-        height: SCREEN_HEIGHT * 0.7,
-        maxHeight: 500,
         alignItems: 'center',
     },
     expandedContent: {

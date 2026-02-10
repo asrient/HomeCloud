@@ -12,6 +12,7 @@ import { InputPopup } from '@/components/inputPopup';
 import { AlertModal } from '@/components/AlertModal';
 import { useNavigationTheme } from '@/hooks/useNavigationTheme';
 import { usePermissions } from '@/hooks/usePermissions';
+import { isGlassEnabled, isIos } from '@/lib/utils';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -88,14 +89,15 @@ export default function RootLayout() {
           </Stack.Protected>
           <Stack.Screen name="login" options={{
             headerShown: false,
-            presentation: 'modal',
+            presentation: 'fullScreenModal',
           }} />
           <Stack.Screen name="settings" options={{
             title: 'Settings',
             headerBackButtonDisplayMode: 'minimal',
-            headerLargeTitle: true,
+            headerLargeTitle: !isIos,
             headerShadowVisible: false,
-            headerTransparent: true,
+            headerTransparent: isGlassEnabled,
+            presentation: isIos ? 'formSheet' : 'card',
           }} />
           <Stack.Screen name="+not-found" />
         </Stack>

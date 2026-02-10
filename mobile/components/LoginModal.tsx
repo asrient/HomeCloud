@@ -11,7 +11,7 @@ export function LoginModal({ visible, onComplete }: LoginModalProps) {
         <Modal
             visible={visible}
             animationType="slide"
-            presentationStyle="pageSheet"
+            presentationStyle="fullScreen"
             onRequestClose={onComplete}
         >
             <LoginScreen onComplete={onComplete} />

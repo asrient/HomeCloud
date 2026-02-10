@@ -3,6 +3,7 @@
  * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
  */
 
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import materialTheme from './material-theme.json';
 
 export type ThemeColors = {
@@ -25,6 +26,10 @@ export type ColorPalette = {
   dark: ThemeColors;
 };
 
+/**
+ * iOS 26+ Liquid Glass color palette.
+ * Optimised for translucent glass chrome and vibrant accent colors.
+ */
 export const ColorsIos: ColorPalette = {
   light: {
     text: '#000000',
@@ -54,6 +59,20 @@ export const ColorsIos: ColorPalette = {
     accentText: '#FFFFFF',
     primaryRipple: '#FF4D6F20',
   },
+};
+
+if (!isLiquidGlassAvailable()) {
+  /**
+   * Classic iOS color palette for pre-iOS 26 devices or when DEV_FORCE_CLASSIC_IOS is true.
+   * Uses more muted colors and higher contrast for better readability without translucency.
+   */
+  ColorsIos['light'] = {
+    ...ColorsIos.light,
+    //icon: ColorsIos.light.highlight,
+  };
+  ColorsIos['dark'] = {
+    ...ColorsIos.dark,
+  };
 };
 
 /**

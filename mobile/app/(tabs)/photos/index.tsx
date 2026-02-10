@@ -13,7 +13,7 @@ import { usePhotoLibraries } from '@/hooks/usePhotos';
 import { PhotosGrid } from '@/components/photosGrid';
 import { PhotosSortOption, PhotoView, PhotosQuickAction } from '@/lib/types';
 import { UIButton } from '@/components/ui/UIButton';
-import { getLocalServiceController, getServiceController, isIos } from '@/lib/utils';
+import { getLocalServiceController, getServiceController, isIos, isGlassEnabled } from '@/lib/utils';
 import { useAlert } from '@/hooks/useAlert';
 
 export default function PhotosScreen() {
@@ -176,7 +176,7 @@ export default function PhotosScreen() {
     };
   }, [selectedLibrary, selectedFingerprint]);
 
-  const header = (<View style={{ paddingTop: isIos ? headerHeight : 0 }} >
+  const header = (<View style={{ paddingTop: isGlassEnabled ? headerHeight : 0 }} >
     <DeviceSelectorRow />
   </View>);
 
@@ -186,8 +186,8 @@ export default function PhotosScreen() {
         options={{
           title: 'Photos',
           headerTitle: selectMode ? `${selectedPhotos.length} selected` : 'Photos',
-          //headerLargeTitle: true
-          headerTransparent: isIos,
+          headerLargeTitle: false,
+          headerTransparent: isGlassEnabled,
           headerLeft: isIos ? () => <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} /> : undefined,
           headerRight: () => {
             // On ios if not in select mode, we don't show any buttons on the right

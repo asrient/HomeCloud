@@ -2,6 +2,7 @@ import { OSType } from "@/lib/types";
 import { DeviceInfo } from "shared/types";
 import { Platform } from "react-native";
 import MobileServiceController from "./serviceController";
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
 
 export function getAppName() {
   if ((global as any).modules?.config?.APP_NAME) {
@@ -58,3 +59,5 @@ export const formatFileSize = (bytes?: number) => {
 
 
 export const isIos = Platform.OS === 'ios';
+
+export const isGlassEnabled = isIos && isLiquidGlassAvailable();
