@@ -35,7 +35,7 @@ function assetHash(remoteFingerprint: string, id: string) {
 }
 
 function getCacheDir() {
-    return Paths.join(modules.config.DATA_DIR, 'PHPreviewTmp');
+    return Paths.join(modules.config.CACHE_DIR, 'PHPreviewTmp');
 }
 
 function clearCache() {
