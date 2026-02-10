@@ -72,7 +72,7 @@ export function UIPageSheet({
                     </View>
                     <View style={styles.headerCenter}>
                         {typeof title === 'string' ? (
-                            <UIText size="lg" font="semibold" numberOfLines={1}>
+                            <UIText size="lg" font={isIos ? "semibold" : "medium"} numberOfLines={1}>
                                 {title}
                             </UIText>
                         ) : (
