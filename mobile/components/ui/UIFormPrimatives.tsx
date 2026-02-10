@@ -40,7 +40,7 @@ export function Section({ title, children }: SectionProps) {
                 </UIText>
             )}
             <UIView
-                themeColor={isIos ? 'backgroundTertiary' : 'background'}
+                themeColor={isIos ? 'backgroundTertiary' : undefined}
                 borderRadius="lg"
                 style={[
                     styles.sectionContent,
@@ -48,6 +48,7 @@ export function Section({ title, children }: SectionProps) {
                     !isIos && {
                         borderWidth: 1,
                         borderColor: separatorColor,
+                        backgroundColor: 'transparent',
                     },
                 ]}
             >
@@ -83,7 +84,7 @@ export function Line({
 }: LineProps) {
     const separatorColor = useThemeColor({}, 'seperator');
 
-    const textColor = destructive ? '#FF3B30' : undefined;
+    const textColor = destructive ? 'red' : undefined;
 
     const content = (
         <View
@@ -142,7 +143,7 @@ export type LineLinkProps = {
 export function LineLink({ text, onPress, color = 'default' }: LineLinkProps) {
     const highlightColor = useThemeColor({}, 'highlight');
     const defaultTextColor = useThemeColor({}, 'text');
-    const destructiveColor = '#FF3B30';
+    const destructiveColor = 'red';
 
     let textColor = defaultTextColor;
     if (color === 'primary') {

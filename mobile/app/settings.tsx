@@ -11,7 +11,7 @@ import { DeviceInfo, PeerInfo } from 'shared/types';
 import { useAccountState } from '@/hooks/useAccountState';
 import { useAppState } from '@/hooks/useAppState';
 import { useAlert } from '@/hooks/useAlert';
-import { getAppName, getOSIconUrl, isGlassEnabled } from '@/lib/utils';
+import { getAppName, getOSIconUrl, isGlassEnabled, isIos } from '@/lib/utils';
 import DeviceIcon from '@/components/deviceIcon';
 import { HelpLinkType } from 'shared/helpLinks';
 import { hasStorageAccess, requestStorageAccess } from '@/lib/permissions';
@@ -99,7 +99,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <UIScrollView themeColor='backgroundSecondary' showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+    <UIScrollView themeColor={isIos ? 'backgroundSecondary' : 'background'} showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
       {isGlassEnabled && <View style={{ height: headerHeight }} />}
       <FormContainer>
         <Section title="About">

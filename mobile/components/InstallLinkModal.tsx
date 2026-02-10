@@ -34,10 +34,10 @@ export default function InstallLinkModal({ isOpen, onClose }: InstallLinkModalPr
 
     const handleShareLink = async () => {
         await Share.share({
-            message: `Install ${appName} on your device.`,
+            message: `Download ${appName} for your device.`,
             url: DOWNLOAD_URL,
         }, {
-            dialogTitle: `Install ${appName} on your device.`,
+            dialogTitle: `Download ${appName}`,
         });
     };
 
@@ -58,7 +58,7 @@ export default function InstallLinkModal({ isOpen, onClose }: InstallLinkModalPr
                     </UIText>
 
                     <UIText size="md" color="textSecondary" style={styles.subtitle}>
-                        Turn your devices into your personal instant cloud by installing {appName} on them.
+                        Turn your PCs, laptops, phones and iPads into your personal instant cloud with {appName}.
                     </UIText>
 
                     <Pressable style={[styles.linkBox, { borderColor: separatorColor }]} onPress={handleCopyLink}>

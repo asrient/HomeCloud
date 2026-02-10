@@ -176,18 +176,19 @@ class MobileSystemService extends SystemService {
 
     @exposed
     public async readClipboard(): Promise<ClipboardContent | null> {
-        const hasUrl = await Clipboard.hasUrlAsync();
-        if (hasUrl) {
-            const url = await Clipboard.getUrlAsync();
-            if (!url) {
-                return null;
+        if (Platform.OS === 'ios') {
+            const hasUrl = await Clipboard.hasUrlAsync();
+            if (hasUrl) {
+                const url = await Clipboard.getUrlAsync();
+                if (!url) {
+                    return null;
+                }
+                return { type: 'link', content: url };
             }
-            return { type: 'link', content: url };
-        } else {
-            const text = await Clipboard.getStringAsync();
-            if (text) {
-                return { type: 'text', content: text };
-            }
+        }
+        const text = await Clipboard.getStringAsync();
+        if (text) {
+            return { type: 'text', content: text };
         }
         return null;
     }

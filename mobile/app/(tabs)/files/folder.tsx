@@ -12,7 +12,7 @@ import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UIContextMenu } from '@/components/ui/UIContextMenu';
 import { useInputPopup } from '@/hooks/usePopup';
 import { useAlert } from '@/hooks/useAlert';
-import { getLocalServiceController, getServiceController, isIos, isGlassEnabled } from '@/lib/utils';
+import { getLocalServiceController, getServiceController, isGlassEnabled } from '@/lib/utils';
 import { UIText } from '@/components/ui/UIText';
 import { useFolder } from '@/hooks/useFolders';
 import { RemoteItem } from 'shared/types';
