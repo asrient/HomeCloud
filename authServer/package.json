@@ -28,7 +28,7 @@
     "watch": "tsc -w",
     "cmd:delete-expired": "node ./dist/commands/delete-expired.js",
     "release": "npm version --no-git-tag-version",
-    "postrelease": "git add package.json && git commit -m \"auth-v$(node -p \"require('./package.json').version\")\" && git tag \"auth-v$(node -p \"require('./package.json').version\")\""
+    "postrelease": "git add package.json && git commit -m \"auth-v$(node -p \"require('./package.json').version\")\" && git tag \"auth-v$(node -p \"require('./package.json').version\")\" && git push && git push origin \"auth-v$(node -p \"require('./package.json').version\")\""
   },
   "author": "ASRIENT",
   "license": "ISC"

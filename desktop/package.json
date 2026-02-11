@@ -14,7 +14,8 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "publish:macos": "electron-forge publish --arch \"arm64,x64\"",
-    "release": "npm version --tag-version-prefix='desktop-v'"
+    "release": "npm version --no-git-tag-version",
+    "postrelease": "git add package.json && git commit -m \"desktop-v$(node -p \"require('./package.json').version\")\" && git tag \"desktop-v$(node -p \"require('./package.json').version\")\" && git push && git push origin \"desktop-v$(node -p \"require('./package.json').version\")\""
   },
   "keywords": [],
   "author": {
