@@ -1,5 +1,5 @@
 {
-  "name": "mc-server",
+  "name": "auth-server",
   "version": "0.0.1",
   "description": "Unified OAuth client broker.",
   "main": "dist/index.js",
@@ -27,7 +27,8 @@
     "build": "tsc",
     "watch": "tsc -w",
     "cmd:delete-expired": "node ./dist/commands/delete-expired.js",
-    "release": "npm version --tag-version-prefix='auth-v'"
+    "release": "npm version --no-git-tag-version",
+    "postrelease": "git add package.json && git commit -m \"auth-v$(node -p \"require('./package.json').version\")\" && git tag \"auth-v$(node -p \"require('./package.json').version\")\""
   },
   "author": "ASRIENT",
   "license": "ISC"
