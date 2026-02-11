@@ -13,7 +13,7 @@ import globalComms from "./globalComms";
 import { ObjectId } from "mongodb";
 import mcdb from "./db";
 import { objectIdtoStr, verifyJwtToken, uniqueCode, generatePin, generateJwtToken, code, isSameNetwork } from "./utils";
-import CustomError from "./customError";
+import CustomError, { ErrorCode } from "./customError";
 import { getFingerprintFromPem, verifySignature } from "./signHelper";
 import { AccountLinkSignedPayloadSchema } from "./schema";
 import emailService from "./emailService";
@@ -54,7 +54,7 @@ export async function linkAccount(payload: AccountLinkSignedPayload): Promise<Ac
     }
 
     if (!account) {
-        throw CustomError.validationSingle('accountId', 'Account not found');
+        throw CustomError.code(ErrorCode.ACCOUNT_NOT_FOUND, 'Account not found');
     }
 
     const existingPeer = await mcdb.getPeerByFingerprint(fingerprint);

@@ -137,7 +137,7 @@ export function MenuGroup({ children }: {
     return (
         <div className={cn('flex flex-row items-center text-xs mx-1 text-foreground',
             liquidGlass
-                ? 'bg-white/75 dark:bg-secondary/50 backdrop-blur-sm backdrop-saturate-150 border-white dark:border-zinc-400/30 border rounded-full shadow-2xl'
+                ? 'bg-white/75 dark:bg-background/60 backdrop-blur-sm backdrop-saturate-150 border-white dark:border-zinc-500/40 border rounded-full shadow-2xl'
                 : isMacosTheme() && 'gap-0.5'
         )}>
             {children}

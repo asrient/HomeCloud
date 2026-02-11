@@ -46,7 +46,7 @@ export default class Discovery extends DiscoveryBase {
 
     private handleAppStateChange = (state: AppStateStatus): void => {
         console.log(`[Discovery] App state changed to: ${state}`);
-        if (state === 'background' || state === 'inactive') {
+        if (state === 'background') {
             this.handleEnterBackground();
         } else if (state === 'active') {
             this.handleEnterForeground();

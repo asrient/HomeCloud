@@ -106,7 +106,7 @@ export abstract class MobilePhotosService extends PhotosService {
             throw new Error("No permissions to access photo library");
         }
         const fetchedAlbums = await MediaLibrary.getAlbumsAsync({ includeSmartAlbums: true });
-        const libs = fetchedAlbums.map(this.albumToLibraryLocation);
+        const libs = fetchedAlbums.map((album) => this.albumToLibraryLocation(album));
         return [this.defaultLibraryLocation(), ...libs];
     }
 

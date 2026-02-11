@@ -10,6 +10,7 @@ export enum ErrorCode {
   STORAGE_FETCH = "STORAGE_FETCH",
   LIMIT_REACHED = "LIMIT_REACHED",
   AGENT_NETWORK = "AGENT_NETWORK",
+  ACCOUNT_NOT_FOUND = "ACCOUNT_NOT_FOUND",
 }
 
 export type ErrorResponse = {

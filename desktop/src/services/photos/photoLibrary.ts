@@ -109,7 +109,7 @@ export class PhotoLibrary {
 
     ignoreDirectory(dirPath: string) {
         const dirname = path.basename(dirPath);
-        return dirname.startsWith('.');
+        return dirname.startsWith('.') || dirname.endsWith('.photoslibrary');
     }
 
     /**
@@ -220,6 +220,8 @@ export class PhotoLibrary {
     private handleFileChange = async (filename: string) => {
         if (filename === PHOTOS_DB_NAME) return;
         if (filename.startsWith('.')) return;
+        // Ignore macOS Photos Library bundles (they appear as directories but are opaque packages)
+        if (filename.split(path.sep).some(part => part.endsWith('.photoslibrary'))) return;
 
         const fullPath = path.join(this._location, filename);
         const relativePath = path.relative(this._location, fullPath);

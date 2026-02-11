@@ -7,7 +7,7 @@ import MobileSystemService from "./services/systemService";
 import MobileThumbService from "./services/thumbService";
 import MobileFilesService from "./services/filesService";
 import { MobilePhotosService } from "./services/photosService";
-import { AccountService } from "shared/accountService";
+import MobileAccountService from "./services/accountService";
 import { HttpClient_, WebSocket_ } from "./mobileCompat";
 import MobileWebcInterface from "./services/webcInterface";
 
@@ -20,7 +20,7 @@ export default class MobileServiceController extends ServiceController {
     public override thumbnail = MobileThumbService.getInstance<MobileThumbService>();
     public override files = MobileFilesService.getInstance<MobileFilesService>();
     public override photos = MobilePhotosService.getInstance<MobilePhotosService>();
-    public override account = AccountService.getInstance<AccountService>();
+    public override account = MobileAccountService.getInstance<MobileAccountService>();
 
     async setup() {
         console.log("Setting up services...");

@@ -6,8 +6,8 @@ import { authenticate } from "./lib";
 import { IncomingMessage } from "http";
 import mcdb from "./db";
 
-const PEER_ONLINE_EXPIRY = 5 * 60; // 5 minutes expiry for online status
-const PING_TIMEOUT = 5 * 60 * 1000; // 5 minutes timeout for no ping
+const PEER_ONLINE_EXPIRY = 3 * 60; // 3 minutes expiry for online status
+const PING_TIMEOUT = 3 * 60 * 1000; // 3 minutes timeout for no ping
 
 export async function setPeerOnline(peerId: string): Promise<void> {
     await globalComms.setKV(`peer_online_${peerId}`, 'true', PEER_ONLINE_EXPIRY);

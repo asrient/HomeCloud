@@ -241,14 +241,14 @@ AZ_CS_SENDER=<your-sender@domain.com>
 EOF
 
 # Pull and run the published image
-docker pull <DOCKER_USERNAME>/homecloud-auth:latest
+docker pull asrient/homecloud-auth:latest
 docker run -d \
   --name homecloud-auth \
   --restart unless-stopped \
   --env-file auth.env \
   -p 80:4000 \
   -p 9669:9669/udp \
-  <DOCKER_USERNAME>/homecloud-auth:latest
+  asrient/homecloud-auth:latest
 ```
 
 ### 4. Updating
@@ -262,11 +262,11 @@ docker compose up -d --build
 
 **Docker standalone:**
 ```bash
-docker pull <DOCKER_USERNAME>/homecloud-auth:latest
+docker pull asrient/homecloud-auth:latest
 docker stop homecloud-auth && docker rm homecloud-auth
 docker run -d --name homecloud-auth --restart unless-stopped \
   --env-file auth.env -p 80:4000 -p 9669:9669/udp \
-  <DOCKER_USERNAME>/homecloud-auth:latest
+  asrient/homecloud-auth:latest
 ```
 
 ## Releasing a New Version

@@ -41,7 +41,7 @@ export async function auth(req: Request, res: Response, next: NextFunction) {
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
     if (!getTokenContext(req)) {
-        res.status(401).json({ error: 'Authentication required' });
+        res.status(401).json(CustomError.security('Authentication required').toObject(IS_DEV));
         return;
     }
     next();

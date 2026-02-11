@@ -3,7 +3,7 @@ import { HttpClientCompat, WsClientCompat } from "./compat";
 import { Service, serviceStartMethod, serviceStopMethod } from "./servicePrimatives";
 import ConfigStorage from "./storage";
 import { AccountLinkResponse, AccountLinkVerifyResponse, PeerConnectRequest, PeerInfo, StoreNames, WebcInit, WebcPeerData, WebcReject } from "./types";
-import CustomError, { ErrorType } from "./customError";
+import CustomError, { ErrorCode, ErrorType } from "./customError";
 
 const USER_AGENT = "HomeCloud-AppClient/1.0";
 
@@ -31,6 +31,7 @@ export class AccountService extends Service {
     private webSocket: WsClientCompat;
     protected store: ConfigStorage;
     private autoRenewToken = true;
+    private tokenRenewalPromise: Promise<string> | null = null;
 
     // incoming requests
     public webcInitSignal = new Signal<[WebcInit]>();
@@ -207,6 +208,7 @@ export class AccountService extends Service {
         this.store.setItem("authToken", respData.authToken);
         this.store.setItem("tokenExpiry", respData.tokenExpiry);
         await this.store.save();
+        this.autoRenewToken = true; // Re-enable auto-renew after successful link
         if (!this.webSocket.isConnected()) {
             this.connectWebSocket();
         }
@@ -221,42 +223,79 @@ export class AccountService extends Service {
 
     private async getOrFetchToken() {
         let token = this.getValidToken();
-        if (!token && this.autoRenewToken && this.isLinked()) {
-            console.log("Fetching new auth token...");
+        if (token) return token;
+
+        if (!this.autoRenewToken || !this.isLinked()) {
+            throw new Error("No valid auth token available.");
+        }
+
+        // If a renewal is already in progress, wait for it
+        if (this.tokenRenewalPromise) {
+            return this.tokenRenewalPromise;
+        }
+
+        this.tokenRenewalPromise = this.renewToken();
+        try {
+            token = await this.tokenRenewalPromise;
+            return token;
+        } finally {
+            this.tokenRenewalPromise = null;
+        }
+    }
+
+    private async renewToken(): Promise<string> {
+        console.log("Fetching new auth token...");
+        try {
             const { requestId, requiresVerification } = await this.initiateLink();
             if (requiresVerification) {
                 this.autoRenewToken = false;
                 throw new Error("Account requires verification to renew token.");
             }
             const linkResp = await this.verifyLink(requestId, null);
-            token = linkResp.authToken;
             console.log("Fetched new auth token.");
+            return linkResp.authToken;
+        } catch (err) {
+            // If account no longer exists on server, reset local account data
+            // For backwards compatibility, we are considering validation error on accountId as well.
+            console.log("Failed to fetch new auth token:", err);
+            if (err instanceof CustomError && (
+                err.data?.code === ErrorCode.ACCOUNT_NOT_FOUND
+                || (err.type === ErrorType.Validation && !!err.data?.fields?.accountId)
+            )) {
+                console.warn("Account not found on server. Resetting local account data.");
+                await this.resetAccountData();
+            }
+            throw err;
         }
-        if (!token) {
-            throw new Error("No valid auth token available.");
-        }
-        return token;
     }
 
-    private async postWithAuth(url: string, body?: any) {
+    private async postWithAuth(url: string, body?: any, _isRetry = false): Promise<Response> {
         const token = await this.getOrFetchToken();
         const bodyType = body instanceof Uint8Array ? "application/octet-stream" : "application/json";
-        if (bodyType === "application/json") {
-            body = JSON.stringify(body);
-        }
+        const sendBody = bodyType === "application/json" ? JSON.stringify(body) : body;
         const headers = {
             "Token": token,
             "Content-Type": bodyType,
         };
-        return this.httpClient.post(this.buildApiUrl(url), body, headers);
+        const resp = await this.httpClient.post(this.buildApiUrl(url), sendBody, headers);
+        if (resp.status === 401 && !_isRetry) {
+            this.resetToken();
+            return this.postWithAuth(url, body, true);
+        }
+        return resp;
     }
 
-    private async getWithAuth(url: string, params?: Record<string, string | number>) {
+    private async getWithAuth(url: string, params?: Record<string, string | number>, _isRetry = false): Promise<Response> {
         const token = await this.getOrFetchToken();
         const headers = {
             "Token": token,
         };
-        return this.httpClient.get(this.buildApiUrl(url, params), headers);
+        const resp = await this.httpClient.get(this.buildApiUrl(url, params), headers);
+        if (resp.status === 401 && !_isRetry) {
+            this.resetToken();
+            return this.getWithAuth(url, params, true);
+        }
+        return resp;
     }
 
     public async getPeerList(): Promise<PeerInfo[]> {
@@ -347,7 +386,7 @@ export class AccountService extends Service {
         };
     }
 
-    public connectWebSocket = () => {
+    public async connectWebSocket() {
         if (!this.isServiceRunning()) return;
         if (!this.isLinked()) {
             console.warn("Account is not linked; skipping WebSocket connection.");
@@ -357,8 +396,11 @@ export class AccountService extends Service {
             console.log("WebSocket is already connected.");
             return;
         }
-        if (!this.getValidToken() && !this.autoRenewToken) {
-            console.warn("No valid token available and auto-renew is disabled; skipping WebSocket connection.");
+        let token: string | null;
+        try {
+            token = await this.getOrFetchToken();
+        } catch (err) {
+            console.warn("Failed to get token for WebSocket:", err);
             return;
         }
         if (this.retryTimer) {
@@ -366,7 +408,7 @@ export class AccountService extends Service {
             this.retryTimer = null;
         }
         try {
-            this.webSocket.connect(modules.config.WS_SERVER_URL, `tok-${this.getValidToken()}`);
+            this.webSocket.connect(modules.config.WS_SERVER_URL, `tok-${token}`);
         } catch (err) {
             console.error("Failed to connect WebSocket:", err);
         }
@@ -377,13 +419,26 @@ export class AccountService extends Service {
     private pingInterval: number | null = null;
     private readonly PING_INTERVAL = 90 * 1000; // 90 seconds (1.5 mins)
 
+    /**
+     * Stop the WebSocket connection. Clears any pending retry timers,
+     */
+    public stopWebSocket() {
+        if (this.retryTimer) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
+        }
+        if (this.webSocket.isConnected()) {
+            this.webSocket.close();
+        }
+    };
+
     private retryConnect = () => {
         if (!this.isServiceRunning()) return;
         if (this.retryTimer) {
             return;
         }
         this.retryDelay = Math.min(this.retryDelay * 2, 5 * 60 * 1000); // Exponential backoff up to 5 minutes
-        this.retryTimer = setTimeout(this.connectWebSocket, this.retryDelay);
+        this.retryTimer = setTimeout(() => this.connectWebSocket(), this.retryDelay);
     };
 
     private isActive = false;
