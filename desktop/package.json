@@ -1,7 +1,7 @@
 {
   "name": "homecloud",
   "productName": "HomeCloud",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "HomeCloud for your devices",
   "main": "dist/index.js",
   "scripts": {
