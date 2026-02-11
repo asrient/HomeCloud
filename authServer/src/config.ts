@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { ServerModeType } from './types';
 
 const defaultSecretKey = 'dev_secret_key';
 
@@ -10,6 +11,13 @@ export const DB_NAME = process.env.DB_NAME || (IS_DEV ? 'mcdev' : 'mcprod');
 export const BASE_URL = process.env.BASE_URL || `http://0.0.0.0:${PORT}`;
 export const REDIS_URL = process.env.REDIS_URL || null;
 export const UDP_PORT = process.env.UDP_PORT ? parseInt(process.env.UDP_PORT) : 9669;
+export const UDP_DOMAIN: string | null = process.env.UDP_DOMAIN || null;
+
+const validServerModes: ServerModeType[] = ['api', 'udp'];
+export const SERVER_MODE: ServerModeType | null = validServerModes.includes(process.env.SERVER_MODE as ServerModeType)
+    ? process.env.SERVER_MODE as ServerModeType
+    : null;
+
 export const AZ_CS_CONNECTION_STRING = process.env.AZ_CS_CONNECTION_STRING || '';
 export const AZ_CS_SENDER = process.env.AZ_CS_SENDER || '';
 
@@ -20,6 +28,7 @@ export function isRedisEnabled() {
 export function configSetup() {
     // Any adhoc config setup can go here
     console.log(`Application running in ${IS_DEV ? 'development' : 'production'} mode.`);
+    console.log(`Server mode: ${SERVER_MODE || 'all'}`);
     if (SECRET_KEY === defaultSecretKey) {
         console.warn('Warning: Using default secret key. This is not secure for production environments.');
     }

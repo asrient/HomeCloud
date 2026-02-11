@@ -26,7 +26,8 @@
     "dev": "nodemon index.js",
     "build": "tsc",
     "watch": "tsc -w",
-    "cmd:delete-expired": "node ./dist/commands/delete-expired.js"
+    "cmd:delete-expired": "node ./dist/commands/delete-expired.js",
+    "release": "npm version --tag-version-prefix='auth-v'"
   },
   "author": "ASRIENT",
   "license": "ISC"

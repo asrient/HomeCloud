@@ -60,6 +60,12 @@ async function getConfig() {
     const fingerprint = cryptoModule.getFingerprintFromPem(publicKeyPem);
     const isDev = Platform.isTesting || __DEV__;
     const mobilePlatform: MobilePlatform = Platform.OS === 'ios' ? MobilePlatform.IOS : MobilePlatform.ANDROID;
+    const serverUrl = process.env.EXPO_PUBLIC_SERVER_URL || "http://localhost:4000";
+    const deriveWsUrl = (httpUrl: string) => {
+        const url = new URL(httpUrl);
+        url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        return url.toString().replace(/\/$/, '');
+    };
     const mobileConfig: MobileConfigType = {
         IS_DEV: isDev,
         PLATFORM: mobilePlatform,
@@ -73,8 +79,8 @@ async function getConfig() {
         FINGERPRINT: fingerprint,
         APP_NAME: applicationName || 'HomeCloud',
         UI_THEME: mobilePlatform === MobilePlatform.IOS ? UITheme.Ios : UITheme.Android,
-        SERVER_URL: process.env.EXPO_PUBLIC_SERVER_URL || "http://localhost:4000",
-        WS_SERVER_URL: process.env.EXPO_PUBLIC_WS_SERVER_URL || "ws://localhost:4000/ws",
+        SERVER_URL: serverUrl,
+        WS_SERVER_URL: process.env.EXPO_PUBLIC_WS_SERVER_URL || deriveWsUrl(serverUrl),
         OS: Platform.OS === 'ios' ? OSType.iOS : OSType.Android,
     };
     return mobileConfig;

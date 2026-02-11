@@ -1,0 +1,59 @@
+services:
+  # &auth-env is a YAML anchor — defines shared env vars for all auth services
+  auth-api:
+    build: .
+    environment: &auth-env
+      NODE_ENV: production
+      PORT: 4000
+      UDP_PORT: 9669
+      UDP_DOMAIN: ${UDP_DOMAIN:-}
+      MONGO_DB_URL: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY: ${SECRET_KEY}
+      BASE_URL: ${BASE_URL}
+      AZ_CS_CONNECTION_STRING: ${AZ_CS_CONNECTION_STRING}
+      AZ_CS_SENDER: ${AZ_CS_SENDER}
+      SERVER_MODE: api
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  # UDP relay (single instance, exposed without a load balancer)
+  auth-udp:
+    build: .
+    ports:
+      - "9669:9669/udp"
+    environment:
+      # inherits all env vars from auth-api, then overrides SERVER_MODE
+      <<: *auth-env
+      SERVER_MODE: udp
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - auth-api
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

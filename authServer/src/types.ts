@@ -79,3 +79,5 @@ export type AccountLinkVerifyResponse = {
     email: string | null;
     accountId: string;
 }
+
+export type ServerModeType = 'api' | 'udp';

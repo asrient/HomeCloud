@@ -17,7 +17,7 @@ import CustomError from "./customError";
 import { getFingerprintFromPem, verifySignature } from "./signHelper";
 import { AccountLinkSignedPayloadSchema } from "./schema";
 import emailService from "./emailService";
-import { UDP_PORT } from "./config";
+import { UDP_DOMAIN, UDP_PORT } from "./config";
 import { isPeerOnline as checkPeerOnline } from "./peerDispatch";
 
 const LOCAL_NETWORK_ERROR = 'ERR_LOCAL_NET';
@@ -304,11 +304,13 @@ export async function createWebcInit({
     const initForSource: WebcInit = {
         fingerprint: remotePeer.fingerprint,
         pin: code(8),
+        ...(UDP_DOMAIN && { serverAddress: UDP_DOMAIN }),
         serverPort: UDP_PORT,
     };
     const initForRemote: WebcInit = {
         fingerprint: sourceFingerprint,
         pin: code(8),
+        ...(UDP_DOMAIN && { serverAddress: UDP_DOMAIN }),
         serverPort: UDP_PORT,
     };
     // First store the init infos in globalComms for udp service to pick up
