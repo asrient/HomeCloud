@@ -1,20 +1,82 @@
-# Development guide
+# Development Guide
 
-HomeCloud uses a monorepo, consisting of multiple sub projects. The project is mostly written in typescript and javascript. We use electronJs for desktop app and NextJs for frontend. Server runs on NodeJs.
+HomeCloud is a TypeScript monorepo with multiple sub-projects that share a common core library. This guide covers the architecture and how to get each part running locally.
 
-## Frontend
+## Architecture
 
-The frontend code for both server and desktop is located at `/web`.
-We use NextJs Static Site Generation to create a static bundle which is served by both desktop & server.
+```
+HomeCloud/
+├── appShared/    # Shared core library (TypeScript, no runtime deps)
+├── desktop/      # Electron app (macOS, Windows, Linux)
+├── mobile/       # React Native / Expo app (Android, iOS)
+├── web/          # Next.js frontend (embedded in desktop app)
+├── authServer/   # Auth & connection broker (Express + WebSocket)
+├── docs/         # Documentation
+└── tools/        # Utility scripts
+```
 
-## Desktop
+`appShared` is the foundation. It defines services, the RPC protocol, mDNS discovery, and crypto primitives. Both `desktop` and `mobile` implement these abstract services with platform-specific code. The `web` frontend is a Next.js static site that gets embedded into the desktop Electron app. The `authServer` handles account management and connection brokering.
 
-The source code for electron app is located at `/apps`. This project folder is shared by both desktop and server, since they share majority of their code. Code specific to desktop app is located at `/apps/src/desktop`. Shared code is at `/apps/src/backend`.
+## Prerequisites
 
-## Server
+- **Node.js** 18+
+- **npm**
+- **For desktop:** Python 3 + C++ build tools (for native addons via node-gyp)
+- **For mobile:** Xcode 15+ (iOS), Android Studio with SDK 36 (Android)
 
-Same as desktop, with server specific code at `/apps/src/node`.
+## appShared — Core Library
 
-## OneAuth
+Platform-agnostic TypeScript library consumed by all other packages. Defines abstract service interfaces (files, photos, system, thumbnails, networking, accounts), the RPC protocol, mDNS discovery, and cryptographic identity.
 
-To help with OAuth logins like Google Drive, Dropbox, we have a seperate service, seperate from the main application. It's a nodejs/express server, code located at `/authServer`.
+```bash
+cd appShared
+npm install
+npm run tsc        # one-time build → outputs to dist/
+npm run watch      # watch mode for development
+```
+
+**always build appShared first** before working on anything else.
+
+## Desktop — Electron App
+
+See [desktop](desktop.md) for full details, native addons, web frontend, services, and release instructions.
+
+## Mobile — React Native / Expo
+
+See [mobile](mobile.md) for full details, native module, and app structure.
+
+## Auth Server
+
+See [auth-server](auth-server.md) for full details, Docker, Docker Compose, and release instructions.
+
+## Full Development Workflow
+
+1. **Build appShared** (run `npm run watch` to keep it rebuilding on changes):
+   ```bash
+   cd appShared
+   npm install
+   npm run watch
+   ```
+
+2. **Start the platform you're working on:**
+   ```bash
+   # Desktop UI (if building desktop)
+   cd web
+   npm run dev
+
+   # Desktop
+   cd desktop
+   npm start
+
+   # Mobile
+   cd mobile
+   npm run ios # or android
+   ```
+
+3. **Auth server** (if testing account/remote features):
+   ```bash
+   cd authServer
+   npm run dev
+   ```
+
+Ensure `.env` / `.env.local` files are configured with the correct server URLs for your environment.

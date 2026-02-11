@@ -9,6 +9,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
+import { cn, isMacosTheme, isWin11Theme } from "@/lib/utils";
 
 export default function ConfirmModal({ title, buttonText, children, onConfirm, description, isOpen, onOpenChange, buttonVariant }: {
     title: string,
@@ -70,14 +71,24 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
             <DialogTrigger asChild>
                 {children}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[20rem]">
+            <DialogContent className={cn(
+                "overflow-hidden",
+                isMacosTheme() && 'bg-popover/80 backdrop-blur-sm backdrop-saturate-150',
+                isWin11Theme() ? 'sm:max-w-[26rem] ' : 'sm:max-w-[20rem]'
+            )}>
                 <DialogHeader>
-                    <DialogTitle>
+                    <DialogTitle className={cn(
+                        "overflow-ellipsis truncate",
+                        isWin11Theme() ? 'max-w-[22rem]' : 'max-w-[16rem]'
+                    )}>
                         {title}
                     </DialogTitle>
-                    <DialogDescription>
-                        {error ? <span className='text-red-500'>{error}</span> : description || 'Are you sure?'}
-                    </DialogDescription>
+                    {
+                        (description || error)
+                        && <DialogDescription className='break-all'>
+                            {error ? <span className='text-red-500'>{error}</span> : description}
+                        </DialogDescription>
+                    }
                 </DialogHeader>
                 <>
                     {isLoading && <div className="flex justify-center items-center">
@@ -86,10 +97,10 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
                     </div>}
 
                     <div className='space-x-2 flex justify-center items-center'>
-                        <Button variant='secondary' size='lg' onClick={() => handleOpenChange(false)}>
+                        <Button variant='secondary' size='platform' stretch onClick={() => handleOpenChange(false)}>
                             Cancel
                         </Button>
-                        <Button type='submit' size='lg' variant={buttonVariant_} disabled={isLoading} onClick={handleSubmit}>
+                        <Button type='submit' size='platform' variant={buttonVariant_} disabled={isLoading} onClick={handleSubmit} stretch>
                             {buttonText || 'Confirm'}
                         </Button>
                     </div>

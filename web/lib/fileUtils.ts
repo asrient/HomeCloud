@@ -1,8 +1,8 @@
-import { DeviceInfo, OSType, PinnedFolder, RemoteItem, RemoteItemWithStorage, Storage, StorageType } from "./types";
+import { DeviceInfo, PinnedFolder, RemoteItem, PeerInfo, ClipboardFile } from "shared/types";
+import { FileRemoteItem, RemoteItemWithPeer } from "./types";
+import { OSType } from "@/lib/enums";
 import mime from 'mime';
-import { staticConfig } from "./staticConfig";
-import { move, MoveParams } from "./api/files";
-import { storageSupportsThumbnail } from "./storageConfig";
+import { getServiceController } from "./utils";
 
 export enum FileType {
     File = 'File',
@@ -165,9 +165,6 @@ export function mimeToKind(mimeType: string): FileType {
 
 export function getKind(item: RemoteItem) {
     if (item.type === 'directory') {
-        if (!item.parentIds || item.parentIds.length === 0) {
-            return FileType.Drive;
-        }
         if (!!item.mimeType) return mimeToKind(item.mimeType);
         return FileType.Folder;
     }
@@ -268,46 +265,145 @@ export function getDefaultIcon(item: RemoteItem) {
     return iconUrl(getKind(item));
 }
 
-export function canGenerateThumbnail(item: RemoteItem, storage: Storage) {
-    if (!storageSupportsThumbnail(storage)) return false;
+const supportedThumbnailKinds = new Set<FileType>([
+    FileType.Image,
+    FileType.Video,
+    FileType.PDF,
+    FileType.EPUB,
+]);
+
+export function canGenerateThumbnail(item: RemoteItem) {
     const kind = getKind(item);
-    return kind === FileType.Image || kind === FileType.Video;
+    return supportedThumbnailKinds.has(kind);
 }
 
-export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder, storage: Storage): RemoteItemWithStorage {
+export function pinnedFolderToRemoteItem(pinnedFolder: PinnedFolder, fingerprint: string | null): RemoteItemWithPeer {
     return {
-        id: pinnedFolder.folderId,
+        path: pinnedFolder.path,
         name: pinnedFolder.name,
         type: 'directory',
-        parentIds: [''],
         size: 0,
         mimeType: '',
         lastModified: new Date(),
         createdAt: new Date(),
         etag: '',
         thumbnail: '',
-        storageId: storage.id,
+        deviceFingerprint: fingerprint,
     }
 }
 
-export function storageToRemoteItem(storage: Storage): RemoteItemWithStorage {
+export const remoteItemToFileRemoteItem = (item: RemoteItem, fingerprint: string | null): FileRemoteItem => {
     return {
-        id: '',
-        name: storage.name,
+        ...item,
+        isSelected: false,
+        deviceFingerprint: fingerprint,
+    }
+}
+
+export function peerToRemoteItem(peer: PeerInfo | null): RemoteItemWithPeer {
+    return {
+        path: '',
+        name: peer ? peer.deviceName : 'This Device',
         type: 'directory',
-        parentIds: [],
         size: 0,
         mimeType: '',
         lastModified: new Date(),
         createdAt: new Date(),
         etag: '',
         thumbnail: '',
-        storageId: storage.id,
+        deviceFingerprint: peer ? peer.fingerprint : null,
     }
 }
 
-export function getFileUrl(storageId: number, fileId: string) {
-    return `${staticConfig.apiBaseUrl}/fs/readFile?storageId=${storageId}&id=${fileId}`;
+export function getPathChain(path: string): RemoteItem[] {
+    // check for both / and \ as path separators
+    const separator = path.includes('/') ? '/' : '\\';
+    const hasLeadingSeparator = path.startsWith(separator);
+    const parts = path.split(separator).filter(part => part.length > 0);
+    const chain: RemoteItem[] = [];
+    let currentPath = '';
+    for (const part of parts) {
+        if (currentPath.length === 0 && !hasLeadingSeparator) {
+            currentPath = part; // first part without leading separator
+        } else {
+            currentPath += separator + part;
+        }
+        chain.push({
+            path: currentPath,
+            name: decodeURIComponent(part),
+            type: 'directory',
+            size: 0,
+            mimeType: '',
+            lastModified: new Date(),
+            createdAt: new Date(),
+            etag: '',
+            thumbnail: '',
+        });
+    }
+    return chain;
+}
+
+export function getFileUrl(fingerprint: string | null, path: string) {
+    return `app://media/previewFile?fingerprint=${fingerprint}&path=${path}`;
+}
+
+// MIME types that browsers typically don't support for playback
+// Note: HEIC/HEIF is handled by getPreview API which converts to JPEG
+const UNSUPPORTED_IMAGE_TYPES: string[] = [
+    // HEIC/HEIF removed - now supported via getPreview conversion
+];
+
+const UNSUPPORTED_VIDEO_TYPES = [
+    'video/hevc',
+    'video/x-hevc',
+];
+
+/**
+ * Check if an image format is supported by web browsers
+ * Note: HEIC/HEIF is now supported via getPreview API conversion
+ */
+export function isImageFormatSupported(mimeType: string, filePath?: string): boolean {
+    const lowerMime = mimeType.toLowerCase();
+
+    // Check by MIME type
+    if (UNSUPPORTED_IMAGE_TYPES.includes(lowerMime)) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Check if a video format is supported by web browsers
+ * Note: HEVC detection is tricky - .mov and .mp4 can contain HEVC
+ */
+export function isVideoFormatSupported(mimeType: string, filePath?: string): boolean {
+    const lowerMime = mimeType.toLowerCase();
+
+    // Explicit HEVC mime types
+    if (UNSUPPORTED_VIDEO_TYPES.includes(lowerMime)) {
+        return false;
+    }
+
+    // For video/quicktime (.mov) - iOS often records in HEVC
+    // We can't know for sure without parsing, so we'll assume it might not be supported
+    // The video element will fail gracefully anyway
+
+    return true;
+}
+
+/**
+ * Get a user-friendly message for unsupported formats
+ * Note: HEIC/HEIF is now supported via getPreview API conversion
+ */
+export function getUnsupportedFormatMessage(mimeType: string, filePath?: string): string | null {
+    const lowerMime = mimeType.toLowerCase();
+
+    if (UNSUPPORTED_VIDEO_TYPES.includes(lowerMime)) {
+        return 'HEVC video format is not supported. Download the file to view.';
+    }
+
+    return null;
 }
 
 export function canPreview(mimeType: string) {
@@ -340,45 +436,53 @@ export function getNativeFilesAppIcon(deviceInfo: DeviceInfo | null) {
     return '/icons/folder.png';
 }
 
-const CLIPBOARD_KEY = 'files-clipboard';
+export async function setItemsToCopy(fingerprint: string | null, itemIds: string[], cut = false) {
+    const files: ClipboardFile[] = itemIds.map(id => {
+        if (fingerprint === null) {
+            return { path: id, cut };
+        } else {
+            return { fingerprint, path: id, cut };
+        }
+    });
+    if (files.length === 0) return;
+    const localSc = await getServiceController(null);
+    localSc.system.copyToClipboard(files, 'filePath');
+}
 
-export function setItemsToCopy(storageId: number, itemIds: string[], cut = false) {
-    const clipboardJson = {
-        storageId,
-        itemIds,
-        cut,
+export async function getItemsToCopy(): Promise<ClipboardFile[] | null> {
+    const localSc = await getServiceController(null);
+    const clipboardContent = await localSc.system.readClipboard('filePath');
+    if (!clipboardContent || !clipboardContent.files || clipboardContent.type !== 'filePath') {
+        return null;
     }
-    sessionStorage.setItem(CLIPBOARD_KEY, JSON.stringify(clipboardJson));
+    return clipboardContent.files;
 }
 
-export function getItemsToCopy(): { storageId: number, itemIds: string[], cut: boolean } | null {
-    const clipboardJson = sessionStorage.getItem(CLIPBOARD_KEY);
-    if (!clipboardJson) return null;
-    return JSON.parse(clipboardJson);
-}
-
-export function clearItemsToCopy() {
-    sessionStorage.removeItem(CLIPBOARD_KEY);
-}
-
-export function hasItemsToCopy() {
-    return !!sessionStorage.getItem(CLIPBOARD_KEY);
-}
-
-export async function performCopyItems(destStorageId: number, destFolderId: string) {
-    const clipboard = getItemsToCopy();
-    if (!clipboard) return;
-    const { storageId, itemIds, cut } = clipboard;
-    const moveParams: MoveParams = {
-        sourceStorageId: storageId,
-        destStorageId,
-        destDir: destFolderId,
-        sourceFileIds: itemIds,
-        deleteSource: cut,
+export function hasItemsToCopy(): boolean {
+    // Check if system clipboard has file paths
+    if (typeof window !== 'undefined' && window.utils?.clipboardHasFiles) {
+        return window.utils.clipboardHasFiles();
     }
-    const res = move(moveParams);
-    if (cut) {
-        clearItemsToCopy();
+    return false;
+}
+
+export async function performCopyItems(destFingerprint: string | null, destFolderId: string) {
+    const clipboard = await getItemsToCopy();
+    if (!clipboard || clipboard.length === 0) return;
+    const sourceFingerprint = clipboard[0].fingerprint || null;
+    const isCutOperation = clipboard[0].cut || false;
+    // make sure all items are from the same source and have the same cut/copy status
+    for (const item of clipboard) {
+        const itemSource = item.fingerprint || null;
+        if (itemSource !== sourceFingerprint) {
+            throw new Error("Cannot copy items from multiple sources.");
+        }
+        if ((item.cut || false) !== isCutOperation) {
+            throw new Error("Cannot mix cut and copy operations.");
+        }
     }
+    const itemIds = clipboard.map(item => item.path);
+    const serviceController = await getServiceController(sourceFingerprint);
+    const res = await serviceController.files.move(destFingerprint, destFolderId, itemIds, isCutOperation);
     return res;
 }

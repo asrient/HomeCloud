@@ -1,33 +1,74 @@
-# HomeCloud
+# HomeCloud: privacy-first alternative to cloud ecosystems
 
-Homecloud is your personal digital content management app designed to streamline your digital life. It enables you to manage files, photos, notes, and more across all your storage devices and services. No more hassle of switching between different apps or sticking to a single storage provider.
+<p align="center">
+    <picture>
+        <img src="img/hero.png" alt="HomeCloud" width="500">
+    </picture>
+</p>
 
-![Screenshot 1](img/section1.png)
+HomeCloud is your companion app for accessing and controlling your devices and storage from anywhere without relying on third-party cloud services. Transfer files, stream, browse and edit photos, and manage your data directly. Completely free and open-source, HomeCloud is built with privacy at its core and secured by end-to-end encryption, ensuring your data never leaves your devices. Enjoy a seamless multi-device experience with features like media playback and volume control, clipboard sharing, and more so you can stay focused without juggling between devices.
+
+![Screenshot](img/section1.png)
+
+## How it works
+
+- HomeCloud connects your devices directly using peer-to-peer networking. Local devices discover each other via mDNS, and remote connections are established securely over UDP without routing your data through cloud storage.
+- Devices maintain their identity using on-device public key cryptography, ensuring your data stays private, secure, and fully under your control.
+- HomeCloud uses a authentication and broker service for device list syncing and connection setups when needed, your actual data is always transferred peer-to-peer and never reaches our servers.
 
 ## Features
 
-- Multiple storage types support - Google Drive, Dropbox, WebDav, Local files.
-- Specialized apps to manage Photos, Notes.
-- No Sign-ups Required. All your data stays on your existing storage spaces. That means no signups, no subscriptions, no usage limits.
+- **File Access:** Browse, transfer, open and edit files remotely.
+- **Photo Library:** View and manage your photos and camera roll across devices, with support for Apple-specific formats like HEIC.
+- **Media Control:** Control media playback (for desktop) and volume remotely.
+- **Copy, paste anywhere:** Access your clipboard across devices.
+- **Send Files, Texts and Links:** Instantly send texts, links, and files with no size limits.
+- **Works Offline:** Devices find each other automatically on your local network via mDNS, no internet needed.
+- **Always Connected:** Devices can also connect directly over the internet without relays, preserving privacy and performance.
+- **No Subscriptions or Fees:** By avoiding heavy cloud infrastructure, HomeCloud delivers cloud-like capabilities without subscriptions.
 
-Learn more: [https://asrient.me/homecloud](https://asrient.me/homecloud). 
+For further details of each feature, please see our documentation page. To receive the latest updates, get help with HomeCloud, and join the community, please visit one of our communication channels.
 
-## Usage
+## Get started
 
-HomeCloud is available both as Desktop app and a web version.
+Download and install HomeCloud on your phones, laptops, iPads.
 
-### HomeCloud Desktop
+- **Desktop**: [GitHub Releases](https://github.com/asrient/HomeCloud/releases/latest/) available for macOS (Intel + Apple Silicon), Windows, and Linux (.deb).
+- **Mobile**: Coming soon to Google Play and App Store.
 
-You can download the latest version from [releases](https://github.com/asrient/HomeCloud/releases/latest/). Available for MacOS (intel, Apple Silicon), Linux (.deb), Windows. Desktop app does not rely on the server version.
+See [Get Started](docs/Help/get-started.md) to know more about how to setup and use HomeCloud.
 
-### HomeCloud Server
+## Background and direction
 
-If you want to use the web version you can either self-host your own server instance or use the [Public Server instance](https://homecloud.asrient.me/) hosted by us.
+Apple's continuity ecosystem is amazing, using apple devices together is seamless and productive, but they lack interoperability with non-apple devices. People often end up relying on cloud storage services for simple things like file transfers. This project was born as a way to bridge the gap and bring similar experiences to every major platform, as well as to expand and experiment more into even advanced connected experiences. 
 
-- Docker images are available for self-hosting at [Docker Hub](https://hub.docker.com/r/asrient/homecloud), to learn more on how to install and setup follow the install doc.
-- A publicly available instance of the server is available as well which currently runs on [Render](https://render.com/). Note that you might face a delay in loading the site for the first time due to render instances being suspended when not in use.
+The core of our platform is our network stack, that supports local discovery and connections over wifi as well as remote direct connections without needing a relay in between. This makes things like E2E encryption, large file transfers possible without a need for heavy infra at backend. 
 
-## Contributions
+We keep experimenting with new ways to make your devices work together better for you, do check out our roadmap to keep track of all the exciting things we are working on and feel free to add your suggestions in discussions if you have anything in mind.
 
-HomeCloud is very new, there's a lot to work on yet. Your feedback and suggestions would be very helpful on the way. Specially we ask you to share your experince with us if you have recently tried out HomeCloud.
-You can help improve HomeCloud by reporting issues, suggestions [here](https://github.com/asrient/HomeCloud/issues) or by raising new PRs.
+## Contributing
+
+We can always use your help and your contributions are very welcome! Here's how you can help:
+
+- **Report bugs** or **suggest features** via [GitHub Issues](https://github.com/asrient/HomeCloud/issues)
+- **Submit PRs** — check for issues labeled `good first issue`
+- **Test the app** on your devices and share your experience
+- **Star the repo** if you find it useful ⭐
+
+## Project Structure
+
+```
+HomeCloud/
+├── appShared/    # Shared core for all apps.
+├── desktop/      # Electron app — macOS, Windows, Linux.
+├── mobile/       # React Native / Expo app — Android, iOS.
+├── web/          # Next.js frontend for desktop.
+├── authServer/   # Auth & connection broker server.
+├── docs/         # Product and developer documentation.
+```
+
+For development setup and architecture details, see [Development Guide](docs/Development/Overview.md).
+
+## License
+
+MIT

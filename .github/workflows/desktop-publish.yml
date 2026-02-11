@@ -1,64 +1,135 @@
-name: App CI
+name: Desktop App CI
 
 on:
   push:
-    tags: [ "v*", "desktop-v*" ]
+    tags: [ "desktop-v*" ]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build for'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - macos
+          - windows
+          - linux
 
 jobs:
   build-and-publish:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        # Do not use unbuntu-latest because it causes `The operation was canceled` failures:
-        # https://github.com/actions/runner-images/issues/6709
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        include:
+          - os: macos-latest
+            platform: darwin
+            ui_theme: macos
+          - os: ubuntu-latest
+            platform: linux
+            ui_theme: linux
+          - os: windows-latest
+            platform: win32
+            ui_theme: windows
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify version matches tag
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        working-directory: ./desktop
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          TAG=${TAG#v}
+          TAG=${TAG#desktop-v}
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG_VERSION" ]; then
+            echo "::error::Tag ($TAG) does not match desktop/package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Version verified: $PKG_VERSION"
+
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18.17.0'
-      # macos-latest ships with Python 3.12 by default, but this removes a
-      # utility that's used by electron-builder (distutils) so we need to pin
-      # Python to an earlier version.
-      # Fixes error `ModuleNotFoundError: No module named 'distutils'`
-      # Ref: https://github.com/nodejs/node-gyp/issues/2869
-      - uses: actions/setup-python@v4
+          node-version: '20'
+
+      # macos-latest ships with Python 3.12 by default, but this removes
+      # distutils which is used by node-gyp
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      # setup web
+
+      # Step 1: Compile appShared
+      - name: Install appShared dependencies
+        run: npm install
+        working-directory: ./appShared
+
+      - name: Compile appShared
+        run: npm run tsc
+        working-directory: ./appShared
+
+      # Step 2: Build web with UI_THEME
       - name: Install web dependencies
         run: npm install
         working-directory: ./web
+
       - name: Build web
         run: npm run build
         working-directory: ./web
         env:
+          UI_THEME: ${{ matrix.ui_theme }}
           NODE_ENV: production
-      # desktop app
-      - name: Install app dependencies
+
+      # Step 3: Build and package desktop
+      - name: Install desktop dependencies
         run: npm install
-        working-directory: ./apps
-      - name: Build app
+        working-directory: ./desktop
+
+      - name: Build native modules
         run: npm run build
-        working-directory: ./apps
+        working-directory: ./desktop
+
+      - name: Compile TypeScript
+        run: npm run tsc
+        working-directory: ./desktop
+
+      - name: Package desktop app
+        run: npm run package
+        working-directory: ./desktop
         env:
-          NODE_ENV: production
-          ONEAUTH_SERVER_URL: ${{ secrets.ONEAUTH_SERVER_URL }}
-          ONEAUTH_APP_ID: ${{ secrets.ONEAUTH_APP_ID }}
+          NODE_ENV: ${{ secrets.NODE_ENV || 'production' }}
+          SERVER_URL: ${{ secrets.SERVER_URL }}
+          WS_SERVER_URL: ${{ secrets.WS_SERVER_URL }}
           NODE_OPTIONS: "--max_old_space_size=4096"
+
       - name: Publish app
-        if: matrix.os != 'macos-latest'
-        run: npm run publish:desktop
-        working-directory: ./apps
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        run: npm run publish
+        working-directory: ./desktop
         env:
           NODE_ENV: production
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-      - name: Publish app - MacOS
-        if: matrix.os == 'macos-latest'
-        run: npm run publish:desktop:macos
-        working-directory: ./apps
-        env:
-          NODE_ENV: production
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          SERVER_URL: ${{ secrets.SERVER_URL }}
+          WS_SERVER_URL: ${{ secrets.WS_SERVER_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: "--max_old_space_size=4096"
+
+      - name: Publish app - macOS (universal)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && matrix.os == 'macos-latest'
+        run: npm run publish:macos
+        working-directory: ./desktop
+        env:
+          NODE_ENV: production
+          SERVER_URL: ${{ secrets.SERVER_URL }}
+          WS_SERVER_URL: ${{ secrets.WS_SERVER_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: "--max_old_space_size=4096"
+
+      # Upload artifacts for manual workflow runs
+      - name: Upload build artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: ./desktop/out/
+          retention-days: 7

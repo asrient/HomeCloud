@@ -2,21 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent zooming */
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
+    --card: 0 0% 98%;
     --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
+    --popover: 0 0% 98%;
     --popover-foreground: 222.2 84% 4.9%;
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 240 5% 96%;
+    --secondary: 240 5% 90%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 240 5% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 240 5% 96%;
+    --accent: 240 5% 88%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -31,25 +38,34 @@
     --chart-5: 27 87% 67%;
   }
 
+  /* Apply macOS light theme tweaks only in light mode */
+  .macos:not(.dark) {
+    --background: 0 0% 97%;
+    --border: 214.3 31.8% 90%;
+    --input: 214.3 31.8% 90%;
+    --muted: 240 5% 90%;
+  }
+
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    color-scheme: dark;
+    --background: 0 0% 18%;
+    --foreground: 28 40% 98%;
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 27 5.7% 10%;
     --popover-foreground: 210 40% 98%;
     --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
+    --primary-foreground: 28 40% 98%;
+    --secondary: 217.2 2.1% 24%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --muted: 20 2.6% 29.9%;
+    --muted-foreground: 15 2.8% 65.1%;
+    --accent: 20 2.6% 29.9%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 72% 50.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 20 2.6% 25%;
+    --input: 20 2.6% 25%;
     --ring: 224.3 76.3% 48%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -58,9 +74,94 @@
     --chart-5: 340 75% 55%;
   }
 
+  .dark.macos {
+    --background: 0 0% 15%;
+    --border: 20 2.6% 30%;
+  }
+
+  .macos {
+    --accent: var(--primary);
+    --accent-foreground: 210 40% 100%;
+  }
+
   .home-bg {
     background-image: radial-gradient(at 37% 41%, rgb(236, 252, 203) 0, transparent 49%), radial-gradient(at 43% 72%, rgb(186, 230, 253) 0, transparent 44%), radial-gradient(at 7% 77%, rgb(233, 213, 255) 0, transparent 21%), radial-gradient(at 69% 48%, rgb(224, 242, 254) 0, transparent 44%), radial-gradient(at 56% 36%, rgb(244, 244, 245) 0, transparent 13%), radial-gradient(at 17% 17%, rgb(254, 205, 211) 0, transparent 42%);
-  
+
+  }
+
+  .app-dragable {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  .app-nodrag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+
+  .app-titlebar {
+    position: fixed;
+    top: 0;
+    /* env(titlebar-area-y, 0)*/
+    height: env(titlebar-area-height, 50);
+    left: env(titlebar-area-x, 0);
+    width: env(titlebar-area-width, 100%);
+  }
+
+  .app-titlebar-space-start {
+    width: env(titlebar-area-x, 0);
+  }
+
+  .app-titlebar-space-end {
+    width: calc(100% - env(titlebar-area-x, 0) - env(titlebar-area-width, 100%));
+  }
+
+  .win11-selected {
+    position: relative;
+    border: none;
+  }
+
+  .win11-selected::after {
+    content: '';
+    position: absolute;
+    top: 20%;
+    left: 3px;
+    height: 60%;
+    width: 3px;
+    background-color: hsl(var(--primary));
+    border-radius: 10px;
+  }
+
+  .macos-sidebar-backdrop {
+    height: 100%;
+    width: 100%;
+    box-shadow: 0 0px 0px 18px hsl(var(--background));
+  }
+
+  .macos-sidebar-strip {
+    border: solid 1.5px rgb(255, 255, 255);
+    background-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 12px 3px rgb(66 66 66 / 8%);
+  }
+
+  .dark .macos-sidebar-strip {
+    border-color: rgba(252, 252, 252, 0.12);
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+
+  .draggable {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  button,
+  a {
+    cursor: default;
+  }
+
+  img, video, a {
+    -webkit-user-drag: none;
+    user-drag: none;
   }
 }
 
@@ -70,6 +171,9 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    @apply select-none;
   }
 }
+
+@custom-variant dark (&:where(.dark, .dark *));

@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import SharedPhotoModal from './photosPreview'
-import { Photo, PhotoView } from '@/lib/types'
-import { useCallback, useEffect, useState } from 'react'
+import { PhotoView } from '@/lib/types'
+import { useCallback, useRef, useState } from 'react'
 
 export default function PhotosPreviewModal({
   photo,
@@ -12,6 +12,8 @@ export default function PhotosPreviewModal({
   photos: PhotoView[],
   changePhoto: (photo: PhotoView | null) => void,
 }) {
+  const [direction, setDirection] = useState(0);
+  const prevIndexRef = useRef<number>(-1);
 
   const closeModal = useCallback(() => {
     changePhoto(null);
@@ -23,6 +25,16 @@ export default function PhotosPreviewModal({
     }
   }, [closeModal]);
 
+  const handleChangePhoto = useCallback((newPhoto: PhotoView | null) => {
+    if (newPhoto && photo) {
+      const currentIndex = photos.findIndex(p => p.id === photo.id && p.deviceFingerprint === photo.deviceFingerprint);
+      const newIndex = photos.findIndex(p => p.id === newPhoto.id && p.deviceFingerprint === newPhoto.deviceFingerprint);
+      setDirection(newIndex > currentIndex ? 1 : -1);
+      prevIndexRef.current = newIndex;
+    }
+    changePhoto(newPhoto);
+  }, [changePhoto, photo, photos]);
+
   return (
     <Dialog.Root open={!!photo} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
@@ -31,8 +43,9 @@ export default function PhotosPreviewModal({
           {photo && <SharedPhotoModal
             images={photos}
             currentPhoto={photo}
-            changePhoto={changePhoto}
+            changePhoto={handleChangePhoto}
             closeModal={closeModal}
+            direction={direction}
           />}
         </Dialog.Content>
       </Dialog.Portal>

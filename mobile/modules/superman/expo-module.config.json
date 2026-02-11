@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["SupermanModule"]
+  },
+  "android": {
+    "modules": ["com.asrient.superman.SupermanModule"]
+  }
+}

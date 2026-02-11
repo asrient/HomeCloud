@@ -1,24 +1,30 @@
-import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useMemo, useState } from 'react'
-import { getDefaultIcon, getFileUrl } from '@/lib/fileUtils';
+import { getDefaultIcon, getFileUrl, getUnsupportedFormatMessage } from '@/lib/fileUtils';
 import Image from 'next/image';
 import { Button } from './ui/button';
-import { ArrowUpOnSquareIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { FileRemoteItem } from './filesView';
-import { openFileLocal } from '@/lib/api/files';
+import { FileRemoteItem } from '@/lib/types';
 import { toast } from './ui/use-toast';
 import LoadingIcon from './ui/loadingIcon';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { cn, isMacosTheme } from '@/lib/utils';
 
-function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }) {
-    const icon = useMemo(() => getDefaultIcon(item), [item]);
+function PreviewBar({ item }: { item: FileRemoteItem | null }) {
+    const icon = useMemo(() => item ? getDefaultIcon(item) : null, [item]);
     const [openingInApp, setOpeningInApp] = useState(false);
 
     const openInApp = useCallback(async () => {
         if (openingInApp) return;
+        if (!item) return;
         setOpeningInApp(true);
-        if (!item.storageId) return;
         try {
-            await openFileLocal(item.storageId, item.id);
+            // open file locally
+            const serviceController = window.modules.getLocalServiceController();
+            await serviceController.files.openFile(item.deviceFingerprint, item.path);
         } catch (e: any) {
             console.error(e);
             toast({
@@ -28,26 +34,17 @@ function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }
         } finally {
             setOpeningInApp(false);
         }
-    }, [item.id, item.storageId, openingInApp]);
+    }, [item, openingInApp]);
 
     return (
-        <div className='flex items-center justify-between p-1 px-3 bg-background text-s border-b bottom-1'>
+        <div className='text-sm flex items-center justify-between space-x-2 mr-6'>
             <div className='flex items-center space-x-2'>
-                <Image height={20} width={20} src={icon} alt='Item icon' />
-                <div className='text-foreground font-medium'>{item.name}</div>
+                {icon && <Image height={20} width={20} src={icon} alt='Item icon' />}
+                <DialogTitle className='text-sm'>{item?.name || 'Preview'}</DialogTitle>
             </div>
-            <div className='flex items-center space-x-2 text-primary'>
-                {item.storageId && <Button onClick={openInApp} variant='default' disabled={openingInApp} size='sm'>
-                    {
-                        openingInApp ?
-                            <LoadingIcon className='h-5 w-5 mr-1' />
-                            :
-                            <ArrowUpOnSquareIcon className='h-5 w-5 mr-1' />
-                    }
-                    Open
-                </Button>}
-                <Button variant='secondary' size='icon' className='rounded-full p-1' onClick={close}>
-                    <XMarkIcon className="h-5 w-5" />
+            <div className='flex items-center space-x-2'>
+                <Button onClick={openInApp} variant='default' disabled={openingInApp} size='sm'>
+                    {openingInApp ? <LoadingIcon className='h-5 w-5' /> : 'Open'}
                 </Button>
             </div>
         </div>
@@ -55,19 +52,27 @@ function PreviewBar({ item, close }: { item: FileRemoteItem, close: () => void }
 }
 
 function PreviewContent({ item }: { item: FileRemoteItem }) {
-    const assetUrl = useMemo<string | null>(() => item.storageId ? getFileUrl(item.storageId, item.id) : null, [item]);
+    const assetUrl = useMemo<string>(() => getFileUrl(item.deviceFingerprint, item.path), [item]);
     const contentType = useMemo(() => item.mimeType?.split('/')[0], [item]);
+    const unsupportedMessage = useMemo(() => getUnsupportedFormatMessage(item.mimeType || '', item.path || ''), [item.mimeType, item.path]);
+
+    if (unsupportedMessage) {
+        return (
+            <div className='w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground'>
+                <span className='text-center text-sm max-w-xs'>{unsupportedMessage}</span>
+            </div>
+        )
+    }
 
     if (assetUrl && contentType === 'image') {
-        return (<div className='w-full h-full'>
-            <Image src={assetUrl} height={0} width={0} className='w-full h-full object-scale-down' alt='Preview image' />
-        </div>)
+        return (
+            <Image src={assetUrl} height={0} width={0} className='w-auto h-auto object-contain object-center' alt='Preview image' />)
     }
 
     if (assetUrl && contentType === 'video') {
-        return (<div className='w-full h-full'>
-            <video src={assetUrl} controls className='w-full h-full' />
-        </div>)
+        return (
+            <video src={assetUrl} controls className='w-auto h-auto object-contain object-center' />
+        )
     }
 
     if (assetUrl && contentType === 'audio') {
@@ -100,17 +105,18 @@ export default function PreviewModal({
     }, [close, item]);
 
     return (
-        <Dialog.Root open={!!item} onOpenChange={handleOpenChange}>
-            <Dialog.Portal>
-                <Dialog.Overlay />
-                <Dialog.Content
-                    className='fixed top-0 h-screen w-screen z-30 bg-background duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]'>
-                    {item && (<>
-                        <PreviewBar item={item} close={close} />
-                        <PreviewContent item={item} />
-                    </>)}
-                </Dialog.Content>
-            </Dialog.Portal>
-        </Dialog.Root>
+        <Dialog open={!!item} onOpenChange={handleOpenChange}>
+            <DialogContent
+                className='max-w-3xl lg:max-w-4xl xl:max-w-6xl h-[85vh] max-h-[50rem] overflow-hidden py-0 px-0 gap-0 flex flex-col'>
+                <DialogHeader className={cn('h-min px-4',
+                    isMacosTheme() ? 'py-2' : 'py-3',
+                )}>
+                    <PreviewBar item={item} />
+                </DialogHeader>
+                <div className='w-full h-full overflow-auto'>
+                    {item && <PreviewContent item={item} />}
+                </div>
+            </DialogContent>
+        </Dialog>
     )
 }

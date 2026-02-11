@@ -1,4 +1,4 @@
-import { ErrorType, ErrorResponse } from './types';
+import { ErrorType, ErrorResponse } from 'shared/customError';
 
 export default class CustomError extends Error {
     data: any = null;

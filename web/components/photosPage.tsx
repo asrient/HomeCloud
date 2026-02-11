@@ -1,34 +1,27 @@
 import { PhotoView, PhotosFetchOptions } from "@/lib/types";
 import Head from "next/head";
-import PageBar from "./pageBar";
-import { Button } from "./ui/button";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { listPhotos, deletePhotos } from "@/lib/api/photos";
+import { MenuButton, MenuGroup, PageBar, PageContent } from "./pagePrimatives";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Loading from "./ui/loading";
 import LazyImage from "./lazyImage";
-import { getThumbnail } from "@/lib/api/files";
-import { cn, isMobile } from "@/lib/utils";
-import { dateToTitle, mergePhotosList, libraryHash, libraryHashFromId } from "@/lib/photoUtils";
+import { cn, getServiceController, isMacos, isMacosTheme, isMobile } from "@/lib/utils";
+import { dateToTitle } from "@/lib/photoUtils";
 import Image from "next/image";
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+import { ContextMenuArea } from "./contextMenuArea";
+import { ContextMenuItem } from "@/lib/types";
 import ConfirmModal from "./confirmModal";
 import PhotosPreviewModal from "./photosPreviewModal";
-import { useToast } from "./ui/use-toast";
-import usePhotosUpdates from "./hooks/usePhotosUpdates";
-
+import { usePhotos } from "./hooks/usePhotos";
+import { ThemedIconName } from "@/lib/enums";
+import { Grid } from 'react-window';
+import { useAppState } from "./hooks/useAppState";
+import { setItemsToCopy } from "@/lib/fileUtils";
 
 export type PhotosPageProps = {
     pageTitle: string;
-    pageIcon: string;
+    pageIcon: ThemedIconName;
     fetchOptions: PhotosFetchOptions;
 }
-
-const FETCH_LIMIT = 50;
 
 type ClickProps = {
     onClick: (item: PhotoView, e: React.MouseEvent) => void;
@@ -38,18 +31,27 @@ type ClickProps = {
 
 type ThumbnailPhotoProps = {
     item: PhotoView;
+    isSelected: boolean;
     className?: string;
+    maintainAspectRatio?: boolean;
 } & ClickProps;
 
-function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick }: ThumbnailPhotoProps) {
+function formatDuration(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function ThumbnailPhoto({ item, isSelected, className, maintainAspectRatio, onClick, onDoubleClick, onRightClick }: ThumbnailPhotoProps) {
     const dafaultSrc = '/img/blank-tile.png';
+    const isVideo = item.mimeType?.startsWith('video/');
 
     const fetchThumbnailSrc = useCallback(async () => {
         if (item.thumbnail) {
             return item.thumbnail;
         }
-        const thumbResp = await getThumbnail(item.storageId, item.fileId);
-        item.thumbnail = thumbResp;
+        const serviceController = await getServiceController(item.deviceFingerprint);
+        item.thumbnail = await serviceController.thumbnail.generateThumbnailURI(item.fileId);
         return item.thumbnail;
     }, [item]);
 
@@ -65,225 +67,330 @@ function ThumbnailPhoto({ item, className, onClick, onDoubleClick, onRightClick 
         onClick(item, e);
     }, [item, onClick]);
 
-    return (<LazyImage
-        fetchSrc={fetchThumbnailSrc}
-        src={dafaultSrc}
-        alt={item.id.toString()}
-        onClick={handleOnClick}
-        onDoubleClick={handleDoubleClick}
-        onContextMenu={handleRightClick}
-        width="0"
-        height="0"
-        className={cn("photoThumbnail h-full w-full object-cover transform dark:brightness-90 brightness-105 transition will-change-auto dark:hover:brightness-110 hover:brightness-75",
-            className,
-            item.isSelected && 'ring-4 ring-blue-600 opacity-80')}
-    />)
-}
-
-type PhotoSection = {
-    title: string;
-    photos: PhotoView[];
-}
-
-type TimeBasedGridProps = {
-    photos: PhotoView[];
-    size: number;
-    dateKey: 'capturedOn' | 'addedOn';
-} & ClickProps;
-
-function TimeBasedGrid({ photos, size, dateKey, ...clickProps }: TimeBasedGridProps) {
-    const gridClasses = useMemo(() => {
-        switch (size) {
-            case 1:
-                return 'grid-cols-9 md:grid-cols-12 lg:grid-cols-16 xl:grid-cols-18';
-            case 2:
-                return 'grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-12';
-            case 3:
-                return 'grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 lg:gap-1';
-            case 4:
-                return 'grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 md:gap-1';
-            default:
-                return 'grid-cols-1';
-        }
-    }, [size]);
-
-    const sections: PhotoSection[] = useMemo(() => {
-        const sections: PhotoSection[] = [];
-        let currentSection: PhotoSection | null = null;
-        const today = new Date();
-        photos.forEach((photo) => {
-            const date = new Date(photo[dateKey]);
-            const sectionTitle = dateToTitle(date, size <= 2 ? 'month' : 'day', today);
-            if (!currentSection || currentSection.title !== sectionTitle) {
-                currentSection = {
-                    title: sectionTitle,
-                    photos: [],
-                };
-                sections.push(currentSection);
-            }
-            currentSection.photos.push(photo);
-        });
-        return sections;
-    }, [photos, dateKey, size]);
-
     return (
-        <>
-            {
-                sections.map((section) => (
-                    <div key={section.title} className='p-3 select-none'>
-                        <div className='pb-2 text-md font-bold'>{section.title}</div>
-                        <div className={'grid gap-1 ' + gridClasses}>
-                            {section.photos.map((photo) => (
-                                <div className='w-full aspect-square' key={`${photo.id}-${photo.libraryId}-${photo.storageId}`}>
-                                    <ThumbnailPhoto item={photo} {...clickProps} />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                ))
-            }
-        </>
+        <div className={cn("relative h-full w-full")}>
+            <LazyImage
+                fetchSrc={fetchThumbnailSrc}
+                src={dafaultSrc}
+                alt={item.id.toString()}
+                onClick={handleOnClick}
+                onDoubleClick={handleDoubleClick}
+                onContextMenu={handleRightClick}
+                width="0"
+                height="0"
+                style={{ objectFit: maintainAspectRatio ? 'contain' : 'cover' }}
+                className={cn("photoThumbnail h-full w-full transform dark:brightness-90 brightness-105 transition will-change-auto dark:hover:brightness-110 hover:brightness-75",
+                    className,
+                    isSelected && 'border-4 border-primary opacity-80')}
+            />
+            {isVideo && item.duration > 0 && (
+                <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded pointer-events-none">
+                    {formatDuration(item.duration)}
+                </div>
+            )}
+        </div>
     )
 }
 
+type PhotoGridProps = {
+    photos: PhotoView[];
+    selectedIds: Set<string>;
+    size: number;
+    dateKey: 'capturedOn' | 'addedOn';
+    containerHeight: number;
+    hasMore: boolean;
+    isLoading: boolean;
+    onLoadMore: () => void;
+    maintainAspectRatio?: boolean;
+    changeTitle?: (title: string | null) => void;
+} & ClickProps;
+
+// Hardcoded columns for each zoom level at different viewport widths
+function getColumnsForZoom(zoom: number, containerWidth: number): number {
+    // Breakpoints: sm < 640, md >= 768, lg >= 1024, xl >= 1280
+    const isXl = containerWidth >= 1280;
+    const isLg = containerWidth >= 1024;
+    const isMd = containerWidth >= 768;
+
+    switch (zoom) {
+        case 1:
+            if (isXl) return 16;
+            if (isLg) return 14;
+            if (isMd) return 10;
+            return 7;
+        case 2:
+            if (isXl) return 12;
+            if (isLg) return 10;
+            if (isMd) return 8;
+            return 5;
+        case 3:
+            if (isXl) return 8;
+            if (isLg) return 7;
+            if (isMd) return 5;
+            return 4;
+        case 4:
+            if (isXl) return 6;
+            if (isLg) return 5;
+            if (isMd) return 4;
+            return 3;
+        default:
+            return 5;
+    }
+}
+
+function getPhotoKey(photo: PhotoView): string {
+    return `${photo.id}-${photo.deviceFingerprint}-${photo.libraryId}`;
+}
+
+function PhotoGrid({ photos, selectedIds, size, dateKey, containerHeight, hasMore, isLoading, onLoadMore, maintainAspectRatio, changeTitle, ...clickProps }: PhotoGridProps) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState(0);
+    const [currentSectionTitle, setCurrentSectionTitle] = useState<string | null>(null);
+
+    // Observe container width changes
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        // On macos, scrollbars overlay content, so no need to subtract width
+        // on other OS, we subtract a fixed width to account for scrollbar
+        const scrollBarWidth = isMacosTheme() ? 0 : 15;
+
+        const updateWidth = () => {
+            const width = container.offsetWidth - scrollBarWidth;
+            if (width > 0) {
+                setContainerWidth(width);
+            }
+        };
+
+        const resizeObserver = new ResizeObserver(() => {
+            updateWidth();
+        });
+
+        resizeObserver.observe(container);
+        updateWidth();
+
+        return () => resizeObserver.disconnect();
+    }, []);
+
+    const columnCount = useMemo(
+        () => getColumnsForZoom(size, containerWidth),
+        [size, containerWidth]
+    );
+
+    // Calculate cell size - each cell is square (width = height)
+    // Grid positions cells without gaps, so we use padding inside cells for spacing
+    const cellSize = containerWidth > 0 ? Math.floor(containerWidth / columnCount) : 0;
+
+    // Total items = photos + 1 loader/footer row (spanning full width) + 1 spacer row at top
+    const totalPhotos = photos.length;
+    const rowCount = 1 + Math.ceil(totalPhotos / columnCount) + (hasMore || totalPhotos > 0 ? 1 : 0);
+
+    // Set initial section title
+    useEffect(() => {
+        if (photos.length > 0) {
+            const date = new Date(photos[0][dateKey]);
+            const title = dateToTitle(date, size <= 2 ? 'month' : 'day', new Date());
+            if (isMacosTheme()) {
+                changeTitle?.(title);
+            } else {
+                setCurrentSectionTitle(title);
+            }
+        }
+    }, [photos, dateKey, size, changeTitle]);
+
+    // Handle visible cells to update date indicator
+    const handleCellsRendered = useCallback((visibleCells: { rowStartIndex: number; rowStopIndex: number; columnStartIndex: number; columnStopIndex: number }) => {
+        const { rowStartIndex } = visibleCells;
+        const adjustedRowStart = Math.max(0, rowStartIndex - 1); // Account for spacer row
+        const photoIndex = adjustedRowStart * columnCount;
+        if (photoIndex < photos.length) {
+            const photo = photos[photoIndex];
+            const date = new Date(photo[dateKey]);
+            const title = dateToTitle(date, size <= 2 ? 'month' : 'day', new Date());
+            if (isMacosTheme()) {
+                changeTitle?.(title);
+            } else {
+                setCurrentSectionTitle(title);
+            }
+        }
+    }, [photos, columnCount, dateKey, size, changeTitle]);
+
+    type CellProps = {
+        photos: PhotoView[];
+        selectedIds: Set<string>;
+        columnCount: number;
+        hasMore: boolean;
+        totalPhotos: number;
+        clickProps: ClickProps;
+        onLoadMore: () => void;
+        maintainAspectRatio?: boolean;
+    };
+
+    const CellComponent = useCallback(({
+        rowIndex,
+        columnIndex,
+        style,
+        photos,
+        selectedIds,
+        columnCount,
+        hasMore,
+        totalPhotos,
+        clickProps,
+        onLoadMore,
+        maintainAspectRatio,
+    }: {
+        rowIndex: number;
+        columnIndex: number;
+        style: React.CSSProperties;
+    } & CellProps) => {
+        // Row 0 is the spacer row
+        if (rowIndex === 0) {
+            return null;
+        }
+        const adjustedRowIndex = rowIndex - 1;
+        const photoIndex = adjustedRowIndex * columnCount + columnIndex;
+        const isLastRow = adjustedRowIndex === Math.ceil(totalPhotos / columnCount);
+
+        // Last row: loader or footer (only render in first column, spanning conceptually)
+        if (isLastRow) {
+            if (columnIndex === 0) {
+                if (hasMore) {
+                    return (
+                        <div style={style} className='flex justify-center items-center'>
+                            <Loading onVisible={onLoadMore} />
+                        </div>
+                    );
+                }
+            }
+            return null;
+        }
+
+        // No photo at this index
+        if (photoIndex >= totalPhotos) {
+            return null;
+        }
+
+        const photo = photos[photoIndex];
+        const isSelected = selectedIds.has(getPhotoKey(photo));
+        return (
+            <div style={style} className="p-[2px]">
+                <ThumbnailPhoto item={photo} isSelected={isSelected} maintainAspectRatio={maintainAspectRatio} {...clickProps} />
+            </div>
+        );
+    }, []);
+
+    const cellProps = useMemo((): CellProps => ({
+        photos,
+        selectedIds,
+        columnCount,
+        hasMore,
+        totalPhotos,
+        clickProps,
+        onLoadMore,
+        maintainAspectRatio,
+    }), [photos, selectedIds, columnCount, hasMore, totalPhotos, clickProps, onLoadMore, maintainAspectRatio]);
+
+    const getRowHeight = useCallback((index: number): number => {
+        if (index === 0) {
+            return isMacosTheme() ? 48 : 0; // Only add extra space at top for macOS.
+        }
+        const adjustedIndex = index - 1;
+        const isLastRow = adjustedIndex === Math.ceil(totalPhotos / columnCount);
+        if (isLastRow) {
+            return 80; // loader/footer height
+        }
+        return cellSize; // Same as column width for square cells
+    }, [totalPhotos, columnCount, cellSize]);
+
+    if (photos.length === 0 || containerWidth === 0) {
+        return <div ref={containerRef} className='select-none w-full h-full' />;
+    }
+
+    return (
+        <div ref={containerRef} className='select-none w-full relative'>
+            {/* Fixed date indicator - only show for non-macOS */}
+            {!isMacosTheme() && currentSectionTitle && (
+                <div className='absolute top-2 left-4 z-20 font-medium pointer-events-none text-sm px-3 py-2 bg-background/90 rounded-md shadow-sm'>
+                    {currentSectionTitle}
+                </div>
+            )}
+            <Grid<CellProps>
+                cellComponent={CellComponent}
+                cellProps={cellProps}
+                columnCount={columnCount}
+                columnWidth={cellSize}
+                rowCount={rowCount}
+                rowHeight={getRowHeight}
+                overscanCount={3}
+                onCellsRendered={handleCellsRendered}
+                style={{ height: containerHeight, width: '100%' }}
+            />
+        </div>
+    );
+}
+
 export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: PhotosPageProps) {
-    const [photos, setPhotos] = useState<PhotoView[]>([]);
-    const isLoadingRef = useRef(false);
-    const [hasMore, setHasMore] = useState<{
-        [key: string]: boolean;
-    }>({});
-    const [error, setError] = useState(null);
     const [zoom, setZoom] = useState(3);
     const [selectMode, setSelectMode] = useState(false);
+    const [maintainAspectRatio, setMaintainAspectRatio] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [containerHeight, setContainerHeight] = useState(600);
+    const contentContainerRef = useRef<HTMLDivElement>(null);
+    // Use a ref to track the right-clicked item to avoid stale closure issues
+    const rightClickedItemRef = useRef<PhotoView | null>(null);
 
-    const selectedPhotos = useMemo(() => photos.filter(item => item.isSelected), [photos]);
-    const selectedCount = useMemo(() => selectedPhotos.length, [selectedPhotos]);
-    const [photoForPreview, setPhotoForPreview] = useState<PhotoView | null>(null);
-    const { toast } = useToast();
-    const { applyUpdates } = usePhotosUpdates({
-        setPhotos,
-        fetchOptions,
-        setHasMore
-    });
+    const { photos, setPhotos, hasMore, isLoading, error, load } = usePhotos(fetchOptions);
 
-    const countsRef = useRef<{ [libHash: string]: number }>({});
+    const { peers } = useAppState();
 
-    const showSpinner = useMemo(() => {
-        const canLoadMore = !!(fetchOptions.libraries.find((lib) => hasMore[libraryHash(lib)] === undefined || hasMore[libraryHash(lib)]));
-        //const pendingMerges = !!Object.keys(toBeMerged).length;
-        return canLoadMore; // || pendingMerges;
-    }, [fetchOptions.libraries, hasMore]);
+    const [currentSectionTitle, setCurrentSectionTitle] = useState<string | null>(null);
 
-    const fetchIdRef = useRef<number>(0);
-
-    const loadPhotos = useCallback(async () => {
-        if (isLoadingRef.current) return;
-
-        const libs = fetchOptions.libraries.filter((lib) => (hasMore[libraryHash(lib)] === undefined || hasMore[libraryHash(lib)]));
-        if (!libs.length) return;
-
-        isLoadingRef.current = true;
-        const fetchId = ++fetchIdRef.current;
-        setError(null);
-        console.log('loading photos', libs, countsRef.current, hasMore);
-        const newPhotos: PhotoView[][] = [];
-        const resultCount: { [libHash: string]: number } = {};
-
-        const promises = libs.map(async (lib) => {
-            const storagePhotos = await listPhotos({
-                offset: countsRef.current[libraryHash(lib)] || 0,
-                limit: FETCH_LIMIT,
-                sortBy: fetchOptions.sortBy,
-                storageId: lib.storageId,
-                libraryId: lib.id,
-                ascending: fetchOptions.ascending ?? true,
-            });
-            if (!isLoadingRef.current) return;
-            const storagePhotoViews: PhotoView[] = storagePhotos.map((p) => ({
-                ...p,
-                isSelected: false,
-                storageId: lib.storageId,
-                libraryId: lib.id,
-            }));
-            if (storagePhotoViews.length) {
-                newPhotos.push(storagePhotoViews);
-            }
-            resultCount[libraryHash(lib)] = storagePhotos.length;
-        });
-
-        try {
-            await Promise.all(promises);
-        } catch (err: any) {
-            console.error(err);
-            toast({
-                type: 'foreground',
-                title: `Could not fetch photos`,
-                description: err.message,
-                color: 'red',
-            });
-            isLoadingRef.current = false;
-            return;
-        }
-
-        if (!isLoadingRef.current) return;
-        if (fetchId !== fetchIdRef.current) return;
-
-        const { merged, discarded } = mergePhotosList(newPhotos, fetchOptions.sortBy, fetchOptions.ascending ?? true);
-
-        const discardedCounts: { [libHash: string]: number } = {};
-        discarded.forEach((plist) => {
-            plist.forEach((p) => {
-                const hash = libraryHashFromId(p.storageId, p.libraryId);
-                discardedCounts[hash] = (discardedCounts[hash] + 1) || 1;
-            });
-        });
-
-        setHasMore((prev) => {
-            const newHasMore = { ...prev };
-            libs.forEach((lib) => {
-                const hash = libraryHash(lib);
-                newHasMore[hash] = resultCount[hash] === undefined || resultCount[hash] === FETCH_LIMIT || (discardedCounts[hash] || 0) > 0;
-            });
-            return newHasMore;
-        });
-
-        libs.forEach((lib) => {
-            const hash = libraryHash(lib);
-            countsRef.current[hash] = (countsRef.current[hash] || 0) + (resultCount[hash] || 0) - (discardedCounts[hash] || 0);
-        });
-
-        setPhotos((prevPhotos) => [...prevPhotos, ...merged]);
-
-        isLoadingRef.current = false;
-    }, [fetchOptions.ascending, fetchOptions.libraries, fetchOptions.sortBy, hasMore, toast]);
-
-    const [currentFetchOptions, setCurrentFetchOptions] = useState<PhotosFetchOptions>(fetchOptions);
+    // Observe content container height
     useEffect(() => {
-        const currentLibHashes = currentFetchOptions.libraries.map(libraryHash);
-        const newLibHashes = fetchOptions.libraries.map(libraryHash);
-        const hasChanged = (
-            currentFetchOptions.sortBy !== fetchOptions.sortBy ||
-            currentFetchOptions.ascending !== fetchOptions.ascending ||
-            currentFetchOptions.libraries.length !== fetchOptions.libraries.length ||
-            currentLibHashes.some((id) => !newLibHashes.includes(id))
-        );
-        if (hasChanged) {
-            console.log('Fetch options changed, resetting photos..');
-            isLoadingRef.current = false;
-            fetchIdRef.current++; // invalidate any ongoing fetches
-            setPhotos([]);
-            setHasMore({});
-            countsRef.current = {};
-            setCurrentFetchOptions(fetchOptions);
+        const container = contentContainerRef.current;
+        if (!container) return;
+
+        const updateHeight = () => {
+            // Get available height (viewport height minus page bar and padding)
+            const rect = container.getBoundingClientRect();
+            let availableHeight = window.innerHeight - rect.top - (isMacosTheme() ? 0 : 10);
+            setContainerHeight(Math.max(400, availableHeight));
+        };
+
+        const resizeObserver = new ResizeObserver(updateHeight);
+        resizeObserver.observe(container);
+        updateHeight();
+        window.addEventListener('resize', updateHeight);
+
+        return () => {
+            resizeObserver.disconnect();
+            window.removeEventListener('resize', updateHeight);
+        };
+    }, []);
+
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const selectedCount = selectedIds.size;
+    const selectedPhotos = useMemo(() => photos.filter(p => selectedIds.has(getPhotoKey(p))), [photos, selectedIds]);
+    const [photoForPreview, setPhotoForPreview] = useState<PhotoView | null>(null);
+
+    const getCurrentSelectedItems = useCallback((): PhotoView[] => {
+        const items = [...selectedPhotos];
+        const rightClickedItem = rightClickedItemRef.current;
+        if (rightClickedItem !== null) {
+            // Ensure the right-clicked item is included
+            const isAlreadyIncluded = items.find(i => i.id === rightClickedItem.id);
+            if (!isAlreadyIncluded) {
+                items.push(rightClickedItem);
+            }
         }
-    }, [currentFetchOptions.ascending, currentFetchOptions.libraries, currentFetchOptions.sortBy, fetchOptions, isLoadingRef]);
+        return items;
+    }, [selectedPhotos]);
 
     const fetchNew = useCallback(async () => {
         console.log('fetchNew')
-        await loadPhotos();
-    }, [loadPhotos]);
+        await load();
+    }, [load]);
 
     const zoomIn = useCallback(() => {
         if (zoom >= 4) return;
@@ -297,18 +404,17 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const selectPhoto = useCallback((item: PhotoView, toggle = true, persistSelection?: boolean) => {
         const persistSelection_ = selectMode || persistSelection;
-        setPhotos((prevPhotos) => prevPhotos.map((p) => {
-            if (p.id === item.id && p.storageId === item.storageId && p.libraryId === item.libraryId) {
-                return {
-                    ...p,
-                    isSelected: toggle ? !p.isSelected : true,
-                }
+        const key = getPhotoKey(item);
+
+        setSelectedIds((prev) => {
+            const next = persistSelection_ ? new Set(prev) : new Set<string>();
+            if (toggle && prev.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
             }
-            if (persistSelection_) {
-                return p;
-            }
-            return { ...p, isSelected: false };
-        }));
+            return next;
+        });
     }, [selectMode]);
 
     const previewPhoto = useCallback((item: PhotoView) => {
@@ -329,18 +435,8 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         previewPhoto(item);
     }, [previewPhoto]);
 
-    const onRightClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
-        selectPhoto(item, false, true);
-    }, [selectPhoto]);
-
     const onClickOutside = useCallback(() => {
-        setPhotos((prevPhotos) => prevPhotos.map((p) => {
-            if (!p.isSelected) return p;
-            return {
-                ...p,
-                isSelected: false,
-            }
-        }));
+        setSelectedIds(new Set());
     }, []);
 
     const onRightClickOutside = useCallback((e: React.MouseEvent) => {
@@ -348,43 +444,15 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         onClickOutside()
     }, [onClickOutside])
 
-    const previewSelected = useCallback(() => {
-        if (selectedCount !== 1) return;
-        const selectedPhoto = selectedPhotos[0];
-        previewPhoto(selectedPhoto);
-    }, [previewPhoto, selectedCount, selectedPhotos]);
-
     const deleteSelected = useCallback(async () => {
         if (!selectedCount) return;
-        const delMap = new Map<string, { ids: number[]; storageId: number; libraryId: number; }>();
-        selectedPhotos.forEach((p) => {
-            const libHash = libraryHashFromId(p.storageId, p.libraryId);
-            const photos = delMap.get(libHash) ?? { ids: [], storageId: p.storageId, libraryId: p.libraryId };
-            photos.ids.push(p.id);
-            delMap.set(libHash, photos);
-        });
-        const promises: Promise<void>[] = [];
-        const errors: string[] = [];
-        delMap.forEach((del) => {
-            promises.push((async () => {
-                try {
-                    const res = await deletePhotos(del);
-                    applyUpdates({
-                        add: [],
-                        update: {},
-                        delete: res.deletedIds,
-                    }, del.storageId, del.libraryId);
-                } catch (err: any) {
-                    errors.push(err.message);
-                }
-            })());
-        });
-        await Promise.allSettled(promises);
-        if (errors.length) {
-            console.error('photos delete errors:', errors);
-            throw new Error(errors.join('\n'));
-        }
-    }, [applyUpdates, selectedCount, selectedPhotos]);
+        const idsToDel = selectedPhotos.map((p) => p.id);
+        const serviceController = await getServiceController(fetchOptions.deviceFingerprint);
+        const { deletedIds } = await serviceController.photos.deletePhotos(fetchOptions.library.id, idsToDel);
+        setPhotos((prevPhotos) => prevPhotos.filter((p) => !deletedIds.includes(p.id)));
+        setSelectedIds(new Set());
+        setDeleteDialogOpen(false);
+    }, [fetchOptions.deviceFingerprint, fetchOptions.library.id, selectedCount, selectedPhotos, setPhotos]);
 
     const openDeleteDialog = useCallback(() => {
         setDeleteDialogOpen(true);
@@ -394,11 +462,143 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         setSelectMode((prev) => !prev);
     }, []);
 
+    const toggleAspectRatio = useCallback(() => {
+        setMaintainAspectRatio((prev) => !prev);
+    }, []);
+
     const selectAll = useCallback(() => {
-        setPhotos((prevPhotos) => prevPhotos.map((p) => ({
-            ...p,
-            isSelected: true,
-        })));
+        setSelectedIds(new Set(photos.map(p => getPhotoKey(p))));
+    }, [photos]);
+
+    const openInDevice = useCallback(async (photo: PhotoView, fingerprint: string | null) => {
+        try {
+            const serviceController = await getServiceController(fingerprint);
+            await serviceController.files.openFile(photo.deviceFingerprint, photo.fileId);
+        } catch (e: any) {
+            console.error(e);
+        }
+    }, []);
+
+    const sendToDevice = useCallback(async (file: PhotoView, fingerprint: string) => {
+        try {
+            const serviceController = await getServiceController(fingerprint);
+            await serviceController.files.download(window.modules.config.FINGERPRINT, file.fileId);
+        } catch (e: any) {
+            console.error(e);
+        }
+    }, []);
+
+    const copy = useCallback(async () => {
+        const selectedIds = getCurrentSelectedItems().map(item => item.fileId);
+        await setItemsToCopy(fetchOptions.deviceFingerprint, selectedIds, false);
+    }, [getCurrentSelectedItems, fetchOptions.deviceFingerprint]);
+
+    const download = useCallback(async (item: PhotoView) => {
+        const localSc = window.modules.getLocalServiceController();
+        await localSc.files.download(fetchOptions.deviceFingerprint, item.fileId);
+    }, [fetchOptions.deviceFingerprint]);
+
+    const share = useCallback(async () => {
+        const selectedItems = getCurrentSelectedItems();
+        const fileIds = selectedItems.map(item => item.fileId);
+        if (fileIds.length === 0) return;
+        const localSc = window.modules.getLocalServiceController();
+        localSc.files.shareFiles(fetchOptions.deviceFingerprint, fileIds);
+    }, [getCurrentSelectedItems, fetchOptions.deviceFingerprint]);
+
+    const handleContextMenuClick = useCallback((id: string) => {
+        const clickedItem = rightClickedItemRef.current;
+
+        if (id.startsWith('openInDevice=')) {
+            const fingerprint = id.split('=')[1];
+            if (clickedItem) openInDevice(clickedItem, fingerprint);
+        }
+
+        if (id.startsWith('sendToDevice=')) {
+            const fingerprint = id.split('=')[1];
+            if (clickedItem) sendToDevice(clickedItem, fingerprint);
+        }
+
+        switch (id) {
+            case 'selectAll':
+                selectAll();
+                break;
+            case 'preview':
+                if (clickedItem) previewPhoto(clickedItem);
+                break;
+            case 'openNative':
+                if (clickedItem) openInDevice(clickedItem, null);
+                break;
+            case 'delete':
+                openDeleteDialog();
+                break;
+            case 'copy':
+                copy();
+                break;
+            case 'download':
+                if (clickedItem) download(clickedItem);
+                break;
+            case 'share':
+                share();
+                break;
+        }
+        rightClickedItemRef.current = null;
+    }, [openInDevice, sendToDevice, selectAll, previewPhoto, openDeleteDialog, copy, download, share]);
+
+    const onRightClick = useCallback((item: PhotoView, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Store the right-clicked item in ref for use in menu handlers
+        rightClickedItemRef.current = item;
+
+        selectPhoto(item, false, true);
+
+        // Build menu items directly to avoid state delay
+        const isAlreadySelected = selectedIds.has(getPhotoKey(item));
+        const currentSelectedCount = isAlreadySelected ? selectedCount : selectedCount + 1;
+
+        const items: ContextMenuItem[] = [];
+        if (currentSelectedCount === 1) {
+            items.push({ id: 'preview', label: 'Preview' });
+            items.push({ id: 'openNative', label: 'Open as File' });
+            items.push({
+                id: 'openInDevice',
+                label: 'Open in Device',
+                subItems: peers.map(p => {
+                    return {
+                        id: `openInDevice=${p.fingerprint}`,
+                        label: p.deviceName,
+                    }
+                })
+            });
+            items.push({
+                id: 'sendToDevice',
+                label: 'Send to Device',
+                subItems: peers.map(p => {
+                    return {
+                        id: `sendToDevice=${p.fingerprint}`,
+                        label: p.deviceName,
+                    }
+                })
+            });
+            items.push({ id: 'download', label: 'Download' });
+        }
+        items.push({ id: 'copy', label: 'Copy' });
+        isMacos() && items.push({ id: 'share', label: 'Export' });
+        items.push({
+            id: 'delete',
+            label: currentSelectedCount === 1 ? 'Delete photo' : `Delete (${currentSelectedCount}) photos`,
+        });
+
+        window.utils.openContextMenu(items, handleContextMenuClick);
+    }, [selectPhoto, selectedIds, selectedCount, handleContextMenuClick, peers]);
+
+    const getContainerContextMenuItems = useCallback((): ContextMenuItem[] | undefined => {
+        const items: ContextMenuItem[] = [];
+        items.push({ id: 'paste', label: 'Paste', disabled: true });
+        items.push({ id: 'selectAll', label: 'Select all' });
+        return items;
     }, []);
 
     return (
@@ -406,95 +606,81 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
             <Head>
                 <title>{pageTitle}</title>
             </Head>
-            <main>
-                <PhotosPreviewModal
-                    photos={photos}
-                    photo={photoForPreview}
-                    changePhoto={(photo) => setPhotoForPreview(photo)}
-                />
-                <PageBar title={pageTitle} icon={pageIcon}>
-                    <Button title='Toggle select mode' onClick={toggleSelectMode} variant={selectMode ? 'secondary' : 'ghost'} size='icon'>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+
+            <PhotosPreviewModal
+                photos={photos}
+                photo={photoForPreview}
+                changePhoto={(photo) => setPhotoForPreview(photo)}
+            />
+            <PageBar title={currentSectionTitle || pageTitle} icon={pageIcon}>
+                <MenuGroup>
+                    <MenuButton title='Toggle select mode' onClick={toggleSelectMode} selected={selectMode}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                    </Button>
-                    <Button variant='ghost' title='Zoom In' size='icon' disabled={zoom >= 4} onClick={zoomIn}>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    </MenuButton>
+                </MenuGroup>
+                <MenuGroup>
+                    <MenuButton title='Maintain aspect ratio' onClick={toggleAspectRatio} selected={maintainAspectRatio}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+                        </svg>
+                    </MenuButton>
+                </MenuGroup>
+                <MenuGroup>
+                    <MenuButton title='Zoom In' disabled={zoom >= 4} onClick={zoomIn}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
                         </svg>
-                    </Button>
-                    <Button variant='ghost' title='Zoom Out' size='icon' disabled={zoom <= 1} onClick={zoomOut}>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    </MenuButton>
+                    <MenuButton title='Zoom Out' disabled={zoom <= 1} onClick={zoomOut}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM13.5 10.5h-6" />
                         </svg>
-                    </Button>
-                </PageBar>
-                <ContextMenu>
-                    <ContextMenuTrigger>
-                        <div
-                            onClick={onClickOutside}
-                            onContextMenu={onRightClickOutside}
-                            className='min-h-[90vh]'
-                        >
-                            <TimeBasedGrid
-                                dateKey={fetchOptions.sortBy}
-                                photos={photos}
-                                size={zoom}
-                                onClick={onClick}
-                                onDoubleClick={onDoubleClick}
-                                onRightClick={onRightClick}
-                            />
-                            {
-                                !error && !showSpinner && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
-                                    <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' priority width={0} height={0} />
-                                    <div className='text-lg font-semibold'>Nothing to see here, except for the cat.</div>
-                                </div>
-                            }
-                            {error && !showSpinner && <div className='p-5 py-10 flex justify-center items-center text-red-500'>
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                                </svg>
-                                <span className='ml-2 text-sm'>{error}</span>
-                            </div>}
-                            {!error && showSpinner && <div className='p-5 py-10 flex justify-center items-center'>
-                                <Loading onVisible={fetchNew} />
-                            </div>}
-                            {
-                                !error && !showSpinner && photos.length > 0 && <div className='p-5 py-10 flex justify-center items-center text-gray-500'>
-                                    <span className='text-sm font-medium'>{photos.length} photo(s).</span>
-                                </div>
-                            }
-                        </div>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
+                    </MenuButton>
+                </MenuGroup>
+            </PageBar>
+            <PageContent className='pt-0'>
+                <ContextMenuArea
+                    onMenuOpen={getContainerContextMenuItems}
+                    onMenuItemClick={handleContextMenuClick}
+                    style={{ width: '100%', 'height': '100%' }}
+                >
+                    <div
+                        ref={contentContainerRef}
+                        onClick={onClickOutside}
+                        onContextMenu={onRightClickOutside}
+                        className={cn(isMacosTheme() ? 'px-1' : 'px-7')}
+                    >
+                        <PhotoGrid
+                            dateKey={fetchOptions.sortBy}
+                            photos={photos}
+                            selectedIds={selectedIds}
+                            size={zoom}
+                            containerHeight={containerHeight}
+                            onClick={onClick}
+                            onDoubleClick={onDoubleClick}
+                            onRightClick={onRightClick}
+                            hasMore={hasMore}
+                            isLoading={isLoading}
+                            onLoadMore={fetchNew}
+                            maintainAspectRatio={maintainAspectRatio}
+                            changeTitle={setCurrentSectionTitle}
+                        />
                         {
-                            selectedCount === 0 && (
-                                <>
-                                    <ContextMenuItem disabled>Paste</ContextMenuItem>
-                                    <ContextMenuItem onClick={selectAll}>Select all</ContextMenuItem>
-                                </>
-                            )
+                            !error && !hasMore && !photos.length && <div className='p-5 py-10 min-h-[50vh] flex flex-col justify-center items-center'>
+                                <Image src='/img/purr-remote-work.png' alt='No Photos' className='w-[14rem] h-auto max-w-[80vw]' priority width={0} height={0} />
+                                <div className='text-lg font-semibold'>Nothing to see here, except for the cat.</div>
+                            </div>
                         }
-                        {
-                            selectedCount === 1 && (
-                                <ContextMenuItem onClick={previewSelected}>
-                                    Preview
-                                </ContextMenuItem>
-                            )
-                        }
-                        {
-                            selectedCount > 0 && (
-                                <>
-                                    <ContextMenuItem disabled>Copy</ContextMenuItem>
-                                    <ContextMenuItem disabled>Cut</ContextMenuItem>
-                                    <ContextMenuItem onClick={openDeleteDialog} className='text-red-500'>
-                                        {`Delete ${selectedCount === 1 ? 'photo' : `(${selectedCount}) photos`}`}
-                                    </ContextMenuItem>
-                                </>
-                            )
-                        }
-                    </ContextMenuContent>
-                </ContextMenu>
+                        {error && <div className='p-5 py-10 flex justify-center items-center text-red-500'>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                            </svg>
+                            <span className='ml-2 text-sm'>{error}</span>
+                        </div>}
+                    </div>
+                </ContextMenuArea>
                 <ConfirmModal isOpen={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}
                     title={selectedCount > 1 ? `Delete (${selectedCount}) Photos?` : `Delete Photo?`}
                     description='These photos(s) will be deleted from the remote storage. You may not be able to recover them.'
@@ -502,7 +688,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                     buttonVariant='destructive'
                     onConfirm={deleteSelected}>
                 </ConfirmModal>
-            </main>
+            </PageContent>
         </>
     )
 }

@@ -1,11 +1,9 @@
-import { RemoteItem } from "@/lib/types";
 import { folderViewUrl } from "@/lib/urls";
 import { getKind, getDefaultIcon, canGenerateThumbnail } from "@/lib/fileUtils";
 import { useRouter } from "next/router";
 import LazyImage from "./lazyImage";
-import { cn, isMobile } from "@/lib/utils";
+import { cn, getServiceController, isMobile } from "@/lib/utils";
 import Image from "next/image";
-import { getThumbnail } from "@/lib/api/files";
 import { useCallback, useMemo } from "react";
 import {
     Accordion,
@@ -13,7 +11,7 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion"
-import { useAppState } from "./hooks/useAppState";
+import { FileRemoteItem } from "@/lib/types";
 
 export enum SortBy {
     Name = 'Name',
@@ -30,25 +28,15 @@ export enum GroupBy {
     ModifiedOn = 'ModifiedOn',
 }
 
-export type FileRemoteItem = RemoteItem & {
-    storageId: number | null;
-    isSelected: boolean;
-    assetUrl?: string;
-}
-
 function ThumbnailImage({ item, className }: { item: FileRemoteItem, className?: string }) {
     const dafaultSrc = useMemo(() => getDefaultIcon(item), [item]);
-    const { storages } = useAppState();
 
     const fetchThumbnailSrc = useCallback(async () => {
         if (item.type === 'directory') return null;
-        const storage = storages?.find(s => s.id === item.storageId);
-        if (!item.thumbnail && storage && canGenerateThumbnail(item, storage)) {
-            const thumbResp = await getThumbnail(storage.id, item.id);
-            item.thumbnail = thumbResp;
-        }
-        return item.thumbnail;
-    }, [item, storages]);
+        const serviceController = await getServiceController(item.deviceFingerprint);
+        if (!canGenerateThumbnail(item)) return null;
+        return serviceController.thumbnail.generateThumbnailURI(item.path);
+    }, [item]);
 
     return (<LazyImage
         fetchSrc={fetchThumbnailSrc}
@@ -84,14 +72,14 @@ function GridItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
     return (<div onDoubleClick={onDbClick_}
         onClick={onClick_}
         onContextMenu={onRightClick_}
-        className={`fileItem select-none flex flex-col cursor-default justify-center items-center text-center rounded-md p-2 min-w-[8rem] ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}>
+        className={`fileItem select-none flex flex-col cursor-default justify-center items-center text-center rounded-md p-2 min-w-[8rem] ${item.isSelected ? 'bg-secondary text-secondary-foreground' : 'hover:bg-muted'}`}>
         <div className="pb-1">
             <ThumbnailImage item={item} />
         </div>
         <div title={item.name} className="mt-2 text-xs font-medium overflow-ellipsis overflow-hidden max-w-[8rem]">
             {item.name}
         </div>
-        <div className="mt-1 text-xs text-gray-500">
+        <div className="mt-1 text-xs text-foreground/70">
             <span>{getKind(item)}</span>
         </div>
     </div>)
@@ -110,7 +98,7 @@ function ListItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
         onRightClick && onRightClick(item, e);
     }
 
-    return (<div className={`fileItem select-none flex items-center px-4 py-2 space-x-3 shadow-sm ${item.isSelected ? 'bg-blue-100' : 'hover:bg-muted'}`}
+    return (<div className={`fileItem select-none flex items-center px-4 py-2 space-x-3 shadow-sm ${item.isSelected ? 'bg-secondary text-secondary-foreground' : 'hover:bg-muted'}`}
         onDoubleClick={onDbClick_}
         onClick={onClick_}
         onContextMenu={onRightClick_}>
@@ -118,8 +106,8 @@ function ListItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
             <ThumbnailImage className="h-[2.5rem] w-[3rem]" item={item} />
         </div>
         <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-gray-900 truncate">{item.name}</div>
-            <div className="text-sm text-gray-500">
+            <div className="text-sm font-medium text-foreground truncate">{item.name}</div>
+            <div className="text-sm text-foreground/70">
                 <span>{item.type}</span>
             </div>
         </div>
@@ -136,14 +124,14 @@ export type GroupParams = Omit<ItemParams & {
 export function Group({ items, title, view, onDbClick, onClick, ...rest }: GroupParams) {
     const router = useRouter();
 
-    const onDbClick_ = useCallback((item: RemoteItem, e: React.MouseEvent) => {
-        if (item.type === 'directory' && 'storageId' in item) {
+    const onDbClick_ = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
+        if (item.type === 'directory' && 'deviceFingerprint' in item) {
             e.stopPropagation();
-            router.push(folderViewUrl(item.storageId as number, item.id))
+            router.push(folderViewUrl(item.deviceFingerprint, item.path))
         }
     }, [router]);
 
-    const onClick_ = useCallback((item: RemoteItem, e: React.MouseEvent) => {
+    const onClick_ = useCallback((item: FileRemoteItem, e: React.MouseEvent) => {
         if (isMobile()) {
             onDbClick_(item, e);
         }
@@ -151,7 +139,7 @@ export function Group({ items, title, view, onDbClick, onClick, ...rest }: Group
 
     const main = view === 'grid'
         ? (<div className="grid gap-3 grid-cols-3 md:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:cols-8">
-            {items.map(item => <div key={item.storageId + item.id} className="h-full w-full flex justify-center items-center">
+            {items.map(item => <div key={item.deviceFingerprint + item.path} className="h-full w-full flex justify-center items-center">
                 <GridItem
                     onDbClick={onDbClick || onDbClick_}
                     onClick={onClick || onClick_}
@@ -163,7 +151,7 @@ export function Group({ items, title, view, onDbClick, onClick, ...rest }: Group
             {items.map(item => <ListItem
                 onDbClick={onDbClick || onDbClick_}
                 onClick={onClick || onClick_}
-                key={item.storageId + item.id}
+                key={item.deviceFingerprint + item.path}
                 {...rest}
                 item={item} />)}
         </div>)
@@ -190,7 +178,7 @@ export type FilesViewParams = GroupParams & {
 
 export default function FilesView({ items, groupBy, ...rest }: FilesViewParams) {
 
-    if (items.length === 0) return (<div className="min-h-[80vh] p-5 flex flex-col justify-center items-center text-center text-gray-500">
+    if (items.length === 0) return (<div className="min-h-[80vh] p-5 flex flex-col justify-center items-center text-center text-foreground/70">
         <div className="pb-3">
             <Image src="/img/purr-page-not-found.png" priority alt="Empty" width={200} height={200} />
         </div>

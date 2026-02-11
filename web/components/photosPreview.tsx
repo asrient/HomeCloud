@@ -13,16 +13,57 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSwipeable } from 'react-swipeable'
 import { variants } from '@/lib/animationVariants'
 import type { PhotoView } from '@/lib/types'
-import { downloadFile, getThumbnail } from '@/lib/api/files'
 import LazyImage from './lazyImage'
-import { getFileUrl } from '@/lib/fileUtils'
+import { getFileUrl, getUnsupportedFormatMessage } from '@/lib/fileUtils'
 import { toast } from './ui/use-toast'
+import { cn, getServiceController, isMacosTheme } from '@/lib/utils'
 
 type ThumbnailPhotoProps = {
   item: PhotoView;
   className?: string;
   height?: number;
   width?: number;
+}
+
+type ActionButtonProps = {
+  onClick: (e: React.MouseEvent) => void;
+  title?: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+function ActionButton({ onClick, title, children, className = '' }: ActionButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full bg-black/50 p-2 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white ${className}`}
+      title={title}
+    >
+      {children}
+    </button>
+  );
+}
+
+type NavigationButtonProps = {
+  direction: 'left' | 'right';
+  onClick: () => void;
+}
+
+function NavigationButton({ direction, onClick }: NavigationButtonProps) {
+  const isLeft = direction === 'left';
+  return (
+    <button
+      className={`absolute z-50 ${isLeft ? 'left-6' : 'right-6'} top-[calc(50%-16px)] rounded-full bg-black/50 p-3 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white focus:outline-none`}
+      style={{ transform: 'translate3d(0, 0, 0)' }}
+      onClick={onClick}
+    >
+      {isLeft ? (
+        <ChevronLeftIcon className="h-5 w-5" />
+      ) : (
+        <ChevronRightIcon className="h-5 w-5" />
+      )}
+    </button>
+  );
 }
 
 function ThumbnailPhoto({ item, className, height, width }: ThumbnailPhotoProps) {
@@ -32,8 +73,8 @@ function ThumbnailPhoto({ item, className, height, width }: ThumbnailPhotoProps)
     if (item.thumbnail) {
       return item.thumbnail;
     }
-    const thumbResp = await getThumbnail(item.storageId, item.fileId);
-    item.thumbnail = thumbResp;
+    const serviceController = await getServiceController(item.deviceFingerprint);
+    item.thumbnail = await serviceController.thumbnail.generateThumbnailURI(item.fileId);
     return item.thumbnail;
   }, [item]);
 
@@ -70,19 +111,20 @@ export default function PhotosPreview({
 
   const index = useMemo(() => {
     if (images) {
-      return images.findIndex((img: PhotoView) => img.id === currentPhoto.id && img.storageId === currentPhoto.storageId)
+      return images.findIndex((img: PhotoView) => img.id === currentPhoto.id && img.deviceFingerprint === currentPhoto.deviceFingerprint)
     }
     return 0
-  }, [currentPhoto.id, currentPhoto.storageId, images])
+  }, [currentPhoto.id, currentPhoto.deviceFingerprint, images])
 
   const downloadPhoto = useCallback(async () => {
-    const storageId = currentPhoto.storageId;
+    const deviceFingerprint = currentPhoto.deviceFingerprint;
     const fileId = currentPhoto.fileId;
     toast({
       title: 'Download started',
     });
     try {
-      await downloadFile(storageId, fileId);
+      const serviceController = await getServiceController(null);
+      await serviceController.files.download(deviceFingerprint, fileId);
       toast({
         title: 'Photo downloaded',
       });
@@ -94,7 +136,7 @@ export default function PhotosPreview({
         description: fileId,
       });
     }
-  }, [currentPhoto.fileId, currentPhoto.storageId]);
+  }, [currentPhoto.fileId, currentPhoto.deviceFingerprint]);
 
   useEffect(() => {
     if (currentPhotoRef.current === currentPhoto) return;
@@ -109,7 +151,7 @@ export default function PhotosPreview({
         return;
       }
       try {
-        const url = getFileUrl(currentPhoto.storageId, currentPhoto.fileId);
+        const url = getFileUrl(currentPhoto.deviceFingerprint, currentPhoto.fileId);
         if (currentPhotoRef.current !== currentPhoto) return;
         currentPhoto.assetUrl = url;
         setAssetUrl(currentPhoto.assetUrl);
@@ -148,6 +190,10 @@ export default function PhotosPreview({
     return currentPhoto.mimeType.startsWith('video/');
   }, [currentPhoto.mimeType]);
 
+  const unsupportedMessage = useMemo(() => {
+    return getUnsupportedFormatMessage(currentPhoto.mimeType || '', currentPhoto.fileId || '');
+  }, [currentPhoto.mimeType, currentPhoto.fileId]);
+
   const thumbsButtonClick = useCallback((e: React.MouseEvent) => {
     setShowThumbs((prev) => !prev);
     e.stopPropagation();
@@ -166,9 +212,9 @@ export default function PhotosPreview({
         {...handlers}
       >
         {/* Main image */}
-        <div className="w-full overflow-hidden">
-          <div className="relative flex items-center justify-center">
-            <AnimatePresence initial={false} custom={direction}>
+        <div className="w-full h-full overflow-hidden">
+          <div className="relative flex items-center justify-center w-full h-full">
+            <AnimatePresence initial={false} custom={direction} mode="popLayout">
               <motion.div
                 key={index}
                 custom={direction}
@@ -176,7 +222,7 @@ export default function PhotosPreview({
                 initial="enter"
                 animate="center"
                 exit="exit"
-                className='h-full'
+                className='absolute inset-0 flex items-center justify-center'
               >
                 {error
                   ? (
@@ -185,20 +231,27 @@ export default function PhotosPreview({
                       <span className='text-center'>{error}</span>
                     </div>
                   )
-                  : isVideo && assetUrl
-                    ? (<video
-                      src={assetUrl}
-                      controls={true}
-                      className='h-full max-h-screen w-auto transform transition relative z-50'
-                    />)
-                    : (<Image
-                      src={assetUrl || currentPhoto.thumbnail || '/img/blank-tile.png'}
-                      width={0}
-                      height={0}
-                      className='h-full max-h-screen w-auto object-contain transform transition'
-                      priority
-                      alt="Preview Image"
-                    />)}
+                  : unsupportedMessage
+                    ? (
+                      <div className='flex flex-col items-center justify-center gap-2 p-4'>
+                        <ArrowDownTrayIcon className='h-10 w-10 text-white/70' />
+                        <span className='text-center text-white/70 text-sm max-w-xs'>{unsupportedMessage}</span>
+                      </div>
+                    )
+                    : isVideo && assetUrl
+                      ? (<video
+                        src={assetUrl}
+                        controls={true}
+                        className='h-full max-h-screen w-auto transform transition relative z-50'
+                      />)
+                      : (<Image
+                        src={assetUrl || currentPhoto.thumbnail || '/img/blank-tile.png'}
+                        width={0}
+                        height={0}
+                        className='h-full max-h-screen w-auto object-contain transform transition'
+                        priority
+                        alt="Preview Image"
+                      />)}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -212,50 +265,38 @@ export default function PhotosPreview({
               {images && (
                 <>
                   {index > 0 && (
-                    <button
-                      className="absolute z-50 left-6 top-[calc(50%-16px)] rounded-full bg-black/50 p-3 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white focus:outline-none"
-                      style={{ transform: 'translate3d(0, 0, 0)' }}
+                    <NavigationButton
+                      direction="left"
                       onClick={() => changePhoto(images[index - 1])}
-                    >
-                      <ChevronLeftIcon className="h-6 w-6" />
-                    </button>
+                    />
                   )}
                   {index + 1 < images.length && (
-                    <button
-                      className="absolute z-50 right-6 top-[calc(50%-16px)] rounded-full bg-black/50 p-3 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white focus:outline-none"
-                      style={{ transform: 'translate3d(0, 0, 0)' }}
+                    <NavigationButton
+                      direction="right"
                       onClick={() => changePhoto(images[index + 1])}
-                    >
-                      <ChevronRightIcon className="h-6 w-6" />
-                    </button>
+                    />
                   )}
                 </>
               )}
-              <div className="absolute z-50 top-0 right-0 flex items-center gap-2 p-6 text-white">
-                {<button
-                  onClick={downloadPhoto}
-                  className="rounded-full bg-black/50 p-2 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white"
-                  title="Download fullsize version">
+              <div className={cn(
+                "absolute z-50 right-0 flex items-center gap-2 p-6 text-white",
+                isMacosTheme() ? 'top-2' : 'top-4'
+              )}>
+                <ActionButton onClick={downloadPhoto} title="Download fullsize version">
                   <ArrowDownTrayIcon className="h-5 w-5" />
-                </button>}
-                {filteredImages && filteredImages.length > 0 && <button
-                  onClick={thumbsButtonClick}
-                  className="rounded-full bg-black/50 p-2 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white"
-                  title="Toggle Thumbnails">
-                  <RectangleStackIcon className="h-5 w-5" />
-                </button>}
-              </div>
-              <div className="absolute z-50 top-0 left-0 flex items-center gap-2 p-6 text-white">
-                <button
-                  onClick={() => closeModal()}
-                  className="rounded-full bg-black/50 p-2 text-white/75 backdrop-blur-lg transition hover:bg-black/75 hover:text-white"
-                >
+                </ActionButton>
+                {filteredImages && filteredImages.length > 0 && (
+                  <ActionButton onClick={thumbsButtonClick} title="Toggle Thumbnails">
+                    <RectangleStackIcon className="h-5 w-5" />
+                  </ActionButton>
+                )}
+                <ActionButton onClick={() => closeModal()}>
                   {filteredImages ? (
                     <XMarkIcon className="h-5 w-5" />
                   ) : (
                     <ArrowUturnLeftIcon className="h-5 w-5" />
                   )}
-                </button>
+                </ActionButton>
               </div>
             </div>
           )}
@@ -280,11 +321,10 @@ export default function PhotosPreview({
                       }}
                       exit={{ width: '0%' }}
                       onClick={() => changePhoto(photo)}
-                      key={`${photo.storageId}-${photo.id}`}
+                      key={`${photo.deviceFingerprint}-${photo.id}`}
                       className={`${photo === currentPhoto
                         ? 'z-20 rounded-md shadow shadow-black/50'
                         : 'z-10'
-                        } ${photo.id === 0 ? 'rounded-l-md' : ''} ${photo.id === images.length - 1 ? 'rounded-r-md' : ''
                         } relative inline-block w-full shrink-0 transform-gpu overflow-hidden focus:outline-none`}
                     >
                       <ThumbnailPhoto

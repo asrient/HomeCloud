@@ -11,7 +11,7 @@ export const variants = {
   },
   exit: (direction: number) => {
     return {
-      x: direction < 0 ? 1000 : -1000,
+      x: direction > 0 ? -1000 : 1000,
       opacity: 0,
     }
   },
