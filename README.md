@@ -36,7 +36,7 @@ Download and install HomeCloud on your phones, laptops, iPads.
 - **Desktop**: [GitHub Releases](https://github.com/asrient/HomeCloud/releases/latest/) available for macOS (Intel + Apple Silicon), Windows, and Linux (.deb).
 - **Mobile**: Coming soon to Google Play and App Store.
 
-See [Get Started](docs/Help/get-started) to know more about how to setup and use HomeCloud.
+See [Get Started](docs/Help/get-started.md) to know more about how to setup and use HomeCloud.
 
 ## Background and direction
 

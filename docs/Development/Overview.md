@@ -39,15 +39,15 @@ npm run watch      # watch mode for development
 
 ## Desktop — Electron App
 
-See [desktop](desktop) for full details, native addons, web frontend, services, and release instructions.
+See [desktop](desktop.md) for full details, native addons, web frontend, services, and release instructions.
 
 ## Mobile — React Native / Expo
 
-See [mobile](mobile) for full details, native module, and app structure.
+See [mobile](mobile.md) for full details, native module, and app structure.
 
 ## Auth Server
 
-See [auth-server](auth-server) for full details, Docker, Docker Compose, and release instructions.
+See [auth-server](auth-server.md) for full details, Docker, Docker Compose, and release instructions.
 
 ## Full Development Workflow
 
