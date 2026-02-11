@@ -1,7 +1,7 @@
 {
     "title": "HomeCloud",
-    "description": "HomeCloud is one stop hub for your photos, notes and files with support for multiple storage options like Google Drive, Dropbox, NAS.",
-    "iconPath": "img/icon.png",
+    "description": "Privacy-first companion app to access and control all your files and devices.",
+    "iconPath": "img/icon-dark.png",
     "docsPath": "docs",
     "accentColor": "red",
     "webAppUrl": "https://asrient.github.io/homecloud/"
