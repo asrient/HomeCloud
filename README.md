@@ -8,7 +8,7 @@
 
 HomeCloud is your companion app for accessing and controlling your devices and storage from anywhere without relying on third-party cloud services. Transfer files, stream, browse and edit photos, and manage your data directly. Completely free and open-source, HomeCloud is built with privacy at its core and secured by end-to-end encryption, ensuring your data never leaves your devices. Enjoy a seamless multi-device experience with features like media playback and volume control, clipboard sharing, and more so you can stay focused without juggling between devices.
 
-![Screenshot](img/section1.png)
+![Screenshot](img/s1.png)
 
 ## How it works
 
