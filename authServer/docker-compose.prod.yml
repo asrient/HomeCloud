@@ -1,0 +1,11 @@
+include:
+  - docker-compose.base.yml
+
+services:
+  nginx:
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl/origin.pem:/etc/ssl/origin.pem:ro
+      - ./ssl/origin-key.pem:/etc/ssl/origin-key.pem:ro

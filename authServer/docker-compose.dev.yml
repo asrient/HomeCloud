@@ -1,0 +1,9 @@
+include:
+  - docker-compose.base.yml
+
+services:
+  nginx:
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro

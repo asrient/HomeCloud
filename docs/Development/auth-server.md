@@ -94,10 +94,15 @@ docker stop homecloud-auth && docker rm homecloud-auth
 
 ## Docker Compose
 
-A `docker-compose.yml` is provided in the `authServer/` directory. It runs the auth server alongside MongoDB and Redis — useful for self-hosting everything on a single VM without external database services. The auth server listens on port 80 so you can point your DNS directly to the VM's IP.
+A `docker-compose.base.yml` is provided in the `authServer/` directory as the base configuration. It defines all shared services but leaves nginx ports and volumes to the environment-specific overrides:
+
+- **`docker-compose.dev.yml`** — Dev/testing: HTTP on port 80, no SSL, no IP restrictions.
+- **`docker-compose.prod.yml`** — Production: HTTPS on port 443 with Cloudflare setup.
 
 **What it includes:**
-- **auth** — the auth server (builds from Dockerfile)
+- **auth-api** — the auth server (builds from Dockerfile), scaled to 2 replicas
+- **auth-udp** — UDP relay (single instance, exposed on port 9669)
+- **nginx** — reverse proxy (config varies by environment)
 - **mongo** — MongoDB 7 with a persistent volume (data survives restarts)
 - **redis** — Redis Alpine for shared KV and pub/sub
 
@@ -121,13 +126,31 @@ A `docker-compose.yml` is provided in the `authServer/` directory. It runs the a
 
 3. Start everything:
    ```bash
-   docker compose up -d
+   # Dev (HTTP, port 80)
+   docker compose -f docker-compose.dev.yml up -d
+
+   # Production (HTTPS, port 443, Cloudflare-only)
+   docker compose -f docker-compose.prod.yml up -d
    ```
 
 4. Check logs:
    ```bash
-   docker compose logs -f auth
+   docker compose logs -f auth-api
    ```
+
+### Production SSL Setup
+
+Before deploying with `docker-compose.prod.yml`:
+
+1. Create a Cloudflare Origin Certificate (SSL/TLS → Origin Server → Create Certificate)
+2. Save the certificate and key:
+   ```bash
+   mkdir -p ssl
+   # Paste the cert into ssl/origin.pem
+   # Paste the key into ssl/origin-key.pem
+   ```
+3. Set Cloudflare SSL/TLS mode to **Full (Strict)**
+4. Ensure your DNS record is proxied (orange cloud) through Cloudflare
 
 ### Common operations
 
@@ -137,7 +160,7 @@ docker compose down
 
 # Update to latest code and rebuild
 git pull
-docker compose up -d --build
+docker compose -f docker-compose.dev.yml up -d --build   # or docker-compose.prod.yml
 
 # View status
 docker compose ps
@@ -178,7 +201,7 @@ Step-by-step guide for deploying the auth server on a fresh Linux VM (e.g., Azur
 
 - **OS:** Ubuntu 22.04+ recommended
 - **Size:** 1 vCPU / 1 GB RAM is sufficient to start
-- **Ports:** Open TCP `80` (HTTP + WebSocket) and UDP `9669` in the firewall/security group
+- **Ports:** Open TCP `443` (HTTPS + WebSocket) and UDP `9669` in the firewall/security group
 
 ### 2. Install Docker
 
@@ -202,7 +225,7 @@ docker --version
 ```bash
 # Clone the repo
 git clone https://github.com/asrient/HomeCloud.git
-cd HomeCloud
+cd HomeCloud/authServer
 
 # Create .env file
 cat > .env << 'EOF'
@@ -214,12 +237,16 @@ AZ_CS_SENDER=<your-sender@domain.com>
 # UDP_DOMAIN=udp.your-domain.com
 EOF
 
+# Set up SSL for production (see Production SSL Setup above)
+mkdir -p ssl
+# Save your Cloudflare Origin Certificate to ssl/origin.pem and ssl/origin-key.pem
+
 # Start auth server + MongoDB + Redis
-docker compose up -d
+docker compose -f docker-compose.prod.yml up -d
 
 # Verify everything is running
 docker compose ps
-docker compose logs -f auth
+docker compose logs -f auth-api
 ```
 
 ### 3b. Deploy with Docker standalone (external databases)
@@ -255,9 +282,9 @@ docker run -d \
 
 **Docker Compose:**
 ```bash
-cd HomeCloud
+cd HomeCloud/authServer
 git pull
-docker compose up -d --build
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 **Docker standalone:**
