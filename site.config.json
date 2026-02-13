@@ -3,6 +3,5 @@
     "description": "Privacy-first companion app to access and control all your files and devices.",
     "iconPath": "img/icon-dark.png",
     "docsPath": "docs",
-    "accentColor": "red",
-    "webAppUrl": "https://asrient.github.io/homecloud/"
+    "accentColor": "red"
 }
