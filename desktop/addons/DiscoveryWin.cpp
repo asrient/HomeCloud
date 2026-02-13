@@ -1,4 +1,10 @@
 #include <napi.h>
+#ifndef UNICODE
+#define UNICODE
+#endif
+#ifndef _UNICODE
+#define _UNICODE
+#endif
 #include <windows.h>
 #include <windns.h>
 #include <string>
@@ -80,10 +86,10 @@ struct ResolveContext
 // Registration state machine
 enum class RegState
 {
-    IDLE,
-    REGISTERING,
-    REGISTERED,
-    DEREGISTERING
+    Idle,
+    Registering,
+    Registered,
+    Deregistering
 };
 
 // ============================================================================
@@ -101,7 +107,7 @@ static std::set<ResolveContext *> activeResolves;
 // Register state
 static PDNS_SERVICE_INSTANCE registeredInstance = nullptr;
 static DNS_SERVICE_REGISTER_REQUEST registerReq;
-static RegState regState = RegState::IDLE;
+static RegState regState = RegState::Idle;
 static std::mutex registerMutex;
 // Keep wide strings alive for the lifetime of the registration
 static std::wstring regInstanceName;
@@ -268,15 +274,15 @@ static void WINAPI RegisterCallback(DWORD Status, PVOID pQueryContext, PDNS_SERV
     if (pInstance)
         DnsServiceFreeInstance(pInstance);
 
-    if (regState == RegState::REGISTERING)
+    if (regState == RegState::Registering)
     {
         if (Status == ERROR_SUCCESS)
         {
-            regState = RegState::REGISTERED;
+            regState = RegState::Registered;
         }
         else
         {
-            regState = RegState::IDLE;
+            regState = RegState::Idle;
             if (registeredInstance)
             {
                 DnsServiceFreeInstance(registeredInstance);
@@ -284,9 +290,9 @@ static void WINAPI RegisterCallback(DWORD Status, PVOID pQueryContext, PDNS_SERV
             }
         }
     }
-    else if (regState == RegState::DEREGISTERING)
+    else if (regState == RegState::Deregistering)
     {
-        regState = RegState::IDLE;
+        regState = RegState::Idle;
         if (registeredInstance)
         {
             DnsServiceFreeInstance(registeredInstance);
@@ -401,9 +407,9 @@ Napi::Value RegisterService(const Napi::CallbackInfo &info)
     // Deregister first if already registered
     {
         std::lock_guard<std::mutex> lock(registerMutex);
-        if (regState == RegState::REGISTERED && registeredInstance)
+        if (regState == RegState::Registered && registeredInstance)
         {
-            regState = RegState::DEREGISTERING;
+            regState = RegState::Deregistering;
             DnsServiceDeRegister(&registerReq, nullptr);
             // Wait is not necessary — old registration will be cleaned up by the callback
         }
@@ -463,14 +469,14 @@ Napi::Value RegisterService(const Napi::CallbackInfo &info)
 
     {
         std::lock_guard<std::mutex> lock(registerMutex);
-        regState = RegState::REGISTERING;
+        regState = RegState::Registering;
     }
 
     DNS_STATUS status = DnsServiceRegister(&registerReq, nullptr);
     if (status != DNS_REQUEST_PENDING)
     {
         std::lock_guard<std::mutex> lock(registerMutex);
-        regState = RegState::IDLE;
+        regState = RegState::Idle;
         DnsServiceFreeInstance(registeredInstance);
         registeredInstance = nullptr;
         Napi::Error::New(env, "DnsServiceRegister failed with status " + std::to_string(status))
@@ -488,9 +494,9 @@ Napi::Value DeregisterService(const Napi::CallbackInfo &info)
     Napi::Env env = info.Env();
 
     std::lock_guard<std::mutex> lock(registerMutex);
-    if (regState == RegState::REGISTERED && registeredInstance)
+    if (regState == RegState::Registered && registeredInstance)
     {
-        regState = RegState::DEREGISTERING;
+        regState = RegState::Deregistering;
         DnsServiceDeRegister(&registerReq, nullptr);
     }
 
