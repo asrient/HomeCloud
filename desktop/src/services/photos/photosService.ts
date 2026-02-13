@@ -97,6 +97,7 @@ export abstract class DesktopPhotosService extends PhotosService {
         }
 
         const promises = locations.map(async (rec) => {
+            if (this.libraries[rec.id]) return; // already mounted (e.g. by createFirstLibrary)
             const lib = new PhotoLibrary(rec.location);
             try {
                 await lib.mount();
