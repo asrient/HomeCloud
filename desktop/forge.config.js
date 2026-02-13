@@ -4,6 +4,8 @@ const os = require('os');
 
 const TMP_DESKTOP_ENV_FILE = 'dist/.env.tmp.js';
 const DESKTOP_ENV_FILE = 'dist/env.js';
+const MSIX_MANIFEST_TEMPLATE = path.resolve(__dirname, 'msix/AppxManifest.xml');
+const MSIX_MANIFEST_OUT = path.resolve(__dirname, 'msix/AppxManifest.generated.xml');
 
 const ALLOWED_NODE_ENVS = ['development', 'production'];
 
@@ -112,6 +114,42 @@ function getIgnorePatterns(platform) {
   return basePatterns;
 }
 
+/**
+ * Generates AppxManifest.xml from the template with the correct values.
+ * This is needed to declare network capabilities (privateNetworkClientServer,
+ * internetClientServer) required for local network features like mDNS, TCP server,
+ * and UDP sockets that the default auto-generated manifest doesn't include.
+ */
+function generateMsixManifest(arch) {
+  const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
+  const publisher = process.env.APPX_PUBLISHER || 'CN=developmentca';
+  const version = pkg.version.replace(/^(\d+\.\d+\.\d+).*$/, '$1.0'); // Ensure 4-part version
+  const appExecutable = `${pkg.productName || pkg.name}.exe`;
+
+  const vars = {
+    '{{IdentityName}}': 'HomeCloud',
+    '{{ProcessorArchitecture}}': arch || 'x64',
+    '{{Version}}': version,
+    '{{Publisher}}': publisher,
+    '{{DisplayName}}': pkg.productName || pkg.name,
+    '{{PublisherDisplayName}}': 'Asrient',
+    '{{MinOSVersion}}': '10.0.19041.0',
+    '{{MaxOSVersionTested}}': '10.0.22621.0',
+    '{{AppExecutable}}': appExecutable,
+    '{{AppDisplayName}}': pkg.productName || pkg.name,
+    '{{PackageDescription}}': pkg.description || pkg.productName || pkg.name,
+  };
+
+  let template = fs.readFileSync(MSIX_MANIFEST_TEMPLATE, 'utf-8');
+  for (const [key, value] of Object.entries(vars)) {
+    template = template.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), value);
+  }
+
+  fs.writeFileSync(MSIX_MANIFEST_OUT, template);
+  console.log('Generated MSIX manifest at', MSIX_MANIFEST_OUT);
+  return MSIX_MANIFEST_OUT;
+}
+
 module.exports = {
   packagerConfig: {
     asar: {
@@ -158,6 +196,12 @@ module.exports = {
       forgeConfig.packagerConfig.ignore = getIgnorePatterns(platform);
       console.log(`Ignore patterns set for ${platform}`);
 
+      // Generate MSIX manifest for Windows builds
+      if (platform === 'win32') {
+        const arch = options.arch || 'x64';
+        generateMsixManifest(arch);
+      }
+
       console.log('Generating environment file...');
 
       const envFileContent = getEnvFileContent();
@@ -175,6 +219,11 @@ module.exports = {
       if (fs.existsSync(TMP_DESKTOP_ENV_FILE)) {
         fs.copyFileSync(TMP_DESKTOP_ENV_FILE, DESKTOP_ENV_FILE);
         fs.unlinkSync(TMP_DESKTOP_ENV_FILE);
+      }
+      // Clean up generated MSIX manifest
+      if (fs.existsSync(MSIX_MANIFEST_OUT)) {
+        fs.unlinkSync(MSIX_MANIFEST_OUT);
+        console.log('Cleaned up generated MSIX manifest');
       }
       console.log('Original environment file restored!');
 
@@ -216,7 +265,9 @@ module.exports = {
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        authors: 'Asrient',
+      },
     },
     {
       name: '@electron-forge/maker-zip',
@@ -232,6 +283,12 @@ module.exports = {
         icon: "assets/appIcons/icon.icns",
         format: "ULFO",
         overwrite: true,
+      }
+    },
+    {
+      name: '@electron-forge/maker-msix',
+      config: {
+        appManifest: MSIX_MANIFEST_OUT,
       }
     },
   ],

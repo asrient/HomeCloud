@@ -56,6 +56,26 @@
       ]
     },
     {
+      "target_name": "DiscoveryWin",
+      "conditions": [
+        ["OS=='win'", {
+          "sources": ["addons/DiscoveryWin.cpp"],
+          "defines": ["_WIN32", "NAPI_CPP_EXCEPTIONS"],
+          "msvs_settings": {
+            "VCCLCompilerTool": {
+              "ExceptionHandling": 1
+            }
+          },
+          "libraries": [
+            "dnsapi.lib"
+          ],
+          "dependencies": [
+            "<!(node -p \"require('node-addon-api').targets\"):node_addon_api"
+          ]
+        }]
+      ]
+    },
+    {
       "target_name": "ThumbnailMac",
       "conditions": [
         ["OS=='mac'", {

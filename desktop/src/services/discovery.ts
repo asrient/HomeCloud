@@ -1,35 +1,29 @@
 import Bonjour, { Browser, Service } from 'bonjour-service';
-import { getResponder, CiaoService, Responder } from '@homebridge/ciao';
 import { PeerCandidate, BonjourTxt, DeviceInfo, ConnectionType } from 'shared/types';
 import { DiscoveryBase } from 'shared/discoveryBase';
+import { useNativeDiscovery, getNativeModule, NativeServiceInfo } from './nativeDiscovery';
 import os from 'os';
 
-// Use ciao for publishing on Windows by default (better TXT record support)
-// Use bonjour-service on other platforms
-const USE_CIAO = process.platform === 'win32';
-
 export default class Discovery extends DiscoveryBase {
-    // Use bonjour-service for browsing (discovery)
-    private bonjour: Bonjour;
-    private browser: Browser;
-    // Use @homebridge/ciao for publishing on Windows (better TXT record support)
-    private ciaoResponder: Responder | null = null;
-    private ciaoService: CiaoService | null = null;
+    // bonjour-service for browsing + publishing on non-Windows
+    private bonjour: Bonjour | null = null;
+    private browser: Browser | null = null;
+    // Track services discovered via native API for getCandidates()
+    private nativeServices: Map<string, NativeServiceInfo> = new Map();
     public port: number;
     private onFoundCallback: ((pc: PeerCandidate) => void) | null = null;
 
     constructor(port: number) {
         super();
         this.port = port;
-        // Initialize bonjour-service for browsing (and publishing on non-Windows)
-        this.bonjour = new Bonjour(undefined, (err: any) => {
-            if (err) {
-                console.error('Error starting bonjour browser:', err);
-            }
-        });
-        // Initialize ciao responder for publishing only on Windows
-        if (USE_CIAO) {
-            this.ciaoResponder = getResponder();
+
+        if (!useNativeDiscovery()) {
+            // Initialize bonjour-service for non-Windows platforms
+            this.bonjour = new Bonjour(undefined, (err: any) => {
+                if (err) {
+                    console.error('Error starting bonjour browser:', err);
+                }
+            });
         }
     }
 
@@ -49,11 +43,54 @@ export default class Discovery extends DiscoveryBase {
     }
 
     listen() {
+        if (useNativeDiscovery()) {
+            const native = getNativeModule();
+            const queryName = `_${this.SERVICE_TYPE}._${this.PROTOCOL}.local`;
+            native.startBrowse(queryName, (service: NativeServiceInfo) => {
+                const txt = service.txt as BonjourTxt;
+                if (!txt || !service.addresses || service.addresses.length === 0) {
+                    return;
+                }
+
+                // Store for getCandidates()
+                if (txt.fpt) {
+                    this.nativeServices.set(txt.fpt, service);
+                }
+
+                // Cache for address lookups (allows loopback for caching)
+                if (this.validateTxtRecords(txt, false)) {
+                    this.cacheCandidate(service.addresses, txt, service.port);
+                }
+
+                // Skip invalid / loopback services
+                if (!this.validateTxtRecords(txt)) {
+                    return;
+                }
+
+                const candidate: PeerCandidate = {
+                    data: {
+                        host: service.addresses[0],
+                        port: service.port,
+                        hosts: service.addresses,
+                    },
+                    connectionType: ConnectionType.LOCAL,
+                    fingerprint: txt.fpt,
+                    deviceName: txt.nme,
+                    iconKey: txt.icn,
+                };
+
+                if (this.onFoundCallback) {
+                    this.onFoundCallback(candidate);
+                }
+            });
+            return;
+        }
+
         if (this.browser) {
             this.browser.stop();
             this.browser.removeAllListeners();
         }
-        this.browser = this.bonjour.find({
+        this.browser = this.bonjour!.find({
             type: this.SERVICE_TYPE,
             protocol: this.PROTOCOL,
         });
@@ -116,6 +153,31 @@ export default class Discovery extends DiscoveryBase {
     }
 
     getCandidates(silent = true): PeerCandidate[] {
+        if (useNativeDiscovery()) {
+            const candidates: PeerCandidate[] = [];
+            this.nativeServices.forEach((service) => {
+                const txt = service.txt as BonjourTxt;
+                if (this.validateTxtRecords(txt, false)) {
+                    this.cacheCandidate(service.addresses, txt, service.port);
+                }
+                if (!this.validateTxtRecords(txt)) {
+                    return;
+                }
+                candidates.push({
+                    data: {
+                        host: service.addresses[0],
+                        port: service.port,
+                        hosts: service.addresses,
+                    },
+                    connectionType: ConnectionType.LOCAL,
+                    fingerprint: txt.fpt,
+                    deviceName: txt.nme,
+                    iconKey: txt.icn,
+                });
+            });
+            return candidates;
+        }
+
         if (!this.browser) {
             throw new Error('Discovery service is not listening.');
         }
@@ -138,24 +200,15 @@ export default class Discovery extends DiscoveryBase {
     hello(deviceInfo: DeviceInfo) {
         const serviceInfo = this.buildServiceInfo(deviceInfo);
 
-        if (USE_CIAO && this.ciaoResponder) {
-            // Use ciao for publishing (RFC 6762/6763 compliant, better Windows support)
-            this.ciaoService = this.ciaoResponder.createService({
-                name: serviceInfo.name,
-                hostname: os.hostname(),
-                type: serviceInfo.type,
-                port: this.port,
-                txt: serviceInfo.txt,
-            });
-
-            this.ciaoService.advertise().then(() => {
-                console.log('mDNS service published via ciao');
-            }).catch((err) => {
-                console.error('Error publishing mDNS service:', err);
-            });
+        if (useNativeDiscovery()) {
+            const native = getNativeModule();
+            const instanceName = `${serviceInfo.name}._${serviceInfo.type}._${serviceInfo.protocol}.local`;
+            const hostname = `${os.hostname()}.local`;
+            native.registerService(instanceName, hostname, this.port, serviceInfo.txt as Record<string, string>);
+            console.log('mDNS service published via native DNS-SD API');
         } else {
             // Use bonjour-service for publishing on non-Windows platforms
-            this.bonjour.publish({
+            this.bonjour!.publish({
                 name: serviceInfo.name,
                 type: serviceInfo.type,
                 port: this.port,
@@ -178,43 +231,33 @@ export default class Discovery extends DiscoveryBase {
     async goodbye() {
         const promises: Promise<void>[] = [];
 
-        if (USE_CIAO) {
-            // End ciao service advertisement
-            if (this.ciaoService) {
-                promises.push(
-                    this.ciaoService.end().then(() => {
-                        this.ciaoService?.destroy();
-                        this.ciaoService = null;
-                    })
-                );
-            }
-
-            // Shutdown ciao responder
-            if (this.ciaoResponder) {
-                promises.push(this.ciaoResponder.shutdown());
-            }
+        if (useNativeDiscovery()) {
+            const native = getNativeModule();
+            native.deregisterService();
+            native.stopBrowse();
+            this.nativeServices.clear();
         } else {
             // Unpublish bonjour-service
             promises.push(
                 new Promise<void>((resolve) => {
-                    this.bonjour.unpublishAll(() => {
+                    this.bonjour!.unpublishAll(() => {
+                        resolve();
+                    });
+                })
+            );
+
+            // Destroy bonjour browser
+            promises.push(
+                new Promise<void>((resolve) => {
+                    if (this.browser) {
+                        this.browser.stop();
+                    }
+                    this.bonjour!.destroy(() => {
                         resolve();
                     });
                 })
             );
         }
-
-        // Destroy bonjour browser
-        promises.push(
-            new Promise<void>((resolve) => {
-                if (this.browser) {
-                    this.browser.stop();
-                }
-                this.bonjour.destroy(() => {
-                    resolve();
-                });
-            })
-        );
 
         await Promise.all(promises);
         return super.goodbye();

@@ -115,3 +115,6 @@ Debug.log
 build/
 bin/
 assets/web/
+
+# Generated MSIX manifest
+msix/AppxManifest.generated.xml

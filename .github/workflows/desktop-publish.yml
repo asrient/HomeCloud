@@ -98,9 +98,9 @@ jobs:
         run: npm run package
         working-directory: ./desktop
         env:
-          NODE_ENV: ${{ secrets.NODE_ENV || 'production' }}
-          SERVER_URL: ${{ secrets.SERVER_URL }}
-          WS_SERVER_URL: ${{ secrets.WS_SERVER_URL }}
+          NODE_ENV: production
+          SERVER_URL: ${{ vars.SERVER_URL }}
+          WS_SERVER_URL: ${{ vars.WS_SERVER_URL }}
           NODE_OPTIONS: "--max_old_space_size=4096"
 
       - name: Publish app
@@ -109,9 +109,10 @@ jobs:
         working-directory: ./desktop
         env:
           NODE_ENV: production
-          SERVER_URL: ${{ secrets.SERVER_URL }}
-          WS_SERVER_URL: ${{ secrets.WS_SERVER_URL }}
+          SERVER_URL: ${{ vars.SERVER_URL }}
+          WS_SERVER_URL: ${{ vars.WS_SERVER_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPX_PUBLISHER: ${{ vars.APPX_PUBLISHER }}
           NODE_OPTIONS: "--max_old_space_size=4096"
 
       - name: Publish app - macOS (universal)
@@ -120,8 +121,8 @@ jobs:
         working-directory: ./desktop
         env:
           NODE_ENV: production
-          SERVER_URL: ${{ secrets.SERVER_URL }}
-          WS_SERVER_URL: ${{ secrets.WS_SERVER_URL }}
+          SERVER_URL: ${{ vars.SERVER_URL }}
+          WS_SERVER_URL: ${{ vars.WS_SERVER_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: "--max_old_space_size=4096"
 
