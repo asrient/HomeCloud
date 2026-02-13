@@ -212,7 +212,7 @@ export class NetService extends Service {
         return null;
     }
 
-    public async getConnectedDevices(): Promise<ConnectionInfo[]> {
+    public getConnectedDevices(): ConnectionInfo[] {
         if (!this.isServiceRunning()) {
             return [];
         }

@@ -335,7 +335,7 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
     sc.app.receiveContent(null, text.trim(), 'text').catch((error) => {
       console.error('Error sending message to device:', error);
       const localSc = window.modules.getLocalServiceController();
-      localSc.system.alert('Could not send', 'An error occurred.');
+      localSc.system.alert('Could not send', 'Device is offline.');
     });
   }, [deviceFingerprint]);
 
@@ -375,6 +375,56 @@ export default function Home() {
     }
   }, [dispatch, query]);
 
+  const sendFilesToDevice = useCallback(async (filePaths: string[], fprint: string) => {
+    const localSc = window.modules.getLocalServiceController();
+    const isMultiple = filePaths.length > 1;
+    try {
+      const sc = await getServiceController(fprint);
+      for (const filePath of filePaths) {
+        await sc.files.download(window.modules.config.FINGERPRINT, filePath);
+      }
+      localSc.system.alert(
+        'Files sent',
+        `${filePaths.length} ${isMultiple ? 'files have' : 'file has'} been sent to the device.`
+      );
+    } catch (e) {
+      console.error('Error sending files to device:', e);
+      localSc.system.alert('Could not send files', 'Device is offline.');
+    }
+  }, []);
+
+  const onDrop = useCallback(async (files: FileList) => {
+    if (!selectedFingerprint) return;
+
+    const filePaths: string[] = [];
+    Object.values(files).forEach(file => {
+      if (file instanceof File) {
+        filePaths.push(window.utils.getPathForFile(file));
+      }
+    });
+    if (filePaths.length === 0) {
+      return;
+    }
+
+    const localSc = window.modules.getLocalServiceController();
+    localSc.system.ask({
+      title: 'Send files',
+      description: `Do you want to send ${filePaths.length} ${filePaths.length > 1 ? 'files' : 'file'} to the device?`,
+      buttons: [
+        {
+          text: 'Send',
+          type: 'primary',
+          onPress: () => sendFilesToDevice(filePaths, selectedFingerprint)
+        },
+        {
+          text: 'Cancel',
+          type: 'default',
+          onPress: () => { }
+        }
+      ]
+    })
+  }, [selectedFingerprint, sendFilesToDevice]);
+
   return (
     <>
       <Head>
@@ -383,7 +433,7 @@ export default function Home() {
 
       <PageBar icon={ThemedIconName.Home} title={getAppName()}>
       </PageBar>
-      <PageContent>
+      <PageContent onDrop={onDrop}>
         {peer && <PeerInfoHero peer={peer} isThisDevice={selectedFingerprint === null} />}
         <QuickActionsBar deviceFingerprint={selectedFingerprint} />
         <div className='py-5 px-3'>

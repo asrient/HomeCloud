@@ -208,14 +208,11 @@ function DeviceSelector({ setDeviceCandidate }: {
   const [peers, setPeers] = useState<PeerInfo[]>([]);
 
   useEffect(() => {
-    const fetchDevices = async () => {
-      const sc = window.modules.getLocalServiceController();
-      const devices = await sc.net.getConnectedDevices();
-      setConnectedDevices(devices);
-      const peers = sc.app.getPeers();
-      setPeers(peers);
-    }
-    fetchDevices();
+    const sc = window.modules.getLocalServiceController();
+    const devices = sc.net.getConnectedDevices();
+    setConnectedDevices(devices);
+    const peers = sc.app.getPeers();
+    setPeers(peers);
   }, []);
 
   const handleConnect = () => {
@@ -341,25 +338,25 @@ function Page() {
       <Head>
         <title>Playground</title>
       </Head>
-      
-        <PageBar icon={ThemedIconName.Tool} title='Debug Services'>
-          <div className='text-sm text-foreground mr-3'>
-            {deviceCandidate ? deviceCandidate.deviceName || printFingerprint(deviceCandidate.fingerprint) : 'This Device'}
-          </div>
-          <Button
-            size='sm'
-            variant='secondary'
-            disabled={!serviceController && !error}
-            onClick={() => setShowDeviceSelector(true)}
-          >
-            {
-              (serviceController || error) ? 'Switch' : (
-                <LoadingIcon className='text-sm' />
-              )
-            }
-          </Button>
-        </PageBar>
-        <PageContent className='container py-5'>
+
+      <PageBar icon={ThemedIconName.Tool} title='Debug Services'>
+        <div className='text-sm text-foreground mr-3'>
+          {deviceCandidate ? deviceCandidate.deviceName || printFingerprint(deviceCandidate.fingerprint) : 'This Device'}
+        </div>
+        <Button
+          size='sm'
+          variant='secondary'
+          disabled={!serviceController && !error}
+          onClick={() => setShowDeviceSelector(true)}
+        >
+          {
+            (serviceController || error) ? 'Switch' : (
+              <LoadingIcon className='text-sm' />
+            )
+          }
+        </Button>
+      </PageBar>
+      <PageContent className='container py-5'>
         {
           error && (<div className='text-xs text-red-700 bg-red-300 rounded-md p-2 mb-4'>
             {error}

@@ -26,7 +26,7 @@ function WithInitialState({ children }: {
         console.log("Initializing app state...");
         const localSc = window.modules.getLocalServiceController();
         const peers = localSc.app.getPeers();
-        const connections = await localSc.net.getConnectedDevices();
+        const connections = localSc.net.getConnectedDevices();
         const accentColor = localSc.system.getAccentColorHex();
         console.log('Accent color:', accentColor);
         setPrimaryColorHsl(...rgbHexToHsl(accentColor));

@@ -147,7 +147,7 @@ function Page() {
             <Line>
               <Button variant='ghost' className="text-primary" size='sm' onClick={handleAddPhotoLibrary}>
                 <Plus className="w-4 h-4 mr-1" />
-                Add Photo Library...
+                Add Photo Library
               </Button>
             </Line>
           </Section>
@@ -157,7 +157,7 @@ function Page() {
                 <Button variant='ghost' className="text-primary" size={'sm'} onClick={() => {
                   openDialog('login');
                 }}>
-                  Login to account...
+                  Login to account
                 </Button>
               </Line>
             }
@@ -179,7 +179,7 @@ function Page() {
                   buttonText='Confirm'
                 >
                   <Button variant='ghost' className='text-red-500' size='sm'>
-                    Unlink device...
+                    Unlink device
                   </Button>
                 </ConfirmModal>
               </Line>

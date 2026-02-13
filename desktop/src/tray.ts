@@ -1,6 +1,7 @@
 import { app, Menu, MenuItemConstructorOptions, Tray, nativeImage } from 'electron';
 import path from 'node:path';
 import { getOrCreateWindow, navigateTo, getPeerUrl, getSettingsUrl } from './window';
+import { osInfoString } from './utils';
 
 let tray: Tray | null = null;
 
@@ -24,15 +25,22 @@ export function trayOnClick() {
 
     const localSc = modules.getLocalServiceController();
     const peers = localSc.app.getPeers();
-
     const peersSubmenu: MenuItemConstructorOptions[] = peers.length > 0
-        ? peers.map(peer => ({
-            label: peer.deviceName || peer.fingerprint.substring(0, 8),
-            click: () => {
-                const win = getOrCreateWindow();
-                navigateTo(win, getPeerUrl(peer.fingerprint));
+        ? peers.map(peer => {
+            let sublabel = osInfoString(peer.deviceInfo);
+            const connection = localSc.net.getConnectionInfo(peer.fingerprint);
+            if (connection) {
+                sublabel += ' - Connected';
             }
-        }))
+            return {
+                label: peer.deviceName || peer.fingerprint.substring(0, 8),
+                click: () => {
+                    const win = getOrCreateWindow();
+                    navigateTo(win, getPeerUrl(peer.fingerprint));
+                },
+                sublabel,
+            }
+        })
         : [{ label: 'No devices', enabled: false }];
 
     const contextMenu = Menu.buildFromTemplate([
@@ -43,10 +51,8 @@ export function trayOnClick() {
             }
         },
         { type: 'separator' },
-        {
-            label: 'My Devices',
-            submenu: peersSubmenu
-        },
+        ...peersSubmenu,
+        { type: 'separator' },
         {
             label: 'Settings',
             click: () => {
@@ -54,7 +60,6 @@ export function trayOnClick() {
                 navigateTo(win, getSettingsUrl());
             }
         },
-        { type: 'separator' },
         {
             label: 'Quit',
             click: () => {

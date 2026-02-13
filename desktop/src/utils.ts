@@ -2,12 +2,13 @@ import os from "os";
 import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
+import { DeviceInfo } from "shared/types";
 
 export function getAppName(): string {
-  if ((global as any).modules?.config?.APP_NAME) {
-    return (global as any).modules.config.APP_NAME;
-  }
-  return '[app]';
+    if ((global as any).modules?.config?.APP_NAME) {
+        return (global as any).modules.config.APP_NAME;
+    }
+    return '[app]';
 }
 
 export function importModule(moduleName: string) {
@@ -59,4 +60,9 @@ export function bufferToStream(buffer: Buffer): Readable {
 
 export function jsonToStream(json: any): Readable {
     return bufferToStream(Buffer.from(JSON.stringify(json)));
+}
+
+export function osInfoString(deviceInfo: DeviceInfo) {
+    if (!deviceInfo.os) return '';
+    return `${deviceInfo.os} ${deviceInfo.osFlavour}`;
 }

@@ -103,7 +103,7 @@ export function useAppState() {
         console.log("Initializing app state...");
         const localSc = modules.getLocalServiceController();
         const peers = localSc.app.getPeers();
-        const connections = await localSc.net.getConnectedDevices();
+        const connections = localSc.net.getConnectedDevices();
         const deviceInfo = await localSc.system.getDeviceInfo();
         initializeStore(peers, connections, deviceInfo, localSc.app.isOnboarded());
 
