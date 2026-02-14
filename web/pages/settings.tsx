@@ -23,6 +23,7 @@ function Page() {
   const [autoStartDisabled, setAutoStartDisabled] = useState(false);
   const { openDialog } = useOnboardingStore();
   const [useWinrtDgram, setUseWinrtDgram] = useState(false);
+  const [autoConnectMobile, setAutoConnectMobile] = useState(true);
   const [checkForUpdates, setCheckForUpdates] = useState(true);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('notavailable');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -31,6 +32,8 @@ function Page() {
   useEffect(() => {
     const localSc = window.modules.getLocalServiceController();
     setUseWinrtDgram(localSc.app.getUserPreference(UserPreferences.USE_WINRT_DGRAM));
+    const autoConnectMobilePref = localSc.app.getUserPreference(UserPreferences.AUTO_CONNECT_MOBILE);
+    setAutoConnectMobile(autoConnectMobilePref !== false);
     const updatesPref = localSc.app.getUserPreference(UserPreferences.CHECK_FOR_UPDATES);
     setCheckForUpdates(updatesPref !== false);
     if (window.utils?.getUpdateStatus) {
@@ -42,6 +45,12 @@ function Page() {
     const localSc = window.modules.getLocalServiceController();
     await localSc.app.setUserPreference(UserPreferences.USE_WINRT_DGRAM, val);
     setUseWinrtDgram(localSc.app.getUserPreference(UserPreferences.USE_WINRT_DGRAM));
+  }, []);
+
+  const updateAutoConnectMobile = useCallback(async (val: boolean) => {
+    const localSc = window.modules.getLocalServiceController();
+    await localSc.app.setUserPreference(UserPreferences.AUTO_CONNECT_MOBILE, val);
+    setAutoConnectMobile(val);
   }, []);
 
   const updateCheckForUpdates = useCallback(async (val: boolean) => {
@@ -131,8 +140,9 @@ function Page() {
   const showPreferences = useMemo(() => {
     return autoStartEnabled !== null
       || !window.modules.config.IS_STORE_DISTRIBUTION
-      || isWindows();
-  }, [autoStartEnabled]);
+      || isWindows()
+      || isLinked;
+  }, [autoStartEnabled, isLinked]);
 
   return (
     <>
@@ -196,6 +206,12 @@ function Page() {
                 <Switch
                   checked={checkForUpdates}
                   onCheckedChange={updateCheckForUpdates}
+                />
+              </Line>}
+              {isLinked && <Line title='Auto connect my mobile devices'>
+                <Switch
+                  checked={autoConnectMobile}
+                  onCheckedChange={updateAutoConnectMobile}
                 />
               </Line>}
               {

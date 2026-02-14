@@ -3,6 +3,7 @@ import { AppService } from 'shared/appService';
 import { exposed } from 'shared/servicePrimatives';
 import { UserPreferences } from '../types';
 import { isAppContainerWin, getStartupTaskState, requestEnableStartupTask, disableStartupTask } from '../appContainer';
+import { PeerInfo } from 'shared/types';
 
 const AUTO_START_KEY = 'pref.autoStart';
 const MSIX_STARTUP_TASK_ID = 'HomeCloudStartup';
@@ -22,6 +23,18 @@ export default class DesktopAppService extends AppService {
      * On MSIX, uses WinRT StartupTask API.
      * On Squirrel/dev, uses Electron's getLoginItemSettings.
      */
+
+    protected override shouldAutoConnectPeer(peer: PeerInfo): boolean {
+        const prefersAutoConnectMobile = this.store.getItem<boolean>(UserPreferences.AUTO_CONNECT_MOBILE);
+        const formFactor = peer?.deviceInfo?.formFactor;
+        // autoconnect to mobile peers
+        // By default, prefersAutoConnectMobile is considered true.
+        if ((prefersAutoConnectMobile !== false) && (formFactor === 'mobile' || formFactor === 'tablet')) {
+            return true;
+        }
+        return false;
+    }
+
     @exposed
     public override async isAutoStartEnabled(): Promise<boolean | null> {
         if (process.platform === 'linux') {

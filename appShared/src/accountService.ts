@@ -18,6 +18,7 @@ enum WebSocketEvent {
     WEB_CONNECT_REJECT = "webc_reject",
     PEER_ADDED = "peer_added",
     PEER_REMOVED = "peer_removed",
+    PEER_ONLINE = "peer_online",
     AUTH_ERROR = "auth_error",
     PEER_CONNECT_REQUEST = "connect_request",
 }
@@ -40,6 +41,7 @@ export class AccountService extends Service {
 
     public peerAddedSignal = new Signal<[PeerInfo]>();
     public peerRemovedSignal = new Signal<[PeerInfo]>();
+    public peerOnlineSignal = new Signal<[string]>(); // fingerprint
 
     public accountLinkSignal = new Signal<[boolean]>();
 
@@ -108,6 +110,9 @@ export class AccountService extends Service {
                 break;
             case WebSocketEvent.PEER_REMOVED:
                 this.peerRemovedSignal.dispatch(data as PeerInfo);
+                break;
+            case WebSocketEvent.PEER_ONLINE:
+                this.peerOnlineSignal.dispatch(data.fingerprint as string);
                 break;
             case WebSocketEvent.AUTH_ERROR:
                 console.warn("WebSocket auth error received.");

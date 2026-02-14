@@ -275,6 +275,7 @@ const DEFAULT_SERVER_PORT = 9669;
 export abstract class WebcInterface extends ConnectionInterface {
     isSecure = false;
     private onIncomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
+    private onCandidateAvailableCallback: ((candidate: PeerCandidate) => void) | null = null;
 
     private waitingForPeerData = new Map<string, { connection: UdpConnection, cleanupTimer: number }>();
     private waitingPeerData = new Map<string, { isReject: boolean, peerData?: WebcPeerData, cleanupTimer: number, sameNetworkError?: boolean }>();
@@ -288,7 +289,7 @@ export abstract class WebcInterface extends ConnectionInterface {
     }
 
     onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
-        // No-op for WebC interface
+        this.onCandidateAvailableCallback = callback;
     }
 
     private getDefaultServerAddress(): string {
@@ -456,6 +457,19 @@ export abstract class WebcInterface extends ConnectionInterface {
 
     async start(): Promise<void> {
         const localSc = modules.getLocalServiceController();
+
+        localSc.account.peerOnlineSignal.add((fingerprint: string) => {
+            if (fingerprint === modules.config.FINGERPRINT) return;
+            if (this.onCandidateAvailableCallback) {
+                this.onCandidateAvailableCallback({
+                    connectionType: ConnectionType.WEB,
+                    fingerprint,
+                    data: null,
+                    expiry: Date.now() + 60 * 1000,
+                });
+            }
+        });
+
         localSc.account.webcInitSignal.add(async (webcInit: WebcInit) => {
             try {
                 const dataChannel = await this.setupConnection(webcInit);
