@@ -41,7 +41,7 @@ async function main() {
         return;
     }
 
-    run('git add package.json');
+    run('git add package.json package-lock.json');
     run(`git commit -m ${tag}`);
     run(`git tag ${tag}`);
     run('git push');
