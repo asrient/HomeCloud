@@ -11,7 +11,7 @@ Establishes a UDP connection to another peer using a intermediatory server for N
 const MAX_RETRY_ATTEMPTS = 8;
 const RETRY_INTERVAL_MS = 600;
 const SAME_NETWORK_ERROR_MSG = 'ERR_LOCAL_NET';
-const CONNECTION_TIMEOUT_MS = 30 * 1000; // 30 seconds
+const CONNECTION_TIMEOUT_MS = 20 * 1000; // 20 seconds
 
 type UdpConnectionOptions = {
     dgram: DatagramCompat;
@@ -361,7 +361,7 @@ export abstract class WebcInterface extends ConnectionInterface {
                 isSettled = true;
                 entry.connection.terminate();
                 reject(new Error("Timed out waiting for peer data."));
-            }, 60000); // 60 seconds timeout
+            }, 40000); // 40 seconds timeout
             this.waitingForPeerData.set(webcInit.pin, {
                 connection: udpConnection,
                 cleanupTimer: timer
