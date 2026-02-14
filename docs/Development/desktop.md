@@ -74,8 +74,39 @@ This is a monorepo, so each app has its own versioning scheme with prefixed tags
    ```bash
    git push && git push --tags
    ```
-   This triggers the **Desktop App CI** workflow, which builds for macOS, Linux, and Windows, and publishes to GitHub Releases.
-
-3. **Manual builds** (without publishing): Use the "Run workflow" button on GitHub Actions to trigger a build for any platform. Artifacts are uploaded and retained for 7 days.
+   This triggers the **Desktop App CI** workflow, which builds for macOS, Linux, and Windows, and publishes to GitHub Releases as a draft.
 
 > **Note:** The CI validates that the tag version matches `desktop/package.json`. The build will fail if they're out of sync.
+
+## Building MSIX for Microsoft Store
+
+MSIX packages are used for Microsoft Store submissions. The build is gated behind the `BUILD_MSIX=true` env var — when set, the MSIX maker replaces the Squirrel installer in the build output.
+
+### Local MSIX build (signed, for sideloading)
+
+Signed MSIX packages can be installed directly on Windows without the Store.
+
+1. **Create a self-signed certificate** (one-time):
+   ```powershell
+   .\tools\create-dev-cert.ps1
+   ```
+   This creates `~/HomeCloud.pfx` and `~/HomeCloud.cer` and prints the env vars to use.
+
+2. **Build the signed MSIX:**
+   ```powershell
+   $env:SERVER_URL = "https://example.com"
+   $env:BUILD_MSIX = "true"
+   $env:MSIX_CERT_FILE = "$HOME\HomeCloud.pfx"
+   $env:MSIX_CERT_PASSWORD = "HomeCloud2026!"
+   npm run make
+   ```
+
+3. **Install on a target machine:**
+   - First, install the certificate: double-click `HomeCloud.cer` → Install → Local Machine → Trusted People.
+   - Then double-click the `.msix` file to install.
+
+### MSIX manifest
+
+The MSIX uses a custom `AppxManifest.xml` template (`desktop/msix/AppxManifest.xml`) that declares network capabilities (`privateNetworkClientServer`, `internetClientServer`) needed for mDNS, TCP, and UDP sockets. The manifest is generated during packaging by `generateMsixManifest()` in `forge.config.js` and cleaned up after build.
+
+Custom MSIX assets (icons, tiles) are in `desktop/msix/assets/`.
