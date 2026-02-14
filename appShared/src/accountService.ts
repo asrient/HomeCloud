@@ -112,6 +112,7 @@ export class AccountService extends Service {
                 this.peerRemovedSignal.dispatch(data as PeerInfo);
                 break;
             case WebSocketEvent.PEER_ONLINE:
+                console.log(`Peer online event received for fingerprint: ${data.fingerprint}`);
                 this.peerOnlineSignal.dispatch(data.fingerprint as string);
                 break;
             case WebSocketEvent.AUTH_ERROR:

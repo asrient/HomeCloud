@@ -30,6 +30,7 @@ export default class DesktopAppService extends AppService {
         // autoconnect to mobile peers
         // By default, prefersAutoConnectMobile is considered true.
         if ((prefersAutoConnectMobile !== false) && (formFactor === 'mobile' || formFactor === 'tablet')) {
+            console.log(`[AppService] auto-connect to mobile peers. Peer ${peer.fingerprint} will auto-connect.`);
             return true;
         }
         return false;
