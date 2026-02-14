@@ -30,7 +30,7 @@ async function main() {
     const currentVersion = require('../package.json').version;
     run(`npm version --no-git-tag-version ${bumpType}`);
     const newVersion = runSilent('node -p "require(\'./package.json\').version"');
-    const tag = `auth-v${newVersion}`;
+    const tag = `desktop-v${newVersion}`;
 
     console.log(`\n${currentVersion} -> ${newVersion}`);
     const yes = await confirm(`Release ${tag}? (y/N) `);

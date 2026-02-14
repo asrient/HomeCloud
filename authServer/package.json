@@ -27,8 +27,7 @@
     "build": "tsc",
     "watch": "tsc -w",
     "cmd:delete-expired": "node ./dist/commands/delete-expired.js",
-    "release": "npm version --no-git-tag-version",
-    "postrelease": "node scripts/release.js"
+    "release": "node scripts/release.js"
   },
   "author": "ASRIENT",
   "license": "ISC"
