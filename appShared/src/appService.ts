@@ -13,12 +13,9 @@ export class AppService extends Service {
 
     private lastPeerListSync: number = 0;
     private isPeerInfoPushed: boolean = false;
-    private autoConnectPeers: boolean = false;
 
-    public async init(autoConnectPeers: boolean = false) {
+    public async init() {
         this._init();
-        this.autoConnectPeers = autoConnectPeers;
-        console.log(`[AppService] autoConnectPeers=${autoConnectPeers}`);
         this.store = modules.ConfigStorage.getInstance(StoreNames.APP);
         await this.store.load();
 
@@ -58,6 +55,10 @@ export class AppService extends Service {
         return true;
     }
 
+    protected shouldAutoConnectPeer(peer: PeerInfo): boolean {
+        return false; // default to false, override in implementation to enable auto-connect
+    }
+
     public async setUserPreference(key: string, value: any) {
         // Prefix user preferences with USER_PREF_PREFIX to avoid collision with other store items
         if (!this.isUserPrefKey(key)) {
@@ -73,11 +74,13 @@ export class AppService extends Service {
     }
 
     private addPeerListToAutoConnect() {
-        if (!this.autoConnectPeers) return;
         const localSc = modules.getLocalServiceController();
         const peers = this.getPeers();
         peers.forEach((peer) => {
-            localSc.net.addAutoConnectFingerprint(peer.fingerprint);
+            if (this.shouldAutoConnectPeer(peer)) {
+                console.log("Adding peer to auto-connect list:", peer.fingerprint);
+                localSc.net.addAutoConnectFingerprint(peer.fingerprint);
+            }
         });
     }
 
@@ -194,7 +197,7 @@ export class AppService extends Service {
         } else {
             this.peerSignal.dispatch(SignalEvent.ADD, peer);
         }
-        if (this.autoConnectPeers) {
+        if (this.shouldAutoConnectPeer(peer)) {
             const localSc = modules.getLocalServiceController();
             localSc.net.addAutoConnectFingerprint(peer.fingerprint);
         }
@@ -217,7 +220,17 @@ export class AppService extends Service {
 
     public async pushPeerInfoIfNeeded() {
         if (!this.isPeerInfoPushed) {
+            // Check if peer info has changed since last push
+            const currentInfo = await this.peerInfo();
+            const infoHash = modules.crypto.hashString(JSON.stringify(currentInfo), 'sha256');
+            const lastHash = this.store.getItem<string>('currentPeerInfoHash');
+            if (infoHash === lastHash) {
+                this.isPeerInfoPushed = true;
+                return;
+            }
             await this.pushPeerInfoUpdate();
+            this.store.setItem('currentPeerInfoHash', infoHash);
+            await this.store.save();
             this.isPeerInfoPushed = true;
         }
     }

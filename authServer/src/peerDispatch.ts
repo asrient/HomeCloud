@@ -2,7 +2,7 @@ import globalComms from "./globalComms";
 import { EventSchema, WebSocketEventSchema } from "./schema";
 import { WebSocketEvent } from "./types";
 import { WebSocket } from "ws";
-import { authenticate } from "./lib";
+import { authenticate, notifyAccountPeers } from "./lib";
 import { IncomingMessage } from "http";
 import mcdb from "./db";
 
@@ -122,8 +122,12 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
     globalComms.subscribeEvent(`peer_${peerId}`, handleEvent);
     globalComms.subscribeEvent(`account_${accountId}`, handleEvent);
 
-    // Mark peer as online
+    // Mark peer as online and notify other peers in the account
     await setPeerOnline(peerId);
+    const fp = await getFingerprint();
+    if (fp) {
+        notifyAccountPeers(accountId, 'peer_online', { fingerprint: fp });
+    }
 
     // Set up ping timeout - close connection if no ping received within timeout period
     let pingTimeoutTimer: NodeJS.Timeout | null = null;

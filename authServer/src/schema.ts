@@ -25,6 +25,7 @@ export const WebSocketEventSchema = z.enum([
     "webc_reject",
     "peer_added",
     "peer_removed",
+    "peer_online",
     "auth_error",
     "connect_request",
 ]);
