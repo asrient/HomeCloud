@@ -126,12 +126,15 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
     await setPeerOnline(peerId);
     const fp = await getFingerprint();
     if (fp) {
+        console.log(`Peer ${peerId} is online with fingerprint ${fp}. Notifying account peers.`);
         notifyAccountPeers(accountId, 'peer_online', { fingerprint: fp });
+    } else {
+        console.warn(`Peer ${peerId} is online but has no fingerprint.`);
     }
 
     // Set up ping timeout - close connection if no ping received within timeout period
     let pingTimeoutTimer: NodeJS.Timeout | null = null;
-    
+
     const resetPingTimeout = () => {
         if (pingTimeoutTimer) {
             clearTimeout(pingTimeoutTimer);
