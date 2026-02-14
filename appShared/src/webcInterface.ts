@@ -11,7 +11,7 @@ Establishes a UDP connection to another peer using a intermediatory server for N
 const MAX_RETRY_ATTEMPTS = 8;
 const RETRY_INTERVAL_MS = 600;
 const SAME_NETWORK_ERROR_MSG = 'ERR_LOCAL_NET';
-const CONNECTION_TIMEOUT_MS = 20 * 1000; // 20 seconds
+const CONNECTION_TIMEOUT_MS = 30 * 1000; // 30 seconds
 
 type UdpConnectionOptions = {
     dgram: DatagramCompat;
