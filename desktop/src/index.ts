@@ -21,7 +21,7 @@ log.initialize();
 // Clear previous log file on startup to prevent unbounded growth
 try {
   fs.writeFileSync(log.transports.file.getFile().path, '');
-} catch {}
+} catch { }
 
 Object.assign(console, log.functions);
 
