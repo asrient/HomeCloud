@@ -73,7 +73,6 @@ jobs:
           SERVER_URL: ${{ vars.SERVER_URL }}
           WS_SERVER_URL: ${{ vars.WS_SERVER_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPX_PUBLISHER: ${{ vars.APPX_PUBLISHER }}
           NODE_OPTIONS: "--max_old_space_size=4096"
 
       - name: Publish app - macOS (universal)

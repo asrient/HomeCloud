@@ -1,4 +1,4 @@
-name: MSIX Store Publish
+name: MSIX Store Build
 
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
           Write-Host "Found MSIX: $($msix.FullName)"
           echo "MSIX_PATH=$($msix.FullName)" >> $env:GITHUB_OUTPUT
 
-      # Step 6: Upload MSIX as artifact (always, for debugging)
+      # Step 6: Upload MSIX as artifact for manual Store submission
       - name: Upload MSIX artifact
         uses: actions/upload-artifact@v4
         with:
@@ -65,11 +65,12 @@ jobs:
           retention-days: 7
 
       # Step 7: Submit to Microsoft Store
-      - name: Setup Microsoft Store Developer CLI
-        uses: microsoft/microsoft-store-apppublisher@v1.1
-
-      - name: Configure Microsoft Store Developer CLI
-        run: msstore reconfigure --tenantId ${{ vars.PARTNER_CENTER_TENANT_ID }} --sellerId ${{ vars.PARTNER_CENTER_SELLER_ID }} --clientId ${{ vars.PARTNER_CENTER_CLIENT_ID }} --clientSecret ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
-
-      - name: Publish to Microsoft Store
-        run: msstore publish "${{ github.workspace }}/desktop" --inputFile "${{ steps.find-msix.outputs.MSIX_PATH }}" --id ${{ vars.STORE_APP_ID }} --noCommit
+      # Uncomment when Azure AD tenant is linked to Partner Center
+      # - name: Setup Microsoft Store Developer CLI
+      #   uses: microsoft/microsoft-store-apppublisher@v1.1
+      #
+      # - name: Configure Microsoft Store Developer CLI
+      #   run: msstore reconfigure --tenantId ${{ vars.PARTNER_CENTER_TENANT_ID }} --sellerId ${{ vars.PARTNER_CENTER_SELLER_ID }} --clientId ${{ vars.PARTNER_CENTER_CLIENT_ID }} --clientSecret ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
+      #
+      # - name: Publish to Microsoft Store
+      #   run: msstore publish "${{ github.workspace }}/desktop" --inputFile "${{ steps.find-msix.outputs.MSIX_PATH }}" --id ${{ vars.STORE_APP_ID }} --noCommit
