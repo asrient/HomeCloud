@@ -29,3 +29,8 @@ export interface VolumeDriver {
     getMuted(): Promise<boolean>;
     setMuted(val: boolean): Promise<void>;
 }
+
+export enum UserPreferences {
+    USE_WINRT_DGRAM = 'useWinrtDgram',
+    CHECK_FOR_UPDATES = 'checkForUpdates',
+}

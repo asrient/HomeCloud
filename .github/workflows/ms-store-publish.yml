@@ -1,0 +1,75 @@
+name: MSIX Store Publish
+
+on:
+  push:
+    tags: [ "desktop-v*" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-submit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify version matches tag
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        working-directory: ./desktop
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          TAG=${TAG#v}
+          TAG=${TAG#desktop-v}
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG_VERSION" ]; then
+            echo "::error::Tag ($TAG) does not match desktop/package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Version verified: $PKG_VERSION"
+
+      - name: Build desktop app
+        uses: ./.github/actions/build-desktop
+        with:
+          ui_theme: windows
+
+      # Step 4: Package and make MSIX
+      - name: Make MSIX
+        run: npm run make
+        working-directory: ./desktop
+        env:
+          NODE_ENV: production
+          SERVER_URL: ${{ vars.SERVER_URL }}
+          WS_SERVER_URL: ${{ vars.WS_SERVER_URL }}
+          BUILD_MSIX: 'true'
+          APPX_PUBLISHER: ${{ vars.APPX_PUBLISHER }}
+          NODE_OPTIONS: "--max_old_space_size=4096"
+
+      # Step 5: Find the built MSIX file
+      - name: Find MSIX file
+        id: find-msix
+        shell: pwsh
+        run: |
+          $msix = Get-ChildItem -Path "desktop/out/make" -Filter "*.msix" -Recurse | Select-Object -First 1
+          if (-not $msix) {
+            Write-Error "No .msix file found in desktop/out/make"
+            exit 1
+          }
+          Write-Host "Found MSIX: $($msix.FullName)"
+          echo "MSIX_PATH=$($msix.FullName)" >> $env:GITHUB_OUTPUT
+
+      # Step 6: Upload MSIX as artifact (always, for debugging)
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix-package
+          path: ${{ steps.find-msix.outputs.MSIX_PATH }}
+          retention-days: 7
+
+      # Step 7: Submit to Microsoft Store
+      - name: Setup Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+
+      - name: Configure Microsoft Store Developer CLI
+        run: msstore reconfigure --tenantId ${{ vars.PARTNER_CENTER_TENANT_ID }} --sellerId ${{ vars.PARTNER_CENTER_SELLER_ID }} --clientId ${{ vars.PARTNER_CENTER_CLIENT_ID }} --clientSecret ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
+
+      - name: Publish to Microsoft Store
+        run: msstore publish "${{ github.workspace }}/desktop" --inputFile "${{ steps.find-msix.outputs.MSIX_PATH }}" --id ${{ vars.STORE_APP_ID }} --noCommit

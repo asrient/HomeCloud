@@ -5,6 +5,8 @@ import { getIconKey } from "./utils";
 import Signal from "./signals";
 import { helpLinks, HelpLinkType } from "./helpLinks";
 
+const USER_PREF_PREFIX = 'upref.';
+
 export class AppService extends Service {
     protected store: ConfigStorage;
     protected allowPairing: boolean = true;
@@ -50,6 +52,24 @@ export class AppService extends Service {
         });
 
         this.addPeerListToAutoConnect();
+    }
+
+    protected isUserPrefKey(key: string): boolean {
+        return true;
+    }
+
+    public async setUserPreference(key: string, value: any) {
+        // Prefix user preferences with USER_PREF_PREFIX to avoid collision with other store items
+        if (!this.isUserPrefKey(key)) {
+            throw "Invalid user preference key";
+        }
+        key = USER_PREF_PREFIX + key;
+        this.store.setItem(key, value);
+        await this.store.save();
+    }
+
+    public getUserPreference(key: string): any | null {
+        return this.store.getItem(USER_PREF_PREFIX + key);
     }
 
     private addPeerListToAutoConnect() {

@@ -1,9 +1,9 @@
 import { PageBar, PageContent } from "@/components/pagePrimatives";
 import { FormContainer, Section, Line } from '@/components/formPrimatives'
-import { buildPageConfig, getOSIconUrl } from '@/lib/utils'
+import { buildPageConfig, getOSIconUrl, isWindows } from '@/lib/utils'
 import Head from 'next/head'
 import Image from 'next/image'
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import ConfirmModal from '@/components/confirmModal'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -13,14 +13,56 @@ import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { useAccountState } from "@/components/hooks/useAccountState";
 import { useAppState } from "@/components/hooks/useAppState";
 import { getAppName } from '@/lib/utils';
-import { Folder, Plus, X } from 'lucide-react';
+import { Folder, Plus, X, ExternalLink } from 'lucide-react';
 import { DeviceIcon } from '@/components/DeviceIcon';
+import { UserPreferences, UpdateInfo, UpdateStatus } from "@/lib/types";
 
 function Page() {
   const [photoLibraries, setPhotoLibraries] = useState<PhotoLibraryLocation[]>([]);
   const [autoStartEnabled, setAutoStartEnabled] = useState<boolean | null>(null);
   const [autoStartDisabled, setAutoStartDisabled] = useState(false);
   const { openDialog } = useOnboardingStore();
+  const [useWinrtDgram, setUseWinrtDgram] = useState(false);
+  const [checkForUpdates, setCheckForUpdates] = useState(true);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('notavailable');
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+
+  useEffect(() => {
+    const localSc = window.modules.getLocalServiceController();
+    setUseWinrtDgram(localSc.app.getUserPreference(UserPreferences.USE_WINRT_DGRAM));
+    const updatesPref = localSc.app.getUserPreference(UserPreferences.CHECK_FOR_UPDATES);
+    setCheckForUpdates(updatesPref !== false);
+    if (window.utils?.getUpdateStatus) {
+      setUpdateStatus(window.utils.getUpdateStatus());
+    }
+  }, []);
+
+  const updateWinrtDgram = useCallback(async (val: boolean) => {
+    const localSc = window.modules.getLocalServiceController();
+    await localSc.app.setUserPreference(UserPreferences.USE_WINRT_DGRAM, val);
+    setUseWinrtDgram(localSc.app.getUserPreference(UserPreferences.USE_WINRT_DGRAM));
+  }, []);
+
+  const updateCheckForUpdates = useCallback(async (val: boolean) => {
+    const localSc = window.modules.getLocalServiceController();
+    await localSc.app.setUserPreference(UserPreferences.CHECK_FOR_UPDATES, val);
+    setCheckForUpdates(val);
+  }, []);
+
+  const handleCheckForUpdates = useCallback(async () => {
+    if (!window.utils?.checkForUpdates) return;
+    setCheckingUpdates(true);
+    try {
+      const info = await window.utils.checkForUpdates(true);
+      setUpdateInfo(info);
+      setUpdateStatus(info?.updateAvailable ? 'available' : 'notavailable');
+    } catch (e) {
+      console.error('Failed to check for updates:', e);
+    } finally {
+      setCheckingUpdates(false);
+    }
+  }, []);
 
   const fetchPhotoLibraries = useCallback(async () => {
     try {
@@ -86,6 +128,12 @@ function Page() {
   const { isLinked, accountEmail } = useAccountState();
   const { peers, deviceInfo } = useAppState();
 
+  const showPreferences = useMemo(() => {
+    return autoStartEnabled !== null
+      || !window.modules.config.IS_STORE_DISTRIBUTION
+      || isWindows();
+  }, [autoStartEnabled]);
+
   return (
     <>
       <Head>
@@ -98,7 +146,12 @@ function Page() {
         <FormContainer>
           <Section title="About">
             <Line title='Version'>
-              {window.modules.config.VERSION}
+              <div className="flex items-center gap-2">
+                {window.modules.config.VERSION}
+                {updateStatus === 'available' && updateInfo && (
+                  <span className="text-xs text-green-500 font-medium">v{updateInfo.latestVersion} available</span>
+                )}
+              </div>
             </Line>
             <Line title='Device Info'>
               {deviceInfo && (
@@ -108,18 +161,52 @@ function Page() {
                 </div>
               )}
             </Line>
+            {'checkForUpdates' in (window.utils || {}) && !window.modules.config.IS_STORE_DISTRIBUTION && (
+              <Line>
+                {updateStatus === 'available' && updateInfo ? (
+                  <div className="flex items-center gap-2">
+                    <Button variant='ghost' className="text-primary" size='sm' onClick={() => {
+                      const localSc = window.modules.getLocalServiceController();
+                      localSc.system.openUrl(updateInfo.releaseUrl);
+                    }}>
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Download {updateInfo.releaseName}
+                    </Button>
+                    <Button variant='ghost' size='sm' onClick={handleCheckForUpdates} disabled={checkingUpdates}>
+                      Refresh
+                    </Button>
+                  </div>
+                ) : (
+                  <Button variant='ghost' className="text-primary" size='sm' onClick={handleCheckForUpdates} disabled={checkingUpdates}>
+                    {checkingUpdates ? 'Checking...' : 'Check for updates'}
+                  </Button>
+                )}
+              </Line>
+            )}
           </Section>
-          {autoStartEnabled !== null && (
-            <Section title="Preferences">
-              <Line title={`Start ${getAppName()} at login`}>
+          {showPreferences && <Section title="Preferences">
+              {autoStartEnabled !== null && <Line title={`Start ${getAppName()} at login`}>
                 <Switch
                   checked={autoStartEnabled}
                   onCheckedChange={handleAutoStartToggle}
                   disabled={autoStartDisabled}
                 />
-              </Line>
-            </Section>
-          )}
+              </Line>}
+              {!window.modules.config.IS_STORE_DISTRIBUTION && <Line title='Check for updates automatically'>
+                <Switch
+                  checked={checkForUpdates}
+                  onCheckedChange={updateCheckForUpdates}
+                />
+              </Line>}
+              {
+                isWindows() && <Line title={'Use modern network API for Windows (Experimental)'}>
+                  <Switch
+                    checked={useWinrtDgram}
+                    onCheckedChange={updateWinrtDgram}
+                  />
+                </Line>
+              }
+            </Section>}
           <Section title="Photo Libraries">
             {photoLibraries.map((library) => (
               <Line key={library.id} title={

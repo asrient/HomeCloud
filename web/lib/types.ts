@@ -72,8 +72,26 @@ export type ContextMenuItem = {
     subItems?: ContextMenuItem[];
 }
 
+export type UpdateInfo = {
+    currentVersion: string;
+    latestVersion: string;
+    updateAvailable: boolean;
+    releaseUrl: string;
+    releaseName: string;
+    releaseNotes: string;
+}
+
+export type UpdateStatus = 'available' | 'notavailable' | 'checking';
+
 export type NativeUtils = {
     getPathForFile: (file: File) => string;
     openContextMenu: (items: ContextMenuItem[], callback: (id: string) => void) => void;
     clipboardHasFiles: () => boolean;
+    checkForUpdates: (force?: boolean) => Promise<UpdateInfo | null>;
+    getUpdateStatus: () => UpdateStatus;
+}
+
+export enum UserPreferences {
+    USE_WINRT_DGRAM = 'useWinrtDgram',
+    CHECK_FOR_UPDATES = 'checkForUpdates',
 }

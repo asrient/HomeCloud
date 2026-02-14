@@ -14,4 +14,6 @@ window.utils = {
     getPathForFile: webUtils.getPathForFile,
     openContextMenu: desktopWebUtils.openContextMenu,
     clipboardHasFiles: desktopWebUtils.clipboardHasFiles,
+    checkForUpdates: desktopWebUtils.checkForUpdates,
+    getUpdateStatus: desktopWebUtils.getUpdateStatus,
 }

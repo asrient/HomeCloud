@@ -68,6 +68,7 @@ async function getConfig() {
     };
     const mobileConfig: MobileConfigType = {
         IS_DEV: isDev,
+        IS_STORE_DISTRIBUTION: !isDev,
         PLATFORM: mobilePlatform,
         DATA_DIR: dataDir,
         CACHE_DIR: Paths.cache.uri,

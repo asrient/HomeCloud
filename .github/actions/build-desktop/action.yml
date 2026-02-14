@@ -1,0 +1,70 @@
+name: Build Desktop App
+description: Shared build steps for the HomeCloud desktop app (appShared, web, desktop native + TS)
+
+inputs:
+  ui_theme:
+    description: 'UI theme to build web with (macos, windows, linux)'
+    required: true
+  node_version:
+    description: 'Node.js version'
+    required: false
+    default: '20'
+  python_version:
+    description: 'Python version (needed for node-gyp)'
+    required: false
+    default: '3.11'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+
+    # macos-latest ships with Python 3.12 which removes distutils (needed by node-gyp)
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python_version }}
+
+    # appShared
+    - name: Install appShared dependencies
+      shell: bash
+      run: npm install
+      working-directory: ./appShared
+
+    - name: Compile appShared
+      shell: bash
+      run: npm run tsc
+      working-directory: ./appShared
+
+    # web
+    - name: Install web dependencies
+      shell: bash
+      run: npm install
+      working-directory: ./web
+
+    - name: Build web
+      shell: bash
+      run: npm run build
+      working-directory: ./web
+      env:
+        UI_THEME: ${{ inputs.ui_theme }}
+        NODE_ENV: production
+
+    # desktop
+    - name: Install desktop dependencies
+      shell: bash
+      run: npm install
+      working-directory: ./desktop
+
+    - name: Build native modules
+      shell: bash
+      run: npm run build
+      working-directory: ./desktop
+
+    - name: Compile TypeScript
+      shell: bash
+      run: npm run tsc
+      working-directory: ./desktop

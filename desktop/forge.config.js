@@ -6,6 +6,11 @@ const TMP_DESKTOP_ENV_FILE = 'dist/.env.tmp.js';
 const DESKTOP_ENV_FILE = 'dist/env.js';
 const MSIX_MANIFEST_TEMPLATE = path.resolve(__dirname, 'msix/AppxManifest.xml');
 const MSIX_MANIFEST_OUT = path.resolve(__dirname, 'msix/AppxManifest.generated.xml');
+const MSIX_ASSETS_DIR = path.resolve(__dirname, 'msix/assets');
+
+const MSIX_CERT_FILE = process.env.MSIX_CERT_FILE;
+const MSIX_CERT_PASSWORD = process.env.MSIX_CERT_PASSWORD;
+const BUILD_MSIX = process.env.BUILD_MSIX === 'true';
 
 const ALLOWED_NODE_ENVS = ['development', 'production'];
 
@@ -122,22 +127,23 @@ function getIgnorePatterns(platform) {
  */
 function generateMsixManifest(arch) {
   const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
-  const publisher = process.env.APPX_PUBLISHER || 'CN=developmentca';
+  const publisher = process.env.APPX_PUBLISHER || 'CN=HomeCloud Dev';
+  const displayName = process.env.APPX_DISPLAY_NAME || 'HomeCloud App';
   const version = pkg.version.replace(/^(\d+\.\d+\.\d+).*$/, '$1.0'); // Ensure 4-part version
   const appExecutable = `${pkg.productName || pkg.name}.exe`;
 
   const vars = {
-    '{{IdentityName}}': 'HomeCloud',
+    '{{IdentityName}}': 'Asrient.HomeCloudApp',
     '{{ProcessorArchitecture}}': arch || 'x64',
     '{{Version}}': version,
     '{{Publisher}}': publisher,
-    '{{DisplayName}}': pkg.productName || pkg.name,
+    '{{DisplayName}}': displayName,
     '{{PublisherDisplayName}}': 'Asrient',
     '{{MinOSVersion}}': '10.0.19041.0',
     '{{MaxOSVersionTested}}': '10.0.22621.0',
     '{{AppExecutable}}': appExecutable,
-    '{{AppDisplayName}}': pkg.productName || pkg.name,
-    '{{PackageDescription}}': pkg.description || pkg.productName || pkg.name,
+    '{{AppDisplayName}}': displayName,
+    '{{PackageDescription}}': pkg.description || displayName,
   };
 
   let template = fs.readFileSync(MSIX_MANIFEST_TEMPLATE, 'utf-8');
@@ -189,16 +195,15 @@ module.exports = {
       });
     },
 
-    prePackage: async (forgeConfig, options) => {
+    prePackage: async (forgeConfig, platform, arch) => {
       // Set platform-specific ignore patterns
-      const platform = options.platform;
       console.log(`Packaging for platform: ${platform}`);
       forgeConfig.packagerConfig.ignore = getIgnorePatterns(platform);
       console.log(`Ignore patterns set for ${platform}`);
 
       // Generate MSIX manifest for Windows builds
       if (platform === 'win32') {
-        const arch = options.arch || 'x64';
+        arch = arch || 'x64';
         generateMsixManifest(arch);
       }
 
@@ -220,19 +225,15 @@ module.exports = {
         fs.copyFileSync(TMP_DESKTOP_ENV_FILE, DESKTOP_ENV_FILE);
         fs.unlinkSync(TMP_DESKTOP_ENV_FILE);
       }
-      // Clean up generated MSIX manifest
-      if (fs.existsSync(MSIX_MANIFEST_OUT)) {
-        fs.unlinkSync(MSIX_MANIFEST_OUT);
-        console.log('Cleaned up generated MSIX manifest');
-      }
       console.log('Original environment file restored!');
 
       // Remove unnecessary auto-generated files to reduce package size
       const outputPath = options.outputPaths[0];
       const filesToRemove = [
         'LICENSES.chromium.html',  // ~14MB Chromium licenses
-        'LICENSE',
         'version',
+        // Squirrel updater is not needed in MSIX builds
+        ...(BUILD_MSIX ? ['Squirrel.exe'] : []),
       ];
 
       console.log('Cleaning up unnecessary files...');
@@ -241,6 +242,8 @@ module.exports = {
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
           console.log(`Removed: ${file}`);
+        } else {
+          console.warn(`File not found for removal: ${file}`);
         }
       }
 
@@ -259,16 +262,26 @@ module.exports = {
       }
 
       console.log('Cleanup complete!');
+    },
+
+    postMake: async () => {
+      // Clean up generated MSIX manifest after makers have finished
+      if (fs.existsSync(MSIX_MANIFEST_OUT)) {
+        fs.unlinkSync(MSIX_MANIFEST_OUT);
+        console.log('Cleaned up generated MSIX manifest');
+      }
     }
   },
   rebuildConfig: {},
   makers: [
-    {
-      name: '@electron-forge/maker-squirrel',
-      config: {
-        authors: 'Asrient',
+    ...(!BUILD_MSIX ? [
+      {
+        name: '@electron-forge/maker-squirrel',
+        config: {
+          authors: 'Asrient',
+        },
       },
-    },
+    ] : []),
     {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin'],
@@ -285,12 +298,29 @@ module.exports = {
         overwrite: true,
       }
     },
-    {
+    // MSIX maker for Store uploads only — set BUILD_MSIX=true to include
+    ...(BUILD_MSIX ? [{
       name: '@electron-forge/maker-msix',
-      config: {
-        appManifest: MSIX_MANIFEST_OUT,
-      }
-    },
+      config: (() => {
+        if (MSIX_CERT_FILE && MSIX_CERT_PASSWORD) {
+          console.log('Configuring MSIX with signing.');
+          return {
+            appManifest: MSIX_MANIFEST_OUT,
+            packageAssets: MSIX_ASSETS_DIR,
+            windowsSignOptions: {
+              certificateFile: MSIX_CERT_FILE,
+              certificatePassword: MSIX_CERT_PASSWORD,
+            },
+          };
+        }
+        console.log('Configuring MSIX without signing.');
+        return {
+          appManifest: MSIX_MANIFEST_OUT,
+          packageAssets: MSIX_ASSETS_DIR,
+          sign: false,
+        };
+      })()
+    }] : []),
   ],
   publishers: [
     {

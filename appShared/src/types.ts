@@ -106,6 +106,7 @@ export type AppConfigType = {
     DATA_DIR: string;
     CACHE_DIR: string;
     IS_DEV: boolean;
+    IS_STORE_DISTRIBUTION: boolean;
     SECRET_KEY: string;
     VERSION: string;
     DEVICE_NAME: string;

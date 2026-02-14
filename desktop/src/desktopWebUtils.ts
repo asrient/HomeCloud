@@ -1,5 +1,6 @@
 import { Menu, MenuItem } from 'electron/main';
 import { hasFilePathsInClipboard } from './services/system/clipboard';
+import { checkForUpdates as _checkForUpdates, getUpdateStatus as _getUpdateStatus, UpdateInfo, UpdateStatus } from './updateCheck';
 
 export type ContextMenuItem = {
     label?: string;
@@ -39,4 +40,12 @@ function buildMenu(items: ContextMenuItem[], callback?: (id: string) => void): M
 
 export function clipboardHasFiles(): boolean {
     return hasFilePathsInClipboard();
+}
+
+export function checkForUpdates(force = false): Promise<UpdateInfo | null> {
+    return _checkForUpdates(force);
+}
+
+export function getUpdateStatus(): UpdateStatus {
+    return _getUpdateStatus();
 }

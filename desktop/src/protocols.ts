@@ -38,7 +38,8 @@ export function handleProtocols() {
       // Handle media requests
       return handleMediaRequest(request);
     }
-    let url = request.url.replace('app://-', '');
+    const parsed = new URL(request.url);
+    let url = parsed.pathname.replace(/^\/?\-?\/?/, '/'); // normalize leading "/-/"
     // Ensure the URL is safe and does not contain any path traversal characters
     if (url.includes('..') || url.includes('~')) {
       throw new Error('Invalid URL');
@@ -48,16 +49,18 @@ export function handleProtocols() {
     if (ext === '') {
       url += '.html';
     }
-    // Construct the file path
+    // Construct the file path (query string and hash are already stripped by URL parsing)
     const filePath = path.join(__dirname, '../assets/web', url);
     // Check if the file exists
     try {
-      fs.promises.access(filePath);
+      await fs.promises.access(filePath);
     }
     catch (error) {
       console.error('File not found:', filePath);
       throw new Error(`File not found: ${filePath}`);
     }
-    return net.fetch(`file://${filePath}`)
+    // Re-append the original query string so the web app can read it
+    const qs = parsed.search || '';
+    return net.fetch(`file://${filePath}${qs}`)
   });
 }

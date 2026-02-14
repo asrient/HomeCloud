@@ -6,7 +6,7 @@
   xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
-  IgnorableNamespaces="uap uap3 desktop2">
+  IgnorableNamespaces="uap uap3 desktop desktop2">
   <Identity Name="{{IdentityName}}"
           ProcessorArchitecture="{{ProcessorArchitecture}}"
           Version="{{Version}}"
@@ -37,6 +37,27 @@
           Square150x150Logo="assets\Square150x150Logo.png"
           BackgroundColor="transparent">
       </uap:VisualElements>
+      <Extensions>
+        <!-- Auto-start at login (Settings > Apps > Startup) -->
+        <desktop:Extension Category="windows.startupTask">
+          <desktop:StartupTask TaskId="HomeCloudStartup"
+                               Enabled="false"
+                               DisplayName="HomeCloud" />
+        </desktop:Extension>
+      </Extensions>
     </Application>
   </Applications>
+  <Extensions>
+    <!-- Firewall rules for Win32 sockets (Node.js dgram/net).
+         MSIX AppContainer doesn't apply internetClientServer to Winsock calls,
+         so we need explicit firewall exceptions for inbound TCP/UDP. -->
+    <desktop2:Extension Category="windows.firewallRules">
+      <desktop2:FirewallRules Executable="app\{{AppExecutable}}">
+        <!-- Inbound UDP for WebC hole-punching (peer-to-peer) -->
+        <desktop2:Rule Direction="in" IPProtocol="UDP" Profile="all" />
+        <!-- Inbound TCP for local network connections (LAN discovery, RPC) -->
+        <desktop2:Rule Direction="in" IPProtocol="TCP" Profile="all" />
+      </desktop2:FirewallRules>
+    </desktop2:Extension>
+  </Extensions>
 </Package>

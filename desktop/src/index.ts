@@ -13,11 +13,25 @@ import DesktopConfigStorage from './configStorage';
 import { OSType, UITheme } from 'shared/types';
 import { createTray } from './tray';
 import { createWindow } from './window';
+import { checkForUpdates } from './updateCheck';
+import { UserPreferences } from './types';
+import log from 'electron-log/main';
+
+log.initialize();
+// Clear previous log file on startup to prevent unbounded growth
+try {
+  fs.writeFileSync(log.transports.file.getFile().path, '');
+} catch {}
+
+Object.assign(console, log.functions);
+
+import { isAppContainerWin } from './appContainer';
 
 require('@electron/remote/main').initialize();
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (require('electron-squirrel-startup')) {
+// Skip for MSIX — Windows handles install/uninstall lifecycle for packaged apps.
+if (!isAppContainerWin() && require('electron-squirrel-startup')) {
   app.quit();
 }
 
@@ -145,6 +159,7 @@ async function getConfig() {
   const desktopConfig: DesktopConfigType = {
     IS_DESKTOP_PACKED: isPackaged,
     IS_DEV: isDev,
+    IS_STORE_DISTRIBUTION: isAppContainerWin(),
     USE_WEB_APP_SERVER: env.USE_WEB_APP_SERVER,
     SERVER_URL: env.SERVER_URL,
     WS_SERVER_URL: env.WS_SERVER_URL,
@@ -201,6 +216,23 @@ const startApp = async () => {
   }
   // eagerlyConnectPeers();
   APP_RUNNING = true;
+
+  // Check for updates after a delay (skip for Store distribution, respect user preference)
+  if (!modules.config.IS_STORE_DISTRIBUTION) {
+    setTimeout(() => {
+      const localSc = modules.getLocalServiceController();
+      const checkUpdates = localSc.app.getUserPreference(UserPreferences.CHECK_FOR_UPDATES);
+      if (checkUpdates === false) {
+        console.log('Update check disabled by user preference.');
+        return;
+      }
+      checkForUpdates().then(info => {
+        if (info?.updateAvailable) {
+          console.log(`Update available: ${info.latestVersion} (current: ${info.currentVersion})`);
+        }
+      });
+    }, 10 * 60 * 1000); // 10 minutes
+  }
 }
 
 // This method will be called when Electron has finished
