@@ -14,7 +14,7 @@ on:
           - all
           - macos
           - windows
-          - linux
+          # - linux
 
 jobs:
   build-and-publish:
@@ -26,9 +26,9 @@ jobs:
           - os: macos-latest
             platform: darwin
             ui_theme: macos
-          - os: ubuntu-latest
-            platform: linux
-            ui_theme: linux
+          # - os: ubuntu-latest
+          #   platform: linux
+          #   ui_theme: linux
           - os: windows-latest
             platform: win32
             ui_theme: windows
