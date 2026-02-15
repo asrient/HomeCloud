@@ -9,7 +9,7 @@ import { File, Paths, Directory } from 'expo-file-system/next';
 import { Platform } from 'react-native';
 import { setupFileLogger } from './logger';
 
-const ENABLE_FILE_LOGGING = true;
+const ENABLE_FILE_LOGGING = false;
 
 const cryptoModule = new CryptoImpl();
 // eslint-disable-next-line @typescript-eslint/no-require-imports
