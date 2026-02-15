@@ -7,6 +7,9 @@ import * as Device from 'expo-device';
 import { applicationName, nativeApplicationVersion } from 'expo-application';
 import { File, Paths, Directory } from 'expo-file-system/next';
 import { Platform } from 'react-native';
+import { setupFileLogger } from './logger';
+
+const ENABLE_FILE_LOGGING = true;
 
 const cryptoModule = new CryptoImpl();
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -46,8 +49,7 @@ async function getOrGenerateKeys(dataDir: string) {
     };
 }
 
-async function getConfig() {
-    // Set the modules for the app
+function getDataDir(): string {
     let dataDir = Paths.join(Paths.document.uri);
     if (Platform.OS === 'ios') {
         dataDir = Paths.join(Paths.document.uri, '.HomeCloud');
@@ -56,6 +58,12 @@ async function getConfig() {
             dir.create();
         }
     }
+    return dataDir;
+}
+
+async function getConfig() {
+    // Set the modules for the app
+    const dataDir = getDataDir();
     const { privateKeyPem, publicKeyPem } = await getOrGenerateKeys(dataDir);
     const fingerprint = cryptoModule.getFingerprintFromPem(publicKeyPem);
     const isDev = Platform.isTesting || __DEV__;
@@ -92,6 +100,12 @@ export async function initModules() {
         console.log("Modules already initialized. skipping...");
         return;
     }
+    // Set up file logger early so all subsequent logs are captured
+    const dataDir = getDataDir();
+    if (ENABLE_FILE_LOGGING) {
+        setupFileLogger(dataDir);
+    }
+
     const config = await getConfig();
     const modules: ModulesType = {
         crypto: cryptoModule,

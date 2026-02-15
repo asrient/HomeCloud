@@ -20,9 +20,11 @@ import log from 'electron-log/main';
 
 log.initialize();
 // Clear previous log file on startup to prevent unbounded growth
-try {
-  fs.writeFileSync(log.transports.file.getFile().path, '');
-} catch { }
+// try {
+//   fs.writeFileSync(log.transports.file.getFile().path, '');
+// } catch { }
+
+console.log('Logger initialized. Log file:', log.transports.file.getFile().path);
 
 Object.assign(console, log.functions);
 

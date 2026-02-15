@@ -279,6 +279,7 @@ export abstract class WebcInterface extends ConnectionInterface {
 
     private waitingForPeerData = new Map<string, { connection: UdpConnection, cleanupTimer: number }>();
     private waitingPeerData = new Map<string, { isReject: boolean, peerData?: WebcPeerData, cleanupTimer: number, sameNetworkError?: boolean }>();
+    private activeIncomingPins = new Set<string>();
 
     abstract createDatagramSocket(): DatagramCompat;
 
@@ -471,6 +472,12 @@ export abstract class WebcInterface extends ConnectionInterface {
         });
 
         localSc.account.webcInitSignal.add(async (webcInit: WebcInit) => {
+            // Deduplicate: if this PIN is already being processed (e.g. from a duplicate WebSocket event), skip it
+            if (this.activeIncomingPins.has(webcInit.pin)) {
+                console.log("[WebCInterface] Skipping duplicate webc_request for PIN:", webcInit.pin);
+                return;
+            }
+            this.activeIncomingPins.add(webcInit.pin);
             try {
                 const dataChannel = await this.setupConnection(webcInit);
                 if (this.onIncomingConnectionCallback) {
@@ -479,6 +486,8 @@ export abstract class WebcInterface extends ConnectionInterface {
             } catch (err) {
                 // Connection failures are common during app background/foreground transitions
                 console.warn("[WebCInterface] Failed to establish incoming WebC connection:", err.message || err);
+            } finally {
+                this.activeIncomingPins.delete(webcInit.pin);
             }
         });
 

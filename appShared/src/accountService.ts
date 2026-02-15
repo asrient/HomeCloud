@@ -39,6 +39,8 @@ export class AccountService extends Service {
     public webcPeerDataSignal = new Signal<[WebcPeerData]>();
     public webcRejectSignal = new Signal<[WebcReject]>();
 
+    private isConnectingWebSocket = false;
+
     public peerAddedSignal = new Signal<[PeerInfo]>();
     public peerRemovedSignal = new Signal<[PeerInfo]>();
     public peerOnlineSignal = new Signal<[string]>(); // fingerprint
@@ -398,15 +400,16 @@ export class AccountService extends Service {
             console.warn("Account is not linked; skipping WebSocket connection.");
             return;
         }
-        if (this.webSocket.isConnected()) {
-            console.log("WebSocket is already connected.");
+        if (this.webSocket.isConnected() || this.isConnectingWebSocket) {
             return;
         }
+        this.isConnectingWebSocket = true;
         let token: string | null;
         try {
             token = await this.getOrFetchToken();
         } catch (err) {
             console.warn("Failed to get token for WebSocket:", err);
+            this.isConnectingWebSocket = false;
             return;
         }
         if (this.retryTimer) {
@@ -417,6 +420,8 @@ export class AccountService extends Service {
             this.webSocket.connect(modules.config.WS_SERVER_URL, `tok-${token}`);
         } catch (err) {
             console.error("Failed to connect WebSocket:", err);
+        } finally {
+            this.isConnectingWebSocket = false;
         }
     };
 
