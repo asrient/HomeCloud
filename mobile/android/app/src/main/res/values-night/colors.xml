@@ -25,6 +25,6 @@
   <color name="colorOutline">#A08C89</color>
   <color name="colorOutlineVariant">#534341</color>
   <color name="colorPrimaryDark">#FFDAD5</color>
-  <color name="splashscreen_background">#1A1110</color>
+  <color name="splashscreen_background">#1C1C1C</color>
   <color name="iconBackground">#1A1110</color>
 </resources>

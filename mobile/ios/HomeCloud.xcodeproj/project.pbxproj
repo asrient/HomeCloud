@@ -9,27 +9,29 @@
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		A21072C2CB1D44CCBB761FE7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AC2EB9206B494FA2B26CA7AC /* PrivacyInfo.xcprivacy */; };
-		B3DB77265F4F02AC9C68A0C3 /* libPods-HomeCloud.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5BF30ABAEB871F8BEB59A863 /* libPods-HomeCloud.a */; };
+		47BEEB76A59E5313FAA0FA7D /* libPods-HomeCloud.a in Frameworks */ = {isa = PBXBuildFile; fileRef = FE8B5A762EEECF7CF23CEBAD /* libPods-HomeCloud.a */; };
+		8B01C1458EA34CFDA070E5B9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C4465B28E77F4182881E2FDE /* PrivacyInfo.xcprivacy */; };
+		90110A50149AFDD2FC8B538E /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09E4095DB03BCF9EEE236023 /* ExpoModulesProvider.swift */; };
+		A4362179C5F84DA28BA63B64 /* homecloud.icon in Resources */ = {isa = PBXBuildFile; fileRef = 775250811D274C4FA1C38327 /* homecloud.icon */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		DEBDC74130D1E3A41CE82629 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29C10707062FFB3056207410 /* ExpoModulesProvider.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		06DFB7BC58E4221158BC8C6B /* Pods-HomeCloud.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HomeCloud.release.xcconfig"; path = "Target Support Files/Pods-HomeCloud/Pods-HomeCloud.release.xcconfig"; sourceTree = "<group>"; };
+		09E4095DB03BCF9EEE236023 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-HomeCloud/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* HomeCloud.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HomeCloud.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = HomeCloud/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = HomeCloud/Info.plist; sourceTree = "<group>"; };
-		19AF882BE9B7D88FA792868A /* Pods-HomeCloud.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HomeCloud.release.xcconfig"; path = "Target Support Files/Pods-HomeCloud/Pods-HomeCloud.release.xcconfig"; sourceTree = "<group>"; };
-		29C10707062FFB3056207410 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-HomeCloud/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		5BF30ABAEB871F8BEB59A863 /* libPods-HomeCloud.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-HomeCloud.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		775250811D274C4FA1C38327 /* homecloud.icon */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = homecloud.icon; path = HomeCloud/homecloud.icon; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = HomeCloud/SplashScreen.storyboard; sourceTree = "<group>"; };
-		AC2EB9206B494FA2B26CA7AC /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = PrivacyInfo.xcprivacy; path = HomeCloud/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		E274AFD11B4B086630F969DB /* Pods-HomeCloud.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HomeCloud.debug.xcconfig"; path = "Target Support Files/Pods-HomeCloud/Pods-HomeCloud.debug.xcconfig"; sourceTree = "<group>"; };
+		BEC6B31AA756FC02B634C9B3 /* Pods-HomeCloud.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HomeCloud.debug.xcconfig"; path = "Target Support Files/Pods-HomeCloud/Pods-HomeCloud.debug.xcconfig"; sourceTree = "<group>"; };
+		C4465B28E77F4182881E2FDE /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = PrivacyInfo.xcprivacy; path = HomeCloud/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = HomeCloud/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* HomeCloud-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "HomeCloud-Bridging-Header.h"; path = "HomeCloud/HomeCloud-Bridging-Header.h"; sourceTree = "<group>"; };
+		FE8B5A762EEECF7CF23CEBAD /* libPods-HomeCloud.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-HomeCloud.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,21 +39,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B3DB77265F4F02AC9C68A0C3 /* libPods-HomeCloud.a in Frameworks */,
+				47BEEB76A59E5313FAA0FA7D /* libPods-HomeCloud.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		035BC8DEE0F9746CDDD7B947 /* HomeCloud */ = {
-			isa = PBXGroup;
-			children = (
-				29C10707062FFB3056207410 /* ExpoModulesProvider.swift */,
-			);
-			name = HomeCloud;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* HomeCloud */ = {
 			isa = PBXGroup;
 			children = (
@@ -61,36 +55,45 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				AC2EB9206B494FA2B26CA7AC /* PrivacyInfo.xcprivacy */,
+				C4465B28E77F4182881E2FDE /* PrivacyInfo.xcprivacy */,
+				775250811D274C4FA1C38327 /* homecloud.icon */,
 			);
 			name = HomeCloud;
+			sourceTree = "<group>";
+		};
+		1790B4A2DE2F213EA083F167 /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				8BF6684D83024705293EE7C7 /* HomeCloud */,
+			);
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				5BF30ABAEB871F8BEB59A863 /* libPods-HomeCloud.a */,
+				FE8B5A762EEECF7CF23CEBAD /* libPods-HomeCloud.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		33971E0E782745958E3611EF /* Resources */ = {
+		343B21B5F52CAED87EC8856A /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				BEC6B31AA756FC02B634C9B3 /* Pods-HomeCloud.debug.xcconfig */,
+				06DFB7BC58E4221158BC8C6B /* Pods-HomeCloud.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		36FAAF2A0B7B43549E002753 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			name = Resources;
 			path = "";
-			sourceTree = "<group>";
-		};
-		70C69FE5DF857CE3F5B4D978 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				E274AFD11B4B086630F969DB /* Pods-HomeCloud.debug.xcconfig */,
-				19AF882BE9B7D88FA792868A /* Pods-HomeCloud.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -107,9 +110,9 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				33971E0E782745958E3611EF /* Resources */,
-				70C69FE5DF857CE3F5B4D978 /* Pods */,
-				A6502C85E6E13C31A611E4CD /* ExpoModulesProviders */,
+				36FAAF2A0B7B43549E002753 /* Resources */,
+				343B21B5F52CAED87EC8856A /* Pods */,
+				1790B4A2DE2F213EA083F167 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -124,12 +127,12 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		A6502C85E6E13C31A611E4CD /* ExpoModulesProviders */ = {
+		8BF6684D83024705293EE7C7 /* HomeCloud */ = {
 			isa = PBXGroup;
 			children = (
-				035BC8DEE0F9746CDDD7B947 /* HomeCloud */,
+				09E4095DB03BCF9EEE236023 /* ExpoModulesProvider.swift */,
 			);
-			name = ExpoModulesProviders;
+			name = HomeCloud;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -149,13 +152,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "HomeCloud" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				8F1AD664B0B8395C5920BA73 /* [Expo] Configure project */,
+				4CF39AA633596CD6E471C7E1 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				934785E53105B6262D36A184 /* [CP] Embed Pods Frameworks */,
+				A81D86B5128CB348E8A85B81 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -207,7 +210,8 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				A21072C2CB1D44CCBB761FE7 /* PrivacyInfo.xcprivacy in Resources */,
+				8B01C1458EA34CFDA070E5B9 /* PrivacyInfo.xcprivacy in Resources */,
+				A4362179C5F84DA28BA63B64 /* homecloud.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -253,6 +257,30 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		4CF39AA633596CD6E471C7E1 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/HomeCloud/HomeCloud.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-HomeCloud/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-HomeCloud/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-HomeCloud/expo-configure-project.sh\"\n";
+		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -291,31 +319,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-HomeCloud/Pods-HomeCloud-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		8F1AD664B0B8395C5920BA73 /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/HomeCloud/HomeCloud.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-HomeCloud/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-HomeCloud/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-HomeCloud/expo-configure-project.sh\"\n";
-		};
-		934785E53105B6262D36A184 /* [CP] Embed Pods Frameworks */ = {
+		A81D86B5128CB348E8A85B81 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -345,7 +349,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				DEBDC74130D1E3A41CE82629 /* ExpoModulesProvider.swift in Sources */,
+				90110A50149AFDD2FC8B538E /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -354,9 +358,9 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E274AFD11B4B086630F969DB /* Pods-HomeCloud.debug.xcconfig */;
+			baseConfigurationReference = BEC6B31AA756FC02B634C9B3 /* Pods-HomeCloud.debug.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = homecloud;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = HomeCloud/HomeCloud.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
@@ -393,9 +397,9 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 19AF882BE9B7D88FA792868A /* Pods-HomeCloud.release.xcconfig */;
+			baseConfigurationReference = 06DFB7BC58E4221158BC8C6B /* Pods-HomeCloud.release.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = homecloud;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = HomeCloud/HomeCloud.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
@@ -428,6 +432,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = homecloud;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_CXX_LIBRARY = "libc++";
@@ -491,6 +496,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = homecloud;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_CXX_LIBRARY = "libc++";

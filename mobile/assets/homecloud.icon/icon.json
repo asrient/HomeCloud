@@ -1,0 +1,76 @@
+{
+  "fill" : {
+    "automatic-gradient" : "display-p3:0.92092,0.31566,0.30791,0.67132",
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 1
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.3
+      }
+    }
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "fill-specializations" : [
+            {
+              "value" : {
+                "solid" : "display-p3:0.92092,0.62223,0.58035,0.68178"
+              }
+            },
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "display-p3:0.89188,0.93575,0.38640,0.68291"
+              }
+            }
+          ],
+          "image-name" : "Ellipse 8.png",
+          "name" : "Ellipse 8",
+          "position" : {
+            "scale" : 0.55,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "blend-mode" : "normal",
+          "fill" : {
+            "automatic-gradient" : "display-p3:0.96783,0.81205,0.79051,1.00000"
+          },
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "Frame 47.png",
+          "name" : "Frame 47",
+          "position" : {
+            "scale" : 1.1,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
