@@ -32,7 +32,7 @@ export class UdpConnection {
 
     private isServerAcked = false;
     private isTerminated = false;
-    private peerAddress?: string;
+    private peerAddresses?: string[];
     private peerPort?: number;
     private reDatagram?: ReDatagram;
     private connectionTimeoutId?: ReturnType<typeof setTimeout>;
@@ -126,13 +126,13 @@ export class UdpConnection {
         };
     }
 
-    public addPeerDetails(peerAddress: string, peerPort: number) {
+    public addPeerDetails(peerAddresses: string[], peerPort: number) {
         if (this.isTerminated) {
             console.warn("[UdpConnection] Connection terminated, ignoring peer details.");
             return;
         }
-        console.log("Received peer details:", peerAddress, peerPort);
-        this.peerAddress = peerAddress;
+        console.log("Received peer details:", peerAddresses, peerPort);
+        this.peerAddresses = peerAddresses;
         this.peerPort = peerPort;
         this.checkConnectionEstablished();
     }
@@ -229,14 +229,14 @@ export class UdpConnection {
     }
 
     private checkConnectionEstablished() {
-        if (this.peerAddress && this.peerPort && this.isServerAcked && !this.isTerminated && !this.reDatagram) {
-            console.log("UDP server handshake complete. Peer to connect:", this.peerAddress, this.peerPort);
+        if (this.peerAddresses && this.peerAddresses.length > 0 && this.peerPort && this.isServerAcked && !this.isTerminated && !this.reDatagram) {
+            console.log("UDP server handshake complete. Peer addresses:", this.peerAddresses, "Port:", this.peerPort);
             // Remove dgram event handlers to avoid interference
             this.dgram.onMessage = undefined;
             this.dgram.onError = undefined;
             this.dgram.onClose = undefined;
-            // Create ReDatagram layer
-            this.reDatagram = new ReDatagram(this.dgram, this.peerAddress, this.peerPort, (isSuccess: boolean) => {
+            // Create ReDatagram layer with all peer addresses
+            this.reDatagram = new ReDatagram(this.dgram, this.peerAddresses, this.peerPort, (isSuccess: boolean) => {
                 if (this.connectionTimeoutId) {
                     clearTimeout(this.connectionTimeoutId);
                     this.connectionTimeoutId = undefined;
@@ -343,7 +343,7 @@ export abstract class WebcInterface extends ConnectionInterface {
                 }
                 else {
                     console.log("[WebCInterface] Found waiting peer data for PIN:", webcInit.pin, waitingEntry.peerData);
-                    udpConnection.addPeerDetails(waitingEntry.peerData.peerAddress, waitingEntry.peerData.peerPort);
+                    udpConnection.addPeerDetails(waitingEntry.peerData.peerAddresses, waitingEntry.peerData.peerPort);
                 }
                 this.waitingPeerData.delete(webcInit.pin);
                 return;
@@ -486,7 +486,7 @@ export abstract class WebcInterface extends ConnectionInterface {
             const waitingEntry = this.waitingForPeerData.get(webcPeerData.pin);
             if (waitingEntry) {
                 clearTimeout(waitingEntry.cleanupTimer);
-                waitingEntry.connection.addPeerDetails(webcPeerData.peerAddress, webcPeerData.peerPort);
+                waitingEntry.connection.addPeerDetails(webcPeerData.peerAddresses, webcPeerData.peerPort);
                 this.waitingForPeerData.delete(webcPeerData.pin);
             } else {
                 console.warn("[WebCInterface] Received WebC peer data before server handshake for PIN:", webcPeerData.pin);

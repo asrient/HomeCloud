@@ -55,7 +55,7 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
     const { enabled: keepAwakeEnabled, setEnabled: setKeepAwake } = useKeepAwakeStore();
     const highlightColor = useThemeColor({}, 'highlight');
     const isDiscoverable = useDiscoverable();
-    const { isLinked } = useAccountState();
+    const { isLinked, serverConnected } = useAccountState();
     const [installLinkOpen, setInstallLinkOpen] = useState(false);
 
     useEffect(() => {
@@ -160,6 +160,19 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
                             />
                         </Section>
                     )}
+                    {
+                        isLinked && (
+                            <View style={{ margin: 8 }}>
+                                <UIText size="xs" color="textSecondary" style={{ textAlign: 'center' }}>
+                                    {
+                                        serverConnected
+                                            ? 'Server Connected.'
+                                            : 'Server Disconnected.'
+                                    }
+                                </UIText>
+                            </View>
+                        )
+                    }
                 </FormContainer>
             </UIScrollView>
             <InstallLinkModal isOpen={installLinkOpen} onClose={() => setInstallLinkOpen(false)} />

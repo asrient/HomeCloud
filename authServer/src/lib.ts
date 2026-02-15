@@ -430,12 +430,12 @@ export async function relayWebcPeerData(pin: string, address: string, port: numb
     // peerB.targetId = owner of peerA.pin, peerA.targetId = owner of peerB.pin
     const messageForPeerA: WebcPeerData = {
         pin: peerA.pin,
-        peerAddress: peerB.address,
+        peerAddresses: [peerB.address],
         peerPort: peerB.port,
     };
     const messageForPeerB: WebcPeerData = {
         pin: peerB.pin,
-        peerAddress: peerA.address,
+        peerAddresses: [peerA.address],
         peerPort: peerA.port,
     };
     console.log(`WebC: Relaying data between Peer A (PIN=${peerA.pin}) and Peer B (PIN=${peerB.pin})`);
@@ -526,22 +526,24 @@ export async function relayWebcLocal(peerId: string, pin: string, addresses: str
     await globalComms.deleteKV(`webc_local_${pin}`);
     await globalComms.deleteKV(`webc_local_${cache.targetPin}`);
 
-    // Find the best matching address pair using isSameNetwork
-    let addressForCurrentPeer: string | null = null;
-    let addressForOtherPeer: string | null = null;
+    // Find all matching address pairs using isSameNetwork
+    const addressesForCurrentPeer: string[] = []; // other peer's addresses that current peer connects to
+    const addressesForOtherPeer: string[] = [];   // current peer's addresses that other peer connects to
 
     for (const addrCurrent of currentPeer.addresses) {
         for (const addrOther of otherPeer.addresses) {
             if (isSameNetwork(addrCurrent, addrOther)) {
-                addressForCurrentPeer = addrOther; // current peer connects to other's address
-                addressForOtherPeer = addrCurrent; // other peer connects to current's address
-                break;
+                if (!addressesForCurrentPeer.includes(addrOther)) {
+                    addressesForCurrentPeer.push(addrOther);
+                }
+                if (!addressesForOtherPeer.includes(addrCurrent)) {
+                    addressesForOtherPeer.push(addrCurrent);
+                }
             }
         }
-        if (addressForCurrentPeer) break;
     }
 
-    if (!addressForCurrentPeer || !addressForOtherPeer) {
+    if (addressesForCurrentPeer.length === 0 || addressesForOtherPeer.length === 0) {
         // No matching network found, reject both peers
         const rejectForCurrent: WebcReject = {
             pin: pin,
@@ -562,15 +564,15 @@ export async function relayWebcLocal(peerId: string, pin: string, addresses: str
     // Send each peer the other's local address info
     const messageForCurrent: WebcPeerData = {
         pin: pin,
-        peerAddress: addressForCurrentPeer,
+        peerAddresses: addressesForCurrentPeer,
         peerPort: otherPeer.port,
     };
     const messageForOther: WebcPeerData = {
         pin: cache.targetPin,
-        peerAddress: addressForOtherPeer,
+        peerAddresses: addressesForOtherPeer,
         peerPort: currentPeer.port,
     };
-    console.log(`WebC Local: Relaying between PIN=${pin} (addr=${addressForOtherPeer}) and PIN=${cache.targetPin} (addr=${addressForCurrentPeer})`);
+    console.log(`WebC Local: Relaying between PIN=${pin} (addrs=${addressesForOtherPeer}) and PIN=${cache.targetPin} (addrs=${addressesForCurrentPeer})`);
     await Promise.all([
         notifyPeer(currentPeer.peerId, 'webc_peer_data', messageForCurrent),
         notifyPeer(otherPeer.peerId, 'webc_peer_data', messageForOther),

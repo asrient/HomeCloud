@@ -20,10 +20,12 @@ const FLAG_PING = 5;
 
 const MAX_PACKET_PAYLOAD = MAX_PACKET_SIZE - HEADER_SIZE;
 
+const STRICT_IP_CHECK = false;
 
 export class ReDatagram {
     private socket: DatagramCompat;
     private remote: { address: string; port: number };
+    private allowedAddresses: Set<string>;
 
     private sendSeq = 1;
     private recvSeq = 1;
@@ -46,17 +48,28 @@ export class ReDatagram {
     private sendLock = false;
     private sendBuffer: Uint8Array[] = [];
 
-    constructor(socket: DatagramCompat, address: string, port: number, onReady?: (isSuccess: boolean) => void) {
+    constructor(socket: DatagramCompat, peerAddresses: string[], port: number, onReady?: (isSuccess: boolean) => void) {
         this.socket = socket;
 
         this.onReady = onReady;
-        this.remote = { address, port };
+        this.remote = { address: peerAddresses[0], port };
+        this.allowedAddresses = new Set(peerAddresses);
 
         this.socket.onMessage = (msg, rinfo) => {
-            // make sure message is from the expected remote
-            if (rinfo.address !== this.remote.address || rinfo.port !== this.remote.port) {
-                console.warn(`[ReUDP] Ignoring packet from unexpected remote ${rinfo.address}:${rinfo.port}, expected ${this.remote.address}:${this.remote.port}`);
+            // always verify port matches
+            if (rinfo.port !== this.remote.port) {
+                console.warn(`[ReUDP] Ignoring packet from unexpected port ${rinfo.address}:${rinfo.port}, expected port ${this.remote.port}`);
                 return;
+            }
+            // make sure message is from an allowed remote address
+            if (STRICT_IP_CHECK && !this.allowedAddresses.has(rinfo.address)) {
+                console.warn(`[ReUDP] Ignoring packet from unexpected remote ${rinfo.address}:${rinfo.port}, not in allowed addresses`);
+                return;
+            }
+            // Update remote address if it changed to an allowed one
+            if (rinfo.address !== this.remote.address && this.allowedAddresses.has(rinfo.address)) {
+                console.log(`[ReUDP] Remote address changed from ${this.remote.address} to ${rinfo.address}`);
+                this.remote.address = rinfo.address;
             }
             this.handlePacket(msg);
         };

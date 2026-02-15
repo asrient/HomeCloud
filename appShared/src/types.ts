@@ -263,7 +263,7 @@ export type WebcInit = {
 
 export type WebcPeerData = {
     pin: string;
-    peerAddress: string;
+    peerAddresses: string[];
     peerPort: number;
 }
 

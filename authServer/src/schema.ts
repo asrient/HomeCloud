@@ -113,7 +113,7 @@ export const WebcInitSchema = z.object({
 // WebcPeerData schema
 export const WebcPeerDataSchema = z.object({
     pin: z.string(),
-    peerAddress: z.string(),
+    peerAddresses: z.array(z.string()).min(1),
     peerPort: z.number().min(1).max(65535),
 }).strict();
 
