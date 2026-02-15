@@ -1,5 +1,5 @@
-import { net } from 'electron';
-import { app } from 'electron';
+import { net, app, dialog, shell, MenuItemConstructorOptions } from 'electron';
+import Signal from 'shared/signals';
 
 const GITHUB_REPO = 'asrient/HomeCloud';
 const CHECK_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -21,12 +21,27 @@ let checking = false;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 /**
+ * Signal dispatched whenever the update status changes.
+ * Listeners can use this to rebuild menus, update UI, etc.
+ */
+export const updateStatusChanged = new Signal<[UpdateStatus]>();
+
+/**
  * Get the current status of the update check without triggering a fetch.
  */
 export function getUpdateStatus(): UpdateStatus {
     if (checking) return 'checking';
     if (cachedInfo?.updateAvailable) return 'available';
     return 'notavailable';
+}
+
+function setChecking(value: boolean) {
+    const wasBefore = getUpdateStatus();
+    checking = value;
+    const isNow = getUpdateStatus();
+    if (wasBefore !== isNow) {
+        updateStatusChanged.dispatch(isNow);
+    }
 }
 
 /**
@@ -40,7 +55,7 @@ export async function checkForUpdates(force = false): Promise<UpdateInfo | null>
     }
 
     try {
-        checking = true;
+        setChecking(true);
         const response = await net.fetch(CHECK_URL, {
             headers: {
                 'Accept': 'application/vnd.github.v3+json',
@@ -72,7 +87,7 @@ export async function checkForUpdates(force = false): Promise<UpdateInfo | null>
         console.warn('Update check error:', err);
         return cachedInfo;
     } finally {
-        checking = false;
+        setChecking(false);
     }
 }
 
@@ -90,4 +105,69 @@ function isNewer(latest: string, current: string): boolean {
         if (lv < cv) return false;
     }
     return false;
+}
+
+/**
+ * Show a dialog prompting the user to download the latest version.
+ */
+export async function showUpdateDialog() {
+    const info = await checkForUpdates();
+    if (!info) return;
+    const { response } = await dialog.showMessageBox({
+        type: 'info',
+        title: 'Update Available',
+        message: `A new version of ${app.getName()} is available!`,
+        detail: `Current: v${info.currentVersion}\nLatest: v${info.latestVersion}\n\n${info.releaseName}${info.releaseNotes ? '\n\n' + info.releaseNotes : ''}`,
+        buttons: ['Download', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+    });
+    if (response === 0) {
+        shell.openExternal(info.releaseUrl);
+    }
+}
+
+/**
+ * Build a MenuItemConstructorOptions for the "Check for Updates" action.
+ * Shared by both the app menu and the tray menu.
+ */
+export function getUpdateMenuItem(): MenuItemConstructorOptions {
+    const status = getUpdateStatus();
+
+    if (status === 'checking') {
+        return { label: 'Checking for Updates…', enabled: false };
+    }
+
+    if (status === 'available') {
+        return {
+            label: 'Update Available…',
+            click: () => showUpdateDialog(),
+        };
+    }
+
+    return {
+        label: 'Check for Updates…',
+        click: async () => {
+            const info = await checkForUpdates(true);
+            if (!info) {
+                dialog.showMessageBox({
+                    type: 'warning',
+                    title: 'Update Check',
+                    message: 'Could not check for updates.',
+                    detail: 'Please check your internet connection and try again.',
+                });
+                return;
+            }
+            if (info.updateAvailable) {
+                showUpdateDialog();
+            } else {
+                dialog.showMessageBox({
+                    type: 'info',
+                    title: 'No Updates',
+                    message: `You're up to date`,
+                    detail: `${app.getName()} v${info.currentVersion} is the latest version.`,
+                });
+            }
+        },
+    };
 }

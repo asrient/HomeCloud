@@ -14,6 +14,7 @@ import { OSType, UITheme } from 'shared/types';
 import { createTray } from './tray';
 import { createWindow } from './window';
 import { checkForUpdates } from './updateCheck';
+import { setupAppMenu } from './appMenu';
 import { UserPreferences } from './types';
 import log from 'electron-log/main';
 
@@ -208,6 +209,8 @@ let APP_RUNNING = false;
 const startApp = async () => {
   await initModules();
   handleProtocols();
+  // Set up application menu (macOS menu bar)
+  setupAppMenu();
   // Create system tray
   createTray();
   // Create the main window (skip if started in background)

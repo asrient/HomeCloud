@@ -1,8 +1,8 @@
-import { app, Menu, MenuItemConstructorOptions, Tray, nativeImage, dialog, shell } from 'electron';
+import { app, Menu, MenuItemConstructorOptions, Tray, nativeImage } from 'electron';
 import path from 'node:path';
 import { getOrCreateWindow, navigateTo, getPeerUrl, getSettingsUrl } from './window';
 import { osInfoString } from './utils';
-import { checkForUpdates, getUpdateStatus } from './updateCheck';
+import { getUpdateMenuItem } from './updateCheck';
 
 let tray: Tray | null = null;
 
@@ -71,57 +71,6 @@ export function trayOnClick() {
     ]);
 
     tray.popUpContextMenu(contextMenu);
-}
-
-function getUpdateMenuItem(): MenuItemConstructorOptions {
-    const status = getUpdateStatus();
-
-    if (status === 'checking') {
-        return { label: 'Checking for updates...', enabled: false };
-    }
-
-    if (status === 'available') {
-        return {
-            label: 'Update available',
-            click: () => showUpdateDialog(),
-        };
-    }
-
-    return {
-        label: 'Check for updates',
-        click: async () => {
-            const info = await checkForUpdates(true);
-            if (!info) {
-                dialog.showMessageBox({
-                    type: 'warning',
-                    title: 'Update Check',
-                    message: 'Could not check for updates.',
-                    detail: 'Please check your internet connection and try again.',
-                });
-                return;
-            }
-            if (info.updateAvailable) {
-                showUpdateDialog();
-            }
-        },
-    };
-}
-
-async function showUpdateDialog() {
-    const info = await checkForUpdates();
-    if (!info) return;
-    const { response } = await dialog.showMessageBox({
-        type: 'info',
-        title: 'Update Available',
-        message: `A new version of ${app.getName()} is available!`,
-        detail: `Current: v${info.currentVersion}\nLatest: v${info.latestVersion}\n\n${info.releaseName}${info.releaseNotes ? '\n\n' + info.releaseNotes : ''}`,
-        buttons: ['Download', 'Later'],
-        defaultId: 0,
-        cancelId: 1,
-    });
-    if (response === 0) {
-        shell.openExternal(info.releaseUrl);
-    }
 }
 
 export function createTray() {
