@@ -5,13 +5,16 @@ import { View, } from 'react-native';
 import { FolderFilesGrid, PinnedFoldersGrid } from '@/components/filesGrid';
 import { UIText } from '@/components/ui/UIText';
 import { UIScrollView } from '@/components/ui/UIScrollView';
-import { isGlassEnabled } from '@/lib/utils';
+import { isGlassEnabled, getBottomPadding } from '@/lib/utils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function FilesScreen() {
   const { selectedFingerprint } = useAppState();
+  const insets = useSafeAreaInsets();
+  const bottomPadding = getBottomPadding(insets.bottom);
 
   return (
-    <UIScrollView style={{ flex: 1 }}>
+    <UIScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: bottomPadding }}>
       <Stack.Screen
         options={{
           title: 'Files',

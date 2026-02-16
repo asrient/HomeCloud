@@ -13,14 +13,13 @@ import { usePhotoLibraries } from '@/hooks/usePhotos';
 import { PhotosGrid } from '@/components/photosGrid';
 import { PhotosSortOption, PhotoView, PhotosQuickAction } from '@/lib/types';
 import { UIButton } from '@/components/ui/UIButton';
-import { getLocalServiceController, getServiceController, isIos, isGlassEnabled } from '@/lib/utils';
+import { getLocalServiceController, getServiceController, isIos, isGlassEnabled, getTabBarHeight } from '@/lib/utils';
 import { useAlert } from '@/hooks/useAlert';
 
 export default function PhotosScreen() {
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
-  // Tab bar height is typically 49 on iOS and 56 on Android, plus safe area
-  const tabBarHeight = (isIos ? 49 : 56) + insets.bottom;
+  const tabBarHeight = getTabBarHeight(insets.bottom);
 
   const { selectedFingerprint } = useAppState();
   const {

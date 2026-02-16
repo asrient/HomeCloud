@@ -138,7 +138,7 @@ function withMaterial3Styles(config) {
                 { $: { name: 'colorSurfaceContainerLow' }, _: '@color/colorSurfaceContainerLow' },
                 { $: { name: 'android:colorBackground' }, _: '@color/colorSurface' },
                 { $: { name: 'android:statusBarColor' }, _: '@color/colorSurface' },
-                { $: { name: 'android:navigationBarColor' }, _: '@color/colorSurfaceContainer' },
+                { $: { name: 'android:navigationBarColor' }, _: '@color/colorSurface' },
             ];
 
             material3Items.forEach(newItem => {

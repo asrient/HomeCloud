@@ -11,15 +11,18 @@ import { DeviceInfo, PeerInfo } from 'shared/types';
 import { useAccountState } from '@/hooks/useAccountState';
 import { useAppState } from '@/hooks/useAppState';
 import { useAlert } from '@/hooks/useAlert';
-import { getAppName, getOSIconUrl, isGlassEnabled, isIos } from '@/lib/utils';
+import { getAppName, getOSIconUrl, isGlassEnabled, isIos, getBottomPadding } from '@/lib/utils';
 import DeviceIcon from '@/components/deviceIcon';
 import { HelpLinkType } from 'shared/helpLinks';
 import { hasStorageAccess, requestStorageAccess } from '@/lib/permissions';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
   const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
+  const bottomPadding = getBottomPadding(insets.bottom);
 
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [storageGranted, setStorageGranted] = useState(true);
@@ -99,7 +102,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <UIScrollView themeColor={isIos ? 'backgroundSecondary' : 'background'} showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+    <UIScrollView themeColor={isIos ? 'backgroundSecondary' : 'background'} showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: bottomPadding }}>
       {isGlassEnabled && <View style={{ height: headerHeight }} />}
       <FormContainer>
         <Section title="About">

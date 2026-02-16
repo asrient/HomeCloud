@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DeviceInfo, PeerInfo } from 'shared/types';
 import { DeviceQuickActions } from '@/components/deviceQuickActions';
-import { isIos, isGlassEnabled, getAppName } from '@/lib/utils';
+import { isIos, isGlassEnabled, getAppName, getTabBarHeight } from '@/lib/utils';
 import { useAccountState } from '@/hooks/useAccountState';
 import InstallLinkModal from '@/components/InstallLinkModal';
 
@@ -23,7 +23,7 @@ function printDeviceInfo(info: DeviceInfo | null) {
   return `${info.os} ${info.osFlavour} • ${info.formFactor}`;
 }
 
-function DeviceInfoSection({ peerInfo, size = 200 }: { peerInfo: PeerInfo | null; size?: number }) {
+function DeviceInfoSection({ peerInfo, size = 150 }: { peerInfo: PeerInfo | null; size?: number }) {
   const [localPeerInfo, setLocalPeerInfo] = useState<PeerInfo | null>(null);
 
   useEffect(() => {
@@ -57,10 +57,13 @@ export default function HomeScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const isWide = screenWidth >= 768 && screenWidth > screenHeight;
 
-  // Tab bar height is typically 49 on iOS and 56 on Android, plus safe area
-  const tabBarHeight = (isIos ? 49 : 56) + insets.bottom;
+  const tabBarHeight = getTabBarHeight(insets.bottom);
 
   const { selectedPeer } = useAppState();
+
+  const hasSendBarOverlay = useMemo(() => {
+    return selectedPeer != null;
+  }, [selectedPeer]);
 
   const { peers } = useAppState();
 
@@ -101,7 +104,7 @@ export default function HomeScreen() {
         }}
       />
       <DeviceSelectorRow />
-      <View style={[styles.container, { paddingBottom: tabBarHeight + (isIos ? 15 : 40) }]}>
+      <View style={[styles.container, { paddingBottom: tabBarHeight + (isIos ? 15 : 40) + (hasSendBarOverlay ? 60 : 0) }]}>
         {isWide ? (
           <View style={styles.landscapeGrid}>
             <View style={styles.landscapeDeviceSection}>

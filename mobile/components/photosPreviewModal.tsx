@@ -447,7 +447,7 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuic
     }, [currentIndex, photos, onQuickAction]);
 
     return (
-        <Modal visible={isOpen} transparent={false} animationType="fade" statusBarTranslucent>
+        <Modal visible={isOpen} transparent={false} animationType="fade" statusBarTranslucent onRequestClose={exitPreview}>
             <GestureHandlerRootView style={[styles.container, { backgroundColor: bgColor }]}>
 
                 <View style={[styles.container, { backgroundColor: bgColor }]}>

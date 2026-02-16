@@ -61,3 +61,19 @@ export const formatFileSize = (bytes?: number) => {
 export const isIos = Platform.OS === 'ios';
 
 export const isGlassEnabled = isIos && isLiquidGlassAvailable();
+
+/**
+ * Calculate bottom padding to account for the system navigation bar on Android (edge-to-edge).
+ * On iOS, returns 0 since the system handles insets natively.
+ */
+export function getBottomPadding(bottomInset: number): number {
+  return Platform.OS === 'android' ? bottomInset + 20 : 0;
+}
+
+/**
+ * Calculate the tab bar height including safe area bottom inset.
+ * iOS tab bar is 49pt, Android is 56dp.
+ */
+export function getTabBarHeight(bottomInset: number): number {
+  return (isIos ? 49 : 56) + bottomInset;
+}

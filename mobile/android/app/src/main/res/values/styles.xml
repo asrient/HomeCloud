@@ -29,7 +29,7 @@
     <item name="colorSurfaceContainerHigh">@color/colorSurfaceContainerHigh</item>
     <item name="colorSurfaceContainerLow">@color/colorSurfaceContainerLow</item>
     <item name="android:colorBackground">@color/colorSurface</item>
-    <item name="android:navigationBarColor">@color/colorSurfaceContainer</item>
+    <item name="android:navigationBarColor">@color/colorSurface</item>
   </style>
   <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
     <item name="windowSplashScreenBackground">@color/splashscreen_background</item>

@@ -22,7 +22,7 @@ export function useNavigationTheme(): Theme {
             colors: {
                 primary: colors.highlight,
                 background: colors.background,
-                card: colors.backgroundSecondary,
+                card: Platform.OS === 'android' ? colors.background : colors.backgroundSecondary,
                 text: colors.text,
                 border: colors.seperator,
                 notification: colors.highlight,

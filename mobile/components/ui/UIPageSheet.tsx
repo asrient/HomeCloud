@@ -33,6 +33,8 @@ export function UIPageSheet({
 
     // On Android, pageSheet doesn't respect status bar, so we add padding
     const topPadding = isIos ? 0 : insets.top;
+    // On Android with 3-button navigation, content can go behind the system nav bar
+    const bottomPadding = isIos ? 0 : insets.bottom;
 
     // If headerButtons are provided, close button goes left; otherwise it goes right
     const hasHeaderButtons = !!headerButtons;
@@ -64,7 +66,7 @@ export function UIPageSheet({
             onRequestClose={onClose}
         >
             <UIStatusBar type="sheet" />
-            <UIView themeColor="backgroundSecondary" style={{ flex: 1, paddingTop: topPadding }}>
+            <UIView themeColor="backgroundSecondary" style={{ flex: 1, paddingTop: topPadding, paddingBottom: bottomPadding }}>
                 {/* Header */}
                 <View style={[styles.header, { borderBottomColor: separatorColor }]}>
                     <View style={styles.headerLeft}>

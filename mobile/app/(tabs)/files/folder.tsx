@@ -402,7 +402,7 @@ export default function FolderScreen() {
           error={error}
           footerComponent={
 
-            <View style={{ paddingHorizontal: 10, paddingVertical: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 80 }}>
+            <View style={{ paddingHorizontal: 10, paddingVertical: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 120 }}>
               <UIText size="sm" color='textSecondary'>
                 {`${remoteItems.length} items.`}
               </UIText>

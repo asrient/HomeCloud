@@ -4,6 +4,7 @@ import { UIButton } from "./ui/UIButton";
 import { UITextInput } from "./ui/UITextInput";
 import { UIContextMenu } from './ui/UIContextMenu';
 import { useCallback, useState } from "react";
+import { Platform } from "react-native";
 import { getServiceController } from "shared/utils";
 import { getLocalServiceController } from "@/lib/utils";
 import { LoadingModal } from "./LoadingModal";
@@ -95,7 +96,7 @@ export function DeviceSendBar({ peerInfo }: DeviceSendBarProps) {
 
     return <>
         <UIView
-            themeColor="backgroundSecondary"
+            themeColor={Platform.OS === 'android' ? "backgroundTertiary" : "backgroundSecondary"}
             style={{
                 width: '100%',
                 padding: 2,
