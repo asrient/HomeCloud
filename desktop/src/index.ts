@@ -208,7 +208,31 @@ export function wasStartedInBackground(): boolean {
 
 let APP_RUNNING = false;
 
+async function promptMoveToApplicationsFolder() {
+  if (process.platform !== 'darwin' || !app.isPackaged || app.isInApplicationsFolder()) {
+    return;
+  }
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    buttons: ['Move to Applications', 'Not Now'],
+    defaultId: 0,
+    cancelId: 1,
+    message: 'Move to Applications folder?',
+    detail: `${app.getName()} works best when run from the Applications folder. Would you like to move it there?`,
+  });
+  if (response === 0) {
+    try {
+      app.moveToApplicationsFolder();
+    } catch (err) {
+      console.error('Failed to move to Applications folder:', err);
+    }
+    // moveToApplicationsFolder relaunches the app from the new location, so we return early
+    return;
+  }
+}
+
 const startApp = async () => {
+  await promptMoveToApplicationsFolder();
   await initModules();
   handleProtocols();
   // Set up application menu (macOS menu bar)
