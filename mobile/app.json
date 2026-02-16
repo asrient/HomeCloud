@@ -94,6 +94,7 @@
     "plugins": [
       "expo-router",
       "./plugins/withMaterial3Theme",
+      "./plugins/withReleaseSigning",
       [
         "expo-splash-screen",
         {
