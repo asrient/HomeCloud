@@ -30,13 +30,16 @@ export default class Discovery extends DiscoveryBase {
                 }
             }
         });
+        this.zeroconf.on('remove', (serviceName) => {
+            console.log('[Discovery] Service removed:', serviceName);
+            // todo: gracefully handle service removal (e.g. remove from cache and candidates list)
+        });
         this.zeroconf.on('start', () => console.log('[Discovery] Bonjour scan has started.'));
         this.zeroconf.on('stop', () => console.log('[Discovery] Bonjour scan has stopped.'));
         this.zeroconf.on('published', () => {
             console.log('[Discovery] Service published.');
             this.isPublished = true;
         });
-
         this.setupAppStateListener();
     }
 
