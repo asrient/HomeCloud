@@ -9,9 +9,6 @@ import { getPowerStateAsync, addLowPowerModeListener } from 'expo-battery';
 import { filterValidBonjourIps, isSameNetwork } from "shared/utils";
 import { UNSUPPORTED_NETWORK_TYPES } from "../types";
 
-// For debugging
-const ENABLE_CONNECTIVITY = true;
-
 const noop = () => { };
 
 interface TCPConnection {
@@ -59,7 +56,7 @@ export default class TCPInterface extends ConnectionInterface {
     }
 
     isActive(): boolean {
-        return this._started && ENABLE_CONNECTIVITY && this.networkSupported;
+        return this._started && this.networkSupported;
     }
 
     /**
@@ -118,12 +115,10 @@ export default class TCPInterface extends ConnectionInterface {
     }
 
     onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void {
-        if (!ENABLE_CONNECTIVITY) return;
         this.discovery.onCandidateAvailable(callback);
     }
 
     private setupConnectListener() {
-        if (!ENABLE_CONNECTIVITY) return;
         const localSc = modules.getLocalServiceController();
         localSc.account.peerConnectRequestSignal.add(async (request) => {
             console.log('[TCPInterface] Received peer connect request via account server for fingerprint:', request.fingerprint);
@@ -157,9 +152,6 @@ export default class TCPInterface extends ConnectionInterface {
      * @returns {Promise<GenericDataChannel>} A promise that resolves to a data channel.
      */
     async connect(candidate: PeerCandidate): Promise<GenericDataChannel> {
-        if (!ENABLE_CONNECTIVITY) {
-            throw new Error('TCPInterface connectivity is disabled.');
-        }
         if (!this.networkSupported) {
             throw new Error('Network is unsupported, cannot connect to candidate.');
         }
@@ -200,9 +192,6 @@ export default class TCPInterface extends ConnectionInterface {
             console.log('[TCPInterface] Network is unsupported, returning no candidates.');
             return [];
         }
-        if (!ENABLE_CONNECTIVITY) {
-            return [];
-        }
         return new Promise((resolve) => {
             const candidates = this.discovery.getCandidates(false); // trigger a scan
             if (fingerprint) {
@@ -234,7 +223,7 @@ export default class TCPInterface extends ConnectionInterface {
     }
 
     private expectedServerState(): boolean {
-        return ENABLE_CONNECTIVITY && this.networkSupported && !this.lowPowerMode;
+        return this.networkSupported && !this.lowPowerMode;
     }
 
     private expectedScanState(): boolean {
