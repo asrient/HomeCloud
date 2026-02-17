@@ -1533,7 +1533,7 @@ PODS:
   - react-native-volume-manager (2.0.8):
     - Mute
     - React-Core
-  - react-native-zeroconf (0.13.8):
+  - react-native-zeroconf (0.14.0):
     - React-Core
   - React-NativeModulesApple (0.81.5):
     - hermes-engine
@@ -2526,7 +2526,7 @@ SPEC CHECKSUMS:
   react-native-safe-area-context: 37e680fc4cace3c0030ee46e8987d24f5d3bdab2
   react-native-slider: 8c562583722c396a3682f451f0b6e68e351ec3b9
   react-native-volume-manager: cdd3c3857158c1df7b9fbea071a9946395cee06c
-  react-native-zeroconf: 7551cb121ac8299feb39d5e47f065c3bc4cf9985
+  react-native-zeroconf: eb2e5584308f20f5fc3eb0cea2ceafbbd345b48b
   React-NativeModulesApple: 8969913947d5b576de4ed371a939455a8daf28aa
   React-oscompat: ce47230ed20185e91de62d8c6d139ae61763d09c
   React-perflogger: 02b010e665772c7dcb859d85d44c1bfc5ac7c0e4

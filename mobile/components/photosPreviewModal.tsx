@@ -2,7 +2,7 @@ import { StyleSheet, Modal, Dimensions, ActivityIndicator, View } from 'react-na
 import { PhotosQuickAction, PhotoView } from '@/lib/types';
 import { UIText } from './ui/UIText';
 import { Directory, Paths, File } from 'expo-file-system/next';
-import { getServiceController, isIos } from '@/lib/utils';
+import { getServiceController, isIos, supportsHeic } from '@/lib/utils';
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { FlashList } from "@shopify/flash-list";
@@ -63,7 +63,7 @@ async function getAssetUri(photo: PhotoView): Promise<string> {
         return cacheFile.uri;
     }
     const serviceController = await getServiceController(photo.deviceFingerprint);
-    const remoteItem = await serviceController.files.getPreview(photo.fileId, { supportsHeic: isIos });
+    const remoteItem = await serviceController.files.getPreview(photo.fileId, { supportsHeic });
     cacheFile.create({ overwrite: true, intermediates: true });
     await remoteItem.stream.pipeTo(cacheFile.writableStream());
     photo.assetUrl = cacheFile.uri;

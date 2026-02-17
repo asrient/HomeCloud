@@ -60,6 +60,9 @@ export const formatFileSize = (bytes?: number) => {
 
 export const isIos = Platform.OS === 'ios';
 
+/** iOS always supports HEIC; Android supports it natively from API 29 (Android 10+) */
+export const supportsHeic = isIos || (Platform.OS === 'android' && (Platform.Version as number) >= 29);
+
 export const isGlassEnabled = isIos && isLiquidGlassAvailable();
 
 /**

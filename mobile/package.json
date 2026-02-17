@@ -13,7 +13,9 @@
     "iosd:release": "expo run:ios --device --configuration Release",
     "web": "expo start --web",
     "lint": "expo lint",
-    "prebuild": "expo prebuild --clean"
+    "prebuild": "expo prebuild --clean",
+    "prebuild:android": "expo prebuild --clean --platform android",
+    "prebuild:ios": "expo prebuild --clean --platform ios"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
