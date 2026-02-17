@@ -1,5 +1,5 @@
 
-import { StyleSheet, View, Image, Pressable, Platform } from 'react-native';
+import { StyleSheet, View, Image, Pressable, Platform, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { UIScrollView } from '@/components/ui/UIScrollView';
@@ -7,7 +7,7 @@ import { UIText } from '@/components/ui/UIText';
 import { UIIcon } from '@/components/ui/UIIcon';
 import { Section, Line, LineLink, FormContainer } from '@/components/ui/UIFormPrimatives';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DeviceInfo, PeerInfo } from 'shared/types';
+import { ConnectionType, DeviceInfo, PeerInfo } from 'shared/types';
 import { useAccountState } from '@/hooks/useAccountState';
 import { useAppState } from '@/hooks/useAppState';
 import { useAlert } from '@/hooks/useAlert';
@@ -16,6 +16,7 @@ import DeviceIcon from '@/components/deviceIcon';
 import { HelpLinkType } from 'shared/helpLinks';
 import { hasStorageAccess, requestStorageAccess } from '@/lib/permissions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -26,8 +27,10 @@ export default function SettingsScreen() {
 
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [storageGranted, setStorageGranted] = useState(true);
+  const [ifaceStatuses, setIfaceStatuses] = useState<{ type: ConnectionType; enabled: boolean }[]>([]);
   const { isLinked, accountEmail } = useAccountState();
   const { peers, setOnboarded } = useAppState();
+  const highlightColor = useThemeColor({}, 'highlight');
 
   const isDev = useMemo(() => {
     return modules.config.IS_DEV;
@@ -46,11 +49,24 @@ export default function SettingsScreen() {
     if (Platform.OS === 'android') {
       hasStorageAccess().then(setStorageGranted);
     }
+    const localSc = modules.getLocalServiceController();
+    setIfaceStatuses(localSc.net.getConnectionInterfaceStatuses());
   }, []);
 
   const handleGrantStorage = useCallback(async () => {
     const granted = await requestStorageAccess();
     setStorageGranted(granted);
+  }, []);
+
+  const connectionInterfaceLabels: Record<string, string> = {
+    [ConnectionType.LOCAL]: 'Local Network',
+    [ConnectionType.WEB]: 'Web Connect',
+  };
+
+  const handleToggleInterface = useCallback(async (type: ConnectionType, enabled: boolean) => {
+    setIfaceStatuses(prev => prev.map(s => s.type === type ? { ...s, enabled } : s));
+    const localSc = modules.getLocalServiceController();
+    await localSc.net.setConnectionInterfaceEnabled(type, enabled);
   }, []);
 
   const openLogin = () => {
@@ -133,6 +149,20 @@ export default function SettingsScreen() {
                 />
               )
             }
+          </Section>
+        )}
+
+        {ifaceStatuses.length > 0 && (
+          <Section title="Allowed Connections" footer="At least one connection method must be enabled to connect to other devices.">
+            {ifaceStatuses.map(({ type, enabled }) => (
+              <Line key={type} title={connectionInterfaceLabels[type] || type}>
+                <Switch
+                  value={enabled}
+                  onValueChange={(value) => handleToggleInterface(type, value)}
+                  trackColor={{ true: highlightColor }}
+                />
+              </Line>
+            ))}
           </Section>
         )}
 

@@ -4,6 +4,7 @@ import { ConnectionInterface } from "./netService";
 import { ConnectionType, GenericDataChannel, PeerCandidate, WebcInit, WebcPeerData, WebcReject } from "./types";
 import { filterValidBonjourIps } from "./utils";
 
+
 /*
 Establishes a UDP connection to another peer using a intermediatory server for NAT traversal.
 */
@@ -280,10 +281,11 @@ export abstract class WebcInterface extends ConnectionInterface {
     private waitingForPeerData = new Map<string, { connection: UdpConnection, cleanupTimer: number }>();
     private waitingPeerData = new Map<string, { isReject: boolean, peerData?: WebcPeerData, cleanupTimer: number, sameNetworkError?: boolean }>();
     private activeIncomingPins = new Set<string>();
+    private signalCleanups: (() => void)[] = [];
+
+    protected _started = false;
 
     abstract createDatagramSocket(): DatagramCompat;
-
-
 
     onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void) {
         this.onIncomingConnectionCallback = callback;
@@ -302,9 +304,6 @@ export abstract class WebcInterface extends ConnectionInterface {
         const dgram = this.createDatagramSocket();
         await dgram.bind();
         console.log("[WebCInterface] Datagram socket bound for connection:", dgram.address());
-
-        const localSc = modules.getLocalServiceController();
-
         return new Promise<GenericDataChannel>((resolve, reject) => {
             let isSettled = false;
 
@@ -372,12 +371,21 @@ export abstract class WebcInterface extends ConnectionInterface {
     }
 
     async connect(candidate: PeerCandidate): Promise<GenericDataChannel> {
+        if (!this._started) {
+            throw new Error("WebC interface is not active.");
+        }
+        if (candidate.connectionType !== ConnectionType.WEB) {
+            throw new Error(`Unsupported candidate type: ${candidate.connectionType}`);
+        }
         console.log("[WebCInterface] Connecting to WebC peer:", candidate);
         const localSc = modules.getLocalServiceController();
         const webcInit = await localSc.account.requestWebcInit(candidate.fingerprint);
         return this.setupConnection(webcInit);
     }
     async getCandidates(fingerprint?: string): Promise<PeerCandidate[]> {
+        if (!this._started) {
+            throw new Error("WebC interface is not active.");
+        }
         if (!fingerprint) {
             return [];
         }
@@ -456,10 +464,36 @@ export abstract class WebcInterface extends ConnectionInterface {
         };
     }
 
+    isActive(): boolean {
+        // We need authenticated server connectivity to establish WebC connections.
+        const localSc = modules.getLocalServiceController();
+        if (!localSc.account.isLinked()) {
+            return false;
+        }
+        if (!localSc.account.isServerConnected()) {
+            return false;
+        }
+        return this._started;
+    }
+
     async start(): Promise<void> {
+        if (this._started) {
+            console.warn("[WebCInterface] Interface already started.");
+            return;
+        }
+        try {
+            this.startImpl();
+            this._started = true;
+            console.log("[WebCInterface] Interface started.");
+        } catch (err) {
+            console.error("[WebCInterface] Failed to start interface:", err);
+        }
+    }
+
+    private startImpl() {
         const localSc = modules.getLocalServiceController();
 
-        localSc.account.peerOnlineSignal.add((fingerprint: string) => {
+        const peerOnlineRef = localSc.account.peerOnlineSignal.add((fingerprint: string) => {
             if (fingerprint === modules.config.FINGERPRINT) return;
             if (this.onCandidateAvailableCallback) {
                 this.onCandidateAvailableCallback({
@@ -470,8 +504,9 @@ export abstract class WebcInterface extends ConnectionInterface {
                 });
             }
         });
+        this.signalCleanups.push(() => localSc.account.peerOnlineSignal.detach(peerOnlineRef));
 
-        localSc.account.webcInitSignal.add(async (webcInit: WebcInit) => {
+        const webcInitRef = localSc.account.webcInitSignal.add(async (webcInit: WebcInit) => {
             // Deduplicate: if this PIN is already being processed (e.g. from a duplicate WebSocket event), skip it
             if (this.activeIncomingPins.has(webcInit.pin)) {
                 console.log("[WebCInterface] Skipping duplicate webc_request for PIN:", webcInit.pin);
@@ -490,8 +525,9 @@ export abstract class WebcInterface extends ConnectionInterface {
                 this.activeIncomingPins.delete(webcInit.pin);
             }
         });
+        this.signalCleanups.push(() => localSc.account.webcInitSignal.detach(webcInitRef));
 
-        localSc.account.webcPeerDataSignal.add(async (webcPeerData: WebcPeerData) => {
+        const webcPeerDataRef = localSc.account.webcPeerDataSignal.add(async (webcPeerData: WebcPeerData) => {
             const waitingEntry = this.waitingForPeerData.get(webcPeerData.pin);
             if (waitingEntry) {
                 clearTimeout(waitingEntry.cleanupTimer);
@@ -505,8 +541,9 @@ export abstract class WebcInterface extends ConnectionInterface {
                 this.waitingPeerData.set(webcPeerData.pin, { isReject: false, peerData: webcPeerData, cleanupTimer });
             }
         });
+        this.signalCleanups.push(() => localSc.account.webcPeerDataSignal.detach(webcPeerDataRef));
 
-        localSc.account.webcRejectSignal.add((webcReject: WebcReject) => {
+        const webcRejectRef = localSc.account.webcRejectSignal.add((webcReject: WebcReject) => {
             const isSameNetworkError = webcReject.message === SAME_NETWORK_ERROR_MSG;
             const waitingEntry = this.waitingForPeerData.get(webcReject.pin);
             if (waitingEntry) {
@@ -526,8 +563,34 @@ export abstract class WebcInterface extends ConnectionInterface {
                 this.waitingPeerData.set(webcReject.pin, { isReject: true, cleanupTimer, sameNetworkError: isSameNetworkError });
             }
         });
+        this.signalCleanups.push(() => localSc.account.webcRejectSignal.detach(webcRejectRef));
     }
 
     async stop(): Promise<void> {
+        if (!this._started) {
+            console.warn("[WebCInterface] Interface already stopped.");
+            return;
+        }
+        this._started = false;
+        // Detach all signal listeners
+        for (const cleanup of this.signalCleanups) {
+            cleanup();
+        }
+        this.signalCleanups = [];
+
+        // Terminate all pending UDP connections
+        for (const [pin, entry] of this.waitingForPeerData) {
+            clearTimeout(entry.cleanupTimer);
+            entry.connection.terminate();
+        }
+        this.waitingForPeerData.clear();
+
+        // Clear all waiting peer data timers
+        for (const [pin, entry] of this.waitingPeerData) {
+            clearTimeout(entry.cleanupTimer);
+        }
+        this.waitingPeerData.clear();
+
+        this.activeIncomingPins.clear();
     }
 }

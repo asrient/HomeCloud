@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, allowAll, withContext } from "./servicePrimatives";
-import { MethodContext, MethodInfo, PeerInfo, StoreNames, SignalEvent, NativeButtonConfig } from "./types";
+import { MethodContext, MethodInfo, PeerInfo, StoreNames, SignalEvent, NativeButtonConfig, CON_IFACE_PREF_KEY } from "./types";
 import ConfigStorage from "./storage";
 import { getIconKey } from "./utils";
 import Signal from "./signals";
@@ -52,7 +52,7 @@ export class AppService extends Service {
     }
 
     protected isUserPrefKey(key: string): boolean {
-        return true;
+        return key.startsWith(CON_IFACE_PREF_KEY);
     }
 
     protected shouldAutoConnectPeer(peer: PeerInfo): boolean {

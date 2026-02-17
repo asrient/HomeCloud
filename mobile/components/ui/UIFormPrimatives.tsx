@@ -21,10 +21,11 @@ function flattenChildren(children: React.ReactNode): React.ReactNode[] {
 
 export type SectionProps = {
     title?: string;
+    footer?: string;
     children: React.ReactNode;
 };
 
-export function Section({ title, children }: SectionProps) {
+export function Section({ title, footer, children }: SectionProps) {
     const separatorColor = useThemeColor({}, 'seperator');
     const childArray = flattenChildren(children);
 
@@ -61,6 +62,14 @@ export function Section({ title, children }: SectionProps) {
                     </React.Fragment>
                 ))}
             </UIView>
+            {footer && (
+                <UIText
+                    style={styles.sectionFooter}
+                    size="sm"
+                    color="textSecondary">
+                    {footer}
+                </UIText>
+            )}
         </View>
     );
 }
@@ -183,6 +192,10 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         marginLeft: isIos ? 16 : 4,
         letterSpacing: 0.5,
+    },
+    sectionFooter: {
+        marginTop: 6,
+        marginLeft: isIos ? 16 : 4,
     },
     sectionContent: {
         overflow: 'hidden',

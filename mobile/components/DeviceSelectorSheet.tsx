@@ -2,7 +2,9 @@ import { View, StyleSheet, Switch } from 'react-native';
 import { UIPageSheet } from './ui/UIPageSheet';
 import { Section, Line, LineLink, FormContainer } from './ui/UIFormPrimatives';
 import { UIText } from './ui/UIText';
+import { UIView } from './ui/UIView';
 import { UIIcon } from './ui/UIIcon';
+import { UIButton } from './ui/UIButton';
 import { useAppState } from '@/hooks/useAppState';
 import DeviceIcon from './deviceIcon';
 import { getDeviceIconName } from './ui/getPeerIconName';
@@ -14,6 +16,7 @@ import { useKeepAwakeStore } from '@/hooks/useKeepAwake';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useDiscoverable } from '@/hooks/useDiscoverable';
 import { useAccountState } from '@/hooks/useAccountState';
+import { useRouter } from 'expo-router';
 import InstallLinkModal from './InstallLinkModal';
 
 function DeviceSubtext({ peer, connection }: { peer: PeerInfo; connection: ConnectionInfo | null }) {
@@ -54,9 +57,10 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
     const [deviceName, setDeviceName] = useState<string>('This Device');
     const { enabled: keepAwakeEnabled, setEnabled: setKeepAwake } = useKeepAwakeStore();
     const highlightColor = useThemeColor({}, 'highlight');
-    const isDiscoverable = useDiscoverable();
+    const { isDiscoverable, isWebActive, isLocalActive, isWebEnabled, isLocalEnabled } = useDiscoverable();
     const { isLinked, serverConnected } = useAccountState();
     const [installLinkOpen, setInstallLinkOpen] = useState(false);
+    const router = useRouter();
 
     useEffect(() => {
         modules.getLocalServiceController().app.peerInfo().then(info => {
@@ -70,6 +74,45 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
     };
 
     const isSelected = (fingerprint: string | null) => fingerprint === selectedFingerprint;
+
+    const getHeroSubtitle = (): string => {
+        if (!isLocalEnabled && !isWebEnabled) {
+            return 'No connections allowed.';
+        }
+        if (isDiscoverable) {
+            let onTxt = '';
+            if (isLocalActive && !isWebActive) {
+                onTxt = 'on this network';
+            } else if (!isLocalActive && isWebActive) {
+                onTxt = 'on web';
+            }
+            if (onTxt) {
+                onTxt += ' ';
+            }
+            return `Discoverable ${onTxt}as "${deviceName}".`;
+        }
+        return 'Turn on Wi-Fi or mobile data.';
+    };
+
+    const getDisabledIfaceMessage = (): string | null => {
+        if (!isLocalEnabled && !isWebEnabled) {
+            return 'Please enable at least one connection method to make your device discoverable.';
+        }
+        if (!isLocalEnabled) {
+            return 'Local Network is disabled. Devices on the same network may have trouble discovering this device.';
+        }
+        if (!isWebEnabled) {
+            return 'Web Connect is disabled. Devices not on the same Wi-Fi won\'t be able to discover this device.';
+        }
+        return null;
+    };
+
+    const disabledIfaceMessage = getDisabledIfaceMessage();
+
+    const handleGoToSettings = () => {
+        onClose();
+        router.navigate('/settings');
+    };
 
     return (
         <UIPageSheet isOpen={isOpen} onClose={onClose} title="Devices">
@@ -86,12 +129,24 @@ export default function DeviceSelectorSheet({ isOpen, onClose }: DeviceSelectorS
                             {isDiscoverable ? 'Discoverable' : 'Not Discoverable'}
                         </UIText>
                         <UIText size="sm" color="textSecondary" style={styles.heroSubtitle}>
-                            {isDiscoverable
-                                ? `Your device is visible to others as "${deviceName}".`
-                                : 'Turn on Wi-Fi or mobile data.'
-                            }
+                            {getHeroSubtitle()}
                         </UIText>
                     </View>
+                    {disabledIfaceMessage && (
+                        <UIView themeColor="backgroundTertiary" style={styles.warningCard}>
+                            <UIIcon name="exclamationmark.triangle" size={30} />
+                            <UIText size="sm" color="textSecondary" style={styles.warningText}>
+                                {disabledIfaceMessage}
+                            </UIText>
+                            <UIButton
+                                title="Open Settings"
+                                type="primary"
+                                size="sm"
+                                stretch
+                                onPress={handleGoToSettings}
+                            />
+                        </UIView>
+                    )}
                     <Section>
                         <Line title="Keep Awake">
                             <Switch
@@ -193,6 +248,19 @@ const styles = StyleSheet.create({
     heroSubtitle: {
         textAlign: 'center',
         marginTop: 4,
+    },
+    warningCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        paddingHorizontal: 20,
+        paddingVertical: 18,
+        marginBottom: 16,
+        borderRadius: 26,
+        gap: 16,
+    },
+    warningText: {
+        flex: 1,
     },
     deviceRow: {
         flexDirection: 'row',

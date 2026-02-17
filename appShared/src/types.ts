@@ -1,3 +1,5 @@
+export const CON_IFACE_PREF_KEY = 'conIface_';
+
 export interface ProxyHandlers {
     methodCall: (fqn: string, args: any[]) => Promise<any>;
     signalSubscribe: (fqn: string) => void;

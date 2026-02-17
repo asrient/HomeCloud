@@ -69,6 +69,7 @@ const MAPPING = {
   'cloud.rain': 'cloud',
   'play.circle': 'play-circle-outline',
   'envelope.badge': 'mail',
+  'exclamationmark.triangle': 'warning',
 } as IconMapping;
 
 /**

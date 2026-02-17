@@ -32,6 +32,7 @@ export default class TCPInterface extends ConnectionInterface {
     private serverStarted: boolean = false;
     private networkSupported: boolean = false;
     private lowPowerMode: boolean = false;
+    private _started: boolean = false;
     private netChangeSub: EventSubscription | null = null;
     private lowPowerModeSub: EventSubscription | null = null;
 
@@ -55,6 +56,10 @@ export default class TCPInterface extends ConnectionInterface {
 
     getServiceAddresses(): string[] {
         return this.discovery.getHostLocalAddresses();
+    }
+
+    isActive(): boolean {
+        return this._started && ENABLE_CONNECTIVITY && this.networkSupported;
     }
 
     /**
@@ -253,9 +258,6 @@ export default class TCPInterface extends ConnectionInterface {
     }
 
     private isNetworkSupported(netState: NetworkState): boolean {
-        if (!netState.isConnected) {
-            return false;
-        }
         // For now, if type isnt defined, assume supported (e.g on simulators)
         if (!netState.type) {
             console.log('[TCPInterface] Network type is undefined, assuming supported.', netState);
@@ -271,6 +273,7 @@ export default class TCPInterface extends ConnectionInterface {
     async start(): Promise<void> {
         await this.discovery.setup();
         this.setupConnectListener();
+        this._started = true;
         // Check initial low power mode state
         const powerState = await getPowerStateAsync();
         this.lowPowerMode = powerState.lowPowerMode;
@@ -367,12 +370,7 @@ export default class TCPInterface extends ConnectionInterface {
 
         await this.stopServer();
         await this.discovery.goodbye();
-
-        // Remove event listeners
-        SupermanModule.removeAllListeners('tcpData');
-        SupermanModule.removeAllListeners('tcpError');
-        SupermanModule.removeAllListeners('tcpClose');
-        SupermanModule.removeAllListeners('tcpIncomingConnection');
+        this._started = false;
     }
 
     triggerDCDisconnect(connectionId: string): boolean {

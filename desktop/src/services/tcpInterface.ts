@@ -14,6 +14,7 @@ export default class TCPInterface extends ConnectionInterface {
     private connections: Map<string, net.Socket> = new Map();
     private port: number;
     private onIncomingConnectionCallback: ((dataChannel: GenericDataChannel, fingerprint?: string) => void) | null = null;
+    private _started: boolean = false;
 
     /**
      * Creates an instance of TCPInterface.
@@ -34,6 +35,10 @@ export default class TCPInterface extends ConnectionInterface {
 
     getServiceAddresses(): string[] {
         return this.discovery.getHostLocalAddresses();
+    }
+
+    isActive(): boolean {
+        return this._started;
     }
 
     /**
@@ -197,6 +202,7 @@ export default class TCPInterface extends ConnectionInterface {
             try {
                 await this.discovery.setup();
                 this.setupConnectListener();
+                this._started = true;
                 // Start the TCP server
                 this.server = net.createServer({
                     keepAlive: true,
@@ -267,6 +273,7 @@ export default class TCPInterface extends ConnectionInterface {
         await Promise.all(promises);
         await this.discovery.goodbye();
         this.server = null;
+        this._started = false;
     }
 
     /**

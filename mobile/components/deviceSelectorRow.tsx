@@ -13,7 +13,7 @@ import InstallLinkModal from "./InstallLinkModal";
 export default function DeviceSelectorRow({ style }: { style?: ViewStyle }) {
     const { peers, selectedFingerprint, selectDevice, deviceInfo, connections } = useAppState();
     const { isLinked } = useAccountState();
-    const isDiscoverable = useDiscoverable();
+    const { isDiscoverable } = useDiscoverable();
     const router = useRouter();
     const [sheetOpen, setSheetOpen] = useState(false);
     const [installLinkOpen, setInstallLinkOpen] = useState(false);

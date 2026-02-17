@@ -1,8 +1,9 @@
 import { cn, isMacosTheme } from "@/lib/utils"
 import { ChevronRightIcon } from "@heroicons/react/24/outline"
 
-export function Section({ title, children }: {
+export function Section({ title, footer, children }: {
     title?: string,
+    footer?: string,
     children: React.ReactNode
 }) {
     return (
@@ -14,6 +15,7 @@ export function Section({ title, children }: {
         )}>
             {children}
         </div>
+        {footer && <p className='text-xs text-muted-foreground mt-2 ml-1'>{footer}</p>}
         </div>
     )
 }

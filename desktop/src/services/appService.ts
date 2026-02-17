@@ -126,7 +126,8 @@ export default class DesktopAppService extends AppService {
     }
 
     protected override isUserPrefKey(key: string): boolean {
-        return USER_PREFERENCE_KEYS.includes(key as UserPreferences);
+        return super.isUserPrefKey(key)
+            || USER_PREFERENCE_KEYS.includes(key as UserPreferences);
     }
 
     async init() {

@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, RPCController, getMethodInfo, assertServiceRunning, RPCControllerProxy } from "./servicePrimatives";
-import { GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo, SignalEvent } from "./types";
+import { GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo, SignalEvent, CON_IFACE_PREF_KEY } from "./types";
 import { RPCPeer } from "./rpc";
 import Signal, { SignalNodeRef } from "./signals";
 import { filterValidBonjourIps, sleep } from "./utils";
@@ -24,6 +24,8 @@ export abstract class ConnectionInterface {
 
     abstract start(): Promise<void>;
     abstract stop(): Promise<void>;
+
+    abstract isActive(): boolean;
 
     getServicePort(): number | null {
         return null;
@@ -177,7 +179,7 @@ export class NetService extends Service {
             try {
                 console.log(`[NetService] Auto-connecting to candidate ${fingerprint} on ${type}`);
                 const connectionInterface = this.connectionInterfaces.get(type);
-                if (connectionInterface) {
+                if (connectionInterface && connectionInterface.isActive()) {
                     const dataChannel = await connectionInterface.connect(candidate);
                     // Check lock still exists
                     if (!this.connectionLock.has(fingerprint)) {
@@ -265,6 +267,43 @@ export class NetService extends Service {
         return null;
     }
 
+    /**
+     * Check if a connection interface is enabled via user preference.
+     * Defaults to true if no preference is set.
+     */
+    public isConnectionInterfaceEnabled(type: ConnectionType): boolean {
+        const localSc = modules.getLocalServiceController();
+        const value = localSc.app.getUserPreference(CON_IFACE_PREF_KEY + type);
+        return value !== false; // default true
+    }
+
+    /**
+     * Enable or disable a connection interface.
+     * Starts or stops the interface immediately and persists the preference.
+     */
+    public async setConnectionInterfaceEnabled(type: ConnectionType, enabled: boolean): Promise<void> {
+        const localSc = modules.getLocalServiceController();
+        await localSc.app.setUserPreference(CON_IFACE_PREF_KEY + type, enabled);
+        const connectionInterface = this.connectionInterfaces.get(type);
+        if (!connectionInterface) return;
+        if (enabled && !connectionInterface.isActive()) {
+            await connectionInterface.start();
+        } else if (!enabled && connectionInterface.isActive()) {
+            await connectionInterface.stop();
+        }
+    }
+
+    /**
+     * Get the enabled/disabled status of all connection interfaces.
+     */
+    public getConnectionInterfaceStatuses(): { type: ConnectionType; enabled: boolean }[] {
+        const statuses: { type: ConnectionType; enabled: boolean }[] = [];
+        for (const type of this.connectionInterfaces.keys()) {
+            statuses.push({ type, enabled: this.isConnectionInterfaceEnabled(type) });
+        }
+        return statuses;
+    }
+
     private async createConnection<T extends RPCController>(fingerprint: string) {
         const signal = this.setupConnectionLock(fingerprint);
         const candidates = await this.getCandidates(fingerprint);
@@ -293,7 +332,7 @@ export class NetService extends Service {
         for (const candidate of candidates) {
             if (candidate.fingerprint === fingerprint) {
                 const connectionInterface = this.getConnectionInterface(candidate.connectionType);
-                if (connectionInterface) {
+                if (connectionInterface && connectionInterface.isActive()) {
                     try {
                         console.log(`Connecting to ${fingerprint} on ${candidate.connectionType}`);
                         const dataChannel = await connectionInterface.connect(candidate);
@@ -537,8 +576,8 @@ export class NetService extends Service {
 
     async requestConnectLocal(fingerprint: string): Promise<void> {
         const tcpInterface = this.getConnectionInterface(ConnectionType.LOCAL);
-        if (!tcpInterface) {
-            console.warn('[NetService] Cannot request local connect, TCP interface not available.');
+        if (!tcpInterface || !tcpInterface.isActive()) {
+            console.warn('[NetService] Cannot request local connect, TCP interface not available or inactive.');
             return;
         }
         const addresses = filterValidBonjourIps(tcpInterface.getServiceAddresses());
@@ -565,6 +604,7 @@ export class NetService extends Service {
     public async getCandidates(fingerprint?: string): Promise<PeerCandidate[]> {
         const candidates: PeerCandidate[] = [];
         for (const [type, connectionInterface] of this.connectionInterfaces) {
+            if (!connectionInterface.isActive()) continue;
             try {
                 const interfaceCandidates = await connectionInterface.getCandidates(fingerprint);
                 for (const candidate of interfaceCandidates) {
@@ -583,7 +623,11 @@ export class NetService extends Service {
     @serviceStartMethod
     public async start() {
         const promises: Promise<void>[] = [];
-        for (const connectionInterface of this.connectionInterfaces.values()) {
+        for (const [type, connectionInterface] of this.connectionInterfaces) {
+            if (!this.isConnectionInterfaceEnabled(type)) {
+                console.log(`[NetService] Skipping start for disabled interface: ${type}`);
+                continue;
+            }
             promises.push(connectionInterface.start());
         }
         await Promise.all(promises);

@@ -7,7 +7,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import ConfirmModal from '@/components/confirmModal'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { ThemedIconName } from "@/lib/enums";
+import { ThemedIconName, ConnectionType } from "@/lib/enums";
 import { PeerInfo, PhotoLibraryLocation } from "shared/types";
 import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { useAccountState } from "@/components/hooks/useAccountState";
@@ -28,6 +28,7 @@ function Page() {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('notavailable');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [ifaceStatuses, setIfaceStatuses] = useState<{ type: ConnectionType; enabled: boolean }[]>([]);
 
   useEffect(() => {
     const localSc = window.modules.getLocalServiceController();
@@ -36,6 +37,7 @@ function Page() {
     setAutoConnectMobile(autoConnectMobilePref !== false);
     const updatesPref = localSc.app.getUserPreference(UserPreferences.CHECK_FOR_UPDATES);
     setCheckForUpdates(updatesPref !== false);
+    setIfaceStatuses(localSc.net.getConnectionInterfaceStatuses());
     if (window.utils?.getUpdateStatus) {
       setUpdateStatus(window.utils.getUpdateStatus());
     }
@@ -57,6 +59,17 @@ function Page() {
     const localSc = window.modules.getLocalServiceController();
     await localSc.app.setUserPreference(UserPreferences.CHECK_FOR_UPDATES, val);
     setCheckForUpdates(val);
+  }, []);
+
+  const connectionInterfaceLabels: Record<string, string> = {
+    [ConnectionType.LOCAL]: 'Local Network',
+    [ConnectionType.WEB]: 'Web Connect',
+  };
+
+  const handleToggleInterface = useCallback(async (type: ConnectionType, enabled: boolean) => {
+    setIfaceStatuses(prev => prev.map(s => s.type === type ? { ...s, enabled } : s));
+    const localSc = window.modules.getLocalServiceController();
+    await localSc.net.setConnectionInterfaceEnabled(type, enabled);
   }, []);
 
   const handleCheckForUpdates = useCallback(async () => {
@@ -223,6 +236,18 @@ function Page() {
                 </Line>
               }
             </Section>}
+          {ifaceStatuses.length > 0 && (
+            <Section title="Allowed Connections" footer="At least one connection method must be enabled to connect to other devices.">
+              {ifaceStatuses.map(({ type, enabled }) => (
+                <Line key={type} title={connectionInterfaceLabels[type] || type}>
+                  <Switch
+                    checked={enabled}
+                    onCheckedChange={(val) => handleToggleInterface(type, val)}
+                  />
+                </Line>
+              ))}
+            </Section>
+          )}
           <Section title="Photo Libraries">
             {photoLibraries.map((library) => (
               <Line key={library.id} title={
