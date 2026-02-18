@@ -251,10 +251,10 @@ export type FolderRouteParams = {
 
 export function getFolderAppRoute(path: string, fingerprint: string | null): Href {
     const encodedPath = encodeURIComponent(path);
-    const fingerprintPart = fingerprint || 'null';
+    const routeFingerprint = fingerprint || 'local';
     return {
-        pathname: '/files/folder',
-        params: { p: encodedPath, f: fingerprintPart } as FolderRouteParams
+        pathname: '/device/[fingerprint]/folder',
+        params: { fingerprint: routeFingerprint, p: encodedPath, f: fingerprint || 'null' } as FolderRouteParams & { fingerprint: string }
     }
 }
 

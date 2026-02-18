@@ -78,6 +78,7 @@ export function UIButton({
         {icon && <UIIcon name={icon} size={iconSize ?? (size === 'xl' ? 28 : 22)} color={contentColor} style={{ marginRight: title ? 6 : 0 }} />}
         {
             title && <UIText
+                numberOfLines={1}
                 size={textSize ?? (size === 'xl' ? 'lg' : 'md')}
                 style={{ color: contentColor }}
                 font='medium'>

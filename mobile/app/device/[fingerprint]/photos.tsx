@@ -1,9 +1,7 @@
-import DeviceSelectorRow from '@/components/deviceSelectorRow';
 import { UIView } from '@/components/ui/UIView';
-import { useAppState } from '@/hooks/useAppState';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { Platform, View } from 'react-native';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import PhotosLibrarySelectorModal from '@/components/photosLibrarySelectorModal';
@@ -13,20 +11,20 @@ import { usePhotoLibraries } from '@/hooks/usePhotos';
 import { PhotosGrid } from '@/components/photosGrid';
 import { PhotosSortOption, PhotoView, PhotosQuickAction } from '@/lib/types';
 import { UIButton } from '@/components/ui/UIButton';
-import { getLocalServiceController, getServiceController, isIos, isGlassEnabled, getTabBarHeight } from '@/lib/utils';
+import { getLocalServiceController, getServiceController, isIos, isGlassEnabled } from '@/lib/utils';
 import { useAlert } from '@/hooks/useAlert';
 
-export default function PhotosScreen() {
+export default function DevicePhotosScreen() {
+  const { fingerprint: routeFingerprint } = useLocalSearchParams<{ fingerprint: string }>();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
-  const tabBarHeight = getTabBarHeight(insets.bottom);
+  const deviceFingerprint = routeFingerprint === 'local' ? null : routeFingerprint;
 
-  const { selectedFingerprint } = useAppState();
   const {
     photoLibraries,
     isLoading: isLoadingLibraries,
     error: librariesError,
-  } = usePhotoLibraries(selectedFingerprint);
+  } = usePhotoLibraries(deviceFingerprint);
 
   const [isLibrarySelectorOpen, setIsLibrarySelectorOpen] = useState(false);
   const [selectedLibrary, setSelectedLibrary] = useState<null | PhotoLibraryLocation>(null);
@@ -42,8 +40,8 @@ export default function PhotosScreen() {
     setSelectMode(false);
     setSelectedPhotos([]);
     setDeletedPhotoIds([]);
-    currentFingerprintRef.current = selectedFingerprint;
-  }, [selectedFingerprint]);
+    currentFingerprintRef.current = deviceFingerprint;
+  }, [deviceFingerprint]);
 
   useEffect(() => {
     if (isLoadingLibraries) return;
@@ -71,7 +69,6 @@ export default function PhotosScreen() {
   const sharePhoto = useCallback(async (photo: PhotoView) => {
     const localSc = getLocalServiceController();
     const forceCache = photo.deviceFingerprint === null && Platform.OS === 'ios';
-    console.log("Sharing photo with forceCache =", forceCache);
     try {
       await localSc.files.shareFiles(photo.deviceFingerprint, [photo.fileId], forceCache);
     } catch (e) {
@@ -93,7 +90,7 @@ export default function PhotosScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            const sc = await getServiceController(selectedFingerprint);
+            const sc = await getServiceController(deviceFingerprint);
             const resp = await sc.photos.deletePhotos(selectedLibrary.id, photos.map(p => p.id));
             if (resp.deleteCount === 0) {
               showAlert("Error", "Could not delete photos. Please try again.");
@@ -110,7 +107,7 @@ export default function PhotosScreen() {
         }
       }
     ]);
-  }, [selectedFingerprint, selectedLibrary, showAlert]);
+  }, [deviceFingerprint, selectedLibrary, showAlert]);
 
   const openInDevice = useCallback(async (photo: PhotoView, destFingerprint: string) => {
     try {
@@ -153,7 +150,6 @@ export default function PhotosScreen() {
         deletePhotos([action.photo]);
         break;
       case 'info':
-        // Implement info display logic here
         break;
       default:
         console.warn('Unknown action type:', action.type);
@@ -161,7 +157,7 @@ export default function PhotosScreen() {
   }, [sharePhoto, deletePhotos, openInDevice, sendToDevice]);
 
   const fetchOpts = useMemo(() => {
-    if (selectedFingerprint !== currentFingerprintRef.current) {
+    if (deviceFingerprint !== currentFingerprintRef.current) {
       return null;
     }
     if (!selectedLibrary) {
@@ -169,15 +165,11 @@ export default function PhotosScreen() {
     }
     return {
       library: selectedLibrary,
-      deviceFingerprint: selectedFingerprint,
+      deviceFingerprint: deviceFingerprint,
       sortBy: PhotosSortOption.CapturedOn,
       ascending: false,
     };
-  }, [selectedLibrary, selectedFingerprint]);
-
-  const header = (<View style={{ paddingTop: isGlassEnabled ? headerHeight : 0 }} >
-    <DeviceSelectorRow />
-  </View>);
+  }, [selectedLibrary, deviceFingerprint]);
 
   return (
     <UIView style={{ flex: 1 }}>
@@ -185,16 +177,12 @@ export default function PhotosScreen() {
         options={{
           title: 'Photos',
           headerTitle: selectMode ? `${selectedPhotos.length} selected` : 'Photos',
-          headerLargeTitle: false,
+          headerBackButtonDisplayMode: 'minimal',
           headerTransparent: isGlassEnabled,
-          headerLeft: isIos ? () => <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} /> : undefined,
           headerRight: () => {
-            // On ios if not in select mode, we don't show any buttons on the right
-            // if we return empty View it will show a empty button space
-            if (!selectMode && isIos) return null;
             return (
               <>
-                {!isIos && <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} />}
+                <UIHeaderButton text={selectMode ? 'Done' : 'Select'} isHighlight={selectMode} onPress={() => setSelectMode(!selectMode)} />
                 {selectMode && (
                   <>
                     <UIHeaderButton name="trash" disabled={selectedPhotos.length === 0} onPress={() => {
@@ -222,7 +210,11 @@ export default function PhotosScreen() {
         onSelectPhoto={handleSelectPhoto}
         onDeselectPhoto={handleDeselectPhoto}
         onQuickAction={handleQuickAction}
-        headerComponent={header}
+        headerComponent={
+          isGlassEnabled ?
+            <View style={{ paddingTop: headerHeight }} />
+            : undefined
+        }
       />
       <PhotosLibrarySelectorModal
         isOpen={isLibrarySelectorOpen}
@@ -235,7 +227,7 @@ export default function PhotosScreen() {
       />
       {
         !selectMode && !isLoadingLibraries && photoLibraries.length > 0 && !librariesError &&
-        <View style={{ position: 'absolute', bottom: tabBarHeight + (isIos ? 0 : 36), left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ position: 'absolute', bottom: insets.bottom + (isIos ? 10 : 36), left: 0, right: 0, justifyContent: 'center', alignItems: 'center' }}>
           <UIButton
             size='md'
             type='secondary'

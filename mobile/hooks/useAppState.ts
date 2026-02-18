@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { SignalNodeRef } from 'shared/signals'
 import { ConnectionInfo, DeviceInfo, PeerInfo, SignalEvent } from 'shared/types'
 import { create } from 'zustand'
@@ -7,7 +7,6 @@ import { useAccountState } from './useAccountState'
 export interface AppState {
     connections: ConnectionInfo[];
     peers: PeerInfo[];
-    selectedFingerprint: string | null;
     isInitialized: boolean;
     isOnboarded: boolean;
     filesViewMode: 'grid' | 'list';
@@ -15,7 +14,6 @@ export interface AppState {
     instanceKey: string;
 
     initializeStore: (peers: PeerInfo[], connections: ConnectionInfo[], deviceInfo: DeviceInfo, isOnboarded: boolean) => void;
-    selectDevice: (fingerprint: string | null) => void;
     addPeer: (peer: PeerInfo) => void;
     removePeer: (fingerprint: string) => void;
     addConnection: (connection: ConnectionInfo) => void;
@@ -27,7 +25,6 @@ export interface AppState {
 const useAppStore = create<AppState>((set) => ({
     connections: [],
     peers: [],
-    selectedFingerprint: null,
     isInitialized: false,
     isOnboarded: false,
     filesViewMode: 'grid',
@@ -39,9 +36,6 @@ const useAppStore = create<AppState>((set) => ({
         connections,
         deviceInfo,
         isOnboarded,
-    })),
-    selectDevice: (fingerprint) => set(() => ({
-        selectedFingerprint: fingerprint,
     })),
     addPeer: (peer) => set((state) => {
         // If already exists, update it
@@ -80,9 +74,7 @@ export function useAppState() {
         isOnboarded,
         peers,
         connections,
-        selectedFingerprint,
         initializeStore,
-        selectDevice,
         addPeer,
         removePeer,
         addConnection,
@@ -183,12 +175,7 @@ export function useAppState() {
         }
     }, [initializeAppState]);
 
-    const selectedPeer = peers.find(peer => peer.fingerprint === selectedFingerprint) || null;
 
-    const selectedPeerConnection: ConnectionInfo | null = useMemo(() => {
-        if (!selectedFingerprint) return null;
-        return connections.find(conn => conn.fingerprint === selectedFingerprint) || null;
-    }, [connections, selectedFingerprint]);
 
     return {
         isInitialized,
@@ -196,12 +183,8 @@ export function useAppState() {
         setOnboarded,
         peers,
         connections,
-        selectDevice,
-        selectedFingerprint,
         loadAppState,
         clearSignals,
-        selectedPeer,
-        selectedPeerConnection,
         filesViewMode,
         setFilesViewMode,
         deviceInfo,

@@ -10,6 +10,7 @@ import { UIButton } from "./ui/UIButton";
 import Slider from '@react-native-community/slider';
 import { DisksGrid } from "./disksGrid";
 import { getLocalServiceController } from "@/lib/utils";
+import { useRouter } from "expo-router";
 
 
 function NowPlayingBox({ fingerprint }: { fingerprint: string | null }) {
@@ -123,12 +124,16 @@ function ClipboardCard({ deviceFingerprint, dismiss }: { deviceFingerprint: stri
 
 export type DeviceQuickActionsProps = {
     peerInfo: PeerInfo | null;
+    fingerprint: string | null;
 };
 
-export function DeviceQuickActions({ peerInfo }: DeviceQuickActionsProps) {
+export function DeviceQuickActions({ peerInfo, fingerprint }: DeviceQuickActionsProps) {
+    const router = useRouter();
     const deviceFingerprint = useMemo(() => {
         return peerInfo ? peerInfo.fingerprint : null;
     }, [peerInfo]);
+
+    const routeFingerprint = fingerprint || 'local';
 
     const { connections } = useAppState();
 
@@ -206,6 +211,25 @@ export function DeviceQuickActions({ peerInfo }: DeviceQuickActionsProps) {
                             expandedContentHeight: 150,
                         }
                     ]
+                },
+            ]
+        },
+        {
+            flow: 'row',
+            boxes: [
+                {
+                    type: 'half',
+                    icon: 'folder.fill',
+                    title: 'Files',
+                    subtitle: 'Browse files',
+                    onPress: () => router.push(`/device/${routeFingerprint}/files`),
+                },
+                {
+                    type: 'half',
+                    icon: 'photo.stack',
+                    title: 'Photos',
+                    subtitle: 'Photo library',
+                    onPress: () => router.push(`/device/${routeFingerprint}/photos`),
                 },
             ]
         },

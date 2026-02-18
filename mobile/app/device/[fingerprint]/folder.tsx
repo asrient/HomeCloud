@@ -1,6 +1,6 @@
 import { UIView } from '@/components/ui/UIView';
 import { useAppState } from '@/hooks/useAppState';
-import { useRouter, useNavigation } from 'expo-router';
+import { useNavigation, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 import { FileQuickActionType, FilesGrid, FileSortBy } from '@/components/filesGrid';
 import { ParamListBase, RouteProp, useRoute } from '@react-navigation/native';
@@ -24,9 +24,9 @@ type Props = RouteProp<ParamListBase, string> & {
 };
 
 export default function FolderScreen() {
-  const { selectedFingerprint, filesViewMode, setFilesViewMode } = useAppState();
+  const { fingerprint: routeFingerprint } = useLocalSearchParams<{ fingerprint: string }>();
+  const { filesViewMode, setFilesViewMode } = useAppState();
   const navigation = useNavigation();
-  const router = useRouter();
   const route = useRoute<Props>();
   const headerHeight = useHeaderHeight();
   const [selectMode, setSelectMode] = useState(false);
@@ -37,17 +37,15 @@ export default function FolderScreen() {
 
   const [sortBy, setSortBy] = useState<FileSortBy | null>(null);
 
-  const { path, fingerprint } = useMemo(() => extractFolderParamsFromRoute(route || { params: { path: '', fingerprint: null } }), [route]);
+  const { path, fingerprint: folderFingerprint } = useMemo(() => extractFolderParamsFromRoute(route || { params: { path: '', fingerprint: null } }), [route]);
 
-  useEffect(() => {
-    // If fingerprint missmatch, go back to first screen
-    if (!!route && fingerprint !== selectedFingerprint) {
-      router.dismissAll();
-    }
-  }, [path, fingerprint, selectedFingerprint, router, route]);
+  // Use the route fingerprint from the URL, falling back to the folder param
+  const fingerprint = useMemo(() => {
+    if (routeFingerprint === 'local') return null;
+    return folderFingerprint || routeFingerprint || null;
+  }, [routeFingerprint, folderFingerprint]);
 
   const folderName = useMemo(() => !!route ? extractNameFromPath(path) : 'Folder', [path, route]);
-
 
   const mapper = useCallback((item: RemoteItem): FileRemoteItem => ({
     ...item,
@@ -108,11 +106,9 @@ export default function FolderScreen() {
       submitButtonText: 'Create',
       onDone: async (value) => {
         if (value) {
-          console.log('Create new folder:', value);
           try {
             const sc = await getServiceController(fingerprint);
             const folder = await sc.files.fs.mkDir(value, path);
-            console.log('New folder created:', folder);
             setRemoteItems((prevItems) => [...prevItems, {
               ...folder,
               isSelected: false,
@@ -175,12 +171,10 @@ export default function FolderScreen() {
       submitButtonText: 'Rename',
       onDone: async (value) => {
         if (value && value !== item.name) {
-          console.log('Rename item:', item.path, 'to', value);
           try {
             setCurrentOperation(`Renaming ${itemKind}.`);
             const sc = await getServiceController(fingerprint);
             const renamedItem = await sc.files.fs.rename(item.path, value);
-            console.log('Item renamed:', renamedItem);
             setRemoteItems((prevItems) =>
               prevItems.map((it) =>
                 it.path === item.path ? { ...renamedItem, isSelected: false, deviceFingerprint: fingerprint } : it
@@ -198,34 +192,26 @@ export default function FolderScreen() {
   }, [fingerprint, openInputPopup, setRemoteItems, showAlert]);
 
   const deleteSelectedItems = useCallback(async () => {
-    if (selectedFiles.length === 0) {
-      return;
-    }
+    if (selectedFiles.length === 0) return;
     try {
       const success = await deleteItems(selectedFiles);
       if (success) {
         setSelectedFiles([]);
         setSelectMode(false);
       }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (e) {
+    } catch {
       // ignore, error handled in deleteItems
     }
   }, [deleteItems, selectedFiles]);
 
   const moveItems = useCallback(async (destFingerprint: string | null, destPath: string, deleteSource: boolean) => {
-    if (!itemsToMove || itemsToMove.length === 0) {
-      return;
-    }
+    if (!itemsToMove || itemsToMove.length === 0) return;
     const items = [...itemsToMove];
     setItemsToMove(null);
     const filePaths = items.map(i => i.path);
     try {
-      // setCurrentOperation(`Moving ${items.length} item(s).`);
       const serviceController = await getServiceController(destFingerprint);
-      const res = await serviceController.files.move(destFingerprint, destPath, filePaths, deleteSource);
-      console.log('Items moved:', res);
-      // Remove moved items from current list
+      await serviceController.files.move(destFingerprint, destPath, filePaths, deleteSource);
       if (deleteSource) {
         setRemoteItems((prevItems) =>
           prevItems.filter((item) => !items.some((i) => i.path === item.path))
@@ -235,22 +221,17 @@ export default function FolderScreen() {
     catch (error) {
       console.error('Failed to move items:', error);
       showAlert('Error', 'Failed to move items. Please try again.');
-    } finally {
-      // setCurrentOperation(null);
     }
   }, [setRemoteItems, itemsToMove, showAlert]);
 
   const shareItem = useCallback(async (item: FileRemoteItem) => {
     try {
-      //setCurrentOperation('Preparing..');
       const localSc = getLocalServiceController();
       await localSc.files.shareFiles(item.deviceFingerprint || null, [item.path]);
     }
     catch (error) {
       console.error('Failed to share item:', error);
       showAlert('Error', 'Failed to share item. Please try again.');
-    } finally {
-      //setCurrentOperation(null);
     }
   }, [showAlert]);
 
@@ -294,7 +275,6 @@ export default function FolderScreen() {
                 },
               ]}
               onAction={(id) => {
-                console.log("Folder context menu action pressed", id);
                 if (id === 'viewGrid') {
                   setFilesViewMode('grid');
                 } else if (id === 'viewList') {
@@ -322,7 +302,6 @@ export default function FolderScreen() {
           <UIHeaderButton onPress={() => setSelectMode(false)} isHighlight={true} name='xmark' />
         </>);
       }
-      ,
     });
   }, [navigation, folderName, selectMode, selectedFiles.length, filesViewMode, setFilesViewMode, sortBy, updatedSortBy, newFolder, deleteSelectedItems, selectedFiles]);
 
@@ -344,7 +323,6 @@ export default function FolderScreen() {
 
   const openInDevice = useCallback(async (item: FileRemoteItem, destFingerprint: string) => {
     try {
-      console.log('Opening item in device:', item.path);
       setCurrentOperation('Opening item in device.');
       const sc = await getServiceController(destFingerprint);
       await sc.files.openFile(item.deviceFingerprint || modules.config.FINGERPRINT, item.path);
@@ -358,13 +336,11 @@ export default function FolderScreen() {
   }, [showAlert]);
 
   const handleQuickAction = useCallback((action: FileQuickActionType) => {
-    // console.log('Quick action triggered:', action);
     switch (action.type) {
       case 'delete':
         deleteItems([action.item]);
         break;
       case 'move':
-        // Open move screen
         setItemsToMove([action.item]);
         break;
       case 'rename':
@@ -379,7 +355,6 @@ export default function FolderScreen() {
         }
         break;
       case 'export':
-        // Export file
         shareItem(action.item);
         break;
       case 'sendToDevice':
@@ -394,14 +369,12 @@ export default function FolderScreen() {
 
   return (
     <UIView style={{ flex: 1 }}>
-      {
-        !!route &&
+      {!!route &&
         <FilesGrid
           items={remoteItems}
           isLoading={isLoading}
           error={error}
           footerComponent={
-
             <View style={{ paddingHorizontal: 10, paddingVertical: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 120 }}>
               <UIText size="sm" color='textSecondary'>
                 {`${remoteItems.length} items.`}
@@ -420,7 +393,6 @@ export default function FolderScreen() {
               : undefined
           }
         />
-
       }
       <LoadingModal isActive={!!currentOperation} title={currentOperation || undefined} />
       <FilePickerModal
@@ -431,8 +403,6 @@ export default function FolderScreen() {
             setItemsToMove(null);
             return;
           }
-          // Move selected files to the chosen folder
-          console.log('Moving items to folder:', items);
           await moveItems(items[0].deviceFingerprint, items[0].path, true);
         }}
       />

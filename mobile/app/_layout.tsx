@@ -82,7 +82,8 @@ export default function RootLayout() {
       <ThemeProvider value={theme}>
         <Stack>
           <Stack.Protected guard={isOnboarded}>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
+            <Stack.Screen name="index" options={{ title: 'Home' }} />
+            <Stack.Screen name="device" options={{ headerShown: false }} />
           </Stack.Protected>
           <Stack.Protected guard={!isOnboarded}>
             <Stack.Screen name="welcome" options={{ headerShown: false }} />

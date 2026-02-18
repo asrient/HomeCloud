@@ -70,7 +70,7 @@ export const isGlassEnabled = isIos && isLiquidGlassAvailable();
  * On iOS, returns 0 since the system handles insets natively.
  */
 export function getBottomPadding(bottomInset: number): number {
-  return Platform.OS === 'android' ? bottomInset + 20 : 0;
+  return Platform.OS === 'android' ? bottomInset + 20 : 30;
 }
 
 /**
