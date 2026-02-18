@@ -1,4 +1,4 @@
-import { StyleSheet, ViewStyle, Pressable, Animated, useWindowDimensions, Modal, View, StyleProp } from "react-native";
+import { StyleSheet, ViewStyle, Pressable, Animated, useWindowDimensions, Modal, View, StyleProp, Platform } from "react-native";
 import { BlurView } from "expo-blur";
 import { UIView } from "./ui/UIView";
 import { UIText } from "./ui/UIText";
@@ -215,11 +215,13 @@ export function Bento({ config }: { config: BentoGroup[] }) {
     );
 }
 
+const BORDER_RADIUS = Platform.OS === 'android' ? 20 : 40;
+
 const commonBoxStyle: ViewStyle = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 5,
-    borderRadius: 40,
+    borderRadius: BORDER_RADIUS,
     margin: 4,
     flex: 1,
     overflow: 'hidden',
@@ -270,7 +272,7 @@ const styles = StyleSheet.create({
     expandedContent: {
         flex: 1,
         width: '100%',
-        borderRadius: 40,
+        borderRadius: BORDER_RADIUS,
         padding: 5,
     },
 });

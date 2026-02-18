@@ -21,7 +21,7 @@ const MAPPING = {
   'at': 'alternate-email',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
-  'chevron.left': 'chevron-left',
+  'chevron.left': 'arrow-back',
   'gearshape.fill': 'settings',
   'gear': 'settings',
   'wifi': 'wifi',
@@ -70,6 +70,7 @@ const MAPPING = {
   'play.circle': 'play-circle-outline',
   'envelope.badge': 'mail',
   'exclamationmark.triangle': 'warning',
+  'photo.stack': 'collections',
 } as IconMapping;
 
 /**

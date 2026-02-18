@@ -1,4 +1,4 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
+import { StyleSheet, Text, type TextProps, Platform } from 'react-native';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { ThemeColors } from '@/constants/Colors';
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: Platform.OS === 'android' ? '400' : 'bold',
   },
   xxl: {
     fontSize: 26,
