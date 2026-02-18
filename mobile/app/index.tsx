@@ -192,11 +192,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <View style={{ flex: 1 }} />
-
-        {/* Discoverable Status */}
-        <DiscoverableSection />
-
         {/* Add Device */}
         {showAddDevice && (
           <View style={styles.addDeviceSection}>
@@ -209,6 +204,11 @@ export default function HomeScreen() {
             />
           </View>
         )}
+
+        <View style={{ flex: 1 }} />
+
+        {/* Discoverable Status */}
+        <DiscoverableSection />
       </View>
       <InstallLinkModal isOpen={installLinkOpen} onClose={() => setInstallLinkOpen(false)} />
     </UIScrollView>
@@ -239,6 +239,7 @@ const styles = StyleSheet.create({
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    maxWidth: 400,
   },
   section: {
     marginVertical: 15,
