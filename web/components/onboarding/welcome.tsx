@@ -63,7 +63,7 @@ export function WelcomePage() {
                 <Bulletin
                     icon="/icons/lock.png"
                     title="Private & encrypted"
-                    description="Everything is end-to-end encrypted. Your data never passes through a cloud, it travels directly between your devices."
+                    description="Your data is end-to-end encrypted and travels directly between your devices."
                 />
             </div>
             <DialogFooter className="flex sm:justify-center sm:items-center sm:w-full">

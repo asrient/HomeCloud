@@ -23,28 +23,28 @@ export class AppService extends Service {
         const localSc = modules.getLocalServiceController();
         localSc.account.accountLinkSignal.add(async (linked) => {
             if (linked) {
-                console.log("Account linked - resyncing peer list...");
+                console.log("[AppService] Account linked - resyncing peer list...");
                 await this.resyncPeerList();
             } else {
-                console.log("Account unlinked - resetting peer list...");
+                console.log("[AppService] Account unlinked - resetting peer list...");
                 await this.resetPeersInStore();
             }
         });
 
         localSc.account.websocketConnectionSignal.add(async (connected) => {
             if (!connected) return;
-            console.log("WebSocket connected - resyncing peer list...");
+            console.log("[AppService] WebSocket connected - resyncing peer list...");
             await this.resyncPeerListIfNeeded();
             await this.pushPeerInfoIfNeeded();
         });
 
         localSc.account.peerAddedSignal.add(async (peer: PeerInfo) => {
-            console.log("Account peer added - adding to peer list...", peer.fingerprint);
+            // console.log("[AppService] Account peer added - adding to peer list...", peer.fingerprint);
             await this.addPeerToStore(peer);
         });
 
         localSc.account.peerRemovedSignal.add(async (peer: PeerInfo) => {
-            console.log("Account peer removed - removing from peer list...", peer.fingerprint);
+            console.log("[AppService] Account peer removed - removing from peer list...", peer.fingerprint);
             await this.removePeerFromStore(peer.fingerprint);
         });
 
@@ -78,7 +78,7 @@ export class AppService extends Service {
         const peers = this.getPeers();
         peers.forEach((peer) => {
             if (this.shouldAutoConnectPeer(peer)) {
-                console.log("Adding peer to auto-connect list:", peer.fingerprint);
+                console.log("[AppService] Adding peer to auto-connect list:", peer.fingerprint);
                 localSc.net.addAutoConnectFingerprint(peer.fingerprint);
             }
         });
@@ -94,15 +94,15 @@ export class AppService extends Service {
     public async resyncPeerList() {
         const localSc = modules.getLocalServiceController();
         if (!localSc.account.isLinked()) {
-            console.log("Account not linked. Skipping peer list resync.");
+            console.log("[AppService] Account not linked. Skipping peer list resync.");
             return;
         }
-        console.log("Resyncing peer list from server...");
+        console.log("[AppService] Resyncing peer list from server...");
         let remotePeers: PeerInfo[] = [];
         try {
             remotePeers = await localSc.account.getPeerList();
         } catch (err) {
-            console.error("Failed to fetch peer list from server:", err);
+            console.error("[AppService] Failed to fetch peer list from server:", err);
             return;
         }
         this.lastPeerListSync = Date.now();
@@ -178,13 +178,13 @@ export class AppService extends Service {
     protected async addPeerToStore(peer: PeerInfo) {
         // skip self in production
         if (peer.fingerprint === modules.config.FINGERPRINT && !modules.config.IS_DEV) {
-            console.log("Skipping self peer during resync.", peer);
+            console.log("[AppService] Skipping self peer during resync.", peer);
             return null;
         }
         const peers = this.getPeers();
         const existingPeer = peers.find((p) => p.fingerprint === peer.fingerprint);
         if (existingPeer) {
-            console.warn(`Peer ${peer.fingerprint} already exists. Updating existing peer.`);
+            // console.log(`[AppService] Peer ${peer.fingerprint} already exists. Updating existing peer.`);
             Object.assign(existingPeer, peer);
         }
         else {
@@ -225,9 +225,11 @@ export class AppService extends Service {
             const infoHash = modules.crypto.hashString(JSON.stringify(currentInfo), 'sha256');
             const lastHash = this.store.getItem<string>('currentPeerInfoHash');
             if (infoHash === lastHash) {
+                console.log("[AppService] Peer info unchanged since last push. Skipping push.");
                 this.isPeerInfoPushed = true;
                 return;
             }
+            console.log("[AppService] Peer info has changed since last push. Pushing updated info to server...");
             await this.pushPeerInfoUpdate();
             this.store.setItem('currentPeerInfoHash', infoHash);
             await this.store.save();
@@ -279,7 +281,7 @@ export class AppService extends Service {
         buttons.push({
             text: `Copy ${type === 'link' ? 'Link' : 'Text'}`,
             onPress: () => {
-                console.log("Copying to clipboard:", content);
+                // console.log("[AppService] Copying to clipboard:", content);
                 localSc.system.copyToClipboard(content, type);
             },
         });
@@ -347,8 +349,12 @@ export class AppService extends Service {
 
     @serviceStartMethod
     public async start() {
-        this.resyncPeerListIfNeeded();
-        this.pushPeerInfoIfNeeded();
+        this.resyncPeerListIfNeeded().catch((err) => {
+            console.error("[AppService] Failed to resync peer list on start:", err);
+        });
+        this.pushPeerInfoIfNeeded().catch((err) => {
+            console.error("[AppService] Failed to push peer info on start:", err);
+        });
         // dummy await for 6 sec
         // await new Promise((resolve) => setTimeout(resolve, 6 * 1000));
     }

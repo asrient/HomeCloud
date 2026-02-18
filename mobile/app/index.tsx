@@ -13,7 +13,7 @@ import { UIButton } from '@/components/ui/UIButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useMemo, useState } from 'react';
 import { PeerInfo } from 'shared/types';
-import { isGlassEnabled, getAppName, getBottomPadding } from '@/lib/utils';
+import { isGlassEnabled, getAppName, getBottomPadding, isIos } from '@/lib/utils';
 import { useAccountState } from '@/hooks/useAccountState';
 import { useDiscoverable } from '@/hooks/useDiscoverable';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   thisDeviceCard: {
-    borderRadius: 20,
+    borderRadius: isIos ? 40 : 20,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',

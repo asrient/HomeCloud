@@ -21,7 +21,7 @@ export function DeviceButton({
   title,
   onPress,
   disabled = false,
-  iconSize = 36,
+  iconSize = 56,
 }: DeviceButtonProps) {
   const textColor = useThemeColor({}, 'text');
   const tertiaryBackgroundColor = useThemeColor({}, 'backgroundTertiary');
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     paddingHorizontal: 10,
-    borderRadius: 20,
+    borderRadius: isIos ? 40 : 20,
     minHeight: 90,
   },
 });

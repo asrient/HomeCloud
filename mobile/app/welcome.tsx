@@ -14,19 +14,19 @@ import { useState } from 'react';
 
 const features = [
     {
-        icon: 'cloud.rain' as const,
-        title: 'No cloud storage.',
-        description: "You don't need a cloud subscription to access your media across your devices.",
+        icon: 'arrow.left.arrow.right' as const,
+        title: 'Transfer files, browse photos & more',
+        description: "Transfer unlimited files, share your clipboard, browse photos and edit documents across all your devices.",
     },
     {
         icon: 'antenna.radiowaves.left.and.right' as const,
-        title: 'Always connected.',
-        description: "Don't worry about WiFi networks or internet access, it just works.",
+        title: 'Always connected',
+        description: "Works over your local network or remotely over the internet, with direct device-to-device connections.",
     },
     {
-        icon: 'play.circle' as const,
-        title: 'Documents, photos and more.',
-        description: 'Browse it, open it, edit it, transfer it, to any device.',
+        icon: 'lock.shield' as const,
+        title: 'Private & encrypted',
+        description: 'Your data is end-to-end encrypted and travels directly between your devices.',
     },
 ];
 

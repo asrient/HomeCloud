@@ -71,6 +71,8 @@ const MAPPING = {
   'envelope.badge': 'mail',
   'exclamationmark.triangle': 'warning',
   'photo.stack': 'collections',
+  'arrow.left.arrow.right': 'swap-horiz',
+  'lock.shield': 'lock',
 } as IconMapping;
 
 /**

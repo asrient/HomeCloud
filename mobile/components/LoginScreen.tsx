@@ -5,7 +5,7 @@ import { UITextInput } from '@/components/ui/UITextInput';
 import { useMemo, useRef, useState } from 'react';
 import { AccountLinkResponse } from 'shared/types';
 import { UIButton } from '@/components/ui/UIButton';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UIIcon } from '@/components/ui/UIIcon';
 import { getAppName } from '@/lib/utils';
 
@@ -20,6 +20,8 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onComplete }: LoginScreenProps) {
+
+    const insets = useSafeAreaInsets();
 
     const previousEmail = useMemo(() => {
         const localSc = window.modules.getLocalServiceController();
@@ -104,7 +106,7 @@ export function LoginScreen({ onComplete }: LoginScreenProps) {
 
     return (
         <UIView themeColor='backgroundSecondary' style={styles.container}>
-            <SafeAreaView style={styles.safeArea}>
+            <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 20), paddingBottom: insets.bottom }]}>
                 <View style={styles.topBar}>
                     <UIButton type='link' onPress={() => onComplete(false)} title='Skip' />
                 </View>
@@ -182,7 +184,7 @@ export function LoginScreen({ onComplete }: LoginScreenProps) {
                         )
                     }
                 </KeyboardAvoidingView>
-            </SafeAreaView>
+            </View>
         </UIView>
     );
 }
@@ -194,6 +196,8 @@ const styles = StyleSheet.create({
     topBar: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
+        minHeight: 44,
+        alignItems: 'center',
     },
     content: {
         flex: 1,
