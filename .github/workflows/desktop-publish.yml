@@ -25,12 +25,19 @@ jobs:
         include:
           - os: macos-latest
             platform: darwin
+            arch: arm64
+            ui_theme: macos
+          - os: macos-13
+            platform: darwin
+            arch: x64
             ui_theme: macos
           # - os: ubuntu-latest
           #   platform: linux
+          #   arch: x64
           #   ui_theme: linux
           - os: windows-latest
             platform: win32
+            arch: x64
             ui_theme: windows
     steps:
       - uses: actions/checkout@v4
@@ -75,22 +82,62 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: "--max_old_space_size=4096"
 
-      - name: Publish app - macOS (universal)
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && matrix.os == 'macos-latest'
-        run: npm run publish:macos
-        working-directory: ./desktop
-        env:
-          NODE_ENV: production
-          SERVER_URL: ${{ vars.SERVER_URL }}
-          WS_SERVER_URL: ${{ vars.WS_SERVER_URL }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_OPTIONS: "--max_old_space_size=4096"
-
       # Upload artifacts for manual workflow runs
       - name: Upload build artifacts
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.platform }}
+          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
           path: ./desktop/out/
           retention-days: 7
+
+      # Upload make output for the desktop-latest job
+      - name: Upload make artifacts for latest release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-make-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ./desktop/out/make/**/*
+          retention-days: 1
+
+  # Update the rolling "desktop-latest" release with artifacts from the current build
+  update-latest-release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: desktop/package.json
+
+      - name: Get version
+        id: version
+        run: echo "version=$(node -p "require('./desktop/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Download all make artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-make-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts -type f | head -50
+
+      - name: Update desktop-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-latest
+          name: "Desktop v${{ steps.version.outputs.version }}"
+          body: |
+            Latest desktop app build — **v${{ steps.version.outputs.version }}**
+
+            This is a rolling release that always points to the most recent desktop build.
+            For the full changelog, see the [versioned release](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}).
+          prerelease: false
+          make_latest: false
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

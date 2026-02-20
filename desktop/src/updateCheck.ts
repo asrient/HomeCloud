@@ -2,7 +2,8 @@ import { net, app, dialog, shell, MenuItemConstructorOptions } from 'electron';
 import Signal from 'shared/signals';
 
 const GITHUB_REPO = 'asrient/HomeCloud';
-const CHECK_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+const DESKTOP_TAG_PREFIX = 'desktop-v';
+const CHECK_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/tags/desktop-latest`;
 
 export interface UpdateInfo {
     currentVersion: string;
@@ -69,7 +70,8 @@ export async function checkForUpdates(force = false): Promise<UpdateInfo | null>
         }
 
         const release = await response.json();
-        const latestVersion = (release.tag_name || '').replace(/^v/, '');
+        const versionMatch = (release.name || '').match(/desktop-v(.+)/);
+        const latestVersion = versionMatch ? versionMatch[1] : (release.tag_name || '').replace(DESKTOP_TAG_PREFIX, '');
         const currentVersion = app.getVersion();
 
         cachedInfo = {

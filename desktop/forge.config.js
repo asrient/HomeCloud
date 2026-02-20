@@ -264,12 +264,34 @@ module.exports = {
       console.log('Cleanup complete!');
     },
 
-    postMake: async () => {
+    postMake: async (forgeConfig, makeResults) => {
       // Clean up generated MSIX manifest after makers have finished
       if (fs.existsSync(MSIX_MANIFEST_OUT)) {
         fs.unlinkSync(MSIX_MANIFEST_OUT);
         console.log('Cleaned up generated MSIX manifest');
       }
+
+      // Rename artifacts to remove version from filenames for fixed download URLs
+      const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
+      const escapedVersion = pkg.version.replace(/[.]/g, '\\.');
+      const versionPattern = new RegExp(`[-\\s]${escapedVersion}`, 'g');
+
+      for (const result of makeResults) {
+        result.artifacts = result.artifacts.map(artifactPath => {
+          const dir = path.dirname(artifactPath);
+          const oldName = path.basename(artifactPath);
+          const newName = oldName.replace(versionPattern, '').replace(/darwin/g, 'macos');
+          if (newName !== oldName) {
+            const newPath = path.join(dir, newName);
+            fs.renameSync(artifactPath, newPath);
+            console.log(`Renamed: ${oldName} -> ${newName}`);
+            return newPath;
+          }
+          return artifactPath;
+        });
+      }
+
+      return makeResults;
     }
   },
   rebuildConfig: {},
@@ -290,14 +312,14 @@ module.exports = {
       name: '@electron-forge/maker-deb',
       config: {},
     },
-    {
-      name: '@electron-forge/maker-dmg',
-      config: {
-        icon: "assets/appIcons/icon.icns",
-        format: "ULFO",
-        overwrite: true,
-      }
-    },
+    // {
+    //   name: '@electron-forge/maker-dmg',
+    //   config: {
+    //     icon: "assets/appIcons/icon.icns",
+    //     format: "ULFO",
+    //     overwrite: true,
+    //   }
+    // },
     // MSIX maker for Store uploads only — set BUILD_MSIX=true to include
     ...(BUILD_MSIX ? [{
       name: '@electron-forge/maker-msix',
@@ -330,8 +352,8 @@ module.exports = {
           owner: 'asrient',
           name: 'HomeCloud'
         },
-        prerelease: true,
-        draft: true,
+        prerelease: false,
+        draft: false,
       }
     }
   ],
