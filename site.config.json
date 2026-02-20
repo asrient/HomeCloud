@@ -3,5 +3,11 @@
     "description": "Privacy-first companion app to access and control all your files and devices.",
     "iconPath": "img/icon-dark.png",
     "docsPath": "docs",
-    "accentColor": "red"
+    "accentColor": "red",
+    "showDownloads": true,
+    "downloadLinks": {
+        "macosArm64": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud-macos-arm64.zip",
+        "macosX64": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud-macos-x64.zip",
+        "windowsExe": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud%20Setup.exe"
+    }
 }
