@@ -131,8 +131,6 @@ const styles = StyleSheet.create({
   },
   bottomFloatingBar: {
     position: 'absolute',
-    left: 0,
-    right: 0,
     backgroundColor: 'transparent',
     padding: 10,
     paddingHorizontal: 20,

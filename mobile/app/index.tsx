@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   thisDeviceCard: {
-    borderRadius: isIos ? 40 : 20,
+    borderRadius: isIos ? 30 : 20,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',

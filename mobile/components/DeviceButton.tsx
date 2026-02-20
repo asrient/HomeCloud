@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     paddingHorizontal: 10,
-    borderRadius: isIos ? 40 : 20,
+    borderRadius: isIos ? 30 : 20,
     minHeight: 90,
   },
 });
