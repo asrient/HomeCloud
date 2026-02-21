@@ -117,7 +117,13 @@ function ClipboardCard({ deviceFingerprint, dismiss }: { deviceFingerprint: stri
             )}
         </View>
         <View style={{ width: '100%', marginTop: 5 }}>
-            <UIButton disabled={isLoading || !!error || !content} onPress={copyToClipboard} title="Copy" type="primary" stretch />
+            <UIButton
+                disabled={isLoading || !!error || !content}
+                onPress={copyToClipboard}
+                title="Copy"
+                type="primary"
+                stretch
+            />
         </View>
     </View>;
 }

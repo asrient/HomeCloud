@@ -1,45 +1,77 @@
-import { Modal, View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, StyleSheet, useWindowDimensions } from "react-native";
 import { UIText } from "./ui/UIText";
 import { UIView } from "./ui/UIView";
+import { UIButton } from "./ui/UIButton";
+import { useLoadingStore } from "@/hooks/useLoading";
 
 
-export function LoadingModal({
-    isActive, title,
-}: {
-    isActive: boolean;
-    title?: string;
-}) {
-    if (!isActive) {
+export function LoadingModal() {
+    const { entries, removeEntry } = useLoadingStore();
+    const { width, height } = useWindowDimensions();
+
+    const current = entries.length > 0 ? entries[entries.length - 1] : null;
+
+    if (!current) {
         return null;
     }
 
+    const handleCancel = () => {
+        if (current.onCancel) {
+            current.onCancel();
+        }
+        removeEntry(current.id);
+    };
+
     return (
-        <Modal
-            transparent={true}
-            animationType="fade"
-            visible={isActive}
-        >
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <UIView
-                    themeColor="backgroundSecondary"
-                    style={{
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: 200,
-                        padding: 20,
-                        borderRadius: 20,
-                    }}
-                >
+        <View style={[styles.overlay, { width, height }]} pointerEvents="auto">
+            <UIView
+                themeColor="backgroundSecondary"
+                style={styles.container}
+                useGlass
+            >
+                <View style={styles.content}>
                     <ActivityIndicator size="large" />
-                    {title &&
-                        <>
-                            <View style={{ height: 5 }} />
-                            <UIText size="sm" numberOfLines={2} font="semibold" style={{ textAlign: 'center' }}>
-                                {title}
-                            </UIText>
-                        </>}
-                </UIView>
-            </View>
-        </Modal>
+                    <View style={{ height: 5 }} />
+                    <UIText size="sm" numberOfLines={2} font="semibold" style={{ textAlign: 'center' }}>
+                        {current.title || "Loading"}
+                    </UIText>
+                </View>
+                {current.canCancel &&
+                    <UIButton
+                        type="link"
+                        title="Cancel"
+                        onPress={handleCancel}
+                        style={styles.cancelButton}
+                    />}
+            </UIView>
+        </View>
     );
 }
+
+const styles = StyleSheet.create({
+    overlay: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 9999,
+    },
+    container: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 300,
+        borderRadius: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 10,
+    },
+    content: {
+        padding: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cancelButton: {
+        paddingTop: 0,
+    },
+});

@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { UIContextMenu, UIContextMenuAction } from './ui/UIContextMenu';
 import { UIIcon } from './ui/UIIcon';
 import { getPeerIconName } from './ui/getPeerIconName';
+import { useManagedLoading } from '@/hooks/useManagedLoading';
 
 
 export type FileSortBy = {
@@ -403,6 +404,7 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
     const [internalRenderKey, setInternalRenderKey] = useState(0);
     const router = useRouter();
     const { width: screenWidth } = useWindowDimensions();
+    const { withLoading } = useManagedLoading();
 
     // Responsive grid columns: ~120pt per column, minimum 3
     const gridColumns = useMemo(() => {
@@ -446,16 +448,14 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
         }
         previewLockRef.current = true;
         try {
-            const serviceController = getLocalServiceController();
-            await serviceController.files.openFile(file.deviceFingerprint, file.path);
-        } catch (error) {
-            console.error('Error previewing file:', file.path, error);
-            const localSc = getLocalServiceController();
-            localSc.system.alert('Could not open file', `${(error as Error).message || 'Something went wrong.'}`);
+            await withLoading(async () => {
+                const serviceController = getLocalServiceController();
+                await serviceController.files.openFile(file.deviceFingerprint, file.path);
+            }, { title: 'Opening file...', errorTitle: 'Could not open file', delay: 0 });
         } finally {
             previewLockRef.current = false;
         }
-    }, [disablePreview]);
+    }, [disablePreview, withLoading]);
 
     const handleFilePress = useCallback(async (file: FileRemoteItem, previewIntent?: boolean) => {
         // Handle file press based on selectMode

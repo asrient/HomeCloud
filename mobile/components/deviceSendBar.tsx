@@ -5,11 +5,10 @@ import { UITextInput } from "./ui/UITextInput";
 import { UIContextMenu } from './ui/UIContextMenu';
 import { useCallback, useState } from "react";
 import { Platform } from "react-native";
-import { getServiceController } from "shared/utils";
-import { getLocalServiceController } from "@/lib/utils";
-import { LoadingModal } from "./LoadingModal";
+import { getServiceController } from "@/lib/utils";
+import { useManagedLoading } from "@/hooks/useManagedLoading";
+import { useSendAssets } from "@/hooks/useSendAssets";
 import * as DocumentPicker from 'expo-document-picker';
-import { File } from "expo-file-system/next";
 import * as ImagePicker from 'expo-image-picker';
 
 export type DeviceSendBarProps = {
@@ -17,82 +16,44 @@ export type DeviceSendBarProps = {
 };
 
 export function DeviceSendBar({ peerInfo }: DeviceSendBarProps) {
-    const [isSending, setIsSending] = useState(false);
+    const { withLoading, isActive } = useManagedLoading();
+    const { sendAssets, isSending } = useSendAssets();
     const [text, setText] = useState('');
 
     const sendMessage = useCallback(async () => {
-        if (text.trim().length === 0) {
-            return;
-        }
-        setIsSending(true);
-        const sc = await getServiceController(peerInfo.fingerprint);
-        sc.app.receiveContent(null, text.trim(), 'text').catch((error) => {
-            console.error('Error sending message to device:', error);
-            const localSc = getLocalServiceController();
-            localSc.system.alert('Could not send', 'An error occurred.');
-        });
+        if (text.trim().length === 0) return;
+        const message = text.trim();
         setText('');
-        setIsSending(false);
-    }, [text, peerInfo.fingerprint]);
+        await withLoading(async () => {
+            const sc = await getServiceController(peerInfo.fingerprint);
+            await sc.app.receiveContent(null, message, 'text');
+        }, { title: 'Sending...', errorTitle: 'Could not send' });
+    }, [text, peerInfo.fingerprint, withLoading]);
 
     const openDocPicker = useCallback(async () => {
-        try {
-            const result = await DocumentPicker.getDocumentAsync({
-                multiple: true,
-                copyToCacheDirectory: true,
-            });
-            if (result.canceled) {
-                return;
-            }
-            const assets = result.assets;
-            if (assets.length === 0) {
-                return;
-            }
-            setIsSending(true);
-            const sc = await getServiceController(peerInfo.fingerprint);
-            for (const asset of assets) {
-                await sc.files.download(modules.config.FINGERPRINT, asset.uri);
-                // now delete the cached file
-                const file = new File(asset.uri);
-                if (file.exists) {
-                    file.delete();
-                }
-            }
-        } catch (error) {
-            console.error('Error picking document:', error);
-            const localSc = getLocalServiceController();
-            localSc.system.alert('Could not send', 'An error occurred while picking the document.');
-        } finally {
-            setIsSending(false);
-        }
-    }, [peerInfo.fingerprint]);
+        const result = await DocumentPicker.getDocumentAsync({
+            multiple: true,
+            copyToCacheDirectory: true,
+        });
+        if (result.canceled || result.assets.length === 0) return;
+        await sendAssets(peerInfo.fingerprint, result.assets, {
+            getPath: (a) => a.uri,
+            label: 'files',
+            deleteAfter: true,
+        });
+    }, [peerInfo.fingerprint, sendAssets]);
 
     const openImagePicker = useCallback(async () => {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ['images', 'videos'],
-                allowsMultipleSelection: true,
-            });
-            if (result.canceled) {
-                return;
-            }
-            const assets = result.assets;
-            if (assets.length === 0) {
-                return;
-            }
-            setIsSending(true);
-            const sc = await getServiceController(peerInfo.fingerprint);
-            for (const asset of assets) {
-                await sc.files.download(modules.config.FINGERPRINT, asset.uri);
-            }
-        } catch (error) {
-            console.error('Error picking images:', error);
-            const localSc = getLocalServiceController();
-            localSc.system.alert('Could not send', 'An error occurred while picking the images.');
-        } finally {
-            setIsSending(false);
-        }
-    }, [peerInfo.fingerprint]);
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images', 'videos'],
+            allowsMultipleSelection: true,
+        });
+        if (result.canceled || result.assets.length === 0) return;
+        await sendAssets(peerInfo.fingerprint, result.assets, {
+            getPath: (a) => a.uri,
+            label: 'photos',
+        });
+    }, [peerInfo.fingerprint, sendAssets]);
 
     return <>
         <UIView
@@ -139,10 +100,9 @@ export function DeviceSendBar({ peerInfo }: DeviceSendBarProps) {
                 type='link'
                 themeColor={text.trim().length === 0 ? "textSecondary" : "highlight"}
                 icon='arrow.up.circle.fill'
-                disabled={text.trim().length === 0 || isSending}
+                disabled={text.trim().length === 0 || isActive || isSending}
                 onPress={sendMessage}
             />
         </UIView>
-        <LoadingModal isActive={isSending} />
     </>;
 }

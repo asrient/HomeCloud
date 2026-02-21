@@ -10,6 +10,7 @@ import { useAppState } from '@/hooks/useAppState';
 import { useKeepAwakeControl } from '@/hooks/useKeepAwake';
 import { InputPopup } from '@/components/inputPopup';
 import { AlertModal } from '@/components/AlertModal';
+import { LoadingModal } from '@/components/LoadingModal';
 import { useNavigationTheme } from '@/hooks/useNavigationTheme';
 import { usePermissions } from '@/hooks/usePermissions';
 import { isGlassEnabled, isIos } from '@/lib/utils';
@@ -105,6 +106,7 @@ export default function RootLayout() {
         <StatusBar style="auto" />
         <InputPopup />
         <AlertModal />
+        <LoadingModal />
       </ThemeProvider>
     </View>
   );

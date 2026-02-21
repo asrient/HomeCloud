@@ -12,11 +12,12 @@ import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UIContextMenu } from '@/components/ui/UIContextMenu';
 import { useInputPopup } from '@/hooks/usePopup';
 import { useAlert } from '@/hooks/useAlert';
+import { useManagedLoading } from '@/hooks/useManagedLoading';
+import { useSendAssets } from '@/hooks/useSendAssets';
 import { getLocalServiceController, getServiceController, isGlassEnabled } from '@/lib/utils';
 import { UIText } from '@/components/ui/UIText';
 import { useFolder } from '@/hooks/useFolders';
 import { RemoteItem } from 'shared/types';
-import { LoadingModal } from '@/components/LoadingModal';
 import { FilePickerModal } from '@/components/FilePickerModal';
 
 type Props = RouteProp<ParamListBase, string> & {
@@ -33,6 +34,8 @@ export default function FolderScreen() {
   const [selectedFiles, setSelectedFiles] = useState<FileRemoteItem[]>([]);
   const { openInputPopup } = useInputPopup();
   const { showAlert } = useAlert();
+  const { withLoading } = useManagedLoading();
+  const { sendAssets } = useSendAssets();
   const [itemsToMove, setItemsToMove] = useState<FileRemoteItem[] | null>(null);
 
   const [sortBy, setSortBy] = useState<FileSortBy | null>(null);
@@ -55,7 +58,10 @@ export default function FolderScreen() {
 
   const { remoteItems, isLoading, error, setRemoteItems } = useFolder<FileRemoteItem>(fingerprint, path, mapper);
 
-  const [currentOperation, setCurrentOperation] = useState<string | null>(null);
+  useEffect(() => {
+    setSelectMode(false);
+    setSelectedFiles([]);
+  }, [fingerprint, path]);
 
   const handleSelectFile = useCallback((file: FileRemoteItem) => {
     setSelectedFiles((prevSelected) => {
@@ -106,7 +112,7 @@ export default function FolderScreen() {
       submitButtonText: 'Create',
       onDone: async (value) => {
         if (value) {
-          try {
+          await withLoading(async () => {
             const sc = await getServiceController(fingerprint);
             const folder = await sc.files.fs.mkDir(value, path);
             setRemoteItems((prevItems) => [...prevItems, {
@@ -114,52 +120,38 @@ export default function FolderScreen() {
               isSelected: false,
               deviceFingerprint: fingerprint,
             }]);
-          } catch (error) {
-            console.error('Failed to create folder:', error);
-            showAlert('Error', 'Failed to create folder. Please try again.');
-          }
+          }, { title: 'Creating folder...', errorTitle: 'Error' });
         }
       },
     });
-  }, [fingerprint, openInputPopup, path, setRemoteItems, showAlert]);
+  }, [fingerprint, openInputPopup, path, setRemoteItems, withLoading]);
 
-  const deleteItems = useCallback(async (items: FileRemoteItem[]) => {
-    return new Promise<boolean>((resolve, reject) => {
-      showAlert(
-        'Delete Items',
-        `Are you sure you want to delete ${items.length} item(s)? This action cannot be undone.`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => { resolve(false); },
+  const deleteItems = useCallback((items: FileRemoteItem[], onDeleted?: () => void) => {
+    showAlert(
+      'Delete Items',
+      `Are you sure you want to delete ${items.length} item(s)? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await withLoading(async () => {
+              const sc = await getServiceController(fingerprint);
+              const deleted = await sc.files.fs.unlinkMultiple(items.map(i => i.path));
+              setRemoteItems((prevItems) =>
+                prevItems.filter((item) => !deleted.some((p) => p === item.path))
+              );
+              onDeleted?.();
+            }, { title: `Deleting ${items.length} item(s).`, errorTitle: 'Error' });
           },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                setCurrentOperation(`Deleting ${items.length} item(s).`);
-                const sc = await getServiceController(fingerprint);
-                const deleted = await sc.files.fs.unlinkMultiple(items.map(i => i.path));
-                setRemoteItems((prevItems) =>
-                  prevItems.filter((item) => !deleted.some((p) => p === item.path))
-                );
-                resolve(true);
-              } catch (error) {
-                console.error('Failed to delete items:', error);
-                showAlert('Error', 'Failed to delete items. Please try again.');
-                reject(error);
-              }
-              finally {
-                setCurrentOperation(null);
-              }
-            },
-          },
-        ]
-      );
-    });
-  }, [fingerprint, setRemoteItems, showAlert]);
+        },
+      ]
+    );
+  }, [fingerprint, setRemoteItems, showAlert, withLoading]);
 
   const renameItem = useCallback((item: FileRemoteItem) => {
     const itemKind = getKind(item);
@@ -171,8 +163,7 @@ export default function FolderScreen() {
       submitButtonText: 'Rename',
       onDone: async (value) => {
         if (value && value !== item.name) {
-          try {
-            setCurrentOperation(`Renaming ${itemKind}.`);
+          await withLoading(async () => {
             const sc = await getServiceController(fingerprint);
             const renamedItem = await sc.files.fs.rename(item.path, value);
             setRemoteItems((prevItems) =>
@@ -180,28 +171,18 @@ export default function FolderScreen() {
                 it.path === item.path ? { ...renamedItem, isSelected: false, deviceFingerprint: fingerprint } : it
               )
             );
-          } catch (error) {
-            console.error('Failed to rename item:', error);
-            showAlert('Error', 'Failed to rename item. Please try again.');
-          } finally {
-            setCurrentOperation(null);
-          }
+          }, { title: `Renaming ${itemKind}.`, errorTitle: 'Error' });
         }
       },
     });
-  }, [fingerprint, openInputPopup, setRemoteItems, showAlert]);
+  }, [fingerprint, openInputPopup, setRemoteItems, withLoading]);
 
-  const deleteSelectedItems = useCallback(async () => {
+  const deleteSelectedItems = useCallback(() => {
     if (selectedFiles.length === 0) return;
-    try {
-      const success = await deleteItems(selectedFiles);
-      if (success) {
-        setSelectedFiles([]);
-        setSelectMode(false);
-      }
-    } catch {
-      // ignore, error handled in deleteItems
-    }
+    deleteItems(selectedFiles, () => {
+      setSelectedFiles([]);
+      setSelectMode(false);
+    });
   }, [deleteItems, selectedFiles]);
 
   const moveItems = useCallback(async (destFingerprint: string | null, destPath: string, deleteSource: boolean) => {
@@ -209,7 +190,7 @@ export default function FolderScreen() {
     const items = [...itemsToMove];
     setItemsToMove(null);
     const filePaths = items.map(i => i.path);
-    try {
+    await withLoading(async () => {
       const serviceController = await getServiceController(destFingerprint);
       await serviceController.files.move(destFingerprint, destPath, filePaths, deleteSource);
       if (deleteSource) {
@@ -217,23 +198,15 @@ export default function FolderScreen() {
           prevItems.filter((item) => !items.some((i) => i.path === item.path))
         );
       }
-    }
-    catch (error) {
-      console.error('Failed to move items:', error);
-      showAlert('Error', 'Failed to move items. Please try again.');
-    }
-  }, [setRemoteItems, itemsToMove, showAlert]);
+    }, { title: `Moving ${items.length} item(s)...`, errorTitle: 'Error' });
+  }, [setRemoteItems, itemsToMove, withLoading]);
 
   const shareItem = useCallback(async (item: FileRemoteItem) => {
-    try {
+    await withLoading(async () => {
       const localSc = getLocalServiceController();
       await localSc.files.shareFiles(item.deviceFingerprint || null, [item.path]);
-    }
-    catch (error) {
-      console.error('Failed to share item:', error);
-      showAlert('Error', 'Failed to share item. Please try again.');
-    }
-  }, [showAlert]);
+    }, { title: 'Sharing...', errorTitle: 'Error' });
+  }, [withLoading]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -306,36 +279,20 @@ export default function FolderScreen() {
   }, [navigation, folderName, selectMode, selectedFiles.length, filesViewMode, setFilesViewMode, sortBy, updatedSortBy, newFolder, deleteSelectedItems, selectedFiles]);
 
   const sendToDevice = useCallback(async (items: FileRemoteItem[], destFingerprint: string | null) => {
-    try {
-      setCurrentOperation(`Sending ${items.length} item(s) to device.`);
-      const sc = await getServiceController(destFingerprint);
-      for (const item of items) {
-        await sc.files.download(item.deviceFingerprint || modules.config.FINGERPRINT, item.path);
-      }
-    }
-    catch (error) {
-      console.error('Failed to send items to device:', error);
-      showAlert('Error', 'Failed to send items to device. Please try again.');
-    } finally {
-      setCurrentOperation(null);
-    }
-  }, [showAlert]);
+    await sendAssets(destFingerprint, items, {
+      getPath: (item) => item.path,
+      getSourceFingerprint: (item) => item.deviceFingerprint,
+    });
+  }, [sendAssets]);
 
   const openInDevice = useCallback(async (item: FileRemoteItem, destFingerprint: string) => {
-    try {
-      setCurrentOperation('Opening item in device.');
+    await withLoading(async () => {
       const sc = await getServiceController(destFingerprint);
       await sc.files.openFile(item.deviceFingerprint || modules.config.FINGERPRINT, item.path);
-    }
-    catch (error) {
-      console.error('Failed to open item in device:', error);
-      showAlert('Error', 'Failed to open item in device. Please try again.');
-    } finally {
-      setCurrentOperation(null);
-    }
-  }, [showAlert]);
+    }, { title: 'Opening item in device.', errorTitle: 'Error' });
+  }, [withLoading]);
 
-  const handleQuickAction = useCallback((action: FileQuickActionType) => {
+  const handleQuickAction = useCallback(async (action: FileQuickActionType) => {
     switch (action.type) {
       case 'delete':
         deleteItems([action.item]);
@@ -351,15 +308,15 @@ export default function FolderScreen() {
         break;
       case 'openInDevice':
         if (action.targetDeviceFingerprint !== undefined) {
-          openInDevice(action.item, action.targetDeviceFingerprint);
+          await openInDevice(action.item, action.targetDeviceFingerprint);
         }
         break;
       case 'export':
-        shareItem(action.item);
+        await shareItem(action.item);
         break;
       case 'sendToDevice':
         if (action.targetDeviceFingerprint !== undefined) {
-          sendToDevice([action.item], action.targetDeviceFingerprint);
+          await sendToDevice([action.item], action.targetDeviceFingerprint);
         }
         break;
       default:
@@ -394,7 +351,6 @@ export default function FolderScreen() {
           }
         />
       }
-      <LoadingModal isActive={!!currentOperation} title={currentOperation || undefined} />
       <FilePickerModal
         isOpen={!!itemsToMove}
         pickerType="folder"

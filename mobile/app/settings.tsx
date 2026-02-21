@@ -11,16 +11,20 @@ import { ConnectionType, DeviceInfo, PeerInfo } from 'shared/types';
 import { useAccountState } from '@/hooks/useAccountState';
 import { useAppState } from '@/hooks/useAppState';
 import { useAlert } from '@/hooks/useAlert';
+import { useManagedLoading } from '@/hooks/useManagedLoading';
 import { getAppName, getOSIconUrl, isGlassEnabled, isIos, getBottomPadding } from '@/lib/utils';
 import DeviceIcon from '@/components/deviceIcon';
 import { HelpLinkType } from 'shared/helpLinks';
 import { hasStorageAccess, requestStorageAccess } from '@/lib/permissions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import InstallLinkModal from '@/components/InstallLinkModal';
+import { LoadingModal } from '@/components/LoadingModal';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
+  const { withLoading } = useManagedLoading();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const bottomPadding = getBottomPadding(insets.bottom);
@@ -31,6 +35,7 @@ export default function SettingsScreen() {
   const { isLinked, accountEmail } = useAccountState();
   const { peers, setOnboarded } = useAppState();
   const highlightColor = useThemeColor({}, 'highlight');
+  const [installLinkOpen, setInstallLinkOpen] = useState(false);
 
   const isDev = useMemo(() => {
     return modules.config.IS_DEV;
@@ -118,7 +123,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <UIScrollView themeColor={isIos ? 'backgroundSecondary' : 'background'} showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: bottomPadding }}>
+    <View style={{ flex: 1 }}>
+      <UIScrollView themeColor={isIos ? 'backgroundSecondary' : 'background'} showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: bottomPadding }}>
       {isGlassEnabled && <View style={{ height: headerHeight }} />}
       <FormContainer>
         <Section title="About">
@@ -178,7 +184,7 @@ export default function SettingsScreen() {
           )}
         </Section>
 
-        {isLinked && peers.length > 0 && (
+        {isLinked && (
           <Section title="Linked Devices">
             {peers.map((peer) => (
               <Line key={peer.fingerprint}>
@@ -202,6 +208,11 @@ export default function SettingsScreen() {
                 </View>
               </Line>
             ))}
+            <LineLink
+              text="Add More Devices"
+              onPress={() => setInstallLinkOpen(true)}
+              color="primary"
+            />
           </Section>
         )}
 
@@ -220,6 +231,21 @@ export default function SettingsScreen() {
             <LineLink
               text="Open Login"
               onPress={() => router.navigate('/login')}
+            />
+            <LineLink
+              text="Test Loading Modal"
+              onPress={() => {
+                withLoading(async (isCancelled) => {
+                  await new Promise<void>((resolve) => {
+                    const interval = setInterval(() => {
+                      if (isCancelled()) {
+                        clearInterval(interval);
+                        resolve();
+                      }
+                    }, 100);
+                  });
+                }, { title: 'Testing loading modal...', canCancel: true });
+              }}
             />
           </Section>
         )}
@@ -240,7 +266,10 @@ export default function SettingsScreen() {
         </View>
 
       </FormContainer>
+      <InstallLinkModal isOpen={installLinkOpen} onClose={() => setInstallLinkOpen(false)} />
     </UIScrollView>
+    <LoadingModal />
+    </View>
   );
 }
 

@@ -13,6 +13,8 @@ import { PhotosSortOption, PhotoView, PhotosQuickAction } from '@/lib/types';
 import { UIButton } from '@/components/ui/UIButton';
 import { getLocalServiceController, getServiceController, isIos, isGlassEnabled } from '@/lib/utils';
 import { useAlert } from '@/hooks/useAlert';
+import { useSendAssets } from '@/hooks/useSendAssets';
+import { useManagedLoading } from '@/hooks/useManagedLoading';
 
 export default function DevicePhotosScreen() {
   const { fingerprint: routeFingerprint } = useLocalSearchParams<{ fingerprint: string }>();
@@ -34,6 +36,8 @@ export default function DevicePhotosScreen() {
   const [selectedPhotos, setSelectedPhotos] = useState<PhotoView[]>([]);
   const [deletedPhotoIds, setDeletedPhotoIds] = useState<string[]>([]);
   const { showAlert } = useAlert();
+  const { sendAssets } = useSendAssets();
+  const { withLoading } = useManagedLoading();
 
   useEffect(() => {
     setSelectedLibrary(null);
@@ -67,17 +71,14 @@ export default function DevicePhotosScreen() {
   }, []);
 
   const sharePhoto = useCallback(async (photo: PhotoView) => {
-    const localSc = getLocalServiceController();
     const forceCache = photo.deviceFingerprint === null && Platform.OS === 'ios';
-    try {
+    await withLoading(async () => {
+      const localSc = getLocalServiceController();
       await localSc.files.shareFiles(photo.deviceFingerprint, [photo.fileId], forceCache);
-    } catch (e) {
-      console.error("Failed to share photo:", e);
-      showAlert("Error", "Failed to share photo. Please try again.");
-    }
-  }, [showAlert]);
+    }, { title: 'Sharing photo...', errorTitle: 'Error' });
+  }, [withLoading]);
 
-  const deletePhotos = useCallback(async (photos: PhotoView[]) => {
+  const deletePhotos = useCallback((photos: PhotoView[], onDeleted?: () => void) => {
     if (!selectedLibrary) return;
 
     showAlert("Confirm Delete", `Are you sure you want to delete ${photos.length} photo(s)? This action cannot be undone.`, [
@@ -89,49 +90,37 @@ export default function DevicePhotosScreen() {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          try {
+          await withLoading(async () => {
             const sc = await getServiceController(deviceFingerprint);
             const resp = await sc.photos.deletePhotos(selectedLibrary.id, photos.map(p => p.id));
             if (resp.deleteCount === 0) {
-              showAlert("Error", "Could not delete photos. Please try again.");
-            } else {
-              setDeletedPhotoIds((prev) => [...prev, ...resp.deletedIds]);
-              setSelectedPhotos((prevSelected) =>
-                prevSelected.filter((p) => !resp.deletedIds.includes(p.id))
-              );
+              throw new Error("Could not delete photos. Please try again.");
             }
-          } catch (e) {
-            console.error("Failed to delete photos:", e);
-            showAlert("Error", "Failed to delete photos. Please try again.");
-          }
+            setDeletedPhotoIds((prev) => [...prev, ...resp.deletedIds]);
+            setSelectedPhotos((prevSelected) =>
+              prevSelected.filter((p) => !resp.deletedIds.includes(p.id))
+            );
+            onDeleted?.();
+          }, { title: `Deleting ${photos.length} photo(s)...`, errorTitle: 'Error' });
         }
       }
     ]);
-  }, [deviceFingerprint, selectedLibrary, showAlert]);
+  }, [deviceFingerprint, selectedLibrary, showAlert, withLoading]);
 
   const openInDevice = useCallback(async (photo: PhotoView, destFingerprint: string) => {
-    try {
+    await withLoading(async () => {
       const sc = await getServiceController(destFingerprint);
       await sc.files.openFile(photo.deviceFingerprint || modules.config.FINGERPRINT, photo.fileId);
-    }
-    catch (error) {
-      console.error('Failed to open item in device:', error);
-      showAlert('Error', 'Failed to open item in device. Please try again.');
-    }
-  }, [showAlert]);
+    }, { title: 'Opening item in device.', errorTitle: 'Error' });
+  }, [withLoading]);
 
   const sendToDevice = useCallback(async (items: PhotoView[], destFingerprint: string | null) => {
-    try {
-      const sc = await getServiceController(destFingerprint);
-      for (const item of items) {
-        await sc.files.download(item.deviceFingerprint || modules.config.FINGERPRINT, item.fileId);
-      }
-    }
-    catch (error) {
-      console.error('Failed to send items to device:', error);
-      showAlert('Error', 'Failed to send items to device. Please try again.');
-    }
-  }, [showAlert]);
+    await sendAssets(destFingerprint, items, {
+      getPath: (item) => item.fileId,
+      getSourceFingerprint: (item) => item.deviceFingerprint,
+      label: 'photos',
+    });
+  }, [sendAssets]);
 
   const handleQuickAction = useCallback((action: PhotosQuickAction) => {
     switch (action.type) {
@@ -186,7 +175,9 @@ export default function DevicePhotosScreen() {
                 {selectMode && (
                   <>
                     <UIHeaderButton name="trash" disabled={selectedPhotos.length === 0} onPress={() => {
-                      deletePhotos(selectedPhotos);
+                      deletePhotos(selectedPhotos, () => {
+                        setSelectMode(false);
+                      });
                     }} />
                     <UIHeaderButton
                       disabled={selectedPhotos.length !== 1}
@@ -220,7 +211,11 @@ export default function DevicePhotosScreen() {
         isOpen={isLibrarySelectorOpen}
         onDone={(lib) => {
           setIsLibrarySelectorOpen(false);
-          lib && setSelectedLibrary(lib);
+          if (lib && lib.id !== selectedLibrary?.id) {
+            setSelectMode(false);
+            setSelectedPhotos([]);
+            setSelectedLibrary(lib);
+          }
         }}
         selectedLibrary={selectedLibrary || undefined}
         libraries={photoLibraries}

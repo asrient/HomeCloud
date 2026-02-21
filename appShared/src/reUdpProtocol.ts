@@ -9,6 +9,7 @@ const MAX_BUFFERED_PACKETS = 256;
 const MAX_ACK_DELAY_MS = 400;
 const PING_INTERVAL_MS = 10 * 1000;
 const MAX_PING_DELAY_MS = 25 * 1000;
+const MAX_SEND_WINDOW = 256; // max unACKed packets in flight
 
 // Flags
 const FLAG_DATA = 0;
@@ -47,6 +48,9 @@ export class ReDatagram {
 
     private sendLock = false;
     private sendBuffer: Uint8Array[] = [];
+
+    // Flow control: resolve callbacks waiting for window space
+    private windowWaiters: (() => void)[] = [];
 
     constructor(socket: DatagramCompat, peerAddresses: string[], port: number, onReady?: (isSuccess: boolean) => void) {
         this.socket = socket;
@@ -201,11 +205,30 @@ export class ReDatagram {
         }
     }
 
+    private async waitForWindowSpace() {
+        while (this.sendWindow.size >= MAX_SEND_WINDOW && !this.isClosing) {
+            await new Promise<void>(resolve => {
+                this.windowWaiters.push(resolve);
+            });
+        }
+    }
+
+    private wakeWindowWaiters() {
+        if (this.windowWaiters.length > 0 && this.sendWindow.size < MAX_SEND_WINDOW) {
+            const waiter = this.windowWaiters.shift()!;
+            waiter();
+        }
+    }
+
     private async sendPacket(data: Uint8Array) {
         if (this.isClosing) return;
         if (data.length > MAX_PACKET_PAYLOAD) {
             throw new Error(`Packet payload too large: ${data.length} > ${MAX_PACKET_PAYLOAD}`);
         }
+
+        // Flow control: wait if send window is full
+        await this.waitForWindowSpace();
+        if (this.isClosing) return;
 
         const seq = this.sendSeq;
         this.sendSeq = this.sendSeq + 1;
@@ -335,6 +358,8 @@ export class ReDatagram {
                     }
                     this.sendBase++;
                 }
+                // Wake any senders waiting for window space
+                this.wakeWindowWaiters();
             }
             else if (type === FLAG_HELLO) {
                 console.log("[ReUDP] Received HELLO, sending HELLO_ACK");
@@ -376,6 +401,9 @@ export class ReDatagram {
     private cleanup() {
         // Mark as closing to prevent further sends
         this.isClosing = true;
+        // Wake all waiting senders so they can exit
+        for (const w of this.windowWaiters) w();
+        this.windowWaiters = [];
         // Cleanup all resources
         for (const t of this.retransmitTimers.values()) clearTimeout(t);
         this.sendWindow.clear();
