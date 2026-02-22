@@ -156,6 +156,18 @@ function generateMsixManifest(arch) {
   return MSIX_MANIFEST_OUT;
 }
 
+/**
+ * Gets the Windows SDK version from the environment.
+ * GitHub Actions runners set WindowsSDKVersion automatically.
+ */
+function getWindowsKitVersion() {
+  const sdkVersion = process.env.WindowsSDKVersion;
+  if (sdkVersion) {
+    return sdkVersion.replace(/\\$/, '');
+  }
+  return null;
+}
+
 module.exports = {
   packagerConfig: {
     asar: {
@@ -324,11 +336,19 @@ module.exports = {
     ...(BUILD_MSIX ? [{
       name: '@electron-forge/maker-msix',
       config: (() => {
+        const windowsKitVersion = getWindowsKitVersion();
+        if (windowsKitVersion) {
+          console.log('Detected Windows Kit version:', windowsKitVersion);
+        }
+        const baseConfig = {
+          appManifest: MSIX_MANIFEST_OUT,
+          packageAssets: MSIX_ASSETS_DIR,
+          ...(windowsKitVersion && { windowsKitVersion }),
+        };
         if (MSIX_CERT_FILE && MSIX_CERT_PASSWORD) {
           console.log('Configuring MSIX with signing.');
           return {
-            appManifest: MSIX_MANIFEST_OUT,
-            packageAssets: MSIX_ASSETS_DIR,
+            ...baseConfig,
             windowsSignOptions: {
               certificateFile: MSIX_CERT_FILE,
               certificatePassword: MSIX_CERT_PASSWORD,
@@ -336,11 +356,7 @@ module.exports = {
           };
         }
         console.log('Configuring MSIX without signing.');
-        return {
-          appManifest: MSIX_MANIFEST_OUT,
-          packageAssets: MSIX_ASSETS_DIR,
-          sign: false,
-        };
+        return { ...baseConfig, sign: false };
       })()
     }] : []),
   ],
