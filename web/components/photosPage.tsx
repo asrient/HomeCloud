@@ -552,11 +552,15 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
         // Store the right-clicked item in ref for use in menu handlers
         rightClickedItemRef.current = item;
 
-        selectPhoto(item, false, true);
-
-        // Build menu items directly to avoid state delay
+        // Standard right-click behavior:
+        // If this item is already part of the selection, keep the multi-selection.
+        // Otherwise, clear existing selection and select only this item.
         const isAlreadySelected = selectedIds.has(getPhotoKey(item));
-        const currentSelectedCount = isAlreadySelected ? selectedCount : selectedCount + 1;
+        if (!isAlreadySelected) {
+            selectPhoto(item, false, false);
+        }
+
+        const currentSelectedCount = isAlreadySelected ? selectedCount : 1;
 
         const items: ContextMenuItem[] = [];
         if (currentSelectedCount === 1) {
