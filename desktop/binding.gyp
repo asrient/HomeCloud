@@ -1,9 +1,26 @@
 {
-  "targets": [
-    {
-      "target_name": "SystemWin",
-      "conditions": [
-        ["OS=='win'", {
+  "targets": [],
+  "conditions": [
+    ["OS=='mac'", {
+      "targets": [
+        {
+          "target_name": "ThumbnailMac",
+          "sources": ["addons/ThumbnailMac.mm"],
+          "cflags": ["-fobjc-arc"],
+          "libraries": ["-framework QuickLookThumbnailing", "-framework Foundation"],
+          "xcode_settings": {
+            "CLANG_ENABLE_OBJC_ARC": "YES"
+          },
+          "dependencies": [
+            "<!(node -p \"require('node-addon-api').targets\"):node_addon_api"
+          ]
+        }
+      ]
+    }],
+    ["OS=='win'", {
+      "targets": [
+        {
+          "target_name": "SystemWin",
           "sources": ["addons/SystemWin.cpp"],
           "defines": ["_WIN32", "NAPI_CPP_EXCEPTIONS"],
           "msvs_settings": {
@@ -14,13 +31,9 @@
           "dependencies": [
             "<!(node -p \"require('node-addon-api').targets\"):node_addon_api"
           ]
-        }]
-      ]
-    },
-    {
-      "target_name": "ThumbnailWin",
-      "conditions": [
-        ["OS=='win'", {
+        },
+        {
+          "target_name": "ThumbnailWin",
           "sources": ["addons/ThumbnailWin.cpp"],
           "defines": ["_WIN32", "NAPI_CPP_EXCEPTIONS", "_UNICODE"],
           "msvs_settings": {
@@ -31,13 +44,9 @@
           "dependencies": [
             "<!(node -p \"require('node-addon-api').targets\"):node_addon_api"
           ]
-        }]
-      ]
-    },
-    {
-      "target_name": "MediaControlWin",
-      "conditions": [
-        ["OS=='win'", {
+        },
+        {
+          "target_name": "MediaControlWin",
           "sources": ["addons/MediaControlWin.cpp"],
           "defines": ["_WIN32", "NAPI_CPP_EXCEPTIONS"],
           "msvs_settings": {
@@ -52,13 +61,9 @@
           "dependencies": [
             "<!(node -p \"require('node-addon-api').targets\"):node_addon_api"
           ]
-        }]
-      ]
-    },
-    {
-      "target_name": "DiscoveryWin",
-      "conditions": [
-        ["OS=='win'", {
+        },
+        {
+          "target_name": "DiscoveryWin",
           "sources": ["addons/DiscoveryWin.cpp"],
           "defines": ["_WIN32", "NAPI_CPP_EXCEPTIONS"],
           "msvs_settings": {
@@ -72,13 +77,9 @@
           "dependencies": [
             "<!(node -p \"require('node-addon-api').targets\"):node_addon_api"
           ]
-        }]
-      ]
-    },
-    {
-      "target_name": "DatagramWin",
-      "conditions": [
-        ["OS=='win'", {
+        },
+        {
+          "target_name": "DatagramWin",
           "sources": ["addons/DatagramWin.cpp"],
           "defines": ["_WIN32", "NAPI_CPP_EXCEPTIONS"],
           "msvs_settings": {
@@ -93,13 +94,9 @@
           "dependencies": [
             "<!(node -p \"require('node-addon-api').targets\"):node_addon_api"
           ]
-        }]
-      ]
-    },
-    {
-      "target_name": "AppContainerWin",
-      "conditions": [
-        ["OS=='win'", {
+        },
+        {
+          "target_name": "AppContainerWin",
           "sources": ["addons/AppContainerWin.cpp"],
           "defines": ["_WIN32", "NAPI_CPP_EXCEPTIONS"],
           "msvs_settings": {
@@ -114,24 +111,8 @@
           "dependencies": [
             "<!(node -p \"require('node-addon-api').targets\"):node_addon_api"
           ]
-        }]
+        }
       ]
-    },
-    {
-      "target_name": "ThumbnailMac",
-      "conditions": [
-        ["OS=='mac'", {
-          "sources": ["addons/ThumbnailMac.mm"],
-          "cflags": ["-fobjc-arc"],
-          "libraries": ["-framework QuickLookThumbnailing", "-framework Foundation"],
-          "xcode_settings": {
-            "CLANG_ENABLE_OBJC_ARC": "YES"
-          },
-          "dependencies": [
-            "<!(node -p \"require('node-addon-api').targets\"):node_addon_api"
-          ]
-        }]
-      ]
-    },
+    }]
   ]
 }
