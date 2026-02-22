@@ -181,6 +181,10 @@ module.exports = {
     derefSymlinks: true, // Dereference symlinks
     // ignore is set dynamically in prePackage hook
     appCategoryType: "public.app-category.productivity",
+    osxUniversal: {
+      // Tell @electron/universal which files are arch-specific so it merges them with lipo
+      x64ArchFiles: '*.node',
+    },
   },
   hooks: {
     generateAssets: async () => {
@@ -209,7 +213,7 @@ module.exports = {
 
     prePackage: async (forgeConfig, platform, arch) => {
       // Set platform-specific ignore patterns
-      console.log(`Packaging for platform: ${platform}`);
+      console.log(`Packaging for platform: ${platform}, arch: ${arch}`);
       forgeConfig.packagerConfig.ignore = getIgnorePatterns(platform);
       console.log(`Ignore patterns set for ${platform}`);
 
