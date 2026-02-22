@@ -157,13 +157,24 @@ function generateMsixManifest(arch) {
 }
 
 /**
- * Gets the Windows SDK version from the environment.
- * GitHub Actions runners set WindowsSDKVersion automatically.
+ * Gets the full path to the Windows SDK bin directory.
+ * Scans installed SDKs and returns the latest version's x64 bin path.
+ * This trumps both windowsKitVersion and AppxManifest MinVersion.
  */
-function getWindowsKitVersion() {
-  const sdkVersion = process.env.WindowsSDKVersion;
-  if (sdkVersion) {
-    return sdkVersion.replace(/\\$/, '');
+function getWindowsKitPath() {
+  const kitBinDir = 'C:\\Program Files (x86)\\Windows Kits\\10\\bin';
+  try {
+    const versions = fs.readdirSync(kitBinDir)
+      .filter(d => /^10\.0\.\d+\.\d+$/.test(d))
+      .sort();
+    if (versions.length > 0) {
+      const latest = versions[versions.length - 1];
+      const kitPath = path.join(kitBinDir, latest, 'x64');
+      console.log('Windows Kit path:', kitPath);
+      return kitPath;
+    }
+  } catch {
+    // Not on Windows or no SDK installed
   }
   return null;
 }
@@ -340,14 +351,11 @@ module.exports = {
     ...(BUILD_MSIX ? [{
       name: '@electron-forge/maker-msix',
       config: (() => {
-        const windowsKitVersion = getWindowsKitVersion();
-        if (windowsKitVersion) {
-          console.log('Detected Windows Kit version:', windowsKitVersion);
-        }
+        const windowsKitPath = getWindowsKitPath();
         const baseConfig = {
           appManifest: MSIX_MANIFEST_OUT,
           packageAssets: MSIX_ASSETS_DIR,
-          ...(windowsKitVersion && { windowsKitVersion }),
+          ...(windowsKitPath && { windowsKitPath }),
         };
         if (MSIX_CERT_FILE && MSIX_CERT_PASSWORD) {
           console.log('Configuring MSIX with signing.');
