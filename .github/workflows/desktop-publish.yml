@@ -164,7 +164,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: desktop-latest
-          name: "Desktop v${{ steps.version.outputs.version }}"
+          name: "desktop-v${{ steps.version.outputs.version }}"
           body: |
             Latest desktop app build — **v${{ steps.version.outputs.version }}**
 
