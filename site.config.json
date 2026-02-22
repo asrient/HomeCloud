@@ -7,7 +7,7 @@
     "showDownloads": true,
     "downloadLinks": {
         "macosArm64": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud-macos-arm64.zip",
-        "macosX64": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud-macos-x64.zip",
+        "macosX64": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud-macos-universal.zip",
         "windowsExe": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud%20Setup.exe"
     }
 }

@@ -27,9 +27,9 @@ jobs:
             platform: darwin
             arch: arm64
             ui_theme: macos
-          - os: macos-13
+          - os: macos-latest
             platform: darwin
-            arch: x64
+            arch: universal
             ui_theme: macos
           # - os: ubuntu-latest
           #   platform: linux
@@ -63,7 +63,7 @@ jobs:
           ui_theme: ${{ matrix.ui_theme }}
 
       - name: Package desktop app
-        run: npm run package
+        run: npx electron-forge package --arch=${{ matrix.arch }}
         working-directory: ./desktop
         env:
           NODE_ENV: production
@@ -73,7 +73,7 @@ jobs:
 
       - name: Publish app
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        run: npm run publish
+        run: npx electron-forge publish --arch=${{ matrix.arch }}
         working-directory: ./desktop
         env:
           NODE_ENV: production
