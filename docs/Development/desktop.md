@@ -17,10 +17,16 @@ npm run make       # creates platform installer
 npm run publish    # publishes to GitHub Releases (draft)
 ```
 
-**Native addons** (in `addons/`):
-- `ThumbnailMac.mm` / `ThumbnailWin.cpp` — OS-native thumbnail generation
+**Native addons** (in `addons/`, built via `binding.gyp`):
+- `ThumbnailMac.mm` — macOS thumbnail generation (only built on macOS)
+- `ThumbnailWin.cpp` — Windows thumbnail generation (only built on Windows)
 - `MediaControlWin.cpp` — Windows media transport controls
 - `SystemWin.cpp` — Windows system info
+- `DiscoveryWin.cpp` — Windows DNS-SD native discovery
+- `DatagramWin.cpp` — WinRT DatagramSocket for MSIX AppContainer
+- `AppContainerWin.cpp` — MSIX AppContainer detection
+
+> Platform-specific targets are conditionally defined in `binding.gyp` — Windows addons are only built on Windows, Mac addons only on macOS. No empty stubs are generated on the wrong platform.
 
 **Services** (in `src/services/`):
 
@@ -74,9 +80,40 @@ This is a monorepo, so each app has its own versioning scheme with prefixed tags
    ```bash
    git push && git push --tags
    ```
-   This triggers the **Desktop App CI** workflow, which builds for macOS, Linux, and Windows, and publishes to GitHub Releases as a draft.
+   This triggers the **Desktop App CI** workflow, which builds for macOS (arm64 + universal) and Windows (x64), and publishes to GitHub Releases.
 
 > **Note:** The CI validates that the tag version matches `desktop/package.json`. The build will fail if they're out of sync.
+
+## CI Build Matrix
+
+| Runner | Platform | Arch | Output |
+|--------|----------|------|--------|
+| `macos-latest` | darwin | arm64 | `HomeCloud-macos-arm64.zip` |
+| `macos-latest` | darwin | universal | `HomeCloud-macos-universal.zip` |
+| `windows-latest` | win32 | x64 | `HomeCloud Setup.exe` |
+
+The universal macOS build produces a fat binary containing both arm64 and x64 slices via `@electron/universal`. Architecture-specific `.node` native addons are merged using `lipo` (configured via `osxUniversal.x64ArchFiles` in `forge.config.js`).
+
+## macOS Code Signing & Notarization (Optional)
+
+Unsigned macOS apps trigger Gatekeeper warnings. To distribute signed and notarized builds, set these GitHub Actions secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `APPLE_CERTIFICATE` | Base64-encoded Developer ID Application `.p12` certificate |
+| `APPLE_CERTIFICATE_PASSWORD` | Password used when exporting the `.p12` |
+| `APPLE_ID` | Apple Developer account email |
+| `APPLE_ID_PASSWORD` | [App-specific password](https://support.apple.com/en-us/102654) |
+| `APPLE_TEAM_ID` | 10-character team ID from developer.apple.com |
+
+**Exporting the certificate:**
+```bash
+# Export "Developer ID Application" from Keychain Access as .p12, then:
+base64 -i Certificates.p12 | pbcopy
+# Paste as the APPLE_CERTIFICATE secret value
+```
+
+When all secrets are set, the CI automatically signs the app, submits it to Apple for notarization, and staples the ticket. When secrets are absent, signing is silently skipped and unsigned builds are produced.
 
 ## Building MSIX for Microsoft Store
 
@@ -108,5 +145,7 @@ Signed MSIX packages can be installed directly on Windows without the Store.
 ### MSIX manifest
 
 The MSIX uses a custom `AppxManifest.xml` template (`desktop/msix/AppxManifest.xml`) that declares network capabilities (`privateNetworkClientServer`, `internetClientServer`) needed for mDNS, TCP, and UDP sockets. The manifest is generated during packaging by `generateMsixManifest()` in `forge.config.js` and cleaned up after build.
+
+The Windows SDK path is auto-detected at build time via `getWindowsKitPath()` — it scans installed SDK versions and uses the latest, avoiding mismatches between the manifest's `MinVersion` and the installed SDK.
 
 Custom MSIX assets (icons, tiles) are in `desktop/msix/assets/`.

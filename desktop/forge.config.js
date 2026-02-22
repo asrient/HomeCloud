@@ -12,6 +12,13 @@ const MSIX_CERT_FILE = process.env.MSIX_CERT_FILE;
 const MSIX_CERT_PASSWORD = process.env.MSIX_CERT_PASSWORD;
 const BUILD_MSIX = process.env.BUILD_MSIX === 'true';
 
+// macOS code signing & notarization (optional)
+// Set all three to enable: APPLE_ID, APPLE_ID_PASSWORD (app-specific password), APPLE_TEAM_ID
+const APPLE_ID = process.env.APPLE_ID;
+const APPLE_ID_PASSWORD = process.env.APPLE_ID_PASSWORD;
+const APPLE_TEAM_ID = process.env.APPLE_TEAM_ID;
+const SIGN_MACOS = !!(APPLE_ID && APPLE_ID_PASSWORD && APPLE_TEAM_ID);
+
 const ALLOWED_NODE_ENVS = ['development', 'production'];
 
 function getEnvFileContent() {
@@ -196,6 +203,21 @@ module.exports = {
       // Tell @electron/universal which files are arch-specific so it merges them with lipo
       x64ArchFiles: '*.node',
     },
+    // macOS code signing (optional — requires Apple Developer certificate in keychain)
+    ...(SIGN_MACOS ? {
+      osxSign: {
+        identity: `Developer ID Application: ${APPLE_TEAM_ID}`,
+        optionsForFile: () => ({
+          entitlements: path.resolve(__dirname, 'entitlements.plist'),
+          'entitlements-inherit': path.resolve(__dirname, 'entitlements.plist'),
+        }),
+      },
+      osxNotarize: {
+        appleId: APPLE_ID,
+        appleIdPassword: APPLE_ID_PASSWORD,
+        teamId: APPLE_TEAM_ID,
+      },
+    } : {}),
   },
   hooks: {
     generateAssets: async () => {
