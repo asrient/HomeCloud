@@ -19,6 +19,8 @@ on:
 jobs:
   build-and-publish:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
