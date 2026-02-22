@@ -130,6 +130,33 @@ export async function showUpdateDialog() {
 }
 
 /**
+ * Trigger the update check flow with native dialogs.
+ * Same flow as used from the tray/app menu.
+ */
+export async function triggerUpdateCheck() {
+    const info = await checkForUpdates(true);
+    if (!info) {
+        dialog.showMessageBox({
+            type: 'warning',
+            title: 'Update Check',
+            message: 'Could not check for updates.',
+            detail: 'Please check your internet connection and try again.',
+        });
+        return;
+    }
+    if (info.updateAvailable) {
+        showUpdateDialog();
+    } else {
+        dialog.showMessageBox({
+            type: 'info',
+            title: 'No Updates',
+            message: `You're up to date`,
+            detail: `${app.getName()} v${info.currentVersion} is the latest version.`,
+        });
+    }
+}
+
+/**
  * Build a MenuItemConstructorOptions for the "Check for Updates" action.
  * Shared by both the app menu and the tray menu.
  */
@@ -149,27 +176,6 @@ export function getUpdateMenuItem(): MenuItemConstructorOptions {
 
     return {
         label: 'Check for Updates…',
-        click: async () => {
-            const info = await checkForUpdates(true);
-            if (!info) {
-                dialog.showMessageBox({
-                    type: 'warning',
-                    title: 'Update Check',
-                    message: 'Could not check for updates.',
-                    detail: 'Please check your internet connection and try again.',
-                });
-                return;
-            }
-            if (info.updateAvailable) {
-                showUpdateDialog();
-            } else {
-                dialog.showMessageBox({
-                    type: 'info',
-                    title: 'No Updates',
-                    message: `You're up to date`,
-                    detail: `${app.getName()} v${info.currentVersion} is the latest version.`,
-                });
-            }
-        },
+        click: () => triggerUpdateCheck(),
     };
 }

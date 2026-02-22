@@ -14,7 +14,7 @@ export type createPhotoType = {
 export type MetadataType = {
     cameraMake: string;
     cameraModel: string;
-    orientation: string;
+    orientation: number;
     focalLength?: string;
     aperture?: string;
     exposureTime?: string;

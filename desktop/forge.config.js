@@ -109,8 +109,6 @@ function getIgnorePatterns(platform) {
     "/node_modules/[^/]+/[A-Z]+[.]md$",
     "/node_modules/@types/",
     // Note: source-map and source-map-support are required by sqlite3 at runtime
-    // Exclude unnecessary fluent-ffmpeg folders (11MB coverage folder!)
-    "/node_modules/fluent-ffmpeg/(coverage|doc|tools|OLD|[.]vscode)/",
     // Exclude moment locale files (~4MB) - Sequelize only needs core moment
     "/node_modules/moment/locale/",
     // Note: moment-timezone/data is required at runtime - don't exclude it

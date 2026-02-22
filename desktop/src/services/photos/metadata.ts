@@ -1,8 +1,55 @@
 import ExifReader from "exifreader";
 import { streamToBuffer } from "../../utils";
-import ffmpeg from "fluent-ffmpeg";
+import { mediaInfoFactory, type MediaInfo } from "mediainfo.js";
+import type { GeneralTrack, VideoTrack } from "mediainfo.js";
+import fs from "fs";
 import { Readable } from "stream";
 import { AssetDetailType } from "./types";
+
+let miInstance: MediaInfo<"object"> | null = null;
+let miActiveCount = 0;
+let miCleanupTimer: ReturnType<typeof setTimeout> | null = null;
+
+const MI_CACHE_TTL = 40_000; // 40 seconds
+
+async function getMediaInfo() {
+    if (miCleanupTimer) {
+        clearTimeout(miCleanupTimer);
+        miCleanupTimer = null;
+    }
+    if (!miInstance) {
+        console.log("MediaInfo: creating WASM instance");
+        miInstance = await mediaInfoFactory({ format: "object" });
+    }
+    miActiveCount++;
+    return miInstance;
+}
+
+function releaseMediaInfo() {
+    miActiveCount = Math.max(0, miActiveCount - 1);
+    if (miActiveCount === 0 && !miCleanupTimer) {
+        miCleanupTimer = setTimeout(() => {
+            if (miActiveCount === 0 && miInstance) {
+                console.log("MediaInfo: closing WASM instance after idle timeout");
+                miInstance.close();
+                miInstance = null;
+            }
+            miCleanupTimer = null;
+        }, MI_CACHE_TTL);
+    }
+}
+
+// Map EXIF orientation tag value to rotation degrees
+const EXIF_ORIENTATION_TO_DEGREES: Record<number, number> = {
+    1: 0,   // Horizontal (normal)
+    2: 0,   // Mirror horizontal
+    3: 180, // Rotate 180
+    4: 180, // Mirror vertical
+    5: 270, // Mirror horizontal + Rotate 270 CW
+    6: 90,  // Rotate 90 CW
+    7: 90,  // Mirror horizontal + Rotate 90 CW
+    8: 270, // Rotate 270 CW
+};
 
 function getDate(dateStr: string, offset: string) {
     // format: 2023:09:02 20:02:36, +05:30
@@ -26,7 +73,7 @@ export async function metaFromPhotoStream(filePath: string | Readable) {
         metadata: {
             cameraMake: "",
             cameraModel: "",
-            orientation: "",
+            orientation: 0,
         },
         capturedOn: new Date(),
     };
@@ -40,7 +87,9 @@ export async function metaFromPhotoStream(filePath: string | Readable) {
 
     detail.metadata.cameraMake = tags.Make?.description || "";
     detail.metadata.cameraModel = tags.Model?.description || "";
-    detail.metadata.orientation = tags.Orientation?.description || "";
+    if (tags.Orientation && typeof tags.Orientation.value === "number") {
+        detail.metadata.orientation = EXIF_ORIENTATION_TO_DEGREES[tags.Orientation.value] ?? 0;
+    }
 
     if (tags.FocalLength) {
         detail.metadata.focalLength = tags.FocalLength.description;
@@ -76,32 +125,53 @@ export async function metaFromPhotoStream(filePath: string | Readable) {
     return detail;
 }
 
-export async function metaFromVideoStream(filePath: string | Readable): Promise<any> {
-    return new Promise((resolve, reject) => {
-        ffmpeg(filePath).ffprobe(function (err, metadata: ffmpeg.FfprobeData) {
-            if (err) {
-                console.error("Error getting video metadata", err);
-                reject(err);
-                return;
-            }
-            // console.dir(metadata);
-            const detail: AssetDetailType = {
-                metadata: {
-                    cameraMake: "",
-                    cameraModel: "",
-                    orientation: metadata.streams[0].display_aspect_ratio || "",
-                    fps: metadata.streams[0].r_frame_rate
-                        ? parseFloat(metadata.streams[0].r_frame_rate)
-                        : undefined,
-                },
-                height: metadata.streams[0].height,
-                width: metadata.streams[0].width,
-                duration: parseFloat(metadata.streams[0].duration || ""),
-                capturedOn: metadata.format.tags?.creation_time
-                    ? new Date(metadata.format.tags.creation_time)
-                    : new Date(),
-            };
-            resolve(detail);
-        });
-    });
+export async function metaFromVideoStream(filePath: string): Promise<AssetDetailType> {
+    const mi = await getMediaInfo();
+    const fileSize = (await fs.promises.stat(filePath)).size;
+    const fd = await fs.promises.open(filePath, "r");
+
+    try {
+        const result = await mi.analyzeData(
+            () => fileSize,
+            async (size: number, offset: number) => {
+                const buf = new Uint8Array(size);
+                await fd.read(buf, 0, size, offset);
+                return buf;
+            },
+        );
+
+        const tracks = result.media?.track;
+        if (!tracks) {
+            throw new Error("No media tracks found in video file");
+        }
+
+        const videoTrack = tracks.find((t): t is VideoTrack => t["@type"] === "Video");
+        const generalTrack = tracks.find((t): t is GeneralTrack => t["@type"] === "General");
+
+        const detail: AssetDetailType = {
+            metadata: {
+                cameraMake: "",
+                cameraModel: "",
+                orientation: videoTrack?.Rotation
+                    ? (isNaN(parseFloat(videoTrack.Rotation))
+                        ? 0
+                        : Math.round(parseFloat(videoTrack.Rotation)))
+                    : 0,
+                fps: videoTrack?.FrameRate ?? undefined,
+            },
+            height: videoTrack?.Height,
+            width: videoTrack?.Width,
+            duration: videoTrack?.Duration ?? generalTrack?.Duration,
+            capturedOn: generalTrack?.Encoded_Date
+                ? new Date(generalTrack.Encoded_Date)
+                : new Date(),
+        };
+        return detail;
+    } catch (err) {
+        console.error("Error getting video metadata", err);
+        throw err;
+    } finally {
+        await fd.close();
+        releaseMediaInfo();
+    }
 }

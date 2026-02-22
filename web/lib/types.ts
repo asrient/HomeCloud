@@ -89,6 +89,7 @@ export type NativeUtils = {
     clipboardHasFiles: () => boolean;
     checkForUpdates: (force?: boolean) => Promise<UpdateInfo | null>;
     getUpdateStatus: () => UpdateStatus;
+    triggerUpdateCheck: () => void;
 }
 
 export enum UserPreferences {

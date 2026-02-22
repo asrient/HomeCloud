@@ -1,6 +1,6 @@
 import { Menu, MenuItem } from 'electron/main';
 import { hasFilePathsInClipboard } from './services/system/clipboard';
-import { checkForUpdates as _checkForUpdates, getUpdateStatus as _getUpdateStatus, UpdateInfo, UpdateStatus } from './updateCheck';
+import { checkForUpdates as _checkForUpdates, getUpdateStatus as _getUpdateStatus, triggerUpdateCheck as _triggerUpdateCheck, UpdateInfo, UpdateStatus } from './updateCheck';
 
 export type ContextMenuItem = {
     label?: string;
@@ -48,4 +48,8 @@ export function checkForUpdates(force = false): Promise<UpdateInfo | null> {
 
 export function getUpdateStatus(): UpdateStatus {
     return _getUpdateStatus();
+}
+
+export function triggerUpdateCheck(): void {
+    _triggerUpdateCheck();
 }

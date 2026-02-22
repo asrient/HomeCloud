@@ -16,4 +16,5 @@ window.utils = {
     clipboardHasFiles: desktopWebUtils.clipboardHasFiles,
     checkForUpdates: desktopWebUtils.checkForUpdates,
     getUpdateStatus: desktopWebUtils.getUpdateStatus,
+    triggerUpdateCheck: desktopWebUtils.triggerUpdateCheck,
 }
