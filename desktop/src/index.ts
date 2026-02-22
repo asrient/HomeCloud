@@ -208,9 +208,9 @@ export function wasStartedInBackground(): boolean {
 
 let APP_RUNNING = false;
 
-async function promptMoveToApplicationsFolder() {
+async function promptMoveToApplicationsFolder(): Promise<boolean> {
   if (process.platform !== 'darwin' || !app.isPackaged || app.isInApplicationsFolder()) {
-    return;
+    return false;
   }
   const { response } = await dialog.showMessageBox({
     type: 'question',
@@ -222,17 +222,23 @@ async function promptMoveToApplicationsFolder() {
   });
   if (response === 0) {
     try {
-      app.moveToApplicationsFolder();
+      const moved = app.moveToApplicationsFolder();
+      if (moved) {
+        // moveToApplicationsFolder relaunches from the new location;
+        // explicitly quit this instance to ensure the old process exits.
+        app.quit();
+        return true;
+      }
     } catch (err) {
       console.error('Failed to move to Applications folder:', err);
     }
-    // moveToApplicationsFolder relaunches the app from the new location, so we return early
-    return;
   }
+  return false;
 }
 
 const startApp = async () => {
-  await promptMoveToApplicationsFolder();
+  const isQuitting = await promptMoveToApplicationsFolder();
+  if (isQuitting) return;
   await initModules();
   handleProtocols();
   // Set up application menu (macOS menu bar)
