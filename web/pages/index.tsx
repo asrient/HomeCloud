@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Head from 'next/head'
 import { PageBar, PageContent } from "@/components/pagePrimatives";
-import { ThemedIconName } from '@/lib/enums'
+import { ConnectionType, ThemedIconName } from '@/lib/enums'
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SortBy, Group } from '@/components/filesView';
 import { useFolder } from '@/components/hooks/useFolders';
@@ -91,7 +91,7 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
             </div>
             <div className='text-xs justify-start flex-row flex w-full gap-6'>
               {
-                !(batteryInfoLoading) && <div className='flex flex-row justify-center items-center w-max gap-2'>
+                !(batteryInfoLoading) && <div className='flex flex-row justify-center items-center w-max gap-1'>
                   <BatteryIcon size={22} level={batteryInfo ? batteryInfo.level * 100 : 0} isCharging={batteryInfo ? batteryInfo.isCharging : false} />
                   {batteryInfo ? `${Math.round(batteryInfo.level * 100)}%` : ''}
                   {batteryInfo && batteryInfo.isCharging ? ' - Charging' : ''}
@@ -100,7 +100,7 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
               {
                 !isThisDevice && <div className='flex items-center flex-row justify-center w-max'>
                   <ConnectionIcon connection={connection} size={16} />
-                  <span className='ml-2'>{!!connection ? 'Online' : 'Offline'}</span>
+                  <span className='ml-1'>{!!connection ? (connection.connectionType === ConnectionType.LOCAL ? 'Local Network' : 'Web Connect') : 'Offline'}</span>
                 </div>
               }
             </div>
