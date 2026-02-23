@@ -1,6 +1,6 @@
 import { DatagramCompat } from "./compat";
 
-const DEBUG_BENCHMARKS = true;
+const DEBUG_BENCHMARKS = false;
 
 const HEADER_SIZE = 5; // 1 byte type + 4 bytes seq
 const MAX_PACKET_SIZE = 1300;
