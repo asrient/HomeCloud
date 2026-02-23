@@ -1,6 +1,6 @@
 import { DatagramCompat } from "./compat";
 
-const DEBUG_BENCHMARKS = false;
+const DEBUG_BENCHMARKS = true;
 
 const HEADER_SIZE = 5; // 1 byte type + 4 bytes seq
 const MAX_PACKET_SIZE = 1300;
@@ -175,7 +175,10 @@ export class ReDatagram {
             if (sentDelta > 1024 || recvDelta > 1024) {
                 const sendRate = ((sentDelta / dt) / 1024).toFixed(1);
                 const recvRate = ((recvDelta / dt) / 1024).toFixed(1);
-                console.log(`[ReUDP Stats] TX: ${sendRate} KB/s (${(this.bytesSent / 1024).toFixed(0)} KB total) | RX: ${recvRate} KB/s (${(this.bytesReceived / 1024).toFixed(0)} KB total) | Window: ${this.sendWindow.size}/${this.effectiveWindow()} | cwnd: ${Math.floor(this.cwnd)} ssthresh: ${this.ssthresh} | Retransmits: ${retxDelta} (${this.retransmitCount} total) | RTO: ${this.rto}ms SRTT: ${this.srtt.toFixed(0)}ms`);
+                const windowWaitInfo = this.windowWaitCount > 0 ? ` | WindowWait: ${this.windowWaitMs}ms (${this.windowWaitCount}×)` : '';
+                console.log(`[ReUDP Stats] TX: ${sendRate} KB/s (${(this.bytesSent / 1024).toFixed(0)} KB total) | RX: ${recvRate} KB/s (${(this.bytesReceived / 1024).toFixed(0)} KB total) | Window: ${this.sendWindow.size}/${this.effectiveWindow()} | cwnd: ${Math.floor(this.cwnd)} ssthresh: ${this.ssthresh} | Retransmits: ${retxDelta} (${this.retransmitCount} total) | RTO: ${this.rto}ms SRTT: ${this.srtt.toFixed(0)}ms${windowWaitInfo}`);
+                this.windowWaitMs = 0;
+                this.windowWaitCount = 0;
             }
             this.statsLastBytesSent = this.bytesSent;
             this.statsLastBytesReceived = this.bytesReceived;
@@ -283,12 +286,20 @@ export class ReDatagram {
         return Math.min(Math.floor(this.cwnd), MAX_SEND_WINDOW);
     }
 
+    // Track cumulative time spent waiting for window space (for diagnostics)
+    private windowWaitMs = 0;
+    private windowWaitCount = 0;
+
     private async waitForWindowSpace() {
+        if (this.sendWindow.size < this.effectiveWindow()) return;
+        const t0 = Date.now();
         while (this.sendWindow.size >= this.effectiveWindow() && !this.isClosing) {
             await new Promise<void>(resolve => {
                 this.windowWaiters.push(resolve);
             });
         }
+        this.windowWaitMs += Date.now() - t0;
+        this.windowWaitCount++;
     }
 
     private wakeWindowWaiters() {

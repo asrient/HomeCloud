@@ -630,6 +630,11 @@ export class RPCPeer {
             let lastYield = Date.now();
             let totalBytes = 0;
             const startTime = Date.now();
+            // Pipeline timing: track where time is spent
+            let totalReadMs = 0;
+            let totalSendMs = 0;
+            let chunkCount = 0;
+            let lastLogTime = Date.now();
             try {
                 // Pipeline: kick off the first read before entering the loop
                 let nextRead = reader.read();
@@ -639,9 +644,12 @@ export class RPCPeer {
                         reader.cancel();
                         return;
                     }
+                    const t0 = Date.now();
                     const { done, value } = await nextRead;
+                    const t1 = Date.now();
                     if (done) break;
                     if (DEBUG_BENCHMARKS) totalBytes += value.byteLength;
+                    chunkCount++;
 
                     // Start the next read immediately — overlaps I/O with send
                     nextRead = reader.read();
@@ -652,6 +660,10 @@ export class RPCPeer {
                     payload.set(value, 4);
 
                     await this.sendFrame(MessageType.STREAM_CHUNK, payload);
+                    const t2 = Date.now();
+
+                    totalReadMs += (t1 - t0);
+                    totalSendMs += (t2 - t1);
 
                     // Periodically yield to let the event loop process
                     // incoming pings, timers, and other I/O.
@@ -660,13 +672,23 @@ export class RPCPeer {
                         lastYield = now;
                         await new Promise<void>(resolve => setTimeout(resolve, 0));
                     }
+
+                    // Log pipeline timing every 5 seconds
+                    if (DEBUG_BENCHMARKS && now - lastLogTime >= 5000) {
+                        const dtSec = (now - lastLogTime) / 1000;
+                        const throughput = ((totalBytes / 1024) / ((now - startTime) / 1000)).toFixed(1);
+                        console.log(`[RPC Stream] stream=${streamId} | ${chunkCount} chunks, ${throughput} KB/s avg | readWait: ${totalReadMs}ms sendWait: ${totalSendMs}ms (last ${dtSec.toFixed(1)}s)`);
+                        totalReadMs = 0;
+                        totalSendMs = 0;
+                        lastLogTime = now;
+                    }
                 }
 
                 const elapsed = (Date.now() - startTime) / 1000;
                 if (DEBUG_BENCHMARKS && totalBytes > 1024) {
                     const sizeMB = (totalBytes / (1024 * 1024)).toFixed(2);
                     const speedKBs = (totalBytes / 1024 / elapsed).toFixed(1);
-                    console.log(`[RPC Stream] Sent ${sizeMB} MB in ${elapsed.toFixed(1)}s (${speedKBs} KB/s) stream=${streamId}`);
+                    console.log(`[RPC Stream] Sent ${sizeMB} MB in ${elapsed.toFixed(1)}s (${speedKBs} KB/s) stream=${streamId} | total readWait: ${totalReadMs}ms sendWait: ${totalSendMs}ms`);
                 }
 
                 if (!this.isClosed) {
