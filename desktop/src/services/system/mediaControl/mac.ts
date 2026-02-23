@@ -143,7 +143,7 @@ end tell
 
     private stopPolling() {
         if (this.pollTimer) {
-            console.log('Stopping MacOSPlaybackWatcher polling due to inactivity');
+            // console.log('Stopping MacOSPlaybackWatcher polling due to inactivity');
             clearInterval(this.pollTimer);
             this.pollTimer = null;
             this.lastInfo = null;

@@ -237,12 +237,12 @@ class DesktopSystemService extends SystemService {
     @exposed
     public async getAudioPlaybackInfo(): Promise<AudioPlaybackInfo | null> {
         if (process.platform === 'win32') {
-            console.log('Fetching audio playback info on Windows');
+            // console.log('Fetching audio playback info on Windows');
             try {
                 const info = mediaControlWin.getAudioPlaybackInfo();
                 return winPlaybackInfoToAudioPlaybackInfo(info);
             } catch (error) {
-                console.error('Error fetching audio playback info:', error);
+                // console.error('Error fetching audio playback info:', error);
                 return null;
             }
         } else if (process.platform === 'darwin') {
