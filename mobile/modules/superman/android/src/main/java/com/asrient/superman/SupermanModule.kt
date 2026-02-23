@@ -518,16 +518,29 @@ class SupermanModule : Module(), LifecycleEventObserver {
             }
           }
 
-          // Coroutine 2: drains buffer and bridges to JS at its own pace
+          // Coroutine 2: drains buffer and bridges to JS in batches.
+          // Batching amortizes the per-event bridge crossing cost (~150-200μs each)
+          // across multiple packets, which is the main throughput bottleneck.
           val dispatchJob = launch {
             try {
-              for ((data, addr, port) in packetChannel) {
-                sendEvent("udpMessage", mapOf(
+              val batch = mutableListOf<Triple<ByteArray, String, Int>>()
+              while (isActive) {
+                // Suspend until at least one packet is available
+                val first = packetChannel.receiveCatching().getOrNull() ?: break
+                batch.add(first)
+                // Drain all immediately available packets (non-blocking)
+                while (batch.size < 64) {
+                  val next = packetChannel.tryReceive().getOrNull() ?: break
+                  batch.add(next)
+                }
+                val packets = batch.map { (data, addr, port) ->
+                  mapOf("data" to data, "address" to addr, "port" to port)
+                }
+                sendEvent("udpMessageBatch", mapOf(
                   "socketId" to socketId,
-                  "data" to data,
-                  "address" to addr,
-                  "port" to port
+                  "packets" to packets
                 ))
+                batch.clear()
               }
             } catch (_: kotlinx.coroutines.CancellationException) {
             } catch (e: Exception) {
@@ -559,19 +572,21 @@ class SupermanModule : Module(), LifecycleEventObserver {
     }
 
     AsyncFunction("udpSend") { socketId: String, data: ByteArray, port: Int, address: String, promise: expo.modules.kotlin.Promise ->
-      moduleScope.launch {
-        try {
-          val s = udpSockets[socketId]?.socket ?: throw IllegalArgumentException("Socket not found: $socketId")
-          val cacheKey = "$address:$port"
-          val targetAddress = udpAddressCache.getOrPut(cacheKey) {
-            io.ktor.network.sockets.InetSocketAddress(address, port)
-          }
-          val datagram = Datagram(ByteReadPacket(data), targetAddress)
-          s.send(datagram)
-          promise.resolve(true)
-        } catch (e: Exception) {
-          promise.reject("UDP_SEND", e.message ?: "Unknown error", e)
+      try {
+        val s = udpSockets[socketId]?.socket ?: throw IllegalArgumentException("Socket not found: $socketId")
+        val cacheKey = "$address:$port"
+        val targetAddress = udpAddressCache.getOrPut(cacheKey) {
+          io.ktor.network.sockets.InetSocketAddress(address, port)
         }
+        val datagram = Datagram(ByteReadPacket(data), targetAddress)
+        // Use runBlocking on the current (Expo) thread to avoid coroutine launch overhead.
+        // UDP send is non-blocking at the kernel level — it just copies into the send buffer.
+        kotlinx.coroutines.runBlocking {
+          s.send(datagram)
+        }
+        promise.resolve(true)
+      } catch (e: Exception) {
+        promise.reject("UDP_SEND", e.message ?: "Unknown error", e)
       }
     }
 
@@ -696,7 +711,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
       context.startActivity(intent)
     }
 
-    Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessage", "udpError", "udpListening", "udpClose")
+    Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessageBatch", "udpError", "udpListening", "udpClose")
   }
 
   // Handle incoming TCP connections from the server

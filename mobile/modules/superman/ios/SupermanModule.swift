@@ -173,6 +173,6 @@ public class SupermanModule: Module {
     }
 
     // Events
-    Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessage", "udpError", "udpListening", "udpClose")
+    Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessageBatch", "udpError", "udpListening", "udpClose")
   }
 }

@@ -13,16 +13,16 @@ function setupGlobalListeners() {
     if (listenersSetup) return;
     listenersSetup = true;
 
-    SupermanModule.addListener('udpMessage', (params: { socketId: string; data: Uint8Array; address: string; port: number }) => {
+    SupermanModule.addListener('udpMessageBatch', (params: { socketId: string; packets: { data: Uint8Array; address: string; port: number }[] }) => {
         const socket = activeSockets.get(params.socketId);
         if (socket && socket.onMessage) {
-            socket.onMessage(params.data, {
-                address: params.address,
-                family: 'IPv4',
-                port: params.port
-            });
-        } else {
-            console.warn(`No active socket found for socketId: ${params.socketId}`);
+            for (const pkt of params.packets) {
+                socket.onMessage(pkt.data, {
+                    address: pkt.address,
+                    family: 'IPv4',
+                    port: pkt.port
+                });
+            }
         }
     });
 
