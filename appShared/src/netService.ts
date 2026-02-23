@@ -72,6 +72,8 @@ export class NetService extends Service {
     private connectionInterfaces: Map<ConnectionType, ConnectionInterface>;
 
     private autoConnectFingerprints: Map<string, Set<string>> = new Map();
+    private autoConnectCooldowns: Map<string, number> = new Map();
+    private static AUTO_CONNECT_COOLDOWN_MS = 2000;
 
     public addAutoConnectFingerprint(fingerprint: string, key?: string) {
         if (!this.autoConnectFingerprints.has(fingerprint)) {
@@ -154,11 +156,14 @@ export class NetService extends Service {
 
         // Check if auto-connect is needed
         if (fingerprint && this.autoConnectFingerprints.has(fingerprint)) {
-            // Check if already connected
-            // if (this.connections.has(fingerprint)) {
-            //     console.log(`[NetService] Already connected to ${fingerprint}, skipping auto-connect.`);
-            //     return;
-            // }
+            // Check cooldown to avoid duplicate connection storms
+            const lastAttempt = this.autoConnectCooldowns.get(fingerprint);
+            const now = Date.now();
+            if (lastAttempt && (now - lastAttempt) < NetService.AUTO_CONNECT_COOLDOWN_MS) {
+                console.log(`[NetService] Auto-connect to ${fingerprint} on ${type} skipped due to cooldown.`);
+                return;
+            }
+            this.autoConnectCooldowns.set(fingerprint, now);
             // Check if there is already a connection in progress
             if (this.connectionLock.has(fingerprint)) {
                 // Wait for existing connection to complete, and then check if failed, if so, try again with this candidate

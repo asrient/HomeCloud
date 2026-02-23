@@ -33,7 +33,13 @@ export class DiscoveryBase {
             console.warn('[DiscoveryBase] No valid local addresses found to update my addresses:', addresses);
             return;
         }
-        this.hostAddresses = filtered;
+        // Merge new addresses with existing ones instead of replacing,
+        // so partial mDNS loopback results don't overwrite the full list
+        const merged = new Set(this.hostAddresses);
+        for (const addr of filtered) {
+            merged.add(addr);
+        }
+        this.hostAddresses = Array.from(merged);
     }
 
     public getHostLocalAddresses(): string[] {
