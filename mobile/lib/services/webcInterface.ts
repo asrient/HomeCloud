@@ -13,16 +13,15 @@ function setupGlobalListeners() {
     if (listenersSetup) return;
     listenersSetup = true;
 
-    SupermanModule.addListener('udpMessageBatch', (params: { socketId: string; packets: { data: Uint8Array; address: string; port: number }[] }) => {
+    SupermanModule.addListener('udpMessageBatch', (params: { socketId: string; address: string; port: number; data: Uint8Array; lengths: number[] }) => {
         const socket = activeSockets.get(params.socketId);
-        if (socket && socket.onMessage) {
-            for (const pkt of params.packets) {
-                socket.onMessage(pkt.data, {
-                    address: pkt.address,
-                    family: 'IPv4',
-                    port: pkt.port
-                });
-            }
+        if (!socket || !socket.onMessage) return;
+        const rinfo = { address: params.address, family: 'IPv4' as const, port: params.port };
+        const buf = params.data;
+        let offset = 0;
+        for (const len of params.lengths) {
+            socket.onMessage(buf.subarray(offset, offset + len), rinfo);
+            offset += len;
         }
     });
 

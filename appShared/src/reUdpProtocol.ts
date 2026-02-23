@@ -4,7 +4,7 @@ const DEBUG_BENCHMARKS = true;
 
 const HEADER_SIZE = 5; // 1 byte type + 4 bytes seq
 const MAX_PACKET_SIZE = 1300;
-const ACK_BATCH_SIZE = 32;
+const ACK_BATCH_SIZE = 64;
 const MAX_RETRANSMITS = 12;
 const MAX_BUFFERED_PACKETS = 1024;
 const INITIAL_RTO = 1200;          // ms — initial RTO before any RTT measurement

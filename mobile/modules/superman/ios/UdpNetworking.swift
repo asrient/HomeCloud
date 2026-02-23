@@ -385,11 +385,13 @@ class UdpNetworking {
         receiveLoop()
 
         if let data = data, !data.isEmpty {
-          // Dispatch immediately — iOS sendEvent is non-blocking (fire-and-forget
-          // to the JS thread), so accumulation would only add latency.
+          // Dispatch immediately — iOS sendEvent is non-blocking.
           self.sendEvent?("udpMessageBatch", [
             "socketId": socketId,
-            "packets": [["data": data, "address": address, "port": port]]
+            "address": address,
+            "port": port,
+            "data": data,
+            "lengths": [data.count]
           ])
         }
       }

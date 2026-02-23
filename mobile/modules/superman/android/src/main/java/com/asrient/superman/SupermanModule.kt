@@ -58,7 +58,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
   private val socketIdCounter = java.util.concurrent.atomic.AtomicInteger(0)
 
   // Cached resolved addresses for UDP send fast-path (avoids InetSocketAddress allocation per packet)
-  private val udpAddressCache = ConcurrentHashMap<String, io.ktor.network.sockets.InetSocketAddress>()
+  private val udpAddressCache = ConcurrentHashMap<String, java.net.InetSocketAddress>()
 
   // Coroutine scope for connection coroutines
   private val moduleScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -84,8 +84,8 @@ class SupermanModule : Module(), LifecycleEventObserver {
   )
 
   data class UdpSocket(
-    val socket: BoundDatagramSocket,
-    val job: Job,
+    val socket: java.net.DatagramSocket,
+    val thread: Thread,
     val socketId: String
   )
 
@@ -467,107 +467,99 @@ class SupermanModule : Module(), LifecycleEventObserver {
       }
     }
 
-    // UDP functions using Ktor
+    // UDP functions using raw DatagramSocket (no Ktor overhead)
     AsyncFunction("udpCreateSocket") {
       val socketId = "udp_${socketIdCounter.incrementAndGet()}"
       socketId
     }
 
     AsyncFunction("udpBind") { socketId: String, port: Int?, address: String?, promise: expo.modules.kotlin.Promise ->
-      moduleScope.launch {
-        try {
-          val bindPort = port ?: 0
-          val bindAddress = address ?: "0.0.0.0"
-          val bound = aSocket(ktorSelector).udp().bind(io.ktor.network.sockets.InetSocketAddress(bindAddress, bindPort))
+      try {
+        val bindPort = port ?: 0
+        val bindAddress = address ?: "0.0.0.0"
 
-          // Increase OS receive buffer to 2 MB to prevent kernel drops under burst
+        val socket = java.net.DatagramSocket(null)
+        socket.reuseAddress = true
+        socket.bind(java.net.InetSocketAddress(bindAddress, bindPort))
+        socket.receiveBufferSize = 2 * 1024 * 1024
+        socket.sendBufferSize = 2 * 1024 * 1024
+
+        val actualPort = socket.localPort
+        val actualAddress = socket.localAddress?.hostAddress ?: bindAddress
+
+        // Dedicated receive thread: reads directly into reusable buffers.
+        // No Ktor, no coroutines — one receive() → one memcpy into batch buffer.
+        val recvThread = Thread({
+          val recvBuf = ByteArray(1500)
+          val recvPacket = java.net.DatagramPacket(recvBuf, recvBuf.size)
+
+          // Reusable batch buffers — raw concatenated data + separate lengths array.
+          var batchData = ByteArray(64 * 1300)
+          val batchLengths = IntArray(64)
+          var batchOffset = 0
+          var batchCount = 0
+          var batchAddr = ""
+          var batchPort = 0
+
           try {
-            val javaChannel = bound.javaClass.getDeclaredField("channel")
-            javaChannel.isAccessible = true
-            val channel = javaChannel.get(bound) as? java.nio.channels.DatagramChannel
-            channel?.socket()?.receiveBufferSize = 2 * 1024 * 1024
-            channel?.socket()?.sendBufferSize = 2 * 1024 * 1024
-          } catch (_: Exception) {
-            // Best effort — Ktor may not expose the underlying channel on all versions
-          }
+            while (!Thread.currentThread().isInterrupted) {
+              socket.receive(recvPacket)
+              val len = recvPacket.length
+              val addr = recvPacket.address?.hostAddress ?: ""
+              val pktPort = recvPacket.port
 
-          val actualAddress = (bound.localAddress as? io.ktor.network.sockets.InetSocketAddress)?.hostname ?: bindAddress
-          val actualPort = (bound.localAddress as? io.ktor.network.sockets.InetSocketAddress)?.port ?: bindPort
-
-          // Buffered channel decouples the hot receive loop from JS bridging.
-          // The receive coroutine posts datagrams into this channel without waiting
-          // for sendEvent() to return, matching iOS's "re-arm before dispatch" pattern.
-          val packetChannel = Channel<Triple<ByteArray, String, Int>>(512)
-
-          // Coroutine 1: tight receive loop — never blocks on JS bridge
-          val receiveJob = launch {
-            try {
-              while (isActive) {
-                val datagram = bound.receive()
-                val packetAddress = datagram.address as? io.ktor.network.sockets.InetSocketAddress
-                val data = datagram.packet.readBytes()
-                val addr = packetAddress?.hostname ?: ""
-                val port = packetAddress?.port ?: 0
-                packetChannel.send(Triple(data, addr, port))  // suspends only if buffer full (backpressure)
+              if (batchCount == 0) {
+                batchAddr = addr
+                batchPort = pktPort
               }
-            } catch (_: kotlinx.coroutines.CancellationException) {
-            } catch (e: Exception) {
-              sendEvent("udpError", mapOf("socketId" to socketId, "error" to (e.message ?: "Unknown error")))
-            } finally {
-              packetChannel.close()
-            }
-          }
 
-          // Coroutine 2: drains buffer and bridges to JS in batches.
-          // Batching amortizes the per-event bridge crossing cost (~150-200μs each)
-          // across multiple packets, which is the main throughput bottleneck.
-          val dispatchJob = launch {
-            try {
-              val batch = mutableListOf<Triple<ByteArray, String, Int>>()
-              while (isActive) {
-                // Suspend until at least one packet is available
-                val first = packetChannel.receiveCatching().getOrNull() ?: break
-                batch.add(first)
-                // Drain all immediately available packets (non-blocking)
-                while (batch.size < 64) {
-                  val next = packetChannel.tryReceive().getOrNull() ?: break
-                  batch.add(next)
-                }
-                val packets = batch.map { (data, addr, port) ->
-                  mapOf("data" to data, "address" to addr, "port" to port)
-                }
+              // Grow data buffer if needed (rare)
+              val needed = batchOffset + len
+              if (batchData.size < needed) {
+                val newBuf = ByteArray(needed * 2)
+                System.arraycopy(batchData, 0, newBuf, 0, batchOffset)
+                batchData = newBuf
+              }
+
+              System.arraycopy(recvBuf, 0, batchData, batchOffset, len)
+              batchLengths[batchCount] = len
+              batchOffset += len
+              batchCount++
+
+              // Flush when full OR no more immediately available data.
+              if (batchCount >= 64 || socket.available() <= 0 || batchAddr != addr || batchPort != pktPort) {
                 sendEvent("udpMessageBatch", mapOf(
                   "socketId" to socketId,
-                  "packets" to packets
+                  "address" to batchAddr,
+                  "port" to batchPort,
+                  "data" to batchData.copyOf(batchOffset),
+                  "lengths" to batchLengths.copyOf(batchCount)
                 ))
-                batch.clear()
+                batchOffset = 0
+                batchCount = 0
               }
-            } catch (_: kotlinx.coroutines.CancellationException) {
-            } catch (e: Exception) {
-              sendEvent("udpError", mapOf("socketId" to socketId, "error" to (e.message ?: "Unknown error")))
-            } finally {
-              sendEvent("udpClose", mapOf("socketId" to socketId))
-              udpSockets.remove(socketId)
-              try { bound.close() } catch (_: Exception) {}
             }
+          } catch (_: java.net.SocketException) {
+            // Socket closed — normal shutdown
+          } catch (e: Exception) {
+            sendEvent("udpError", mapOf("socketId" to socketId, "error" to (e.message ?: "Unknown error")))
+          } finally {
+            sendEvent("udpClose", mapOf("socketId" to socketId))
+            udpSockets.remove(socketId)
+            try { socket.close() } catch (_: Exception) {}
           }
-
-          // Combine both jobs so cancelling either tears down the socket
-          val combinedJob = launch {
-            try {
-              receiveJob.join()
-            } finally {
-              dispatchJob.cancel()
-            }
-          }
-
-          val udpSocket = UdpSocket(bound, combinedJob, socketId)
-          udpSockets[socketId] = udpSocket
-          sendEvent("udpListening", mapOf("socketId" to socketId, "address" to actualAddress, "port" to actualPort))
-          promise.resolve(mapOf("address" to actualAddress, "port" to actualPort))
-        } catch (e: Exception) {
-          promise.reject("UDP_BIND", e.message ?: "Unknown error", e)
+        }, "udp-recv-$socketId").apply {
+          isDaemon = true
+          priority = Thread.MAX_PRIORITY
+          start()
         }
+
+        val udpSocket = UdpSocket(socket, recvThread, socketId)
+        udpSockets[socketId] = udpSocket
+        sendEvent("udpListening", mapOf("socketId" to socketId, "address" to actualAddress, "port" to actualPort))
+        promise.resolve(mapOf("address" to actualAddress, "port" to actualPort))
+      } catch (e: Exception) {
+        promise.reject("UDP_BIND", e.message ?: "Unknown error", e)
       }
     }
 
@@ -575,15 +567,11 @@ class SupermanModule : Module(), LifecycleEventObserver {
       try {
         val s = udpSockets[socketId]?.socket ?: throw IllegalArgumentException("Socket not found: $socketId")
         val cacheKey = "$address:$port"
-        val targetAddress = udpAddressCache.getOrPut(cacheKey) {
-          io.ktor.network.sockets.InetSocketAddress(address, port)
+        val target = udpAddressCache.getOrPut(cacheKey) {
+          java.net.InetSocketAddress(address, port)
         }
-        val datagram = Datagram(ByteReadPacket(data), targetAddress)
-        // Use runBlocking on the current (Expo) thread to avoid coroutine launch overhead.
-        // UDP send is non-blocking at the kernel level — it just copies into the send buffer.
-        kotlinx.coroutines.runBlocking {
-          s.send(datagram)
-        }
+        val packet = java.net.DatagramPacket(data, data.size, target)
+        s.send(packet)
         promise.resolve(true)
       } catch (e: Exception) {
         promise.reject("UDP_SEND", e.message ?: "Unknown error", e)
@@ -594,10 +582,9 @@ class SupermanModule : Module(), LifecycleEventObserver {
       try {
         val udpSocket = udpSockets.remove(socketId)
         if (udpSocket != null) {
-          udpSocket.job.cancel()
           try { udpSocket.socket.close() } catch (_: Exception) {}
+          udpSocket.thread.interrupt()
         }
-        // Always resolve true - already closed is fine
         promise.resolve(true)
       } catch (e: Exception) {
         promise.reject("UDP_CLOSE", e.message ?: "Unknown error", e)
