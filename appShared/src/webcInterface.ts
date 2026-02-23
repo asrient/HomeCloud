@@ -21,6 +21,7 @@ type UdpConnectionOptions = {
     serverPort: number;
     onConnected?: (reDatagram: ReDatagram) => void;
     onError?: (err?: Error | string) => void;
+    getLocalAddresses?: () => Promise<string[]>;
 };
 
 export class UdpConnection {
@@ -30,6 +31,7 @@ export class UdpConnection {
     private serverPort: number;
     private onConnectedCallback?: (reDatagram: ReDatagram) => void;
     private onErrorCallback?: (err?: Error | string) => void;
+    private getLocalAddressesCallback?: () => Promise<string[]>;
 
     private isServerAcked = false;
     private isTerminated = false;
@@ -47,6 +49,7 @@ export class UdpConnection {
         this.serverPort = options.serverPort;
         this.onConnectedCallback = options.onConnected;
         this.onErrorCallback = options.onError;
+        this.getLocalAddressesCallback = options.getLocalAddresses;
     }
 
     public startConnection() {
@@ -138,20 +141,9 @@ export class UdpConnection {
         this.checkConnectionEstablished();
     }
 
-    /**
- * Get local network addresses for local relay fallback.
- * Default implementation gets addresses from the LOCAL (TCP) connection interface.
- * Can be overridden by platform-specific implementations if needed.
- */
-    private getLocalAddresses(): string[] {
-        try {
-            const localSc = modules.getLocalServiceController();
-            const tcpInterface = localSc.net.getConnectionInterface(ConnectionType.LOCAL);
-            if (tcpInterface) {
-                return filterValidBonjourIps(tcpInterface.getServiceAddresses());
-            }
-        } catch (err) {
-            console.warn('[WebCInterface] Failed to get local addresses:', err);
+    private async getLocalAddresses(): Promise<string[]> {
+        if (this.getLocalAddressesCallback) {
+            return this.getLocalAddressesCallback();
         }
         return [];
     }
@@ -185,7 +177,7 @@ export class UdpConnection {
 
         this.hasTriedLocalRelay = true;
 
-        const localAddresses = this.getLocalAddresses();
+        const localAddresses = await this.getLocalAddresses();
         const localPort = this.getLocalPort();
 
         if (!localAddresses.length || !localPort) {
@@ -287,6 +279,25 @@ export abstract class WebcInterface extends ConnectionInterface {
 
     abstract createDatagramSocket(): DatagramCompat;
 
+    /**
+     * Get local network addresses for local relay fallback.
+     * Default implementation tries the LOCAL (TCP) connection interface.
+     * Override in platform subclasses for independent IP discovery.
+     */
+    protected async getLocalAddresses(): Promise<string[]> {
+        try {
+            const localSc = modules.getLocalServiceController();
+            const tcpInterface = localSc.net.getConnectionInterface(ConnectionType.LOCAL);
+            if (tcpInterface) {
+                const addrs = filterValidBonjourIps(tcpInterface.getServiceAddresses());
+                if (addrs.length > 0) return addrs;
+            }
+        } catch (err) {
+            console.warn('[WebCInterface] Failed to get local addresses from LOCAL interface:', err);
+        }
+        return [];
+    }
+
     onIncomingConnection(callback: (dataChannel: GenericDataChannel) => void) {
         this.onIncomingConnectionCallback = callback;
     }
@@ -312,6 +323,7 @@ export abstract class WebcInterface extends ConnectionInterface {
                 pin: webcInit.pin,
                 serverAddress: webcInit.serverAddress || this.getDefaultServerAddress(),
                 serverPort: webcInit.serverPort || DEFAULT_SERVER_PORT,
+                getLocalAddresses: () => this.getLocalAddresses(),
                 onConnected: (reDatagram) => {
                     const dataChannel = this.createDataChannel(reDatagram);
                     if (!isSettled) {
@@ -413,7 +425,6 @@ export abstract class WebcInterface extends ConnectionInterface {
         let messageHandler: ((ev: Uint8Array) => void) | null = null;
         let errorHandler: ((ev: Error | string) => void) | null = null;
         let disconnectHandler: ((ev?: Error) => void) | null = null;
-
         reDgram.onMessage = (msg: Uint8Array) => {
             if (messageHandler) {
                 messageHandler(msg);

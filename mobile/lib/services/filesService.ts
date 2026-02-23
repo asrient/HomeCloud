@@ -16,6 +16,23 @@ function remoteFileId(remoteFingerprint: string, remotePath: string) {
   return modules.crypto.hashString(`${remoteFingerprint}-${remotePath}`, 'md5').slice(0, 12);
 }
 
+/**
+ * Writes a ReadableStream to a file using FileHandle for fast synchronous writes.
+ */
+async function writeStreamToFile(stream: ReadableStream<Uint8Array>, file: File): Promise<void> {
+  const reader = stream.getReader();
+  const handle = file.open();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      handle.writeBytes(value);
+    }
+  } finally {
+    handle.close();
+  }
+}
+
 export default class MobileFilesService extends FilesService {
   public fs = new MobileFsDriver();
   public separator = '/';
@@ -39,7 +56,7 @@ export default class MobileFilesService extends FilesService {
       intermediates: true,
       overwrite: true
     });
-    await stream.pipeTo(file.writableStream());
+    await writeStreamToFile(stream, file);
     localSc.system.openFile(file.uri);
   }
 
@@ -103,16 +120,21 @@ export default class MobileFilesService extends FilesService {
     let cachedPath = this.remoteFileCache.get(id);
     if (!cachedPath) {
       const serviceController = await getServiceController(remoteFingerprint);
+      const t0 = Date.now();
       const remoteItem = await serviceController.files.fs.readFile(remotePath);
+      console.log(`[Preview] RPC readFile returned in ${Date.now() - t0}ms`);
       const entryDir = new Directory(this.remoteFileCache.dir, id);
       entryDir.create({ intermediates: true, idempotent: true });
       const previewFile = new File(Paths.join(entryDir.uri, filename));
       previewFile.create({ overwrite: true });
-      await remoteItem.stream.pipeTo(previewFile.writableStream());
+      const t1 = Date.now();
+      await writeStreamToFile(remoteItem.stream, previewFile);
+      console.log(`[Preview] writeStreamToFile completed in ${Date.now() - t1}ms`);
       this.remoteFileCache.log(id, previewFile.uri);
       cachedPath = previewFile.uri;
     }
 
+    console.log(`[Preview] Opening file: ${cachedPath}`);
     const localSc = modules.getLocalServiceController();
     localSc.system.openFile(cachedPath);
   }

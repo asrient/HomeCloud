@@ -1,5 +1,7 @@
 import { WebcInterface } from "shared/webcInterface";
 import { DatagramCompat } from "shared/compat";
+import { filterValidBonjourIps } from "shared/utils";
+import { getIpAddressAsync } from 'expo-network';
 import SupermanModule from "../../modules/superman";
 
 // Global registry of active sockets
@@ -143,6 +145,21 @@ class Datagram_ extends DatagramCompat {
 export default class MobileWebcInterface extends WebcInterface {
     createDatagramSocket(): Datagram_ {
         return new Datagram_();
+    }
+
+    protected override async getLocalAddresses(): Promise<string[]> {
+        // Get address directly from expo-network — no dependency on LOCAL/TCP
+        try {
+            const ipAddr = await getIpAddressAsync();
+            if (ipAddr && ipAddr !== '0.0.0.0') {
+                const filtered = filterValidBonjourIps([ipAddr]);
+                if (filtered.length > 0) return filtered;
+            }
+        } catch (err) {
+            console.warn('[MobileWebcInterface] Failed to get IP from expo-network:', err);
+        }
+        // Fallback to base implementation (LOCAL interface)
+        return super.getLocalAddresses();
     }
 
     override async start(): Promise<void> {

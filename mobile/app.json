@@ -125,7 +125,7 @@
             "buildToolsVersion": "36.0.0"
           },
           "ios": {
-            "deploymentTarget": "15.2"
+            "deploymentTarget": "16.1"
           }
         }
       ],
@@ -149,7 +149,8 @@
           "supportsBackgroundPlayback": false,
           "supportsPictureInPicture": false
         }
-      ]
+      ],
+      "react-native-quick-crypto"
     ],
     "experiments": {
       "typedRoutes": true

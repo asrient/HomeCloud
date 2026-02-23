@@ -94,9 +94,7 @@ function useFileItemState(
             .then((src) => {
                 setThumbnailSrc(src || null);
             })
-            .catch((err) => {
-                console.error('Error fetching thumbnail for photo', item.path, err);
-            });
+            .catch(() => { /* thumbnail errors are non-critical */ });
     }, [item, fetchThumbnailSrc]);
 
     const isPressedRef = useRef(false);

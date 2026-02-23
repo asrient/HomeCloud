@@ -58,9 +58,12 @@ export async function resolveFileUri(uri: string): Promise<ResolvedFileInfo> {
             throw new Error("Asset not found");
         }
         const fileUri = asset.localUri || asset.uri;
-        const filename = asset.filename || Paths.basename(fileUri);
+        // Strip URL fragment — iOS Photos appends base64 metadata after '#'
+        // which breaks direct file access via expo-file-system File API
+        const cleanUri = fileUri.split('#')[0];
+        const filename = asset.filename || Paths.basename(cleanUri);
         const mimeType = getMimeType(filename);
-        return { fileUri, filename, mimeType };
+        return { fileUri: cleanUri, filename, mimeType };
     }
 
     // Handle file:// URLs or regular paths

@@ -7,6 +7,31 @@ import { getDrivesMapping, pathToUri, uriToPath, getMimeType, resolveFileUri } f
 import { MobilePlatform } from "../types";
 import { fetch } from "expo/fetch";
 
+const READ_CHUNK_SIZE = 256 * 1024; // 256KB chunks for fewer framing iterations
+
+/**
+ * Creates a ReadableStream from a File using FileHandle.readBytes() with
+ * a configurable chunk size. Expo's built-in readableStream() uses 1KB chunks,
+ * which is far too small for efficient network transfer.
+ */
+function createFileReadStream(file: File): ReadableStream<Uint8Array> {
+  const handle = file.open();
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      const bytes = handle.readBytes(READ_CHUNK_SIZE);
+      if (bytes.byteLength === 0) {
+        handle.close();
+        controller.close();
+      } else {
+        controller.enqueue(bytes);
+      }
+    },
+    cancel() {
+      handle.close();
+    }
+  });
+}
+
 
 export default class MobileFsDriver extends FsDriver {
 
@@ -149,7 +174,9 @@ export default class MobileFsDriver extends FsDriver {
 
   @exposed
   public override async readFile(id: string): Promise<FileContent> {
-    // Use resolveFileUri for ph:// URLs to get proper file info
+    // ph:// URLs point to iOS Photos library (DCIM) — direct filesystem
+    // access is blocked by the iOS sandbox, so we use fetch() which
+    // goes through the Photos framework.
     if (id.startsWith('ph://')) {
       const resolved = await resolveFileUri(id);
       return this.readWithFetch(resolved.fileUri, resolved.filename, resolved.mimeType || undefined);
@@ -163,7 +190,7 @@ export default class MobileFsDriver extends FsDriver {
     if (!file.exists) {
       throw new Error(`File not found at path: ${id}`);
     }
-    const stream = file.readableStream();
+    const stream = createFileReadStream(file);
     return {
       name: file.name,
       mime: file.type || 'application/octet-stream',

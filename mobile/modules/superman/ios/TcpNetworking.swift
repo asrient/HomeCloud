@@ -23,8 +23,6 @@ class TcpNetworking {
   struct TcpConnection {
     let connection: NWConnection
     let connectionId: String
-    var sendQueue: [Data] = []
-    var isSending: Bool = false
     var isIncoming: Bool = false
     var isClosed: Bool = false
   }
@@ -197,13 +195,11 @@ class TcpNetworking {
   
   func send(connectionId: String, data: Data, promise: Promise) {
     networkQueue.async {
-      guard var tcpConnection = self.connections[connectionId] else {
-        // Connection not found - it was closed, resolve with false
+      guard let tcpConnection = self.connections[connectionId] else {
         promise.resolve(false)
         return
       }
       
-      // Check if connection is still in a valid state
       switch tcpConnection.connection.state {
       case .cancelled, .failed:
         self.connections.removeValue(forKey: connectionId)
@@ -213,15 +209,17 @@ class TcpNetworking {
         break
       }
       
-      // Add data to the send queue
-      tcpConnection.sendQueue.append(data)
-      self.connections[connectionId] = tcpConnection
-      
-      // Resolve immediately - data is queued
-      promise.resolve(true)
-      
-      // Process the queue if not already sending
-      self.processSendQueue(connectionId: connectionId)
+      // NWConnection serializes writes internally (FIFO order guaranteed for TCP).
+      // Resolve only after the OS processes the write — provides natural backpressure.
+      tcpConnection.connection.send(content: data, completion: .contentProcessed { [weak self] error in
+        if let error = error {
+          print("TCP send error for \(connectionId): \(error.localizedDescription)")
+          self?.sendErrorAndClose(connectionId: connectionId, error: error)
+          promise.resolve(false)
+        } else {
+          promise.resolve(true)
+        }
+      })
     }
   }
   
@@ -332,52 +330,6 @@ class TcpNetworking {
   }
   
   // MARK: - Private Methods
-  
-  private func processSendQueue(connectionId: String) {
-    networkQueue.async { [weak self] in
-      guard let self = self else { return }
-      guard var tcpConnection = self.connections[connectionId] else { return }
-      
-      // If already sending, let the current send complete first
-      if tcpConnection.isSending {
-        return
-      }
-      
-      // If queue is empty, nothing to send
-      guard !tcpConnection.sendQueue.isEmpty else {
-        return
-      }
-      
-      // Mark as sending and get the first item
-      tcpConnection.isSending = true
-      let data = tcpConnection.sendQueue.removeFirst()
-      self.connections[connectionId] = tcpConnection
-      
-      // Send the data
-      tcpConnection.connection.send(content: data, completion: .contentProcessed { [weak self] error in
-        self?.networkQueue.async {
-          guard var connection = self?.connections[connectionId] else { return }
-          
-          if let error = error {
-            print("TCP send error for \(connectionId): \(error.localizedDescription)")
-            self?.sendErrorAndClose(connectionId: connectionId, error: error)
-            // Clear the queue on error
-            connection.sendQueue.removeAll()
-            connection.isSending = false
-            self?.connections[connectionId] = connection
-            return
-          }
-          
-          // Mark as not sending and process next item
-          connection.isSending = false
-          self?.connections[connectionId] = connection
-          
-          // Process next item in queue
-          self?.processSendQueue(connectionId: connectionId)
-        }
-      })
-    }
-  }
   
   private func startReceiving(for tcpConnection: TcpConnection) {
     tcpConnection.connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in

@@ -57,9 +57,7 @@ export function PhotoThumbnail({ item, onPress, isSelectMode, onQuickAction }: {
             .then((src) => {
                 setThumbnailSrc(src || null);
             })
-            .catch((err) => {
-                console.error('Error fetching thumbnail for photo', item.id, err);
-            });
+            .catch(() => { /* thumbnail errors are non-critical */ });
     }, [item, fetchThumbnailSrc]);
 
     const handlePress = useCallback(() => {

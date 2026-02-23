@@ -58,7 +58,9 @@ async function getAssetUri(photo: PhotoView): Promise<string> {
     }
     const cacheDir = getCacheDir();
     const cacheKey = assetHash(photo.deviceFingerprint, photo.id);
-    const cacheFile = new File(Paths.join(cacheDir, cacheKey));
+    // Preserve file extension — expo-video / AVPlayer needs it to detect container format
+    const ext = photo.fileId.includes('.') ? photo.fileId.slice(photo.fileId.lastIndexOf('.')) : '';
+    const cacheFile = new File(Paths.join(cacheDir, cacheKey + ext));
     if (cacheFile.exists) {
         return cacheFile.uri;
     }

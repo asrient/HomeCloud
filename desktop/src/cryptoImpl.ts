@@ -160,4 +160,24 @@ export default class CryptoImpl extends CryptoModule {
         const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv);
         return new Uint8Array(Buffer.concat([decipher.update(ciphertext), decipher.final()]));
     }
+
+    generateIv(): string {
+        return crypto.randomBytes(16).toString('hex');
+    }
+
+    createCipher(secretKey: string, iv: string): { update(data: Uint8Array): Uint8Array } {
+        const key = this.getParsedKey(secretKey);
+        const cipher = crypto.createCipheriv('aes-256-ctr', key, Buffer.from(iv, 'hex'));
+        return {
+            update: (data: Uint8Array): Uint8Array => new Uint8Array(cipher.update(data)),
+        };
+    }
+
+    createDecipher(secretKey: string, iv: string): { update(data: Uint8Array): Uint8Array } {
+        const key = this.getParsedKey(secretKey);
+        const decipher = crypto.createDecipheriv('aes-256-ctr', key, Buffer.from(iv, 'hex'));
+        return {
+            update: (data: Uint8Array): Uint8Array => new Uint8Array(decipher.update(data)),
+        };
+    }
 }

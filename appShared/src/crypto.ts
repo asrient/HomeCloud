@@ -51,6 +51,12 @@ export default abstract class CryptoModule {
     abstract decryptString(encryptedData: EncryptedData, secretKey: string): string;
     abstract encryptBuffer(data: Uint8Array, secretKey: string): Uint8Array;
     abstract decryptBuffer(data: Uint8Array, secretKey: string): Uint8Array;
+    /** Generate a random 16-byte IV as a hex string. */
+    abstract generateIv(): string;
+    /** Create a stateful AES-256-CTR cipher for encrypting a sequence of buffers. */
+    abstract createCipher(secretKey: string, iv: string): { update(data: Uint8Array): Uint8Array };
+    /** Create a stateful AES-256-CTR decipher for decrypting a sequence of buffers. */
+    abstract createDecipher(secretKey: string, iv: string): { update(data: Uint8Array): Uint8Array };
     abstract hashString(data: string, type: 'sha256' | 'md5'): string;
     abstract compareHash(data: string, hash: string, type: 'sha256' | 'md5'): boolean;
     abstract generateHmac(data: string, secret: string): string;

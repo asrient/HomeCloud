@@ -1,15 +1,18 @@
 import { DatagramCompat } from "./compat";
 
+const DEBUG_BENCHMARKS = true;
+
 const HEADER_SIZE = 5; // 1 byte type + 4 bytes seq
-const MAX_PACKET_SIZE = 1200;
-const ACK_BATCH_SIZE = 6;
+const MAX_PACKET_SIZE = 1300;
+const ACK_BATCH_SIZE = 32;
 const RETRANSMIT_TIMEOUT = 700; // ms
 const MAX_RETRANSMITS = 12;
-const MAX_BUFFERED_PACKETS = 256;
-const MAX_ACK_DELAY_MS = 400;
+const MAX_BUFFERED_PACKETS = 512;
+const MAX_ACK_DELAY_MS = 50;
 const PING_INTERVAL_MS = 10 * 1000;
 const MAX_PING_DELAY_MS = 25 * 1000;
-const MAX_SEND_WINDOW = 256; // max unACKed packets in flight
+const MAX_SEND_WINDOW = 1024; // max unACKed packets in flight
+const RETRANSMIT_SCAN_INTERVAL = 200; // ms - how often to scan for timed-out packets
 
 // Flags
 const FLAG_DATA = 0;
@@ -31,10 +34,10 @@ export class ReDatagram {
     private sendSeq = 1;
     private recvSeq = 1;
 
-    private sendWindow = new Map<number, Uint8Array>();
+    private sendWindow = new Map<number, { packet: Uint8Array; sentAt: number; attempts: number }>();
     private ackPending = 0;
 
-    private retransmitTimers = new Map<number, number>();
+    private retransmitScanId: number | null = null;
 
     private isReady = false;
     private isRemoteClosed = false;
@@ -46,11 +49,20 @@ export class ReDatagram {
 
     private lastPingReceived = Date.now();
 
-    private sendLock = false;
-    private sendBuffer: Uint8Array[] = [];
+    private sendQueue: Promise<void> = Promise.resolve();
 
     // Flow control: resolve callbacks waiting for window space
     private windowWaiters: (() => void)[] = [];
+
+    // Benchmarking
+    private bytesSent = 0;
+    private bytesReceived = 0;
+    private retransmitCount = 0;
+    private statsLastBytesSent = 0;
+    private statsLastBytesReceived = 0;
+    private statsLastRetransmits = 0;
+    private statsIntervalId: number | null = null;
+    private statsLastTime = Date.now();
 
     constructor(socket: DatagramCompat, peerAddresses: string[], port: number, onReady?: (isSuccess: boolean) => void) {
         this.socket = socket;
@@ -95,6 +107,50 @@ export class ReDatagram {
 
         this.sendHello();
         this.startPingLoop();
+        this.startRetransmitLoop();
+        if (DEBUG_BENCHMARKS) this.startStatsLoop();
+    }
+
+    private startRetransmitLoop() {
+        this.retransmitScanId = setInterval(() => {
+            if (this.isClosing) return;
+            const now = Date.now();
+            for (const [seq, entry] of this.sendWindow) {
+                if (now - entry.sentAt < RETRANSMIT_TIMEOUT) continue;
+                if (entry.attempts >= MAX_RETRANSMITS) {
+                    console.error(`[ReUDP] Max retransmits reached for seq=${seq}, closing`);
+                    this.sendWindow.delete(seq);
+                    this.close();
+                    return;
+                }
+                if (DEBUG_BENCHMARKS) console.warn(`Retransmitting seq=${seq}`);
+                this.retransmitCount++;
+                entry.attempts++;
+                entry.sentAt = now;
+                this.socket.send(entry.packet, this.remote.port, this.remote.address).catch(() => { });
+            }
+        }, RETRANSMIT_SCAN_INTERVAL);
+    }
+
+    private startStatsLoop() {
+        this.statsLastTime = Date.now();
+        this.statsIntervalId = setInterval(() => {
+            const now = Date.now();
+            const dt = (now - this.statsLastTime) / 1000;
+            const sentDelta = this.bytesSent - this.statsLastBytesSent;
+            const recvDelta = this.bytesReceived - this.statsLastBytesReceived;
+            const retxDelta = this.retransmitCount - this.statsLastRetransmits;
+            // Only log when there's meaningful data activity (ignore pings/keepalives)
+            if (sentDelta > 1024 || recvDelta > 1024) {
+                const sendRate = ((sentDelta / dt) / 1024).toFixed(1);
+                const recvRate = ((recvDelta / dt) / 1024).toFixed(1);
+                console.log(`[ReUDP Stats] TX: ${sendRate} KB/s (${(this.bytesSent / 1024).toFixed(0)} KB total) | RX: ${recvRate} KB/s (${(this.bytesReceived / 1024).toFixed(0)} KB total) | Window: ${this.sendWindow.size}/${MAX_SEND_WINDOW} | Retransmits: ${retxDelta} (${this.retransmitCount} total)`);
+            }
+            this.statsLastBytesSent = this.bytesSent;
+            this.statsLastBytesReceived = this.bytesReceived;
+            this.statsLastRetransmits = this.retransmitCount;
+            this.statsLastTime = now;
+        }, 5000);
     }
 
     private pingIntervalId: number | null = null;
@@ -153,11 +209,10 @@ export class ReDatagram {
         setTimeout(() => this.sendHello(attempt + 1), RETRANSMIT_TIMEOUT);
     }
 
-    private async ping() {
+    private ping() {
         if (this.isClosing) return;
         const header = this.encodeHeader(FLAG_PING, 0);
-        console.log("[ReUDP] Sending PING");
-        await this.socket.send(header, this.remote.port, this.remote.address);
+        this.socket.send(header, this.remote.port, this.remote.address).catch(() => { });
     }
 
     async send(data: Uint8Array) {
@@ -170,28 +225,11 @@ export class ReDatagram {
             return;
         }
 
-        // If locked, buffer the data and return
-        if (this.sendLock) {
-            this.sendBuffer.push(data);
-            return;
-        }
-
-        // Acquire lock
-        this.sendLock = true;
-
-        try {
-            // Send the current data
-            await this.sendData(data);
-
-            // Process buffered data
-            while (this.sendBuffer.length > 0) {
-                const bufferedData = this.sendBuffer.shift()!;
-                await this.sendData(bufferedData);
-            }
-        } finally {
-            // Release lock
-            this.sendLock = false;
-        }
+        const task = this.sendQueue.then(() => this.sendData(data));
+        this.sendQueue = task.catch((e) => {
+            console.log('[ReUDP] Send failed in queue:', e?.message || e);
+        });
+        await task;
     }
 
     private async sendData(data: Uint8Array) {
@@ -238,36 +276,21 @@ export class ReDatagram {
         packet.set(header);
         packet.set(data, header.length);
 
-        try {
-            await this.socket.send(packet, this.remote.port, this.remote.address);
-            this.sendWindow.set(seq, packet);
+        // Track in window before sending — retransmit scan handles failures
+        this.sendWindow.set(seq, { packet, sentAt: Date.now(), attempts: 1 });
 
-            // schedule retransmit
-            const timer = setTimeout(() => this.retransmit(seq), RETRANSMIT_TIMEOUT);
-            this.retransmitTimers.set(seq, timer);
-        } catch (error) {
-            console.error(`[ReUDP] Failed to send packet seq=${seq}:`, error);
-            throw error;
-        }
+        this.bytesSent += data.length;
+
+        // Fire-and-forget: don't await socket.send to allow burst sending.
+        // The send window provides flow control; the kernel UDP buffer handles queueing.
+        this.socket.send(packet, this.remote.port, this.remote.address).catch((error) => {
+            if (!this.isClosing) {
+                console.error(`[ReUDP] Failed to send packet seq=${seq}:`, error);
+            }
+        });
     }
 
-    private async retransmit(seq: number, attempt = 1) {
-        if (this.isClosing) return;
-        const pkt = this.sendWindow.get(seq);
-        if (!pkt || !this.remote) return;
-        console.warn(`Retransmitting seq=${seq}`);
-        await this.socket.send(pkt, this.remote.port, this.remote.address);
-        if (attempt >= MAX_RETRANSMITS) {
-            console.error(`Max retransmits reached for seq=${seq}, giving up`);
-            this.sendWindow.delete(seq);
-            this.retransmitTimers.delete(seq);
-            // close connection
-            this.close();
-            return;
-        }
-        const timer = setTimeout(() => this.retransmit(seq, attempt + 1), RETRANSMIT_TIMEOUT);
-        this.retransmitTimers.set(seq, timer);
-    }
+    // Retransmit logic is handled by startRetransmitLoop() periodic scan
 
     private reorderBuffer = new Map<number, Uint8Array>();
 
@@ -282,7 +305,7 @@ export class ReDatagram {
         this.ackDelayTimeout = null;
     }
 
-    private async handleDataPacket(seq: number, payload: Uint8Array) {
+    private handleDataPacket(seq: number, payload: Uint8Array) {
         if (seq < 1 || seq > 0xFFFFFFFF) {
             console.warn(`[ReUDP] Invalid sequence number: ${seq}`);
             return;
@@ -291,6 +314,7 @@ export class ReDatagram {
         if (seq === this.recvSeq) {
             this.recvSeq = this.recvSeq + 1;
             this.ackPending++;
+            this.bytesReceived += payload.length;
             try {
                 this.onMessage?.(payload);
                 if (!this.onMessage) {
@@ -306,7 +330,7 @@ export class ReDatagram {
             }
             // send ACKs every few packets
             if (this.ackPending >= ACK_BATCH_SIZE) {
-                await this.sendAck(this.recvSeq - 1);
+                this.sendAck(this.recvSeq - 1);
                 this.ackPending = 0;
                 if (this.ackDelayTimeout) {
                     clearTimeout(this.ackDelayTimeout);
@@ -328,7 +352,7 @@ export class ReDatagram {
 
     private sendBase = 1; // first un-ACKed sequence
 
-    private async handlePacket(buf: Uint8Array) {
+    private handlePacket(buf: Uint8Array) {
         try {
             if (buf.length === 0) {
                 console.warn('[ReUDP] Received empty packet, ignoring');
@@ -344,20 +368,17 @@ export class ReDatagram {
             this.markReady();
             if (type === FLAG_DATA) {
                 const payload = new Uint8Array(buf.buffer, buf.byteOffset + HEADER_SIZE, buf.length - HEADER_SIZE);
-                // console.log(`[ReUDP] Received DATA seq=${seq}, size=${payload.length}`);
-                await this.handleDataPacket(seq, payload);
+                this.handleDataPacket(seq, payload);
             }
             else if (type === FLAG_ACK) {
                 const nextAck = seq + 1;
                 // Remove all cached packets from sendBase up to nextAck
                 while (this.sendBase < nextAck) {
-                    if (this.sendWindow.has(this.sendBase)) {
-                        clearTimeout(this.retransmitTimers.get(this.sendBase));
-                        this.retransmitTimers.delete(this.sendBase);
-                        this.sendWindow.delete(this.sendBase);
-                    }
+                    this.sendWindow.delete(this.sendBase);
                     this.sendBase++;
                 }
+                // ACK proves peer is alive
+                this.lastPingReceived = Date.now();
                 // Wake any senders waiting for window space
                 this.wakeWindowWaiters();
             }
@@ -365,7 +386,7 @@ export class ReDatagram {
                 console.log("[ReUDP] Received HELLO, sending HELLO_ACK");
                 this.lastPingReceived = Date.now();
                 const header = this.encodeHeader(FLAG_HELLO_ACK, 0);
-                await this.socket.send(header, this.remote.port, this.remote.address);
+                this.socket.send(header, this.remote.port, this.remote.address).catch(() => { });
             }
             else if (type === FLAG_HELLO_ACK) {
                 console.log("[ReUDP] Received HELLO_ACK");
@@ -391,11 +412,10 @@ export class ReDatagram {
         }
     }
 
-    private async sendAck(seq: number) {
+    private sendAck(seq: number) {
         if (this.isClosing) return;
-        // console.log(`[ReUDP] Sending ACK for seq=${seq}`);
         const header = this.encodeHeader(FLAG_ACK, seq);
-        await this.socket.send(header, this.remote.port, this.remote.address);
+        this.socket.send(header, this.remote.port, this.remote.address).catch(() => { });
     }
 
     private cleanup() {
@@ -405,14 +425,14 @@ export class ReDatagram {
         for (const w of this.windowWaiters) w();
         this.windowWaiters = [];
         // Cleanup all resources
-        for (const t of this.retransmitTimers.values()) clearTimeout(t);
-        this.sendWindow.clear();
-        this.retransmitTimers.clear();
-        this.reorderBuffer.clear();
-        if (this.pingIntervalId) {
-            clearInterval(this.pingIntervalId);
-            this.pingIntervalId = null;
+        for (const t of [this.retransmitScanId, this.pingIntervalId, this.statsIntervalId]) {
+            if (t) clearInterval(t);
         }
+        this.retransmitScanId = null;
+        this.pingIntervalId = null;
+        this.statsIntervalId = null;
+        this.sendWindow.clear();
+        this.reorderBuffer.clear();
         if (this.onReady) {
             this.onReady(false);
             this.onReady = undefined;

@@ -1,6 +1,8 @@
 import { DataChannelParser } from './DataChannelParser';
 import { ProxyHandlers, GenericDataChannel } from './types';
 
+const DEBUG_BENCHMARKS = true;
+
 // ----- Message Types -----
 export enum MessageType {
     REQUEST = 0x01,
@@ -53,14 +55,19 @@ export class RPCPeer {
 
     private pending = new Map<number, PendingCall>();
     private streamControllers = new Map<number, ReadableStreamController<Uint8Array>>();
+    private outgoingStreamReaders = new Map<number, ReadableStreamDefaultReader<Uint8Array>>();
+    private cancelledStreams = new Set<number>(); // streams we've already sent CANCEL for
+    private streamRecvStats = new Map<number, { bytes: number; start: number }>();
     private targetPublicKeyPem: string | null = null;
     private targetFingerprint: string | null = null;
     private targetDeviceName: string | null = null;
 
     private isTargetAuthenticated = false;
     private isTargetReady = false;
-    private encryptionKey: string | null = null;
-    private decryptionKey: string | null = null;
+    /** Stateful AES-256-CTR cipher for encrypting all outbound frames (set after auth). */
+    private sendCipher: { update(data: Uint8Array): Uint8Array } | null = null;
+    /** Stateful AES-256-CTR decipher for decrypting all inbound frames (set after auth). */
+    private recvDecipher: { update(data: Uint8Array): Uint8Array } | null = null;
 
     private pingIntervalId: number | null = null;
     private lastPingReceived: number = Date.now();
@@ -210,17 +217,25 @@ export class RPCPeer {
         if (this.isClosed) return;
         this.isClosed = true;
         console.log('Closing RPCPeer connection');
+        // Cancel all outgoing stream pumps first, before disconnecting
+        // the data channel, so in-flight sends don't hit a closed socket.
+        this.outgoingStreamReaders.forEach(reader => reader.cancel().catch(() => { }));
+        this.outgoingStreamReaders.clear();
+        this.streamControllers.forEach(ctrl => ctrl.close());
+        this.streamControllers.clear();
+        this.cancelledStreams.clear();
+        this.pending.clear();
+        this.stopPing();
         if (!isDisconnected) {
             this.opts.dataChannel.disconnect();
         }
-        this.pending.clear();
-        this.streamControllers.forEach(ctrl => ctrl.close());
-        this.streamControllers.clear();
-        this.stopPing();
         this.opts.onClose?.(this);
     }
 
     private onFrame = async ({ type, flags, payload }: { type: number, payload: Uint8Array, flags: number }) => {
+        // Any received frame proves the peer is alive
+        this.lastPingReceived = Date.now();
+
         if (!this.targetPublicKeyPem && type !== MessageType.HELLO) {
             console.warn('Received message before HELLO', type, new TextDecoder().decode(payload));
             return;
@@ -229,9 +244,9 @@ export class RPCPeer {
             console.warn('Message type not allowed right now', type);
             return;
         }
-        // Decrypt payload for non-setup messages when a decryption key is available
-        if (this.decryptionKey && !SETUP_AUTH_TYPES.includes(type)) {
-            payload = this.decryptPayload(payload);
+        // Decrypt payload for non-setup messages using the connection-level decipher.
+        if (this.recvDecipher && !SETUP_AUTH_TYPES.includes(type)) {
+            payload = this.recvDecipher.update(payload);
         }
         try {
             switch (type) {
@@ -317,13 +332,18 @@ export class RPCPeer {
         }
         console.log('[RPCPeer] Sending AUTH_CHALLENGE message');
         this.otp = modules.crypto.generateRandomKey();
+        let securityKey: string | null = null;
+        let iv: string | null = null;
         if (!this.opts.isSecure) {
-            this.decryptionKey = modules.crypto.generateRandomKey();
+            securityKey = modules.crypto.generateRandomKey();
+            iv = modules.crypto.generateIv();
+            this.recvDecipher = modules.crypto.createDecipher(securityKey, iv);
         }
 
         const challenge = {
             otp: this.otp,
-            securityKey: this.opts.isSecure ? null : this.decryptionKey,
+            securityKey,
+            iv,
         };
         const payload = await modules.crypto.encryptPK(JSON.stringify(challenge), this.targetPublicKeyPem);
         await this.sendFrame(MessageType.AUTH_CHALLENGE, payload);
@@ -363,13 +383,15 @@ export class RPCPeer {
         console.log('[RPCPeer] Received AUTH_CHALLENGE message');
         const payload = await modules.crypto.decryptPK(buf, modules.config.PRIVATE_KEY_PEM);
         const json = new TextDecoder().decode(payload);
-        const { otp, securityKey } = JSON.parse(json);
-        if (!this.opts.isSecure && !securityKey) {
-            console.error('Security key is required for non-secure connections');
-            this.onError(new Error('Security key is required for non-secure connections but not provided by target'));
+        const { otp, securityKey, iv } = JSON.parse(json);
+        if (!this.opts.isSecure && (!securityKey || !iv)) {
+            console.error('Security key and IV are required for non-secure connections');
+            this.onError(new Error('Security key and IV are required for non-secure connections but not provided by target'));
             return;
         }
-        this.encryptionKey = securityKey;
+        if (securityKey && iv) {
+            this.sendCipher = modules.crypto.createCipher(securityKey, iv);
+        }
         const response = { otp };
         const responsePayload = await modules.crypto.encryptPK(JSON.stringify(response), this.targetPublicKeyPem);
         await this.sendFrame(MessageType.AUTH_RESPONSE, responsePayload);
@@ -511,8 +533,11 @@ export class RPCPeer {
         this.lastPingReceived = Date.now();
         if (buf.length > 0) {
             this.isRemoteStandby = buf[0] === 1;
-            // If both sides are on standby, close the connection
-            if (this.isStandby && this.isRemoteStandby) {
+            // If both sides are on standby, close the connection —
+            // but only if no streams are actively in progress.
+            if (this.isStandby && this.isRemoteStandby
+                && this.streamControllers.size === 0
+                && this.outgoingStreamReaders.size === 0) {
                 console.log('[RPCPeer] Both sides are on standby, closing connection');
                 this.close();
             }
@@ -535,20 +560,60 @@ export class RPCPeer {
     }
 
     private handleStreamMessage(type: number, buf: Uint8Array) {
-        const dv = new DataView(buf.buffer);
+        const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
         const streamId = dv.getUint32(0, false);
-        const chunk = buf.slice(4);
 
+        // Handle STREAM_CANCEL from remote — stop our outgoing pump
+        if (type === MessageType.STREAM_CANCEL) {
+            const reader = this.outgoingStreamReaders.get(streamId);
+            if (reader) {
+                console.log(`[RPC] Remote cancelled outgoing stream ${streamId}`);
+                reader.cancel().catch(() => { });
+                this.outgoingStreamReaders.delete(streamId);
+            }
+            // Also clean up any incoming controller for this stream
+            const ctrl = this.streamControllers.get(streamId);
+            if (ctrl) {
+                ctrl.close();
+                this.streamControllers.delete(streamId);
+            }
+            return;
+        }
+
+        const chunk = buf.slice(4);
         let ctrl = this.streamControllers.get(streamId);
 
         if (!ctrl) {
-            console.debug('Received stream message for unknown stream', streamId, type);
+            // Send CANCEL back once so the sender stops
+            if (!this.cancelledStreams.has(streamId)) {
+                this.cancelledStreams.add(streamId);
+                console.debug(`[RPC] Unknown stream ${streamId}, sending CANCEL`);
+                this.cancelStream(streamId).catch(() => { });
+            }
             return;
         }
 
         if (type === MessageType.STREAM_CHUNK) {
+            if (DEBUG_BENCHMARKS) {
+                let stats = this.streamRecvStats.get(streamId);
+                if (!stats) {
+                    stats = { bytes: 0, start: Date.now() };
+                    this.streamRecvStats.set(streamId, stats);
+                }
+                stats.bytes += chunk.byteLength;
+            }
             ctrl.enqueue(chunk);
         } else if (type === MessageType.STREAM_END) {
+            if (DEBUG_BENCHMARKS) {
+                const stats = this.streamRecvStats.get(streamId);
+                if (stats && stats.bytes > 1024) {
+                    const elapsed = (Date.now() - stats.start) / 1000;
+                    const sizeMB = (stats.bytes / (1024 * 1024)).toFixed(2);
+                    const speedKBs = (stats.bytes / 1024 / elapsed).toFixed(1);
+                    console.log(`[RPC Stream] Received ${sizeMB} MB in ${elapsed.toFixed(1)}s (${speedKBs} KB/s) stream=${streamId}`);
+                }
+                this.streamRecvStats.delete(streamId);
+            }
             ctrl.close();
             this.streamControllers.delete(streamId);
         }
@@ -561,20 +626,49 @@ export class RPCPeer {
 
     private async sendStream(streamId: number, source: ReadableStream<Uint8Array>) {
         const reader = source.getReader();
+        this.outgoingStreamReaders.set(streamId, reader);
 
         const pump = async () => {
+            let lastYield = Date.now();
+            let totalBytes = 0;
+            const startTime = Date.now();
             try {
+                // Pipeline: kick off the first read before entering the loop
+                let nextRead = reader.read();
+
                 while (true) {
                     if (this.isClosed) {
                         reader.cancel();
                         return;
                     }
-                    const { done, value } = await reader.read();
+                    const { done, value } = await nextRead;
                     if (done) break;
+                    if (DEBUG_BENCHMARKS) totalBytes += value.byteLength;
+
+                    // Start the next read immediately — overlaps I/O with send
+                    nextRead = reader.read();
+
+                    // [streamId (4B) | data]
                     const payload = new Uint8Array(4 + value.byteLength);
                     new DataView(payload.buffer).setUint32(0, streamId, false);
                     payload.set(value, 4);
+
                     await this.sendFrame(MessageType.STREAM_CHUNK, payload);
+
+                    // Periodically yield to let the event loop process
+                    // incoming pings, timers, and other I/O.
+                    const now = Date.now();
+                    if (now - lastYield >= 1000) {
+                        lastYield = now;
+                        await new Promise<void>(resolve => setTimeout(resolve, 0));
+                    }
+                }
+
+                const elapsed = (Date.now() - startTime) / 1000;
+                if (DEBUG_BENCHMARKS && totalBytes > 1024) {
+                    const sizeMB = (totalBytes / (1024 * 1024)).toFixed(2);
+                    const speedKBs = (totalBytes / 1024 / elapsed).toFixed(1);
+                    console.log(`[RPC Stream] Sent ${sizeMB} MB in ${elapsed.toFixed(1)}s (${speedKBs} KB/s) stream=${streamId}`);
                 }
 
                 if (!this.isClosed) {
@@ -587,6 +681,8 @@ export class RPCPeer {
                     console.error('Error in stream pump:', e);
                 }
                 reader.cancel().catch(() => { });
+            } finally {
+                this.outgoingStreamReaders.delete(streamId);
             }
         };
 
@@ -599,26 +695,21 @@ export class RPCPeer {
         await this.sendFrame(MessageType.STREAM_CANCEL, buf);
     }
 
-    private encryptPayload(payload: Uint8Array): Uint8Array {
-        return modules.crypto.encryptBuffer(payload, this.encryptionKey!);
-    }
-
-    private decryptPayload(payload: Uint8Array): Uint8Array {
-        return modules.crypto.decryptBuffer(payload, this.decryptionKey!);
-    }
-
     private async sendFrame(type: MessageType, payload: Uint8Array) {
         if (this.isClosed) {
             console.warn("[RPCPeer] Attempted to send frame on closed connection");
             return; // Silently ignore sends on closed connection
         }
-        // Encrypt payload for non-setup messages when an encryption key is available
-        if (this.encryptionKey && !SETUP_AUTH_TYPES.includes(type)) {
-            payload = this.encryptPayload(payload);
+        // Encrypt payload for non-setup messages using the connection-level cipher.
+        if (this.sendCipher && !SETUP_AUTH_TYPES.includes(type)) {
+            payload = this.sendCipher.update(payload);
         }
         const framed = DataChannelParser.encode(type, 0x00, payload);
         try {
             await this.opts.dataChannel.send(framed);
+            // A successful send proves the data channel is alive.
+            // The underlying transport (ReUDP/TCP) handles dead-peer detection.
+            this.lastPingReceived = Date.now();
         } catch (e) {
             if (!this.isClosed) {
                 console.error('Error sending frame:', e);

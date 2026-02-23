@@ -19,6 +19,7 @@ import androidx.core.content.FileProvider
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.channels.SendChannel
 import java.net.InetAddress
 import io.ktor.network.sockets.*
@@ -305,7 +306,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
           android.util.Log.d("SupermanModule", "TCP connection established: $connectionId")
           val readChannel = socket.openReadChannel()
           val writeChannel = socket.openWriteChannel(autoFlush = true)
-          val writerQueue = Channel<ByteArray>(Channel.UNLIMITED)
+          val writerQueue = Channel<ByteArray>(8)
 
           val writerJob = launch {
             try {
@@ -366,28 +367,26 @@ class SupermanModule : Module(), LifecycleEventObserver {
     }
 
     AsyncFunction("tcpSend") { connectionId: String, data: ByteArray, promise: expo.modules.kotlin.Promise ->
-      try {
-        val connection = tcpConnections[connectionId]
-        if (connection == null) {
-          // Connection not found - it was closed, resolve with false
+      moduleScope.launch {
+        try {
+          val connection = tcpConnections[connectionId]
+          if (connection == null) {
+            promise.resolve(false)
+            return@launch
+          }
+          if (connection.socket.isClosed || connection.writerJob.isCancelled) {
+            tcpConnections.remove(connectionId)
+            promise.resolve(false)
+            return@launch
+          }
+          // Suspending send — blocks when channel is full (backpressure)
+          connection.writerQueue.send(data)
+          promise.resolve(true)
+        } catch (e: kotlinx.coroutines.channels.ClosedSendChannelException) {
           promise.resolve(false)
-          return@AsyncFunction
+        } catch (e: Exception) {
+          promise.reject("TCP_SEND", e.message ?: "Unknown error", e)
         }
-        // Check if connection is still valid
-        if (connection.socket.isClosed || connection.writerJob.isCancelled) {
-          tcpConnections.remove(connectionId)
-          promise.resolve(false)
-          return@AsyncFunction
-        }
-        val result = connection.writerQueue.trySend(data)
-        if (!result.isSuccess) {
-          // Queue closed, connection is dead
-          promise.resolve(false)
-          return@AsyncFunction
-        }
-        promise.resolve(true)
-      } catch (e: Exception) {
-        promise.reject("TCP_SEND", e.message ?: "Unknown error", e)
       }
     }
 
@@ -660,7 +659,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
       try {
         val readChannel = socket.openReadChannel()
         val writeChannel = socket.openWriteChannel(autoFlush = true)
-        val writerQueue = Channel<ByteArray>(Channel.UNLIMITED)
+        val writerQueue = Channel<ByteArray>(8)
 
         val writerJob = launch {
           try {
