@@ -9,7 +9,7 @@ const MAX_RETRANSMITS = 12;
 const MAX_BUFFERED_PACKETS = 1024;
 const INITIAL_RTO = 1200;          // ms — initial RTO before any RTT measurement
 const MIN_RTO = 150;               // ms — floor for adaptive RTO
-const MAX_RTO = 8000;              // ms — ceiling for adaptive RTO
+const MAX_RTO = 4000;              // ms — ceiling for adaptive RTO
 const MAX_RETRANSMITS_PER_SCAN = 64; // cap retransmits per scan to prevent storms
 const MAX_SACK_BLOCKS = 4;         // max SACK blocks in ACK packets
 const MAX_ACK_DELAY_MS = 50;
@@ -507,11 +507,16 @@ export class ReDatagram {
                 // in this ACK range (Karn's algorithm). Measuring all packets
                 // in a burst inflates SRTT because earlier packets in the burst
                 // appear to have longer RTT than they actually do.
-                for (let s = nextAck - 1; s >= this.sendBase; s--) {
-                    const entry = this.sendWindow.get(s);
-                    if (entry && entry.attempts === 1) {
-                        this.updateRTT(now - entry.sentAt);
-                        break; // one sample per ACK
+                // Skip during recovery: fresh packets may sit in the receiver's
+                // reorder buffer waiting for gap retransmits, producing inflated
+                // RTT samples (seconds instead of ms) that contaminate SRTT.
+                if (!this.inRecovery) {
+                    for (let s = nextAck - 1; s >= this.sendBase; s--) {
+                        const entry = this.sendWindow.get(s);
+                        if (entry && entry.attempts === 1) {
+                            this.updateRTT(now - entry.sentAt);
+                            break; // one sample per ACK
+                        }
                     }
                 }
                 // Remove all cached packets from sendBase up to nextAck
@@ -618,10 +623,10 @@ export class ReDatagram {
         if (this.rttMeasured && idleTime > IDLE_THRESHOLD_MS) {
             this.rttMeasured = false;
             this.rto = INITIAL_RTO;
-            // Reset congestion state after idle (RFC 7661 cwnd validation)
-            // so stale ssthresh doesn't limit new transfer bursts
+            // Reset congestion state after idle (RFC 7661 cwnd validation).
+            // Keep ssthresh from prior loss events — it remembers the receiver's
+            // capacity, preventing slow-start overshoot on subsequent bursts.
             this.cwnd = INITIAL_CWND;
-            this.ssthresh = MAX_SEND_WINDOW;
             this.inRecovery = false;
         }
 
