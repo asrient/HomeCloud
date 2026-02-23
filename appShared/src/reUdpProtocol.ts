@@ -9,7 +9,7 @@ const MAX_RETRANSMITS = 12;
 const MAX_BUFFERED_PACKETS = 1024;
 const INITIAL_RTO = 1200;          // ms — initial RTO before any RTT measurement
 const MIN_RTO = 150;               // ms — floor for adaptive RTO
-const MAX_RTO = 4000;              // ms — ceiling for adaptive RTO
+const MAX_RTO = 2000;              // ms — ceiling for adaptive RTO
 const MAX_RETRANSMITS_PER_SCAN = 64; // cap retransmits per scan to prevent storms
 const MAX_SACK_BLOCKS = 4;         // max SACK blocks in ACK packets
 const MAX_ACK_DELAY_MS = 50;
@@ -73,6 +73,7 @@ export class ReDatagram {
     private rttvar = 0;
     private rto = INITIAL_RTO;
     private rttMeasured = false;
+    private minRtt = 0;                     // minimum observed RTT for sample clamping
     private lastDataActivity = Date.now();  // for idle detection
 
     // Congestion control (AIMD)
@@ -539,12 +540,19 @@ export class ReDatagram {
                     // exit → re-entry → repeated halvings when sendSeq barely moves)
                     if (this.inRecovery && seq >= this.recoverySeq && Date.now() >= this.recoveryUntil) {
                         this.inRecovery = false;
-                        // Re-bootstrap RTT estimator: during congestion, even
-                        // first-attempt packets show inflated RTT from kernel
-                        // buffer queuing. Without this reset, the contaminated
-                        // SRTT persists for minutes, keeping RTO at MAX_RTO.
-                        this.rttMeasured = false;
-                        this.rto = INITIAL_RTO;
+                        // Restore SRTT from min_rtt baseline: during recovery,
+                        // RTT measurement is paused and SRTT may be stale/inflated.
+                        // Bootstrap from 2× min_rtt gives a clean starting point
+                        // without waiting for a post-recovery sample (which may
+                        // still be inflated from receiver queue draining).
+                        if (this.minRtt > 0) {
+                            this.srtt = this.minRtt * 2;
+                            this.rttvar = this.minRtt;
+                            this.rto = Math.max(MIN_RTO, Math.min(MAX_RTO, Math.round(this.srtt + 4 * this.rttvar)));
+                        } else {
+                            this.rttMeasured = false;
+                            this.rto = INITIAL_RTO;
+                        }
                     }
                 }
                 // Parse SACK blocks if present (beyond the 5-byte header)
@@ -629,11 +637,28 @@ export class ReDatagram {
         if (this.rttMeasured && idleTime > IDLE_THRESHOLD_MS) {
             this.rttMeasured = false;
             this.rto = INITIAL_RTO;
+            this.minRtt = 0;
             // Reset congestion state after idle (RFC 7661 cwnd validation).
             // Keep ssthresh from prior loss events — it remembers the receiver's
             // capacity, preventing slow-start overshoot on subsequent bursts.
             this.cwnd = INITIAL_CWND;
             this.inRecovery = false;
+        }
+
+        // Track minimum RTT (before clamping) for outlier detection
+        if (this.minRtt === 0 || sample < this.minRtt) {
+            this.minRtt = sample;
+        }
+
+        // Clamp outlier samples: during/after congestion, even first-attempt
+        // packets show inflated RTT from receiver-side queuing (reorder buffer
+        // drains, native bridge contention, event loop delays). Without
+        // clamping, SRTT climbs to 1-4s on LAN and stays there for minutes.
+        // 8× min_rtt gives generous headroom for legitimate path variation;
+        // 400ms floor prevents over-clamping on internet paths before min_rtt
+        // has converged.
+        if (this.minRtt > 0) {
+            sample = Math.min(sample, Math.max(this.minRtt * 8, 400));
         }
 
         if (!this.rttMeasured) {
