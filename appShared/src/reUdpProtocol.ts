@@ -153,7 +153,11 @@ export class ReDatagram {
                     return;
                 }
                 if (retransmitsThisScan >= MAX_RETRANSMITS_PER_SCAN) break; // Rate limit
-                this.onCongestionEvent(); // shrink cwnd on loss
+                // Only trigger congestion event on 2nd+ timer retransmit.
+                // First retransmit is often RTO jitter (especially on WiFi/mobile
+                // where ACK spikes >MIN_RTO are common), not actual congestion.
+                // SACK-driven fast retransmit handles reliable mid-stream loss detection.
+                if (entry.attempts >= 2) this.onCongestionEvent();
                 this.retransmitCount++;
                 entry.attempts++;
                 entry.sentAt = now;
