@@ -136,7 +136,18 @@ export class Datagram_ extends DatagramCompat {
                 return;
             }
 
-            this.socket.once('listening', () => resolve());
+            this.socket.once('listening', () => {
+                try {
+                    // Increase UDP buffer sizes for high-throughput LAN transfers.
+                    // Default OS buffers (especially on Windows ~8KB) cause packet
+                    // loss and retransmit storms under load.
+                    this.socket!.setRecvBufferSize(2 * 1024 * 1024); // 2 MB
+                    this.socket!.setSendBufferSize(2 * 1024 * 1024); // 2 MB
+                } catch (e) {
+                    console.warn('[Datagram] Failed to set socket buffer sizes:', e);
+                }
+                resolve();
+            });
             this.socket.once('error', reject);
 
             if (port !== undefined || address !== undefined) {
