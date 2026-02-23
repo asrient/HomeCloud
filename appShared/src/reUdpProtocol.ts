@@ -77,7 +77,7 @@ export class ReDatagram {
 
     // Congestion control (AIMD)
     private cwnd = INITIAL_CWND;
-    private ssthresh = MAX_SEND_WINDOW;  // start in slow-start mode
+    private ssthresh = 128;              // start below MAX to limit slow-start overshoot
     private recoverySeq = 0;             // highest seq when loss was detected
     private inRecovery = false;          // QUIC-style recovery phase
     private recoveryUntil = 0;           // minimum time before exiting recovery
@@ -539,6 +539,12 @@ export class ReDatagram {
                     // exit → re-entry → repeated halvings when sendSeq barely moves)
                     if (this.inRecovery && seq >= this.recoverySeq && Date.now() >= this.recoveryUntil) {
                         this.inRecovery = false;
+                        // Re-bootstrap RTT estimator: during congestion, even
+                        // first-attempt packets show inflated RTT from kernel
+                        // buffer queuing. Without this reset, the contaminated
+                        // SRTT persists for minutes, keeping RTO at MAX_RTO.
+                        this.rttMeasured = false;
+                        this.rto = INITIAL_RTO;
                     }
                 }
                 // Parse SACK blocks if present (beyond the 5-byte header)
