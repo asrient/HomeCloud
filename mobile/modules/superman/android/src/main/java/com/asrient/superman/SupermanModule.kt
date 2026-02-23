@@ -57,6 +57,9 @@ class SupermanModule : Module(), LifecycleEventObserver {
   private val udpSockets = ConcurrentHashMap<String, UdpSocket>()
   private val socketIdCounter = java.util.concurrent.atomic.AtomicInteger(0)
 
+  // Cached resolved addresses for UDP send fast-path (avoids InetSocketAddress allocation per packet)
+  private val udpAddressCache = ConcurrentHashMap<String, io.ktor.network.sockets.InetSocketAddress>()
+
   // Coroutine scope for connection coroutines
   private val moduleScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val ktorSelector = SelectorManager(Dispatchers.IO)
@@ -476,23 +479,57 @@ class SupermanModule : Module(), LifecycleEventObserver {
           val bindPort = port ?: 0
           val bindAddress = address ?: "0.0.0.0"
           val bound = aSocket(ktorSelector).udp().bind(io.ktor.network.sockets.InetSocketAddress(bindAddress, bindPort))
+
+          // Increase OS receive buffer to 2 MB to prevent kernel drops under burst
+          try {
+            val javaChannel = bound.javaClass.getDeclaredField("channel")
+            javaChannel.isAccessible = true
+            val channel = javaChannel.get(bound) as? java.nio.channels.DatagramChannel
+            channel?.socket()?.receiveBufferSize = 2 * 1024 * 1024
+            channel?.socket()?.sendBufferSize = 2 * 1024 * 1024
+          } catch (_: Exception) {
+            // Best effort — Ktor may not expose the underlying channel on all versions
+          }
+
           val actualAddress = (bound.localAddress as? io.ktor.network.sockets.InetSocketAddress)?.hostname ?: bindAddress
           val actualPort = (bound.localAddress as? io.ktor.network.sockets.InetSocketAddress)?.port ?: bindPort
 
-          val job = launch {
+          // Buffered channel decouples the hot receive loop from JS bridging.
+          // The receive coroutine posts datagrams into this channel without waiting
+          // for sendEvent() to return, matching iOS's "re-arm before dispatch" pattern.
+          val packetChannel = Channel<Triple<ByteArray, String, Int>>(512)
+
+          // Coroutine 1: tight receive loop — never blocks on JS bridge
+          val receiveJob = launch {
             try {
               while (isActive) {
                 val datagram = bound.receive()
                 val packetAddress = datagram.address as? io.ktor.network.sockets.InetSocketAddress
                 val data = datagram.packet.readBytes()
+                val addr = packetAddress?.hostname ?: ""
+                val port = packetAddress?.port ?: 0
+                packetChannel.send(Triple(data, addr, port))  // suspends only if buffer full (backpressure)
+              }
+            } catch (_: kotlinx.coroutines.CancellationException) {
+            } catch (e: Exception) {
+              sendEvent("udpError", mapOf("socketId" to socketId, "error" to (e.message ?: "Unknown error")))
+            } finally {
+              packetChannel.close()
+            }
+          }
+
+          // Coroutine 2: drains buffer and bridges to JS at its own pace
+          val dispatchJob = launch {
+            try {
+              for ((data, addr, port) in packetChannel) {
                 sendEvent("udpMessage", mapOf(
                   "socketId" to socketId,
                   "data" to data,
-                  "address" to (packetAddress?.hostname ?: ""),
-                  "port" to (packetAddress?.port ?: 0)
+                  "address" to addr,
+                  "port" to port
                 ))
               }
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (_: kotlinx.coroutines.CancellationException) {
             } catch (e: Exception) {
               sendEvent("udpError", mapOf("socketId" to socketId, "error" to (e.message ?: "Unknown error")))
             } finally {
@@ -502,7 +539,16 @@ class SupermanModule : Module(), LifecycleEventObserver {
             }
           }
 
-          val udpSocket = UdpSocket(bound, job, socketId)
+          // Combine both jobs so cancelling either tears down the socket
+          val combinedJob = launch {
+            try {
+              receiveJob.join()
+            } finally {
+              dispatchJob.cancel()
+            }
+          }
+
+          val udpSocket = UdpSocket(bound, combinedJob, socketId)
           udpSockets[socketId] = udpSocket
           sendEvent("udpListening", mapOf("socketId" to socketId, "address" to actualAddress, "port" to actualPort))
           promise.resolve(mapOf("address" to actualAddress, "port" to actualPort))
@@ -516,7 +562,10 @@ class SupermanModule : Module(), LifecycleEventObserver {
       moduleScope.launch {
         try {
           val s = udpSockets[socketId]?.socket ?: throw IllegalArgumentException("Socket not found: $socketId")
-          val targetAddress = io.ktor.network.sockets.InetSocketAddress(address, port)
+          val cacheKey = "$address:$port"
+          val targetAddress = udpAddressCache.getOrPut(cacheKey) {
+            io.ktor.network.sockets.InetSocketAddress(address, port)
+          }
           val datagram = Datagram(ByteReadPacket(data), targetAddress)
           s.send(datagram)
           promise.resolve(true)

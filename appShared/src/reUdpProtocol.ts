@@ -320,11 +320,16 @@ export class ReDatagram {
         // Don't react to loss when barely sending — a few RPC responses
         // retransmitting isn't congestion, it's random loss / scheduling jitter
         if (this.sendWindow.size < INITIAL_CWND) return;
-        this.ssthresh = Math.max(Math.floor(this.cwnd * 0.7), MIN_CWND); // β=0.7 (CUBIC-style)
+        this.ssthresh = Math.max(Math.floor(this.cwnd * 0.85), MIN_CWND); // β=0.85 (HTCP-style, gentle)
         this.cwnd = this.ssthresh;
         this.inRecovery = true;
         this.recoverySeq = this.sendSeq - 1; // highest seq sent so far
-        this.recoveryUntil = Date.now() + this.rto; // hold recovery for at least one RTO
+        // Hold recovery for at least 1s to prevent rapid cut cascades.
+        // Without this floor, recovery exits after ~150ms (one RTO), and
+        // residual losses from the same burst trigger another cut immediately.
+        // 1s gives time for the new lower cwnd to stabilize and for the
+        // receiver to drain its buffers.
+        this.recoveryUntil = Date.now() + Math.max(this.rto, 1000);
     }
 
     private async sendPacket(data: Uint8Array) {
