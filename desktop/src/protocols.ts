@@ -19,14 +19,13 @@ export async function handleMediaRequest(request: Request): Promise<GlobalRespon
     if (!stream) {
       throw new Error(`File not found: ${filePath}`);
     }
-    const response: GlobalResponse = new Response(stream, {
+    return new Response(stream as any, {
       headers: {
         'Content-Type': mime || 'application/octet-stream',
         'Content-Disposition': `inline; filename="${name}"`,
-        'Cache-Control': '604800', // 7 days
+        'Cache-Control': 'max-age=3600', // 1 hour
       },
-    });
-    return response;
+    }) as GlobalResponse;
   }
   throw new Error(`Unsupported media request: ${request.url}`);
 }

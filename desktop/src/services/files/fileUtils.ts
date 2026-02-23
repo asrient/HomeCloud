@@ -2,8 +2,6 @@ import { createReadStream } from 'fs';
 import path from 'path';
 import mime from "mime";
 import { FileContent } from 'shared/types';
-import { Readable } from 'stream';
-import { ReadableStream } from 'stream/web';
 
 /**
  * Gets the available drives on the system.
@@ -52,13 +50,46 @@ export function getMimeType(filePath: string, isDirectory = false): string {
 }
 
 export function getFileContent(filePath: string): FileContent {
-    const fileStream: ReadableStream<any> = Readable.toWeb(createReadStream(filePath));
+    // Build a Web ReadableStream manually instead of Readable.toWeb() to avoid
+    // "Controller is already closed" crashes when the RPC connection dies mid-transfer.
+    // Readable.toWeb() doesn't guard against data events arriving after cancel().
+    let nodeStream: ReturnType<typeof createReadStream>;
+    const fileStream = new ReadableStream<Uint8Array>({
+        start(controller) {
+            nodeStream = createReadStream(filePath);
+            let cancelled = false;
+
+            nodeStream.on('data', (chunk: Buffer) => {
+                if (cancelled) return;
+                try {
+                    controller.enqueue(new Uint8Array(chunk));
+                } catch {
+                    // Controller already closed — destroy the source
+                    cancelled = true;
+                    nodeStream.destroy();
+                }
+            });
+            nodeStream.on('end', () => {
+                if (!cancelled) {
+                    try { controller.close(); } catch { /* already closed */ }
+                }
+            });
+            nodeStream.on('error', (err) => {
+                if (!cancelled) {
+                    try { controller.error(err); } catch { /* already closed */ }
+                }
+            });
+        },
+        cancel() {
+            nodeStream?.destroy();
+        }
+    });
+
     const fileName = path.basename(filePath);
     const mimeType = mime.getType(filePath) || "application/octet-stream";
-    // Create a FileContent object
     const fileContentObj: FileContent = {
         name: fileName,
-        stream: fileStream as globalThis.ReadableStream<any>, // Hack to shut up TS as it confuses Node and Web ReadableStream types
+        stream: fileStream as globalThis.ReadableStream<any>,
         mime: mimeType
     };
     return fileContentObj;

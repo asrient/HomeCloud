@@ -358,7 +358,6 @@ export class RPCPeer {
             console.error('No OTP set, cannot authenticate');
             return;
         }
-        console.log('[RPCPeer] Received AUTH_RESPONSE message');
         const payload = await modules.crypto.decryptPK(buf, modules.config.PRIVATE_KEY_PEM);
         const json = new TextDecoder().decode(payload);
         const { otp } = JSON.parse(json);
@@ -380,7 +379,6 @@ export class RPCPeer {
             console.warn('Already authenticated, ignoring AUTH_CHALLENGE');
             return;
         }
-        console.log('[RPCPeer] Received AUTH_CHALLENGE message');
         const payload = await modules.crypto.decryptPK(buf, modules.config.PRIVATE_KEY_PEM);
         const json = new TextDecoder().decode(payload);
         const { otp, securityKey, iv } = JSON.parse(json);
