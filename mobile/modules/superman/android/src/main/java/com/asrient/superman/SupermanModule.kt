@@ -503,7 +503,25 @@ class SupermanModule : Module(), LifecycleEventObserver {
 
           try {
             while (!Thread.currentThread().isInterrupted) {
-              socket.receive(recvPacket)
+              try {
+                socket.receive(recvPacket)
+              } catch (_: java.net.SocketTimeoutException) {
+                // Batch timeout — flush accumulated packets
+                if (batchCount > 0) {
+                  sendEvent("udpMessageBatch", mapOf(
+                    "socketId" to socketId,
+                    "address" to batchAddr,
+                    "port" to batchPort,
+                    "data" to batchData.copyOf(batchOffset),
+                    "lengths" to batchLengths.copyOf(batchCount)
+                  ))
+                  batchOffset = 0
+                  batchCount = 0
+                }
+                socket.soTimeout = 0 // block until next packet
+                continue
+              }
+
               val len = recvPacket.length
               val addr = recvPacket.address?.hostAddress ?: ""
               val pktPort = recvPacket.port
@@ -526,8 +544,8 @@ class SupermanModule : Module(), LifecycleEventObserver {
               batchOffset += len
               batchCount++
 
-              // Flush when full OR no more immediately available data.
-              if (batchCount >= 64 || socket.available() <= 0 || batchAddr != addr || batchPort != pktPort) {
+              // Flush when full OR sender changed.
+              if (batchCount >= 64 || batchAddr != addr || batchPort != pktPort) {
                 sendEvent("udpMessageBatch", mapOf(
                   "socketId" to socketId,
                   "address" to batchAddr,
@@ -537,6 +555,10 @@ class SupermanModule : Module(), LifecycleEventObserver {
                 ))
                 batchOffset = 0
                 batchCount = 0
+                socket.soTimeout = 0 // block until next packet
+              } else {
+                // Short timeout to batch more if available, otherwise flush on next iteration
+                socket.soTimeout = 1
               }
             }
           } catch (_: java.net.SocketException) {
