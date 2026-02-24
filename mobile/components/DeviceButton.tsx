@@ -24,7 +24,7 @@ export function DeviceButton({
   iconSize = 56,
 }: DeviceButtonProps) {
   const textColor = useThemeColor({}, 'text');
-  const tertiaryBackgroundColor = useThemeColor({}, 'backgroundTertiary');
+  const tertiaryBackgroundColor = useThemeColor({}, 'backgroundSecondary');
   const [isPressed, setIsPressed] = useState(false);
 
   const useGlass = isGlassEnabled;

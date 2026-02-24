@@ -115,7 +115,7 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
         return StyleSheet.compose(baseStyle, extraStyle);
     };
 
-    const content = (<UIView themeColor='backgroundSecondary' useGlass style={getBoxStyle()}>
+    const content = (<UIView themeColor='backgroundTertiary' useGlass style={getBoxStyle()}>
         {(config.icon || config.title || config.subtitle) && <View style={{
             alignItems: 'center',
             justifyContent: 'center',
