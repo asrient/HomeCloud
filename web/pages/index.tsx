@@ -1,4 +1,3 @@
-import Image from 'next/image'
 import Head from 'next/head'
 import { PageBar, PageContent } from "@/components/pagePrimatives";
 import { ConnectionType, ThemedIconName } from '@/lib/enums'
@@ -27,6 +26,7 @@ import { DisksGrid } from '@/components/DisksGrid';
 import { getAppName } from '@/lib/utils';
 import { useRouter } from 'next/router';
 import { ActionTypes } from '@/lib/state';
+import { PeerQuickSelect } from '@/components/peerQuickSelect';
 
 const DrivesSection = ({
   fingerprint,
@@ -79,9 +79,9 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
   const { batteryInfo, isLoading: batteryInfoLoading } = useBatteryInfo(isThisDevice ? null : peer.fingerprint);
   const { mediaPlayback, play, pause, previous, next, canControl, isLoading: mediaPlaybackLoading } = useMediaPlayback(isThisDevice ? null : peer.fingerprint);
   return (
-    <div className={cn("py-3 px-4 lg:px-6 xl:px-10 lg:min-h-[12rem] flex flex-col lg:flex-row items-center justify-around lg:justify-between relative border-b lg:border-b-0 border-border/70")}>
-      <div className='flex items-center space-x-4 w-fit px-5 py-8'>
-        <DeviceIcon iconKey={peer.iconKey} size={150} alt="Peer icon" />
+    <div className={cn("py-3 px-4 lg:px-6 xl:px-10 lg:min-h-[8rem] flex flex-col lg:flex-row items-center justify-around lg:justify-between relative")}>
+      <div className='flex items-center space-x-4 w-fit px-5 py-2'>
+        <DeviceIcon iconKey={peer.iconKey} size={120} alt="Peer icon" />
         <div className="flex flex-col text-base">
           <div className={cn("text-foreground", isWin11Theme() ? 'font-light text-lg' : 'font-medium text-md')}>{peer.deviceName || 'Anonymous device'}</div>
           <div className="flex flex-col text-foreground/80 text-sm space-y-2 w-full">
@@ -185,7 +185,7 @@ function ClipboardButton({ deviceFingerprint }: { deviceFingerprint: string | nu
       buttonText='Copy'
       onConfirm={onCopy}
     >
-      <Button variant='ghost' size='sm' disabled={isLoading} onClick={onClipboardClick}>
+      <Button variant='outline' size='sm' disabled={isLoading} onClick={onClipboardClick}>
         {
           isLoading ? <LoadingIcon className='mr-2 h-4 w-4' /> : <Clipboard className='mr-2' size={16} />
         }
@@ -238,7 +238,7 @@ function FilesSendAction({ deviceFingerprint }: { deviceFingerprint: string | nu
   }, []);
 
   return (<>
-    <Button onClick={openFileSelector} variant='ghost' size='sm'>
+    <Button onClick={openFileSelector} variant='outline' size='sm'>
       <FolderClosed className='mr-2' size={16} />Send Files
     </Button>
     <ConfirmModal
@@ -340,7 +340,7 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
   }, [deviceFingerprint]);
 
   return (
-    <div className='p-1 flex flex-row items-center justify-center lg:justify-start space-x-1 border-b border-border/70'>
+    <div className='p-1 mx-2 flex flex-row items-center justify-center lg:justify-start space-x-2'>
       <FilesSendAction deviceFingerprint={deviceFingerprint} />
       <TextModal onDone={onTextSend}
         title='Send Text'
@@ -348,12 +348,12 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
         rows={4}
         placeholder='Type here'
         buttonText='Send'>
-        <Button variant='ghost' size='sm'>
+        <Button variant='outline' size='sm'>
           <Keyboard className='mr-2' size={16} />Send Text
         </Button>
       </TextModal>
       <VolumeModal deviceFingerprint={deviceFingerprint}>
-        <Button variant='ghost' size='sm'>
+        <Button variant='outline' size='sm'>
           <Volume2 className='mr-2' size={16} />Volume
         </Button>
       </VolumeModal>
@@ -434,6 +434,7 @@ export default function Home() {
       <PageBar icon={ThemedIconName.Home} title={getAppName()}>
       </PageBar>
       <PageContent onDrop={onDrop}>
+        <PeerQuickSelect />
         {peer && <PeerInfoHero peer={peer} isThisDevice={selectedFingerprint === null} />}
         <QuickActionsBar deviceFingerprint={selectedFingerprint} />
         <div className='py-5 px-3'>

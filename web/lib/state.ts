@@ -21,6 +21,8 @@ export enum ActionTypes {
     REMOVE_CONNECTION = 'REMOVE_CONNECTION',
     SELECT_DEVICE = 'SELECT_DEVICE',
     SET_DEVICE_INFO = 'SET_DEVICE_INFO',
+    RESET_PEERS = 'RESET_PEERS',
+    REFRESH_PEERS = 'REFRESH_PEERS',
 }
 
 export type AppDispatchType = {
@@ -90,6 +92,17 @@ export function reducer(draft: AppStateType, action: AppDispatchType) {
         }
         case ActionTypes.SET_DEVICE_INFO: {
             draft.deviceInfo = payload;
+            return draft;
+        }
+        case ActionTypes.RESET_PEERS: {
+            draft.peers = [];
+            draft.connections = [];
+            draft.selectedFingerprint = null;
+            return draft;
+        }
+        case ActionTypes.REFRESH_PEERS: {
+            draft.peers = payload.peers || [];
+            draft.connections = payload.connections || [];
             return draft;
         }
         default:

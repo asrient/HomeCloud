@@ -17,6 +17,15 @@ export enum OSType {
     Unknown = "unknown"
 }
 
+export enum DeviceFormType {
+    Desktop = "desktop",
+    Laptop = "laptop",
+    Mobile = "mobile",
+    Tablet = "tablet",
+    Unknown = "unknown",
+    Server = "server"
+}
+
 export enum UITheme {
     Win11 = "win11",
     Macos = "macos",

@@ -1,6 +1,8 @@
 import { useCallback, useRef } from 'react'
 import { SignalNodeRef } from 'shared/signals'
 import { create } from 'zustand'
+import { useAppDispatch } from './useAppState'
+import { ActionTypes } from '@/lib/state'
 
 interface AccountState {
     isLinked: boolean
@@ -33,6 +35,7 @@ export function useAccountState() {
     const { isLinked, accountEmail, serverConnected, accountLinked, accountUnlinked, setServerConnected } = useAccountStore();
     const linkSignalRef = useRef<SignalNodeRef<[boolean], string> | null>(null);
     const connectionSignalRef = useRef<SignalNodeRef<[boolean], string> | null>(null);
+    const dispatch = useAppDispatch();
 
     const setupAccountState = useCallback(() => {
         const localSc = window.modules.getLocalServiceController();
@@ -52,8 +55,13 @@ export function useAccountState() {
             if (linked) {
                 const email = localSc.account.getAccountEmail();
                 accountLinked(email);
+                // Re-fetch peers and connections after linking
+                const peers = localSc.app.getPeers();
+                const connections = localSc.net.getConnectedDevices();
+                dispatch(ActionTypes.REFRESH_PEERS, { peers, connections });
             } else {
                 accountUnlinked();
+                dispatch(ActionTypes.RESET_PEERS, null);
             }
         });
 
@@ -61,7 +69,7 @@ export function useAccountState() {
             setServerConnected(connected);
         });
 
-    }, [accountLinked, accountUnlinked, setServerConnected]);
+    }, [accountLinked, accountUnlinked, dispatch, setServerConnected]);
 
     const clearAccountState = useCallback(() => {
         const localSc = window.modules.getLocalServiceController();
