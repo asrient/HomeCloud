@@ -73,6 +73,7 @@ const MAPPING = {
   'photo.stack': 'collections',
   'arrow.left.arrow.right': 'swap-horiz',
   'lock.shield': 'lock',
+  'text.bubble.fill': 'chat',
 } as IconMapping;
 
 /**
