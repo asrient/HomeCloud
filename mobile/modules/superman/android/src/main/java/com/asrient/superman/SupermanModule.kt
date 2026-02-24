@@ -331,7 +331,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
 
           val readerJob = launch {
             try {
-              val buffer = ByteArray(4096)
+              val buffer = ByteArray(65536)
               while (isActive && !readChannel.isClosedForRead) {
                 val read = readChannel.readAvailable(buffer, 0, buffer.size)
                 if (read > 0) {
@@ -757,7 +757,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
 
         val readerJob = launch {
           try {
-            val buffer = ByteArray(4096)
+            val buffer = ByteArray(65536)
             while (isActive && !readChannel.isClosedForRead) {
               val read = readChannel.readAvailable(buffer, 0, buffer.size)
               if (read > 0) {

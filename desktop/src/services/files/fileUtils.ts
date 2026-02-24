@@ -56,7 +56,7 @@ export function getFileContent(filePath: string): FileContent {
     let nodeStream: ReturnType<typeof createReadStream>;
     const fileStream = new ReadableStream<Uint8Array>({
         start(controller) {
-            nodeStream = createReadStream(filePath);
+            nodeStream = createReadStream(filePath, { highWaterMark: 256 * 1024 });
             let cancelled = false;
 
             nodeStream.on('data', (chunk: Buffer) => {
