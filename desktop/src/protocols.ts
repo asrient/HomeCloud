@@ -1,7 +1,7 @@
 import { protocol, net } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
-import { getServiceController } from 'shared/utils';
+import { getExistingServiceController } from 'shared/utils';
 
 export async function handleMediaRequest(request: Request): Promise<GlobalResponse> {
   const urlObj = new URL(request.url);
@@ -14,7 +14,7 @@ export async function handleMediaRequest(request: Request): Promise<GlobalRespon
     const filePath = urlObj.searchParams.get('path') || '';
     console.log('Handling media preview request:', { fingerprint, path: filePath });
     try {
-      const serviceController = await getServiceController(fingerprint);
+      const serviceController = await getExistingServiceController(fingerprint);
       // Desktop uses web views which don't support HEIC, so always convert
       const { name, mime, stream } = await serviceController.files.getPreview(filePath, { supportsHeic: false });
       if (!stream) {
