@@ -1,4 +1,5 @@
 import { setModules, ModulesType } from "shared/modules";
+import { getExistingServiceController } from "shared/utils";
 import CryptoImpl from "./cryptoImpl";
 import MobileServiceController from "./serviceController";
 import { MobileConfigType, MobilePlatform, UITheme, OSType } from "./types";
@@ -116,6 +117,7 @@ export async function initModules() {
         getRemoteServiceController: async (fingerprint: string) => {
             return MobileServiceController.getRemoteInstance(fingerprint);
         },
+        getExistingServiceController,
     };
     setModules(modules, global);
     const serviceController = MobileServiceController.getLocalInstance<MobileServiceController>();

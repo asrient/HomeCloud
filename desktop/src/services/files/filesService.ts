@@ -77,7 +77,13 @@ export default class DesktopFilesService extends FilesService {
         counter++;
         return checkAndWrite();
       } catch (e) {
-        await fs.writeFile(filePath, stream);
+        try {
+          await fs.writeFile(filePath, stream);
+        } catch (writeErr) {
+          // Clean up partial file on stream error (e.g. connection lost)
+          try { await fs.unlink(filePath); } catch { /* ignore */ }
+          throw writeErr;
+        }
       }
     }
     await checkAndWrite();

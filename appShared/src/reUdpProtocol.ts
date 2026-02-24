@@ -1,11 +1,11 @@
 import { DatagramCompat } from "./compat";
+import { isLocalIp } from "./utils";
 
 const DEBUG_BENCHMARKS = true;
 
 const HEADER_SIZE = 5; // 1 byte type + 4 bytes seq
 const MAX_PACKET_SIZE = 1300;
 const ACK_BATCH_SIZE = 64;
-const MAX_RETRANSMITS = 12;
 const MAX_BUFFERED_PACKETS = 1024;
 const INITIAL_RTO = 1200;          // ms — initial RTO before any RTT measurement
 const MIN_RTO = 150;               // ms — floor for adaptive RTO
@@ -18,10 +18,23 @@ const PING_INTERVAL_MS = 3 * 1000;
 const MAX_PING_DELAY_MS = 10 * 1000;
 const MAX_SEND_WINDOW = 1024; // max unACKed packets in flight
 const RETRANSMIT_SCAN_INTERVAL = 200; // ms - how often to scan for timed-out packets
+const HELLO_MAX_RETRIES = 10; // max HELLO retransmits before giving up (fixed, should not be profile-dependent)
 
 // Congestion control (AIMD with QUIC-style recovery)
 const INITIAL_CWND = 10;        // initial congestion window (packets)
 const MIN_CWND = 2;             // minimum congestion window
+
+const INITIAL_SSTHRESH = 128;   // initial slow-start threshold
+
+// Network-profile–dependent parameters.
+// LAN: gentle backoff (β=0.85) — bandwidth is abundant, losses are transient.
+// WAN: standard backoff (β=0.7, CUBIC-style) — avoid buffer-bloat cascading.
+interface NetworkProfile {
+    beta: number;            // multiplicative decrease factor on loss
+    maxRetransmits: number;  // per-packet retransmit limit before closing
+}
+const LAN_PROFILE: NetworkProfile = { beta: 0.85, maxRetransmits: 12 };
+const WAN_PROFILE: NetworkProfile = { beta: 0.7, maxRetransmits: 16 };
 
 // Flags
 const FLAG_DATA = 0;
@@ -77,8 +90,9 @@ export class ReDatagram {
     private lastDataActivity = Date.now();  // for idle detection
 
     // Congestion control (AIMD)
+    private profile: NetworkProfile;
     private cwnd = INITIAL_CWND;
-    private ssthresh = 128;              // start below MAX to limit slow-start overshoot
+    private ssthresh: number;
     private recoverySeq = 0;             // highest seq when loss was detected
     private inRecovery = false;          // QUIC-style recovery phase
     private recoveryUntil = 0;           // minimum time before exiting recovery
@@ -91,6 +105,12 @@ export class ReDatagram {
 
     constructor(socket: DatagramCompat, peerAddresses: string[], port: number, onReady?: (isSuccess: boolean) => void) {
         this.socket = socket;
+
+        // Detect LAN vs internet based on peer IP — tune congestion control accordingly.
+        const isLan = peerAddresses.some(addr => isLocalIp(addr));
+        this.profile = isLan ? LAN_PROFILE : WAN_PROFILE;
+        this.ssthresh = INITIAL_SSTHRESH;
+        console.log(`[ReUDP] Network profile: ${isLan ? 'LAN' : 'WAN'} (β=${this.profile.beta}, maxRetransmits=${this.profile.maxRetransmits})`);
 
         this.onReady = onReady;
         this.remote = { address: peerAddresses[0], port };
@@ -147,7 +167,7 @@ export class ReDatagram {
                 // Per-packet exponential backoff: rto × 2^(attempts-1)
                 const effectiveRto = Math.min(this.rto * Math.pow(2, Math.max(0, entry.attempts - 1)), MAX_RTO);
                 if (now - entry.sentAt < effectiveRto) continue;
-                if (entry.attempts >= MAX_RETRANSMITS) {
+                if (entry.attempts >= this.profile.maxRetransmits) {
                     console.error(`[ReUDP] Max retransmits reached for seq=${seq}, closing`);
                     this.sendWindow.delete(seq);
                     this.close();
@@ -237,7 +257,7 @@ export class ReDatagram {
 
     private async sendHello(attempt = 1) {
         if (this.isReady || this.isClosing) return;
-        if (attempt > MAX_RETRANSMITS) {
+        if (attempt > HELLO_MAX_RETRIES) {
             this.onClose?.(new Error('Failed to establish connection: no HELLO_ACK received'));
             this.socket.close();
             return;
@@ -320,7 +340,7 @@ export class ReDatagram {
         // Don't react to loss when barely sending — a few RPC responses
         // retransmitting isn't congestion, it's random loss / scheduling jitter
         if (this.sendWindow.size < INITIAL_CWND) return;
-        this.ssthresh = Math.max(Math.floor(this.cwnd * 0.85), MIN_CWND); // β=0.85 (HTCP-style, gentle)
+        this.ssthresh = Math.max(Math.floor(this.cwnd * this.profile.beta), MIN_CWND);
         this.cwnd = this.ssthresh;
         this.inRecovery = true;
         this.recoverySeq = this.sendSeq - 1; // highest seq sent so far
@@ -581,7 +601,7 @@ export class ReDatagram {
                         for (let s = this.sendBase; s < firstSackStart && fastRetx < MAX_RETRANSMITS_PER_SCAN; s++) {
                             const gapEntry = this.sendWindow.get(s);
                             if (gapEntry && !gapEntry.sacked && now - gapEntry.sentAt >= MIN_RTO) {
-                                if (gapEntry.attempts >= MAX_RETRANSMITS) {
+                                if (gapEntry.attempts >= this.profile.maxRetransmits) {
                                     console.error(`[ReUDP] Max retransmits (fast) for seq=${s}, closing`);
                                     this.close();
                                     return;

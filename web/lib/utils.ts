@@ -85,6 +85,17 @@ export async function getServiceController(fingerprint: string | null) {
   return window.modules.getRemoteServiceController(fingerprint);
 }
 
+/**
+ * Get a service controller only if the device is already connected.
+ * Fails fast without triggering a reconnection attempt.
+ */
+export async function getExistingServiceController(fingerprint: string | null) {
+  if (typeof window === 'undefined') {
+    throw new Error('getExistingServiceController can only be called in browser environment');
+  }
+  return window.modules.getExistingServiceController(fingerprint);
+}
+
 // https://css-tricks.com/converting-color-spaces-in-javascript/
 export function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   // Make r, g, and b fractions of 1

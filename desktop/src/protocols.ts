@@ -13,21 +13,26 @@ export async function handleMediaRequest(request: Request): Promise<GlobalRespon
     }
     const filePath = urlObj.searchParams.get('path') || '';
     console.log('Handling media preview request:', { fingerprint, path: filePath });
-    const serviceController = await getServiceController(fingerprint);
-    // Desktop uses web views which don't support HEIC, so always convert
-    const { name, mime, stream } = await serviceController.files.getPreview(filePath, { supportsHeic: false });
-    if (!stream) {
-      throw new Error(`File not found: ${filePath}`);
+    try {
+      const serviceController = await getServiceController(fingerprint);
+      // Desktop uses web views which don't support HEIC, so always convert
+      const { name, mime, stream } = await serviceController.files.getPreview(filePath, { supportsHeic: false });
+      if (!stream) {
+        return new Response('File not found', { status: 404 }) as GlobalResponse;
+      }
+      return new Response(stream as any, {
+        headers: {
+          'Content-Type': mime || 'application/octet-stream',
+          'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(name)}`,
+          'Cache-Control': 'max-age=3600', // 1 hour
+        },
+      }) as GlobalResponse;
+    } catch (e: any) {
+      console.error('Media preview error:', e?.message);
+      return new Response(e?.message || 'Service unavailable', { status: 410 }) as GlobalResponse;
     }
-    return new Response(stream as any, {
-      headers: {
-        'Content-Type': mime || 'application/octet-stream',
-        'Content-Disposition': `inline; filename="${name}"`,
-        'Cache-Control': 'max-age=3600', // 1 hour
-      },
-    }) as GlobalResponse;
   }
-  throw new Error(`Unsupported media request: ${request.url}`);
+  return new Response('Not found', { status: 404 }) as GlobalResponse;
 }
 
 export function handleProtocols() {

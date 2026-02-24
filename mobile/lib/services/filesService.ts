@@ -18,18 +18,24 @@ function remoteFileId(remoteFingerprint: string, remotePath: string) {
 
 /**
  * Writes a ReadableStream to a file using FileHandle for fast synchronous writes.
+ * @param deleteOnError If true, deletes the file when the stream errors (e.g. connection lost).
  */
-async function writeStreamToFile(stream: ReadableStream<Uint8Array>, file: File): Promise<void> {
+async function writeStreamToFile(stream: ReadableStream<Uint8Array>, file: File, deleteOnError = false): Promise<void> {
   const reader = stream.getReader();
   const handle = file.open();
+  let success = false;
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       handle.writeBytes(value);
     }
+    success = true;
   } finally {
     handle.close();
+    if (!success && deleteOnError) {
+      try { if (file.exists) file.delete(); } catch { /* ignore */ }
+    }
   }
 }
 
@@ -56,7 +62,7 @@ export default class MobileFilesService extends FilesService {
       intermediates: true,
       overwrite: true
     });
-    await writeStreamToFile(stream, file);
+    await writeStreamToFile(stream, file, true);
     localSc.system.openFile(file.uri);
   }
 
@@ -128,7 +134,7 @@ export default class MobileFilesService extends FilesService {
       const previewFile = new File(Paths.join(entryDir.uri, filename));
       previewFile.create({ overwrite: true });
       const t1 = Date.now();
-      await writeStreamToFile(remoteItem.stream, previewFile);
+      await writeStreamToFile(remoteItem.stream, previewFile, true);
       console.log(`[Preview] writeStreamToFile completed in ${Date.now() - t1}ms`);
       this.remoteFileCache.log(id, previewFile.uri);
       cachedPath = previewFile.uri;

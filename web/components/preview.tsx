@@ -55,6 +55,16 @@ function PreviewContent({ item }: { item: FileRemoteItem }) {
     const assetUrl = useMemo<string>(() => getFileUrl(item.deviceFingerprint, item.path), [item]);
     const contentType = useMemo(() => item.mimeType?.split('/')[0], [item]);
     const unsupportedMessage = useMemo(() => getUnsupportedFormatMessage(item.mimeType || '', item.path || ''), [item.mimeType, item.path]);
+    const [loadError, setLoadError] = useState(false);
+    const onError = useCallback(() => setLoadError(true), []);
+
+    if (loadError) {
+        return (
+            <div className='w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground'>
+                <span className='text-center text-sm max-w-xs'>Failed to load preview.</span>
+            </div>
+        )
+    }
 
     if (unsupportedMessage) {
         return (
@@ -66,18 +76,18 @@ function PreviewContent({ item }: { item: FileRemoteItem }) {
 
     if (assetUrl && contentType === 'image') {
         return (
-            <Image src={assetUrl} height={0} width={0} className='w-auto h-auto object-contain object-center' alt='Preview image' />)
+            <Image src={assetUrl} height={0} width={0} onError={onError} className='w-auto h-auto object-contain object-center' alt='Preview image' />)
     }
 
     if (assetUrl && contentType === 'video') {
         return (
-            <video src={assetUrl} controls className='w-auto h-auto object-contain object-center' />
+            <video src={assetUrl} controls onError={onError} className='w-auto h-auto object-contain object-center' />
         )
     }
 
     if (assetUrl && contentType === 'audio') {
         return (<div className='w-full h-full flex justify-center items-center'>
-            <audio src={assetUrl} controls className='w-[35rem] max-w-full' />
+            <audio src={assetUrl} controls onError={onError} className='w-[35rem] max-w-full' />
         </div>)
     }
 

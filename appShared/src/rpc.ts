@@ -221,9 +221,17 @@ export class RPCPeer {
         // the data channel, so in-flight sends don't hit a closed socket.
         this.outgoingStreamReaders.forEach(reader => reader.cancel().catch(() => { }));
         this.outgoingStreamReaders.clear();
-        this.streamControllers.forEach(ctrl => ctrl.close());
+        // Error (not close) incoming streams so consumers know data is incomplete.
+        // ctrl.close() would signal normal end-of-stream, causing truncated files.
+        const streamError = new Error('Connection closed');
+        this.streamControllers.forEach(ctrl => {
+            try { ctrl.error(streamError); } catch { /* already closed */ }
+        });
         this.streamControllers.clear();
         this.cancelledStreams.clear();
+        // Reject all pending RPC calls so callers don't hang forever.
+        const pendingError = new Error('Connection closed');
+        this.pending.forEach(({ reject }) => reject(pendingError));
         this.pending.clear();
         this.stopPing();
         if (!isDisconnected) {

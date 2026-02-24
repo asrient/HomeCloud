@@ -1,4 +1,4 @@
-import { getServiceController } from "@/lib/utils";
+import { getExistingServiceController, getServiceController } from "@/lib/utils";
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import ServiceController from "shared/controller";
 import { useAppState } from "./useAppState";
@@ -67,6 +67,7 @@ export const useResource = ({
         } finally {
             if (shouldAbort()) {
                 // Device fingerprint changed during async operation
+                isLoadingRef.current = false;
                 return;
             }
             isLoadingRef.current = false;
@@ -93,7 +94,12 @@ export const useResource = ({
 
         const init = async () => {
             console.log('Initializing resource for device:', _fingerprint);
-            const serviceController = await getServiceController(_fingerprint);
+            // Use getExistingServiceController when we already have a cached
+            // service controller (reconnection after disconnect) to avoid
+            // if the existing sc is no longer valid it will throw here.
+            const serviceController = serviceControllerRef.current
+                ? await getExistingServiceController(_fingerprint)
+                : await getServiceController(_fingerprint);
             if (shouldAbort()) {
                 // Device fingerprint changed during async operation
                 console.log('Device fingerprint changed during init, aborting load');
@@ -120,6 +126,7 @@ export const useResource = ({
         }).finally(() => {
             if (shouldAbort()) {
                 console.log('Device fingerprint changed during init, aborting load');
+                isLoadingRef.current = false;
                 return;
             }
             isLoadingRef.current = false;

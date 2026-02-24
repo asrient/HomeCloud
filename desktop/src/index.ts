@@ -4,6 +4,7 @@ import env from './env';
 import { handleProtocols } from './protocols';
 import { DesktopConfigType } from './types';
 import { setModules, ModulesType } from 'shared/modules';
+import { getExistingServiceController } from 'shared/utils';
 import CryptoImpl from './cryptoImpl';
 import DesktopServiceController from './services/desktopServiceController';
 import fs from 'node:fs';
@@ -192,6 +193,7 @@ async function initModules() {
     getRemoteServiceController: async (fingerprint: string) => {
       return DesktopServiceController.getRemoteInstance(fingerprint);
     },
+    getExistingServiceController,
   };
   setModules(modules, global);
   const serviceController = DesktopServiceController.getLocalInstance<DesktopServiceController>();

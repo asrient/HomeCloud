@@ -26,6 +26,10 @@ export async function getServiceController(fingerprint: string | null) {
   return modules.getRemoteServiceController(fingerprint);
 }
 
+export async function getExistingServiceController(fingerprint: string | null) {
+  return modules.getExistingServiceController(fingerprint);
+}
+
 export function getLocalServiceController() {
   return MobileServiceController.getLocalInstance<MobileServiceController>();
 }

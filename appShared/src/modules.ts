@@ -10,6 +10,7 @@ export type ModulesType = {
     ConfigStorage: typeof ConfigStorage;
     getLocalServiceController: () => ServiceController;
     getRemoteServiceController: (fingerprint: string) => Promise<ServiceController>;
+    getExistingServiceController: (fingerprint: string | null) => Promise<ServiceController>;
 }
 
 export function setModules(mod: ModulesType, globalObject: any) {

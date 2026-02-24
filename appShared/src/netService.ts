@@ -73,6 +73,7 @@ export class NetService extends Service {
 
     private autoConnectFingerprints: Map<string, Set<string>> = new Map();
     private autoConnectCooldowns: Map<string, number> = new Map();
+    private reconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
     private static AUTO_CONNECT_COOLDOWN_MS = 2000;
 
     public addAutoConnectFingerprint(fingerprint: string, key?: string) {
@@ -531,6 +532,11 @@ export class NetService extends Service {
                         reject(new Error(`Connection closed for ${fingerprint} on ${type}`));
                         isResolved = true;
                     }
+
+                    // Try to reconnect if auto-connect is enabled
+                    if (fingerprint && isprimaryLine) {
+                        this.scheduleReconnect(fingerprint);
+                    }
                 },
 
                 onReady: (rpc) => {
@@ -563,6 +569,9 @@ export class NetService extends Service {
                     // Set the new connection as primary
                     this.connections.set(fingerprint, connRec);
 
+                    // Cancel any pending reconnect timer
+                    this.cancelReconnect(fingerprint);
+
                     // If there is a connection lock, resolve it
                     const lockSignal = this.connectionLock.get(fingerprint);
                     if (lockSignal) {
@@ -577,6 +586,43 @@ export class NetService extends Service {
                 }
             });
         });
+    }
+
+    private static RECONNECT_MAX_ATTEMPTS = 3;
+    private static RECONNECT_BASE_DELAY_MS = 2000;
+
+    private cancelReconnect(fingerprint: string) {
+        const timer = this.reconnectTimers.get(fingerprint);
+        if (timer) {
+            clearTimeout(timer);
+            this.reconnectTimers.delete(fingerprint);
+        }
+    }
+
+    private scheduleReconnect(fingerprint: string, attempt: number = 0) {
+        if (!this.autoConnectFingerprints.has(fingerprint) || !this.isServiceRunning()) return;
+        if (attempt >= NetService.RECONNECT_MAX_ATTEMPTS) {
+            console.log(`[NetService] Reconnect attempts exhausted for ${fingerprint}, relying on auto-connect.`);
+            return;
+        }
+        // Cancel any existing timer for this fingerprint
+        this.cancelReconnect(fingerprint);
+        const delay = NetService.RECONNECT_BASE_DELAY_MS * Math.pow(2, attempt); // 2s, 4s, 8s
+        console.log(`[NetService] Scheduling reconnect for ${fingerprint} in ${delay}ms (attempt ${attempt + 1}/${NetService.RECONNECT_MAX_ATTEMPTS})`);
+        const timer = setTimeout(() => {
+            this.reconnectTimers.delete(fingerprint);
+            if (!this.isServiceRunning()) return;
+            if (this.connections.has(fingerprint)) return; // already reconnected
+            if (!this.autoConnectFingerprints.has(fingerprint)) return; // auto-connect removed
+            console.log(`[NetService] Attempting reconnect for ${fingerprint} (attempt ${attempt + 1})`);
+            this.getRemoteServiceController(fingerprint).then(() => {
+                console.log(`[NetService] Reconnect successful for ${fingerprint}`);
+            }).catch((err) => {
+                console.warn(`[NetService] Reconnect failed for ${fingerprint}:`, err?.message);
+                this.scheduleReconnect(fingerprint, attempt + 1);
+            });
+        }, delay);
+        this.reconnectTimers.set(fingerprint, timer);
     }
 
     async requestConnectLocal(fingerprint: string): Promise<void> {
