@@ -14,7 +14,7 @@ function printDeviceInfo(info: DeviceInfo | null) {
   return `${info.os} ${info.osFlavour} • ${info.formFactor}`;
 }
 
-function DeviceInfoSection({ peerInfo, size = 80 }: { peerInfo: PeerInfo | null; size?: number }) {
+function DeviceInfoSection({ peerInfo, size = 80, isWide = false }: { peerInfo: PeerInfo | null; size?: number; isWide?: boolean }) {
   const [localPeerInfo, setLocalPeerInfo] = useState<PeerInfo | null>(null);
 
   useEffect(() => {
@@ -28,12 +28,14 @@ function DeviceInfoSection({ peerInfo, size = 80 }: { peerInfo: PeerInfo | null;
   return (
     <>
       <DeviceIcon size={size} iconKey={info?.iconKey || null} />
-      <UIText style={{ marginTop: 6, textAlign: 'center' }} size="lg" color="accentText" font="medium">
-        {info?.deviceName || modules.config.DEVICE_NAME}
-      </UIText>
-      <UIText style={{ textAlign: 'center' }} size="sm" color="textSecondary" font="medium">
-        {printDeviceInfo(info?.deviceInfo || null)}
-      </UIText>
+      <View style={{ alignItems: isWide ? 'flex-start' : 'center' }}>
+        <UIText style={{ marginTop: isWide ? 0 : 6, textAlign: isWide ? 'left' : 'center' }} size="lg" color="accentText" font="medium">
+          {info?.deviceName || modules.config.DEVICE_NAME}
+        </UIText>
+        <UIText style={{ textAlign: isWide ? 'left' : 'center' }} size="sm" color="textSecondary" font="medium">
+          {printDeviceInfo(info?.deviceInfo || null)}
+        </UIText>
+      </View>
     </>
   );
 }
@@ -76,31 +78,20 @@ export default function DeviceSheetScreen() {
       automaticallyAdjustKeyboardInsets
     >
       <View style={styles.container}>
-        {isWide ? (
-          <View style={styles.landscapeGrid}>
-            <View style={styles.landscapeDeviceSection}>
-              <DeviceInfoSection peerInfo={peerInfo} />
-            </View>
-            <View style={styles.landscapeActionsSection}>
-              <DeviceQuickActions
-                peerInfo={peerInfo}
-                fingerprint={deviceFingerprint}
-                onNavigate={handleNavigate}
-              />
-            </View>
-          </View>
-        ) : (
-          <>
-            <View style={{ alignItems: 'center', justifyContent: 'center', padding: 10 }}>
-              <DeviceInfoSection peerInfo={peerInfo} />
-            </View>
-            <DeviceQuickActions
-              peerInfo={peerInfo}
-              fingerprint={deviceFingerprint}
-              onNavigate={handleNavigate}
-            />
-          </>
-        )}
+        <View style={{
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 10,
+          flexDirection: isWide ? 'row' : 'column',
+          gap: isWide ? 16 : 0,
+        }}>
+          <DeviceInfoSection peerInfo={peerInfo} isWide={isWide} />
+        </View>
+        <DeviceQuickActions
+          peerInfo={peerInfo}
+          fingerprint={deviceFingerprint}
+          onNavigate={handleNavigate}
+        />
       </View>
     </ScrollView>
   );
@@ -109,21 +100,5 @@ export default function DeviceSheetScreen() {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 6,
-  },
-  landscapeGrid: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  landscapeDeviceSection: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  landscapeActionsSection: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

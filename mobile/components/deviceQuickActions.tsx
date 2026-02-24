@@ -267,7 +267,7 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
     }, [deviceFingerprint, sendAssets]);
 
     return <>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, maxWidth: 500, alignSelf: 'center', width: '100%' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <UIIcon
                     name={!deviceFingerprint ? 'personalhotspot' : deviceConnection ? (deviceConnection.connectionType === ConnectionType.LOCAL ? 'personalhotspot' : 'network') : 'personalhotspot.slash'}

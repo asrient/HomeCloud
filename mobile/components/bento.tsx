@@ -7,7 +7,7 @@ import { UIContextMenu, UIContextMenuAction } from "./ui/UIContextMenu";
 import { useState, useRef, useCallback } from "react";
 
 
-const HEIGHT_UNIT = 90;
+const HEIGHT_UNIT = 80;
 
 export type BentoBoxType = 'half' | 'full' | 'small';
 
@@ -106,7 +106,8 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
         if (config.isCircular && config.type === 'small') {
             extraStyle.borderRadius = 1000; // Large value for circular shape
             extraStyle.aspectRatio = 1; // Keep it square
-            extraStyle.height = 'auto'; // Let height be determined by width
+            extraStyle.height = HEIGHT_UNIT;
+            extraStyle.alignSelf = 'center';
         }
         if (config.contentHeight) {
             extraStyle.height = config.contentHeight;
