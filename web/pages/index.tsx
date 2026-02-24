@@ -185,7 +185,7 @@ function ClipboardButton({ deviceFingerprint }: { deviceFingerprint: string | nu
       buttonText='Copy'
       onConfirm={onCopy}
     >
-      <Button variant='outline' size='sm' disabled={isLoading} onClick={onClipboardClick}>
+      <Button variant='secondary' size='sm' disabled={isLoading} onClick={onClipboardClick}>
         {
           isLoading ? <LoadingIcon className='mr-2 h-4 w-4' /> : <Clipboard className='mr-2' size={16} />
         }
@@ -238,7 +238,7 @@ function FilesSendAction({ deviceFingerprint }: { deviceFingerprint: string | nu
   }, []);
 
   return (<>
-    <Button onClick={openFileSelector} variant='outline' size='sm'>
+    <Button onClick={openFileSelector} variant='secondary' size='sm'>
       <FolderClosed className='mr-2' size={16} />Send Files
     </Button>
     <ConfirmModal
@@ -348,12 +348,12 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
         rows={4}
         placeholder='Type here'
         buttonText='Send'>
-        <Button variant='outline' size='sm'>
+        <Button variant='secondary' size='sm'>
           <Keyboard className='mr-2' size={16} />Send Text
         </Button>
       </TextModal>
       <VolumeModal deviceFingerprint={deviceFingerprint}>
-        <Button variant='outline' size='sm'>
+        <Button variant='secondary' size='sm'>
           <Volume2 className='mr-2' size={16} />Volume
         </Button>
       </VolumeModal>
