@@ -94,11 +94,10 @@ function DiscoverableSection() {
   );
 }
 
-function ThisDeviceCard() {
+function ThisDeviceCard({ onPress }: { onPress: () => void }) {
   const [deviceName, setDeviceName] = useState<string>('This Device');
   const [localPeerInfo, setLocalPeerInfo] = useState<PeerInfo | null>(null);
   const { deviceInfo } = useAppState();
-  const router = useRouter();
 
   useEffect(() => {
     modules.getLocalServiceController().app.peerInfo().then((info) => {
@@ -114,7 +113,7 @@ function ThisDeviceCard() {
   return (
     <View style={styles.section}>
       <UIText type="subtitle" style={styles.sectionTitle}>This Device</UIText>
-      <Pressable onPress={() => router.navigate('/device/local' as any)}>
+      <Pressable onPress={onPress}>
         <UIView themeColor="backgroundSecondary" useGlass style={styles.thisDeviceCard}>
           <DeviceIcon size={50} iconKey={localPeerInfo?.iconKey || null} />
           <View style={{ marginLeft: 12, flex: 1 }}>
@@ -172,7 +171,7 @@ export default function HomeScreen() {
       <View style={styles.container}>
 
         {/* This Device */}
-        <ThisDeviceCard />
+        <ThisDeviceCard onPress={() => router.navigate({ pathname: '/device-sheet', params: { fingerprint: 'local' } } as any)} />
 
         {/* My Devices */}
         {peers.length > 0 && (
@@ -184,7 +183,7 @@ export default function HomeScreen() {
                   <DeviceButton
                     iconKey={peer.iconKey}
                     title={peer.deviceName}
-                    onPress={() => router.navigate(`/device/${peer.fingerprint}` as any)}
+                    onPress={() => router.navigate({ pathname: '/device-sheet', params: { fingerprint: peer.fingerprint } } as any)}
                   />
                 </View>
               ))}

@@ -1,3 +1,4 @@
+/* eslint-disable import/first */
 import { install as installCrypto } from 'react-native-quick-crypto';
 installCrypto();
 
@@ -88,6 +89,13 @@ export default function RootLayout() {
           <Stack.Protected guard={isOnboarded}>
             <Stack.Screen name="index" options={{ title: 'Home' }} />
             <Stack.Screen name="device" options={{ headerShown: false }} />
+            <Stack.Screen name="device-sheet" options={{
+              headerShown: false,
+              presentation: 'formSheet',
+              sheetAllowedDetents: [0.60, 1.0],
+              sheetGrabberVisible: true,
+              sheetExpandsWhenScrolledToEdge: true,
+            }} />
           </Stack.Protected>
           <Stack.Protected guard={!isOnboarded}>
             <Stack.Screen name="welcome" options={{ headerShown: false }} />

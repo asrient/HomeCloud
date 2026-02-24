@@ -191,7 +191,9 @@ export default function FolderScreen() {
     setItemsToMove(null);
     const filePaths = items.map(i => i.path);
     await withLoading(async () => {
-      const serviceController = await getServiceController(destFingerprint);
+      // Use the source device's service controller so this.fs resolves source paths
+      const sourceFingerprint = fingerprint;
+      const serviceController = await getServiceController(sourceFingerprint);
       await serviceController.files.move(destFingerprint, destPath, filePaths, deleteSource);
       if (deleteSource) {
         setRemoteItems((prevItems) =>
@@ -199,7 +201,7 @@ export default function FolderScreen() {
         );
       }
     }, { title: `Moving ${items.length} item(s)...`, errorTitle: 'Error' });
-  }, [setRemoteItems, itemsToMove, withLoading]);
+  }, [fingerprint, setRemoteItems, itemsToMove, withLoading]);
 
   const shareItem = useCallback(async (item: FileRemoteItem) => {
     await withLoading(async () => {

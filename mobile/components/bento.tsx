@@ -3,6 +3,7 @@ import { BlurView } from "expo-blur";
 import { UIView } from "./ui/UIView";
 import { UIText } from "./ui/UIText";
 import { UIIcon, IconSymbolName } from "./ui/UIIcon";
+import { UIContextMenu, UIContextMenuAction } from "./ui/UIContextMenu";
 import { useState, useRef, useCallback } from "react";
 
 
@@ -22,6 +23,12 @@ export type BentoBoxConfig = {
     isCircular?: boolean;
     expandedContentHeight?: number;
     contentHeight?: number;
+    contextMenu?: {
+        title?: string;
+        actions: UIContextMenuAction[];
+        onAction: (id: string) => void;
+    };
+    disabled?: boolean;
 };
 
 export type BentoGroup = {
@@ -132,21 +139,40 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
         {config.content}
     </UIView>);
 
-    if (!config.canExpand && !config.onPress) {
-        return content;
+    if (!config.canExpand && !config.onPress && !config.contextMenu) {
+        return config.disabled ? <View style={{ opacity: 0.4 }}>{content}</View> : content;
     }
+
+    if (config.disabled) {
+        return <View style={{ opacity: 0.4 }}>{content}</View>;
+    }
+
+    const pressableContent = (
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <Pressable
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                onPress={config.contextMenu ? undefined : handlePress}
+            >
+                {content}
+            </Pressable>
+        </Animated.View>
+    );
 
     return (
         <>
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-                <Pressable
-                    onPressIn={handlePressIn}
-                    onPressOut={handlePressOut}
-                    onPress={handlePress}
+            {config.contextMenu ? (
+                <UIContextMenu
+                    title={config.contextMenu.title}
+                    actions={config.contextMenu.actions}
+                    onAction={(id) => config.contextMenu!.onAction(id)}
+                    dropdownMenuMode
                 >
-                    {content}
-                </Pressable>
-            </Animated.View>
+                    {pressableContent}
+                </UIContextMenu>
+            ) : (
+                pressableContent
+            )}
 
             {/* Expanded Modal */}
             {isExpanded && config.expandedContent && (
@@ -209,13 +235,14 @@ function renderBentoGroup(group: BentoGroup, key: number): React.ReactNode {
 
 export function Bento({ config }: { config: BentoGroup[] }) {
     return (
-        <UIView style={styles.container}>
+        <View style={styles.container}>
             {config.map((group, index) => renderBentoGroup(group, index))}
-        </UIView>
+        </View>
     );
 }
 
 const BORDER_RADIUS = Platform.OS === 'android' ? 20 : 40;
+const DIALOG_BORDER_RADIUS = Platform.OS === 'android' ? 20 : 30;
 
 const commonBoxStyle: ViewStyle = {
     alignItems: 'center',
@@ -272,7 +299,7 @@ const styles = StyleSheet.create({
     expandedContent: {
         flex: 1,
         width: '100%',
-        borderRadius: BORDER_RADIUS,
+        borderRadius: DIALOG_BORDER_RADIUS,
         padding: 5,
     },
 });

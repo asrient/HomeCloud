@@ -108,8 +108,10 @@ export function pathToUri(filePath: string) {
     const parts = filePath.split('/');
     if (parts.length > 0 && drivesMapping[parts[0]]) {
         parts[0] = drivesMapping[parts[0]];
+        return Paths.join(...parts);
     }
-    return Paths.join(...parts);
+    // No drive mapping found — restore the leading slash
+    return '/' + parts.join('/');
 }
 
 export function uriToPath(filePath: string): string {
