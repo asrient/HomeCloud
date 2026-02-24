@@ -501,12 +501,16 @@ class SupermanModule : Module(), LifecycleEventObserver {
           var batchAddr = ""
           var batchPort = 0
 
+          // soTimeout = 0: block indefinitely until a packet arrives (no CPU when idle).
+          // After receiving the first packet of a batch, switch to 1ms timeout to
+          // flush partial batches quickly. Two setsockopt calls per batch cycle.
+
           try {
             while (!Thread.currentThread().isInterrupted) {
               try {
                 socket.receive(recvPacket)
               } catch (_: java.net.SocketTimeoutException) {
-                // Batch timeout — flush accumulated packets
+                // 1ms elapsed with no more data — flush the partial batch
                 if (batchCount > 0) {
                   sendEvent("udpMessageBatch", mapOf(
                     "socketId" to socketId,
@@ -518,7 +522,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
                   batchOffset = 0
                   batchCount = 0
                 }
-                socket.soTimeout = 0 // block until next packet
+                socket.soTimeout = 0 // back to blocking — zero CPU while idle
                 continue
               }
 
@@ -529,6 +533,8 @@ class SupermanModule : Module(), LifecycleEventObserver {
               if (batchCount == 0) {
                 batchAddr = addr
                 batchPort = pktPort
+                // First packet of a new batch — enable short timeout for flushing
+                socket.soTimeout = 1
               }
 
               // Grow data buffer if needed (rare)
@@ -544,7 +550,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
               batchOffset += len
               batchCount++
 
-              // Flush when full OR sender changed.
+              // Flush when full or sender changed.
               if (batchCount >= 64 || batchAddr != addr || batchPort != pktPort) {
                 sendEvent("udpMessageBatch", mapOf(
                   "socketId" to socketId,
@@ -555,10 +561,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
                 ))
                 batchOffset = 0
                 batchCount = 0
-                socket.soTimeout = 0 // block until next packet
-              } else {
-                // Short timeout to batch more if available, otherwise flush on next iteration
-                socket.soTimeout = 1
+                socket.soTimeout = 0 // back to blocking
               }
             }
           } catch (_: java.net.SocketException) {
