@@ -3,6 +3,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn, isMacosTheme, isWin11Theme } from "@/lib/utils"
+import { useUIFlag } from "../hooks/useUIFlag"
 
 const buttonVariants = cva(
   cn("inline-flex items-center justify-center text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
@@ -18,7 +19,7 @@ const buttonVariants = cva(
             ? "bg-secondary text-destructive hover:bg-secondary/80"
             : "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline:
-          "border border-secondary-foreground/10 bg-transparent hover:bg-secondary text-secondary-foreground",
+          "border border-secondary-foreground/40 bg-transparent hover:bg-secondary text-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
@@ -45,11 +46,13 @@ export interface ButtonProps
   asChild?: boolean,
   rounded?: boolean,
   stretch?: boolean,
+  useGlass?: boolean,
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, rounded, stretch, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, rounded, stretch, useGlass, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
+    useGlass = useGlass !== false; // default to true if not provided
     let roundedClass = isWin11Theme() ? 'rounded-sm' : isMacosTheme() ? 'rounded-full' : 'rounded-md';
     if (rounded !== undefined) {
       roundedClass = rounded ? 'rounded-full' : 'rounded-md';
@@ -57,6 +60,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     if (size === 'platform') {
       size = isMacosTheme() ? 'sm' : isWin11Theme() ? 'lg' : 'default';
     }
+    const { supportLiquidGlass } = useUIFlag();
     return (
       <Comp
         className={cn(buttonVariants({
@@ -65,6 +69,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           className: cn(
             roundedClass,
             isMacosTheme() && 'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset font-medium',
+            useGlass && supportLiquidGlass && (variant === 'default' || variant === 'secondary' || variant === 'destructive') && cn(
+              'shadow-2xl backdrop-blur-sm backdrop-saturate-150',
+              variant === 'default' ? 
+              'border-primary border' :  
+              'bg-white/75 dark:bg-background/60 border-white dark:border-zinc-500/40 border dark:hover:bg-muted/50',
+            ),
             (stretch === true || size === 'lg') && 'w-full max-w-[12rem]',
             className
           )

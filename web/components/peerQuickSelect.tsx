@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const CHAR_WIDTH = 7; // approximate character width in px at text-xs
-const BUTTON_PADDING = 28; // px-3 (12px * 2) + gap + icon (16px)
+const BUTTON_PADDING = 24; // px-2.5 (10px * 2) + gap + icon (16px)
 const MORE_BUTTON_WIDTH = 90;
 const CONTAINER_PADDING = 32; // px-4 = 16px * 2
 const GAP = 6; // gap-1.5
@@ -45,11 +45,12 @@ function PillButton({ icon: Icon, label, isSelected, onClick }: {
 }) {
     return (
         <Button
-            variant={isSelected ? "default" : "ghost"}
+            variant={isSelected ? "default" : "outline"}
             size="sm"
             onClick={onClick}
-            className="gap-1.5 whitespace-nowrap"
-        >
+            className={cn("gap-1.5 whitespace-nowrap px-2.5 py-0.5", 
+            isSelected ? 'border border-primary' : "text-foreground/60 border-secondary-foreground/20"
+            )}>
             <Icon size={16} />
             <span className="truncate">{label}</span>
         </Button>
@@ -117,7 +118,7 @@ export function PeerQuickSelect() {
     }, [peers, containerWidth]);
 
     return (
-        <div ref={containerRef} className="flex flex-row items-center gap-1.5 px-4 py-3 overflow-hidden">
+        <div ref={containerRef} className="flex flex-row items-center gap-1.5 px-4 py-3">
             <PillButton
                 icon={Monitor}
                 label="This Device"

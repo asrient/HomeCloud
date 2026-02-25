@@ -36,7 +36,6 @@ export default class DesktopAppService extends AppService {
         return false;
     }
 
-    @exposed
     public override async isAutoStartEnabled(): Promise<boolean | null> {
         if (process.platform === 'linux') {
             return null; // Unsupported
@@ -72,7 +71,6 @@ export default class DesktopAppService extends AppService {
      * Settings > Apps > Startup, the state becomes "disabledByUser"
      * and the app cannot re-enable it programmatically.
      */
-    @exposed
     public override async setAutoStart(enable: boolean, openInBackground: boolean = true): Promise<void> {
         if (process.platform === 'linux') {
             console.warn('Auto-start on Linux requires manual .desktop file setup');
@@ -118,7 +116,6 @@ export default class DesktopAppService extends AppService {
     /**
      * Toggle auto-start setting
      */
-    @exposed
     public override async toggleAutoStart(): Promise<boolean | null> {
         const currentState = await this.isAutoStartEnabled();
         await this.setAutoStart(!currentState);

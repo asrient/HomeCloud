@@ -98,6 +98,7 @@ export const MenuButton = forwardRef<HTMLButtonElement, MenuButtonProps>(
             <Button
                 size={isMacosTheme() ? 'sm' : 'default'}
                 variant={selected ? 'default' : 'ghost'}
+                useGlass={false}
                 className={cn(
                     'transition-all duration-150 ease-in-out',
                     liquidGlass

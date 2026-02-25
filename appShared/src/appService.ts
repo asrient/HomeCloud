@@ -312,7 +312,6 @@ export class AppService extends Service {
      * Returns null if not supported on this platform.
      * Override in desktop implementation.
      */
-    @exposed
     public async isAutoStartEnabled(): Promise<boolean | null> {
         return null;
     }
@@ -322,7 +321,6 @@ export class AppService extends Service {
      * No-op if not supported on this platform.
      * Override in desktop implementation.
      */
-    @exposed
     public async setAutoStart(_enable: boolean, _openInBackground: boolean = true): Promise<void> {
         // No-op on non-desktop platforms
     }
@@ -332,7 +330,6 @@ export class AppService extends Service {
      * Returns null if not supported on this platform.
      * Override in desktop implementation.
      */
-    @exposed
     public async toggleAutoStart(): Promise<boolean | null> {
         return null;
     }
