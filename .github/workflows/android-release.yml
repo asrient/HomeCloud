@@ -1,0 +1,105 @@
+name: Android Release
+
+on:
+  push:
+    tags: [ "mobile-v*" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Verify version matches tag
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        working-directory: ./mobile
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          TAG=${TAG#mobile-v}
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG_VERSION" ]; then
+            echo "::error::Tag ($TAG) does not match mobile/package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Version verified: $PKG_VERSION"
+
+      # Build appShared (mobile depends on ../appShared/dist)
+      - name: Install appShared dependencies
+        run: npm install
+        working-directory: ./appShared
+
+      - name: Compile appShared
+        run: npm run tsc
+        working-directory: ./appShared
+
+      # Mobile
+      - name: Install mobile dependencies
+        run: npm install
+        working-directory: ./mobile
+
+      - name: Expo prebuild (Android)
+        run: npx expo prebuild --platform android --clean
+        working-directory: ./mobile
+        env:
+          EXPO_PUBLIC_SERVER_URL: ${{ vars.SERVER_URL }}
+
+      # Decode keystore from secret
+      - name: Decode keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > ${{ runner.temp }}/upload-key.keystore
+
+      # Build release AAB
+      - name: Build release AAB
+        working-directory: ./mobile/android
+        run: ./gradlew bundleRelease
+        env:
+          EXPO_PUBLIC_SERVER_URL: ${{ vars.SERVER_URL }}
+          MYAPP_UPLOAD_STORE_FILE: ${{ runner.temp }}/upload-key.keystore
+          MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MYAPP_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      # Find AAB
+      - name: Find AAB file
+        id: find-aab
+        run: |
+          AAB=$(find mobile/android/app/build/outputs/bundle/release -name "*.aab" | head -1)
+          if [ -z "$AAB" ]; then
+            echo "::error::No .aab file found"
+            exit 1
+          fi
+          echo "AAB_PATH=$AAB" >> "$GITHUB_OUTPUT"
+          echo "Found AAB: $AAB"
+
+      # Upload AAB as artifact
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-aab
+          path: ${{ steps.find-aab.outputs.AAB_PATH }}
+          retention-days: 14
+
+      # Upload to Google Play (internal track for review before promoting)
+      # Uncomment once the first release with sensitive permissions has been
+      # uploaded manually via Play Console and the Permissions Declaration is approved.
+      # - name: Upload to Google Play
+      #   if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      #   uses: r0adkll/upload-google-play@v1
+      #   with:
+      #     serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+      #     packageName: com.asrient.homecloud
+      #     releaseFiles: ${{ steps.find-aab.outputs.AAB_PATH }}
+      #     track: internal
+      #     status: completed

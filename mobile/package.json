@@ -15,7 +15,8 @@
     "lint": "expo lint",
     "prebuild": "expo prebuild --clean",
     "prebuild:android": "expo prebuild --clean --platform android",
-    "prebuild:ios": "expo prebuild --clean --platform ios"
+    "prebuild:ios": "expo prebuild --clean --platform ios",
+    "release": "node scripts/release.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

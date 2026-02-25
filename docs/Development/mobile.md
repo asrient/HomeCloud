@@ -22,13 +22,15 @@ npm run prebuild                    # expo prebuild --clean
 
 To build a signed `.aab` for Google Play, you need an upload keystore and Gradle signing variables. The keystore and credentials are kept outside the repo so nothing secret is committed.
 
+> **Play App Signing:** Google Play manages the actual app signing key. The keystore you create here is just an **upload key** used to authenticate your builds. If you ever lose it, you can request a reset from Google — your app won't be locked out. Play App Signing is enabled by default for new apps.
+
 ### 1. Create an upload keystore
 
 ```bash
 keytool -genkey -v -keystore hc-android-key.keystore -alias hc-android -keyalg RSA -keysize 2048 -validity 10000
 ```
 
-Move the generated file to your home directory (e.g. `C:\Users\you\hc-android-key.keystore` or `~/hc-android-key.keystore`).
+Move the generated file to your home directory (e.g. `C:\Users\you\hc-android-key.keystore` or `~/hc-android-key.keystore`). Back it up securely — while you can request a reset via Play Console, having it avoids downtime.
 
 ### 2. Add signing variables to `~/.gradle/gradle.properties`
 
@@ -72,6 +74,32 @@ EXPO_PUBLIC_SERVER_URL="https://your-server.com" ./gradlew bundleRelease
 
 - The `withReleaseSigning` config plugin in `plugins/withReleaseSigning.js` injects the signing config into `build.gradle` during prebuild. If the Gradle properties are not set, it falls back to the debug signing config, so dev builds are unaffected.
 - See the [Expo local production build guide](https://docs.expo.dev/guides/local-app-production/) for more details.
+
+## CI / GitHub Actions
+
+The **Android Release** workflow (`.github/workflows/android-release.yml`) builds a signed `.aab` and uploads it as a downloadable artifact.
+
+**Trigger:** push a tag like `mobile-v0.1.0`, or run manually via workflow_dispatch.
+
+### Required GitHub secrets
+
+| Secret | Description |
+|--------|-------------|
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded upload keystore (`base64 -i hc-android-key.keystore`) |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Key alias (e.g. `hc-android`) |
+| `ANDROID_KEY_PASSWORD` | Key password |
+
+The workflow produces an AAB artifact you can download from the Actions run page and upload to Play Console manually.
+
+### Auto-upload to Google Play
+
+The workflow includes a commented-out step to upload directly to Play Store. To enable it:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a service account and download the JSON key.
+2. In [Google Play Console](https://play.google.com/console/) → **Setup → API access**, link the service account and grant **Release manager** permission.
+3. Add the JSON key contents as the `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` secret in GitHub.
+4. Uncomment the "Upload to Google Play" step in the workflow.
 
 ---
 
