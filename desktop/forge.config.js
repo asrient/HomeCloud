@@ -400,6 +400,7 @@ module.exports = {
           owner: 'asrient',
           name: 'HomeCloud'
         },
+        tagPrefix: 'desktop-v',
         prerelease: false,
         draft: false,
       }
