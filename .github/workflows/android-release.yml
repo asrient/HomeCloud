@@ -60,16 +60,23 @@ jobs:
       - name: Decode keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > ${{ runner.temp }}/upload-key.keystore
 
+      # Write signing properties so Gradle picks them up as project properties
+      - name: Write gradle.properties for signing
+        run: |
+          mkdir -p ~/.gradle
+          cat >> ~/.gradle/gradle.properties <<EOF
+          MYAPP_UPLOAD_STORE_FILE=${{ runner.temp }}/upload-key.keystore
+          MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MYAPP_UPLOAD_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}
+          MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
       # Build release AAB
       - name: Build release AAB
         working-directory: ./mobile/android
         run: ./gradlew bundleRelease
         env:
           EXPO_PUBLIC_SERVER_URL: ${{ vars.SERVER_URL }}
-          MYAPP_UPLOAD_STORE_FILE: ${{ runner.temp }}/upload-key.keystore
-          MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          MYAPP_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       # Find AAB
       - name: Find AAB file
