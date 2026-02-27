@@ -216,7 +216,7 @@ static bool ResolveShortcut(const std::wstring &lnkPath, ShortcutInfo &out) {
     if (FAILED(hr)) { ppf->Release(); psl->Release(); return false; }
 
     WCHAR targetBuf[MAX_PATH] = {0};
-    WIN32_FIND_DATAW fd;
+    WIN32_FIND_DATAW fd = {};
     hr = psl->GetPath(targetBuf, MAX_PATH, &fd, SLGP_RAWPATH);
     if (SUCCEEDED(hr) && wcslen(targetBuf) > 0) {
         out.targetPath = targetBuf;
@@ -424,6 +424,7 @@ static Napi::Value GetAppState(const Napi::CallbackInfo &info) {
         isFocused = (pid == fgPid);
 
         for (HWND hwnd : pInfo.windows) {
+            if (!hwnd) continue;
             WCHAR title[512] = {0};
             GetWindowTextW(hwnd, title, 512);
 
@@ -540,8 +541,8 @@ static Napi::Value GetAppIcon(const Napi::CallbackInfo &info) {
     if (!GetEncoderClsid(L"image/png", &pngClsid)) return env.Null();
 
     IStream *pStream = nullptr;
-    CreateStreamOnHGlobal(nullptr, TRUE, &pStream);
-    if (!pStream) return env.Null();
+    if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &pStream)) || !pStream)
+        return env.Null();
 
     if (target.Save(pStream, &pngClsid, nullptr) != Gdiplus::Ok) {
         pStream->Release();
@@ -795,8 +796,8 @@ public:
 
             // Encode to JPEG
             IStream *pStream = nullptr;
-            CreateStreamOnHGlobal(nullptr, TRUE, &pStream);
-            if (!pStream) continue;
+            if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &pStream)) || !pStream)
+                continue;
 
             ULONG jpegQuality = (ULONG)(quality * 100);
             Gdiplus::EncoderParameters params;
