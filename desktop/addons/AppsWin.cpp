@@ -555,6 +555,8 @@ struct EnumWindowsCtx {
     std::wstring filterExePath; // empty = all
     HWND foregroundHwnd;
     std::vector<Napi::Object> windows;
+
+    explicit EnumWindowsCtx(Napi::Env e) : env(e), foregroundHwnd(nullptr) {}
 };
 
 static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
@@ -587,8 +589,7 @@ static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
 static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
 
-    EnumWindowsCtx ctx;
-    ctx.env = env;
+    EnumWindowsCtx ctx(env);
     ctx.foregroundHwnd = GetForegroundWindow();
 
     if (info.Length() >= 1 && info[0].IsString()) {

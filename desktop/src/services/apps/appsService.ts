@@ -6,7 +6,7 @@ import {
     RemoteAppWindowUIState,
     RemoteAppWindowActionPayload,
 } from "shared/types";
-import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
+import { serviceStartMethod, serviceStopMethod, exposed } from "shared/servicePrimatives";
 import * as macDriver from "./macDriver";
 import * as winDriver from "./winDriver";
 
@@ -26,28 +26,34 @@ export default class DesktopAppsService extends AppsService {
 
     // ── App enumeration ──
 
+    @exposed
     public async getInstalledApps(): Promise<RemoteAppInfo[]> {
         return getDriver().getInstalledApps();
     }
 
+    @exposed
     public async getRunningApps(): Promise<RemoteAppInfo[]> {
         return getDriver().getRunningApps();
     }
 
+    @exposed
     public async getAppState(appId: string): Promise<RemoteAppState> {
         return getDriver().getAppState(appId);
     }
 
     // ── App lifecycle ──
 
+    @exposed
     public async launchApp(appId: string): Promise<void> {
         getDriver().launchApp(appId);
     }
 
+    @exposed
     public async quitApp(appId: string): Promise<void> {
         getDriver().quitApp(appId);
     }
 
+    @exposed
     public async getAppIcon(appId: string): Promise<string | null> {
         try {
             return getDriver().getAppIcon(appId);
@@ -58,12 +64,14 @@ export default class DesktopAppsService extends AppsService {
 
     // ── Window enumeration ──
 
+    @exposed
     public async getWindows(appId?: string): Promise<RemoteAppWindow[]> {
         return getDriver().getWindows(appId);
     }
 
     // ── Window capture ──
 
+    @exposed
     public async getWindowSnapshot(
         windowId: string,
         sinceTimestamp?: number,
@@ -83,12 +91,14 @@ export default class DesktopAppsService extends AppsService {
 
     // ── Window control ──
 
+    @exposed
     public async performWindowAction(payload: RemoteAppWindowActionPayload): Promise<void> {
         getDriver().performAction(payload);
     }
 
     // ── Permissions ──
 
+    @exposed
     public async hasScreenRecordingPermission(): Promise<boolean> {
         try {
             return getDriver().hasScreenRecordingPermission();
@@ -97,6 +107,7 @@ export default class DesktopAppsService extends AppsService {
         }
     }
 
+    @exposed
     public async hasAccessibilityPermission(): Promise<boolean> {
         try {
             return getDriver().hasAccessibilityPermission();
@@ -105,10 +116,12 @@ export default class DesktopAppsService extends AppsService {
         }
     }
 
+    @exposed
     public async requestScreenRecordingPermission(): Promise<void> {
         getDriver().requestScreenRecordingPermission();
     }
 
+    @exposed
     public async requestAccessibilityPermission(): Promise<void> {
         getDriver().requestAccessibilityPermission();
     }
