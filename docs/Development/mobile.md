@@ -85,12 +85,22 @@ The **Android Release** workflow (`.github/workflows/android-release.yml`) build
 
 | Secret | Description |
 |--------|-------------|
-| `ANDROID_KEYSTORE_BASE64` | Base64-encoded upload keystore (`base64 -i hc-android-key.keystore`) |
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded upload keystore (see below) |
 | `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
 | `ANDROID_KEY_ALIAS` | Key alias (e.g. `hc-android`) |
 | `ANDROID_KEY_PASSWORD` | Key password |
 
 The workflow produces an AAB artifact you can download from the Actions run page and upload to Play Console manually.
+
+To generate the base64 string for `ANDROID_KEYSTORE_BASE64`:
+
+```bash
+# macOS / Linux
+base64 -i hc-android-key.keystore
+
+# PowerShell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("hc-android-key.keystore"))
+```
 
 ### Auto-upload to Google Play
 
