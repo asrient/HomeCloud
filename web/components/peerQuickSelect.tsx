@@ -1,7 +1,7 @@
 import { usePeerState } from "./hooks/usePeerState";
 import { useAppState } from "./hooks/useAppState";
 import { useNavigation } from "./hooks/useNavigation";
-import { cn } from "@/lib/utils";
+import { cn, isMacosTheme } from "@/lib/utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Monitor, Laptop, Smartphone, Tablet, Server, MoreHorizontal, Plus, LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,11 +45,14 @@ function PillButton({ icon: Icon, label, isSelected, onClick }: {
 }) {
     return (
         <Button
-            variant={isSelected ? "default" : "outline"}
+            variant={isSelected ? "default" : isMacosTheme() ? "secondary" : "outline"}
+            useGlass={isSelected}
             size="sm"
             onClick={onClick}
             className={cn("gap-1.5 whitespace-nowrap px-2.5 py-0.5", 
-            isSelected ? 'border border-primary' : "text-foreground/60 border-secondary-foreground/20"
+            isSelected && 'border border-primary',
+            !isSelected && 'text-foreground/60',
+            !isSelected && isMacosTheme() ? 'bg-secondary/40' : 'border-secondary-foreground/10'
             )}>
             <Icon size={16} />
             <span className="truncate">{label}</span>
@@ -118,7 +121,9 @@ export function PeerQuickSelect() {
     }, [peers, containerWidth]);
 
     return (
-        <div ref={containerRef} className="flex flex-row items-center gap-1.5 px-4 py-3">
+        <div ref={containerRef} className={cn("flex flex-row items-center px-4 py-3",
+            isMacosTheme() ? 'gap-1' : 'gap-1.5',
+        )}>
             <PillButton
                 icon={Monitor}
                 label="This Device"
@@ -151,6 +156,7 @@ export function PeerQuickSelect() {
                             <PillButton
                                 icon={MoreHorizontal}
                                 label="More"
+                                isSelected={false}
                                 onClick={() => {}}
                             />
                         </div>

@@ -10,8 +10,8 @@ export function Section({ title, footer, children }: {
         <div className="m-2 mb-4 p-1 mx-auto max-w-2xl">
         {title && <h3 className='text-sm font-semibold my-3'>{title}</h3>}
         <div className={cn('p-1 border',
-            isMacosTheme() ? 'rounded-lg border-border/30' : 'rounded-sm border-border/70 dark:border-border/20',
-            isMacosTheme() ? 'bg-muted/40 dark:bg-muted/20' : 'bg-background dark:bg-muted/20'
+            isMacosTheme() ? 'rounded-lg border-none' : 'rounded-sm border-border/70 dark:border-border/20',
+            isMacosTheme() ? 'bg-secondary/40 dark:bg-secondary/20' : 'bg-background dark:bg-secondary/20'
         )}>
             {children}
         </div>
@@ -35,7 +35,8 @@ export function Line({ children, title }: {
     title?: React.ReactNode,
 }) {
     return (
-        <div className={cn('flex items-center justify-between border-b last-of-type:border-none border-border text-sm',
+        <div className={cn('flex items-center justify-between border-b last-of-type:border-none text-sm',
+            isMacosTheme() ? 'dark:border-border/30 border-border/70' : 'border-border',
             isMacosTheme() ? 'min-h-[2.4rem] p-1' : 'min-h-[3.5rem] p-3 dark:border-black/30',
         )}>
             {
@@ -67,7 +68,7 @@ export function LineLink({ text, color }: {
     }
 
     return (
-        <div className={cn('flex items-center justify-end hover:bg-muted p-1 rounded-md select-none text-xs', textColor)}>
+        <div className={cn('flex items-center justify-end hover:bg-secondary p-1 rounded-md select-none text-xs', textColor)}>
             <span>{text}</span>
             <ChevronRightIcon className='h-4 w-4 ml-1' />
         </div>
