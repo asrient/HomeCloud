@@ -318,3 +318,70 @@ export type FileFilter = {
     name: string;
     extensions: string[];
 }
+
+export type RemoteAppInfo = {
+    name: string;
+    id: string;
+    iconPath: string | null;
+    location?: string;
+}
+
+export type RemoteAppWindow = {
+    id: string;
+    title: string;
+    isFocused: boolean;
+    isHidden: boolean;
+    isMinimized: boolean;
+    isMaximized: boolean;
+}
+
+export type RemoteAppState = {
+    isRunning: boolean;
+    isFocused: boolean;
+    windows?: RemoteAppWindow[];
+}
+
+export type RemoteAppWindowTile = {
+    xIndex: number;
+    yIndex: number;
+    width: number;
+    height: number;
+    image: string; // base64 encoded image of the window content
+    timestamp: number;
+}
+
+export type RemoteAppWindowUIState = {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    tiles: RemoteAppWindowTile[];
+}
+
+export enum RemoteAppWindowAction {
+    Focus = "focus",
+    Minimize = "minimize",
+    Maximize = "maximize",
+    Restore = "restore",
+    Close = "close",
+    Click = "click",
+    Hover = "hover",
+    TextInput = "textInput",
+    KeyInput = "keyInput",
+    Scroll = "scroll",
+    RightClick = "rightClick",
+    Resize = "resize",
+}
+
+export type RemoteAppWindowActionPayload = {
+    action: RemoteAppWindowAction;
+    windowId: string;
+    x?: number;
+    y?: number;
+    text?: string;
+    key?: string;
+    scrollDeltaX?: number;
+    scrollDeltaY?: number;
+    newWidth?: number;
+    newHeight?: number;
+}

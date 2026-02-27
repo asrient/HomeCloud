@@ -40,9 +40,25 @@ export enum ThemedIconName {
     Disk = 'Disk',
     Tool = 'Tool',
     Home = 'Home',
+    Apps = 'Apps',
 }
 
 export enum ConnectionType {
     WEB = "web",
     LOCAL = "local"
+}
+
+export enum RemoteAppWindowAction {
+    Focus = "focus",
+    Minimize = "minimize",
+    Maximize = "maximize",
+    Restore = "restore",
+    Close = "close",
+    Click = "click",
+    Hover = "hover",
+    TextInput = "textInput",
+    KeyInput = "keyInput",
+    Scroll = "scroll",
+    RightClick = "rightClick",
+    Resize = "resize",
 }

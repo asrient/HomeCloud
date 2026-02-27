@@ -16,6 +16,10 @@ export function photosLibraryUrl(fingerprint: string | null, libraryId: string) 
     return buildNextUrl('/photos/library', { fingerprint: fingerprint, lib: libraryId });
 }
 
+export function appsUrl(fingerprint: string | null) {
+    return buildNextUrl('/apps', { fingerprint });
+}
+
 export function settingsUrl() {
     if (isMobile()) {
         return buildNextUrl('/settings');
