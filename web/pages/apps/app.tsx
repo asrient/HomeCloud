@@ -133,9 +133,9 @@ function WindowCanvas({
     [interactive, onAction],
   );
 
-  // ── Scroll handler ──
+  // ── Scroll handler (native listener for non-passive preventDefault) ──
   const handleWheel = useCallback(
-    (e: React.WheelEvent<HTMLCanvasElement>) => {
+    (e: WheelEvent) => {
       if (!interactive || !canvasRef.current) return;
       e.preventDefault();
       const { x, y } = canvasToWindowCoords(e as any, canvasRef.current);
@@ -147,6 +147,14 @@ function WindowCanvas({
     },
     [interactive, onAction],
   );
+
+  // Attach wheel listener natively so we can use { passive: false }
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   // ── Keyboard handler ──
   const handleKeyDown = useCallback(
@@ -188,7 +196,6 @@ function WindowCanvas({
       onClick={handleClick}
       onContextMenu={handleContextMenu}
       onMouseMove={handleMouseMove}
-      onWheel={handleWheel}
       onKeyDown={handleKeyDown}
       className={cn(
         'max-w-full h-auto rounded-md shadow-lg border outline-none',

@@ -8,9 +8,17 @@ export class MacOSPlaybackWatcher {
     private pollTimer: NodeJS.Timeout | null = null;
     private lastInfo: AudioPlaybackInfo | null = null;
     private lastGetCallTs = 0;
+    private polling = false; // guard against overlapping polls
+
+    // Per-player error tracking: skip a player temporarily after repeated timeouts
+    private playerErrors: Record<string, number> = {};
+    private playerBackoffUntil: Record<string, number> = {};
 
     private readonly POLL_INTERVAL = 3000;
     private readonly IDLE_TIMEOUT = 2 * 60 * 1000;
+    private readonly EXEC_TIMEOUT_MS = 5000; // kill osascript after 5 seconds
+    private readonly MAX_ERRORS_BEFORE_BACKOFF = 2;
+    private readonly BACKOFF_DURATION_MS = 30_000; // skip player for 30s after repeated failures
 
     constructor(onStateChange: StateCallback) {
         this.onChange = onStateChange;
@@ -128,16 +136,24 @@ end tell
                 return;
             }
 
-            const info = await this.fetchPlaybackInfo();
+            // Skip if a previous poll is still in-flight
+            if (this.polling) return;
+            this.polling = true;
 
-            // Stop if nothing is open anymore
-            if (!info) {
-                this.stopPolling();
-                this.publishIfChanged(null);
-                return;
+            try {
+                const info = await this.fetchPlaybackInfo();
+
+                // Stop if nothing is open anymore
+                if (!info) {
+                    this.stopPolling();
+                    this.publishIfChanged(null);
+                    return;
+                }
+
+                this.publishIfChanged(info);
+            } finally {
+                this.polling = false;
             }
-
-            this.publishIfChanged(info);
         }, this.POLL_INTERVAL);
     }
 
@@ -180,7 +196,7 @@ end tell
         return null;
     }
 
-    private execAppleScript(script: string): Promise<string | null> {
+    private execAppleScript(script: string, playerName?: string): Promise<string | null> {
         return new Promise((resolve) => {
             // Split script into lines and build command with multiple -e flags
             const lines = script
@@ -194,11 +210,21 @@ end tell
                 .join(' ');
 
             const cmd = `osascript ${eFlags}`;
-            exec(cmd, (err, stdout, stderr) => {
+            const child = exec(cmd, { timeout: this.EXEC_TIMEOUT_MS }, (err, stdout, stderr) => {
                 if (err) {
-                    console.error('AppleScript error:', err.message);
-                    console.error('stderr:', stderr);
+                    // Only log if not a timeout we already expect
+                    const isTimeout = stderr?.includes('-1712') || err.killed;
+                    if (isTimeout && playerName) {
+                        this.recordPlayerError(playerName);
+                    }
+                    if (!isTimeout) {
+                        console.error('AppleScript error:', err.message);
+                    }
                     return resolve(null);
+                }
+                // Clear error count on success
+                if (playerName) {
+                    this.playerErrors[playerName] = 0;
                 }
                 const out = stdout.trim();
                 resolve(out.length ? out : null);
@@ -206,9 +232,29 @@ end tell
         });
     }
 
+    private recordPlayerError(player: string) {
+        this.playerErrors[player] = (this.playerErrors[player] || 0) + 1;
+        if (this.playerErrors[player] >= this.MAX_ERRORS_BEFORE_BACKOFF) {
+            this.playerBackoffUntil[player] = Date.now() + this.BACKOFF_DURATION_MS;
+            this.playerErrors[player] = 0;
+        }
+    }
+
+    private isPlayerBackedOff(player: string): boolean {
+        const until = this.playerBackoffUntil[player];
+        if (!until) return false;
+        if (Date.now() >= until) {
+            delete this.playerBackoffUntil[player];
+            return false;
+        }
+        return true;
+    }
+
     /** ---------------- Spotify ---------------- */
 
     private async querySpotify(): Promise<AudioPlaybackInfo | null> {
+        if (this.isPlayerBackedOff('Spotify')) return null;
+
         const script = `
 tell application "System Events"
   if exists process "Spotify" then
@@ -221,7 +267,7 @@ tell application "System Events"
 end tell
     `;
 
-        const res = await this.execAppleScript(script);
+        const res = await this.execAppleScript(script, 'Spotify');
         // console.log('Spotify AppleScript result:', res);
         if (!res) return null;
 
@@ -238,6 +284,8 @@ end tell
     /** ---------------- Apple Music ---------------- */
 
     private async queryAppleMusic(): Promise<AudioPlaybackInfo | null> {
+        if (this.isPlayerBackedOff('Music')) return null;
+
         const script = `
 tell application "System Events"
   if exists process "Music" then
@@ -250,7 +298,7 @@ tell application "System Events"
 end tell
     `;
 
-        const res = await this.execAppleScript(script);
+        const res = await this.execAppleScript(script, 'Music');
         // console.log('Apple Music AppleScript result:', res);
         if (!res) return null;
 
@@ -267,6 +315,8 @@ end tell
     /** ---------------- QuickTime Player ---------------- */
 
     private async queryQuickTime(): Promise<AudioPlaybackInfo | null> {
+        if (this.isPlayerBackedOff('QuickTime Player')) return null;
+
         const script = `
 tell application "System Events"
   if exists process "QuickTime Player" then
@@ -283,7 +333,7 @@ tell application "System Events"
 end tell
     `;
 
-        const res = await this.execAppleScript(script);
+        const res = await this.execAppleScript(script, 'QuickTime Player');
         // console.log('QuickTime AppleScript result:', res);
         if (!res) return null;
 

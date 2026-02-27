@@ -193,109 +193,127 @@ struct ProcessAppInfo {
 };
 
 // ──────────────────────────────────────────────
-// 1. Installed apps
+// 1. Installed apps (from Start Menu shortcuts)
 // ──────────────────────────────────────────────
 
-static void ReadAppsFromRegistryKey(HKEY rootKey, const WCHAR *subKey,
-                                    std::vector<Napi::Object> &results,
-                                    std::unordered_set<std::string> &seen,
-                                    Napi::Env env) {
-    HKEY hKey;
-    if (RegOpenKeyExW(rootKey, subKey, 0, KEY_READ, &hKey) != ERROR_SUCCESS)
-        return;
+// Resolve a .lnk shortcut to its target exe path and display name
+struct ShortcutInfo {
+    std::wstring targetPath;
+    std::wstring name;
+};
 
-    DWORD numSubKeys = 0;
-    RegQueryInfoKeyW(hKey, nullptr, nullptr, nullptr, &numSubKeys,
-                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+static bool ResolveShortcut(const std::wstring &lnkPath, ShortcutInfo &out) {
+    IShellLinkW *psl = nullptr;
+    HRESULT hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
+                                  IID_IShellLinkW, (void **)&psl);
+    if (FAILED(hr)) return false;
 
-    for (DWORD i = 0; i < numSubKeys; i++) {
-        WCHAR keyName[256];
-        DWORD keyNameSize = 256;
-        if (RegEnumKeyExW(hKey, i, keyName, &keyNameSize, nullptr,
-                          nullptr, nullptr, nullptr) != ERROR_SUCCESS)
-            continue;
+    IPersistFile *ppf = nullptr;
+    hr = psl->QueryInterface(IID_IPersistFile, (void **)&ppf);
+    if (FAILED(hr)) { psl->Release(); return false; }
 
-        HKEY hAppKey;
-        if (RegOpenKeyExW(hKey, keyName, 0, KEY_READ, &hAppKey) != ERROR_SUCCESS)
-            continue;
+    hr = ppf->Load(lnkPath.c_str(), STGM_READ);
+    if (FAILED(hr)) { ppf->Release(); psl->Release(); return false; }
 
-        WCHAR displayName[512] = {0};
-        WCHAR installLocation[MAX_PATH] = {0};
-        WCHAR displayIcon[MAX_PATH] = {0};
-        DWORD systemComponent = 0;
-        DWORD size;
+    WCHAR targetBuf[MAX_PATH] = {0};
+    WIN32_FIND_DATAW fd;
+    hr = psl->GetPath(targetBuf, MAX_PATH, &fd, SLGP_RAWPATH);
+    if (SUCCEEDED(hr) && wcslen(targetBuf) > 0) {
+        out.targetPath = targetBuf;
+    }
 
-        // Skip system components
-        size = sizeof(systemComponent);
-        RegQueryValueExW(hAppKey, L"SystemComponent", nullptr, nullptr,
-                         (LPBYTE)&systemComponent, &size);
-        if (systemComponent == 1) {
-            RegCloseKey(hAppKey);
-            continue;
-        }
+    // Display name from the .lnk filename (strip extension)
+    auto slash = lnkPath.find_last_of(L'\\');
+    std::wstring filename = (slash != std::wstring::npos) ? lnkPath.substr(slash + 1) : lnkPath;
+    auto dot = filename.find_last_of(L'.');
+    if (dot != std::wstring::npos) filename = filename.substr(0, dot);
+    out.name = filename;
 
-        size = sizeof(displayName);
-        if (RegQueryValueExW(hAppKey, L"DisplayName", nullptr, nullptr,
-                             (LPBYTE)displayName, &size) != ERROR_SUCCESS ||
-            wcslen(displayName) == 0) {
-            RegCloseKey(hAppKey);
-            continue;
-        }
+    ppf->Release();
+    psl->Release();
+    return !out.targetPath.empty();
+}
 
-        size = sizeof(installLocation);
-        RegQueryValueExW(hAppKey, L"InstallLocation", nullptr, nullptr,
-                         (LPBYTE)installLocation, &size);
+// Recursively scan a Start Menu folder for .lnk shortcuts pointing to .exe files
+static void ScanStartMenuFolder(const std::wstring &dir,
+                                std::vector<Napi::Object> &results,
+                                std::unordered_set<std::string> &seen,
+                                Napi::Env env) {
+    WIN32_FIND_DATAW fd;
+    std::wstring pattern = dir + L"\\*";
+    HANDLE hFind = FindFirstFileW(pattern.c_str(), &fd);
+    if (hFind == INVALID_HANDLE_VALUE) return;
 
-        size = sizeof(displayIcon);
-        RegQueryValueExW(hAppKey, L"DisplayIcon", nullptr, nullptr,
-                         (LPBYTE)displayIcon, &size);
+    do {
+        std::wstring name(fd.cFileName);
+        if (name == L"." || name == L"..") continue;
+        std::wstring fullPath = dir + L"\\" + name;
 
-        std::string id = WideToUtf8(keyName);
-        if (seen.count(id)) {
-            RegCloseKey(hAppKey);
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            ScanStartMenuFolder(fullPath, results, seen, env);
             continue;
         }
-        seen.insert(id);
+
+        // Only process .lnk files
+        if (name.size() < 5) continue;
+        std::wstring ext = name.substr(name.size() - 4);
+        if (_wcsicmp(ext.c_str(), L".lnk") != 0) continue;
+
+        // Skip common non-app shortcuts by name
+        std::wstring nameLower = name;
+        std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::towlower);
+        if (nameLower.find(L"uninstall") != std::wstring::npos) continue;
+        if (nameLower.find(L"readme") != std::wstring::npos) continue;
+        if (nameLower.find(L"help") != std::wstring::npos) continue;
+        if (nameLower.find(L"license") != std::wstring::npos) continue;
+
+        ShortcutInfo info;
+        if (!ResolveShortcut(fullPath, info)) continue;
+
+        // Only include .exe targets
+        if (info.targetPath.size() < 5) continue;
+        std::wstring targetExt = info.targetPath.substr(info.targetPath.size() - 4);
+        if (_wcsicmp(targetExt.c_str(), L".exe") != 0) continue;
+
+        // Deduplicate by exe path (case-insensitive) so ids match running apps
+        std::string id = WideToUtf8(info.targetPath);
+        std::string idLower = id;
+        std::transform(idLower.begin(), idLower.end(), idLower.begin(), ::tolower);
+        if (seen.count(idLower)) continue;
+        seen.insert(idLower);
 
         Napi::Object obj = Napi::Object::New(env);
-        obj.Set("name", WideToUtf8(displayName));
-        obj.Set("id", id);
-
-        // iconPath is the DisplayIcon value (usually path to exe or icon resource)
-        std::wstring iconStr(displayIcon);
-        if (!iconStr.empty()) {
-            // Strip ",index" suffix if present — e.g., "C:\...\app.exe,0"
-            auto comma = iconStr.find_last_of(L',');
-            if (comma != std::wstring::npos) iconStr = iconStr.substr(0, comma);
-            obj.Set("iconPath", WideToUtf8(iconStr));
-        } else {
-            obj.Set("iconPath", env.Null());
-        }
-
-        std::wstring loc(installLocation);
-        obj.Set("location", loc.empty() ? WideToUtf8(iconStr) : WideToUtf8(loc));
-
+        obj.Set("name", WideToUtf8(info.name));
+        obj.Set("id", id);                // exe path — matches running app ids
+        obj.Set("iconPath", id);           // ExtractIconEx from the exe
         results.push_back(obj);
-        RegCloseKey(hAppKey);
-    }
-    RegCloseKey(hKey);
+    } while (FindNextFileW(hFind, &fd));
+    FindClose(hFind);
 }
 
 static Napi::Value GetInstalledApps(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
+
+    // COM is needed for IShellLink shortcut resolution
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    bool comOwned = SUCCEEDED(hr); // S_FALSE means already initialized
+
     std::vector<Napi::Object> results;
     std::unordered_set<std::string> seen;
 
-    // Read from both HKLM and HKCU, 64-bit and 32-bit views
-    ReadAppsFromRegistryKey(HKEY_LOCAL_MACHINE,
-        L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        results, seen, env);
-    ReadAppsFromRegistryKey(HKEY_LOCAL_MACHINE,
-        L"SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        results, seen, env);
-    ReadAppsFromRegistryKey(HKEY_CURRENT_USER,
-        L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        results, seen, env);
+    // Scan All Users Start Menu (e.g., C:\ProgramData\Microsoft\Windows\Start Menu\Programs)
+    WCHAR commonPath[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_COMMON_PROGRAMS, nullptr, 0, commonPath))) {
+        ScanStartMenuFolder(commonPath, results, seen, env);
+    }
+
+    // Scan Current User Start Menu (e.g., %APPDATA%\Microsoft\Windows\Start Menu\Programs)
+    WCHAR userPath[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_PROGRAMS, nullptr, 0, userPath))) {
+        ScanStartMenuFolder(userPath, results, seen, env);
+    }
+
+    if (comOwned) CoUninitialize();
 
     // Sort by name
     std::sort(results.begin(), results.end(),
