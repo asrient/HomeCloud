@@ -41,6 +41,10 @@
 #include <algorithm>
 #include <cstring>
 #include <cmath>
+#include <ppl.h>
+#if defined(_M_X64) || defined(_M_IX86)
+#include <nmmintrin.h>
+#endif
 
 // PW_RENDERFULLCONTENT was added in Windows 8.1 but may be missing from older SDK headers
 #ifndef PW_RENDERFULLCONTENT
@@ -574,6 +578,7 @@ struct EnumWindowsCtx {
     std::wstring filterExePath; // empty = all
     HWND foregroundHwnd;
     std::vector<Napi::Object> windows;
+    std::unordered_set<HWND> appHwnds; // collected normal windows (for popup parent lookup)
 
     explicit EnumWindowsCtx(Napi::Env e) : env(e), foregroundHwnd(nullptr) {}
 };
@@ -602,6 +607,53 @@ static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
     obj.Set("isMinimized", (bool)IsIconic(hwnd));
     obj.Set("isMaximized", (bool)IsZoomed(hwnd));
     ctx->windows.push_back(obj);
+    ctx->appHwnds.insert(hwnd);
+    return TRUE;
+}
+
+// Second-pass callback: collect owned popup/menu windows
+static BOOL CALLBACK EnumPopupWindowsProc(HWND hwnd, LPARAM lParam) {
+    if (!IsWindowVisible(hwnd)) return TRUE;
+
+    HWND owner = GetWindow(hwnd, GW_OWNER);
+    if (owner == nullptr) return TRUE; // not an owned window
+
+    auto *ctx = reinterpret_cast<EnumWindowsCtx *>(lParam);
+
+    // Only include if owner is one of our collected app windows
+    if (ctx->appHwnds.find(owner) == ctx->appHwnds.end()) return TRUE;
+
+    // Skip cloaked
+    BOOL cloaked = FALSE;
+    DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
+    if (cloaked) return TRUE;
+
+    // Skip tiny windows (< 2px)
+    RECT rect;
+    if (!GetWindowRect(hwnd, &rect)) return TRUE;
+    if (rect.right - rect.left < 2 || rect.bottom - rect.top < 2) return TRUE;
+
+    // Filter by exe path if needed
+    DWORD pid = GetWindowPID(hwnd);
+    if (pid == 0) return TRUE;
+    if (!ctx->filterExePath.empty()) {
+        std::wstring exePath = GetProcessExePath(pid);
+        if (_wcsicmp(exePath.c_str(), ctx->filterExePath.c_str()) != 0)
+            return TRUE;
+    }
+
+    WCHAR title[512] = {0};
+    GetWindowTextW(hwnd, title, 512);
+
+    Napi::Object obj = Napi::Object::New(ctx->env);
+    obj.Set("id", std::to_string((uintptr_t)hwnd));
+    obj.Set("title", WideToUtf8(title));
+    obj.Set("isFocused", hwnd == ctx->foregroundHwnd);
+    obj.Set("isHidden", false);
+    obj.Set("isMinimized", false);
+    obj.Set("isMaximized", false);
+    obj.Set("parentWindowId", std::to_string((uintptr_t)owner));
+    ctx->windows.push_back(obj);
     return TRUE;
 }
 
@@ -615,7 +667,11 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
         ctx.filterExePath = Utf8ToWide(info[0].As<Napi::String>().Utf8Value());
     }
 
+    // First pass: collect normal app windows
     EnumWindows(EnumWindowsProc, (LPARAM)&ctx);
+
+    // Second pass: collect popup/menu windows owned by the collected app windows
+    EnumWindows(EnumPopupWindowsProc, (LPARAM)&ctx);
 
     Napi::Array arr = Napi::Array::New(env, ctx.windows.size());
     for (size_t i = 0; i < ctx.windows.size(); i++) {
@@ -737,23 +793,33 @@ public:
                     int tw = (std::min)(tileSize, imgWidth - tileX);
                     int th = (std::min)(tileSize, imgHeight - tileY);
 
-                    // FNV-1a hash of tile pixels
-                    uint64_t tileHash = 14695981039346656037ULL;
+                    // Hardware CRC32 hash of tile pixels
+                    uint32_t tileHash = 0;
                     for (int y = tileY; y < tileY + th; y++) {
                         const BYTE *rowPtr = pixels.data() + y * rowBytes + tileX * 4;
                         size_t tileRowBytes = tw * 4;
-                        // 8-byte-at-a-time hashing
+#if defined(_M_X64)
                         size_t chunks = tileRowBytes / 8;
                         const uint64_t *ptr64 = reinterpret_cast<const uint64_t *>(rowPtr);
                         for (size_t c = 0; c < chunks; c++) {
-                            tileHash ^= ptr64[c];
-                            tileHash *= 1099511628211ULL;
+                            tileHash = (uint32_t)_mm_crc32_u64(tileHash, ptr64[c]);
                         }
-                        // Remaining bytes
+                        for (size_t b = chunks * 8; b < tileRowBytes; b++) {
+                            tileHash = _mm_crc32_u8(tileHash, rowPtr[b]);
+                        }
+#else
+                        // Fallback: FNV-1a 8-byte-at-a-time
+                        size_t chunks = tileRowBytes / 8;
+                        const uint64_t *ptr64 = reinterpret_cast<const uint64_t *>(rowPtr);
+                        for (size_t c = 0; c < chunks; c++) {
+                            tileHash ^= (uint32_t)(ptr64[c] ^ (ptr64[c] >> 32));
+                            tileHash *= 16777619u;
+                        }
                         for (size_t b = chunks * 8; b < tileRowBytes; b++) {
                             tileHash ^= rowPtr[b];
-                            tileHash *= 1099511628211ULL;
+                            tileHash *= 16777619u;
                         }
+#endif
                     }
 
                     uint64_t key = ((uint64_t)col << 32) | (uint64_t)row;
@@ -779,7 +845,20 @@ public:
         bool hasJpegEncoder = GetEncoderClsid(L"image/jpeg", &jpegClsid);
         if (!hasJpegEncoder) return;
 
-        for (auto &ct : changedTiles) {
+        size_t count = changedTiles.size();
+        tiles.resize(count);
+
+        // Initialize all tiles as failed; successful encodes overwrite
+        for (size_t i = 0; i < count; i++) {
+            tiles[i].width = 0;
+        }
+
+        auto encodeOneTile = [&](size_t i) {
+            // Ensure COM is initialized on this thread (no-op if already done)
+            CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+
+            auto &ct = changedTiles[i];
+
             // Create a bitmap for just this tile
             Gdiplus::Bitmap tileBmp(ct.tw, ct.th, PixelFormat32bppRGB);
             Gdiplus::BitmapData bmpData;
@@ -796,8 +875,9 @@ public:
 
             // Encode to JPEG
             IStream *pStream = nullptr;
-            if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &pStream)) || !pStream)
-                continue;
+            if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &pStream)) || !pStream) {
+                return;
+            }
 
             ULONG jpegQuality = (ULONG)(quality * 100);
             Gdiplus::EncoderParameters params;
@@ -818,17 +898,29 @@ public:
                 ULONG bytesRead = 0;
                 pStream->Read(jpegData.data(), dataSize, &bytesRead);
 
-                TileResult tile;
-                tile.xIndex = ct.col;
-                tile.yIndex = ct.row;
-                tile.width = ct.tw;
-                tile.height = ct.th;
-                tile.image = Base64Encode(jpegData);
-                tile.timestamp = now;
-                tiles.push_back(tile);
+                tiles[i].xIndex = ct.col;
+                tiles[i].yIndex = ct.row;
+                tiles[i].width = ct.tw;
+                tiles[i].height = ct.th;
+                tiles[i].imageData.assign(jpegData.begin(), jpegData.end());
+                tiles[i].timestamp = now;
             }
             pStream->Release();
+        };
+
+        if (count >= 3) {
+            concurrency::parallel_for(size_t(0), count, [&](size_t i) {
+                encodeOneTile(i);
+            });
+        } else {
+            for (size_t i = 0; i < count; i++) {
+                encodeOneTile(i);
+            }
         }
+
+        // Remove failed tiles (width == 0)
+        tiles.erase(std::remove_if(tiles.begin(), tiles.end(),
+            [](const TileResult &t) { return t.width == 0; }), tiles.end());
     }
 
     void OnOK() override {
@@ -846,7 +938,8 @@ public:
             t.Set("yIndex", tiles[i].yIndex);
             t.Set("width", tiles[i].width);
             t.Set("height", tiles[i].height);
-            t.Set("image", tiles[i].image);
+            t.Set("image", Napi::Buffer<uint8_t>::Copy(
+                Env(), tiles[i].imageData.data(), tiles[i].imageData.size()));
             t.Set("timestamp", tiles[i].timestamp);
             tilesArr.Set((uint32_t)i, t);
         }
@@ -866,7 +959,7 @@ private:
 
     struct TileResult {
         int xIndex, yIndex, width, height;
-        std::string image;
+        std::vector<uint8_t> imageData;
         double timestamp;
     };
     std::vector<TileResult> tiles;
@@ -921,6 +1014,38 @@ static void ForceForegroundWindow(HWND hwnd) {
     }
 }
 
+// Ensure window is ready to receive input: exists, visible, foreground.
+// Returns false if the window no longer exists.
+// Only sleeps when the window actually needed to be restored or brought forward.
+static bool EnsureWindowReady(HWND hwnd) {
+    if (!IsWindow(hwnd)) return false;
+
+    bool needsWait = false;
+
+    // Restore if minimized
+    if (IsIconic(hwnd)) {
+        ShowWindow(hwnd, SW_RESTORE);
+        needsWait = true;
+    }
+
+    // Bring to foreground only if not already there
+    if (GetForegroundWindow() != hwnd) {
+        ForceForegroundWindow(hwnd);
+        needsWait = true;
+    }
+
+    if (needsWait) {
+        // Poll until conditions we changed are met (max 500ms)
+        for (int i = 0; i < 25; i++) {
+            Sleep(20);
+            if (!IsWindow(hwnd)) break;
+            if (IsIconic(hwnd)) continue;
+            if (IsWindowVisible(hwnd) && GetForegroundWindow() == hwnd) break;
+        }
+    }
+    return true;
+}
+
 static void PostMouseClick(POINT pt, bool isRight) {
     // Use absolute coordinates for reliable click placement
     double fScreenWidth = GetSystemMetrics(SM_CXSCREEN) - 1;
@@ -942,6 +1067,110 @@ static void PostMouseClick(POINT pt, bool isRight) {
     inputs[2].mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
 
     SendInput(3, inputs, sizeof(INPUT));
+}
+
+static void PostMouseDoubleClick(POINT pt) {
+    double fScreenWidth = GetSystemMetrics(SM_CXSCREEN) - 1;
+    double fScreenHeight = GetSystemMetrics(SM_CYSCREEN) - 1;
+    double fx = pt.x * (65535.0 / fScreenWidth);
+    double fy = pt.y * (65535.0 / fScreenHeight);
+
+    INPUT inputs[5] = {};
+    // Move to position
+    inputs[0].type = INPUT_MOUSE;
+    inputs[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+    inputs[0].mi.dx = (LONG)fx;
+    inputs[0].mi.dy = (LONG)fy;
+    // First click
+    inputs[1].type = INPUT_MOUSE;
+    inputs[1].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+    inputs[2].type = INPUT_MOUSE;
+    inputs[2].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+    // Second click
+    inputs[3].type = INPUT_MOUSE;
+    inputs[3].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+    inputs[4].type = INPUT_MOUSE;
+    inputs[4].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+
+    SendInput(5, inputs, sizeof(INPUT));
+}
+
+static void PostMouseDown(POINT pt, bool isRight) {
+    double fScreenWidth = GetSystemMetrics(SM_CXSCREEN) - 1;
+    double fScreenHeight = GetSystemMetrics(SM_CYSCREEN) - 1;
+    double fx = pt.x * (65535.0 / fScreenWidth);
+    double fy = pt.y * (65535.0 / fScreenHeight);
+
+    INPUT inputs[2] = {};
+    inputs[0].type = INPUT_MOUSE;
+    inputs[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+    inputs[0].mi.dx = (LONG)fx;
+    inputs[0].mi.dy = (LONG)fy;
+    inputs[1].type = INPUT_MOUSE;
+    inputs[1].mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
+
+    SendInput(2, inputs, sizeof(INPUT));
+}
+
+static void PostMouseUp(POINT pt, bool isRight) {
+    double fScreenWidth = GetSystemMetrics(SM_CXSCREEN) - 1;
+    double fScreenHeight = GetSystemMetrics(SM_CYSCREEN) - 1;
+    double fx = pt.x * (65535.0 / fScreenWidth);
+    double fy = pt.y * (65535.0 / fScreenHeight);
+
+    INPUT inputs[2] = {};
+    inputs[0].type = INPUT_MOUSE;
+    inputs[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+    inputs[0].mi.dx = (LONG)fx;
+    inputs[0].mi.dy = (LONG)fy;
+    inputs[1].type = INPUT_MOUSE;
+    inputs[1].mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
+
+    SendInput(2, inputs, sizeof(INPUT));
+}
+
+// Press/release modifier keys around an action
+static void PressModifiers(const Napi::Object &payload) {
+    if (!payload.Has("modifiers") || !payload.Get("modifiers").IsArray()) return;
+    Napi::Array mods = payload.Get("modifiers").As<Napi::Array>();
+    std::vector<INPUT> inputs;
+    for (uint32_t i = 0; i < mods.Length(); i++) {
+        std::string mod = mods.Get(i).As<Napi::String>().Utf8Value();
+        WORD vk = 0;
+        if (mod == "shift") vk = VK_SHIFT;
+        else if (mod == "ctrl" || mod == "control") vk = VK_CONTROL;
+        else if (mod == "alt" || mod == "option") vk = VK_MENU;
+        else if (mod == "cmd" || mod == "command" || mod == "meta") vk = VK_LWIN;
+        if (vk) {
+            INPUT inp = {};
+            inp.type = INPUT_KEYBOARD;
+            inp.ki.wVk = vk;
+            inputs.push_back(inp);
+        }
+    }
+    if (!inputs.empty()) SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
+}
+
+static void ReleaseModifiers(const Napi::Object &payload) {
+    if (!payload.Has("modifiers") || !payload.Get("modifiers").IsArray()) return;
+    Napi::Array mods = payload.Get("modifiers").As<Napi::Array>();
+    std::vector<INPUT> inputs;
+    for (uint32_t i = 0; i < mods.Length(); i++) {
+        std::string mod = mods.Get(i).As<Napi::String>().Utf8Value();
+        WORD vk = 0;
+        if (mod == "shift") vk = VK_SHIFT;
+        else if (mod == "ctrl" || mod == "control") vk = VK_CONTROL;
+        else if (mod == "alt" || mod == "option") vk = VK_MENU;
+        else if (mod == "cmd" || mod == "command" || mod == "meta") vk = VK_LWIN;
+        if (vk) {
+            INPUT inp = {};
+            inp.type = INPUT_KEYBOARD;
+            inp.ki.wVk = vk;
+            inp.ki.dwFlags = KEYEVENTF_KEYUP;
+            inputs.push_back(inp);
+        }
+    }
+    if (!inputs.empty()) SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
 }
 
 static void PostMouseMove(POINT pt) {
@@ -1125,8 +1354,7 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
 
     if (action == "focus") {
         // Bring window to foreground
-        if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
-        ForceForegroundWindow(hwnd);
+        EnsureWindowReady(hwnd);
     }
     else if (action == "minimize") {
         ShowWindow(hwnd, SW_MINIMIZE);
@@ -1141,21 +1369,75 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         PostMessageW(hwnd, WM_CLOSE, 0, 0);
     }
     else if (action == "click" || action == "rightClick") {
+        if (!EnsureWindowReady(hwnd)) {
+            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
+            return env.Null();
+        }
         double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
         double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
 
-        // x, y are relative to the window — convert to screen coords
         RECT rect;
         GetWindowRect(hwnd, &rect);
         POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
 
-        // Ensure window is in front for click
-        ForceForegroundWindow(hwnd);
-        Sleep(50);
-
+        PressModifiers(payload);
         PostMouseClick(screenPt, action == "rightClick");
+        ReleaseModifiers(payload);
+    }
+    else if (action == "doubleClick") {
+        if (!EnsureWindowReady(hwnd)) {
+            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
+        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
+
+        RECT rect;
+        GetWindowRect(hwnd, &rect);
+        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
+
+        PressModifiers(payload);
+        PostMouseDoubleClick(screenPt);
+        ReleaseModifiers(payload);
+    }
+    else if (action == "dragStart") {
+        if (!EnsureWindowReady(hwnd)) {
+            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
+        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
+
+        RECT rect;
+        GetWindowRect(hwnd, &rect);
+        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
+
+        PressModifiers(payload);
+        PostMouseDown(screenPt, false);
+    }
+    else if (action == "dragMove") {
+        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
+        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
+
+        RECT rect;
+        GetWindowRect(hwnd, &rect);
+        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
+
+        PostMouseMove(screenPt);
+    }
+    else if (action == "dragEnd") {
+        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
+        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
+
+        RECT rect;
+        GetWindowRect(hwnd, &rect);
+        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
+
+        PostMouseUp(screenPt, false);
+        ReleaseModifiers(payload);
     }
     else if (action == "hover") {
+        if (!EnsureWindowReady(hwnd)) return env.Undefined();
         double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
         double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
 
@@ -1165,20 +1447,25 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         PostMouseMove(screenPt);
     }
     else if (action == "textInput") {
+        if (!EnsureWindowReady(hwnd)) {
+            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
+            return env.Null();
+        }
         std::string text = payload.Has("text")
             ? payload.Get("text").As<Napi::String>().Utf8Value() : "";
-        ForceForegroundWindow(hwnd);
-        Sleep(100);
         PostTextInput(text);
     }
     else if (action == "keyInput") {
+        if (!EnsureWindowReady(hwnd)) {
+            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
+            return env.Null();
+        }
         std::string key = payload.Has("key")
             ? payload.Get("key").As<Napi::String>().Utf8Value() : "";
-        ForceForegroundWindow(hwnd);
-        Sleep(100);
         PostKeyInput(key);
     }
     else if (action == "scroll") {
+        if (!EnsureWindowReady(hwnd)) return env.Undefined();
         double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
         double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
         int deltaX = payload.Has("scrollDeltaX")
@@ -1190,10 +1477,7 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         GetWindowRect(hwnd, &rect);
         POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
 
-        ForceForegroundWindow(hwnd);
-        Sleep(50);
         SetCursorPos(screenPt.x, screenPt.y);
-        Sleep(20);
         PostScroll(deltaX, deltaY);
     }
     else if (action == "resize") {

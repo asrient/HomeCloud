@@ -34,6 +34,12 @@
 #include <string>
 #include <mutex>
 #include <cstring>
+#include <dispatch/dispatch.h>
+#if defined(__arm64__) || defined(__aarch64__)
+#include <arm_acle.h>
+#elif defined(__x86_64__)
+#include <nmmintrin.h>
+#endif
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -50,6 +56,8 @@ static std::string nsStringToStd(NSString *s) {
 // ──────────────────────────────────────────────
 struct TileHashCache {
     std::unordered_map<uint64_t, uint64_t> hashes; // key = (col<<32|row), value = hash
+    int lastWidth = 0;
+    int lastHeight = 0;
 };
 
 static std::mutex g_cacheMutex;
@@ -356,6 +364,11 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
         uint32_t idx = 0;
         if (windowList) {
             NSArray *wl = (__bridge NSArray *)windowList;
+
+            // First pass: collect normal (layer 0) windows and build a PID→windowId map
+            // so popup windows can reference their parent.
+            std::unordered_map<pid_t, std::string> pidToParentWindowId;
+
             for (NSDictionary *w in wl) {
                 pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
                 if (filterPid != -1 && wPid != filterPid) continue;
@@ -373,7 +386,6 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
                 // Determine focus state from owning app
                 bool isFocused = false;
                 bool isHidden = false;
-                // Look up by PID
                 for (NSRunningApplication *ra in [[NSWorkspace sharedWorkspace] runningApplications]) {
                     if (ra.processIdentifier == wPid) {
                         isFocused = ra.isActive;
@@ -382,8 +394,15 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
                     }
                 }
 
+                std::string idStr = std::to_string(windowId);
+
+                // Remember the first normal window per PID as the parent for popups
+                if (pidToParentWindowId.find(wPid) == pidToParentWindowId.end()) {
+                    pidToParentWindowId[wPid] = idStr;
+                }
+
                 Napi::Object obj = Napi::Object::New(env);
-                obj.Set("id", std::to_string(windowId));
+                obj.Set("id", idStr);
                 obj.Set("title", nsStringToStd(title));
                 obj.Set("isFocused", isFocused);
                 obj.Set("isHidden", isHidden);
@@ -391,6 +410,38 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
                 obj.Set("isMaximized", false);
                 arr.Set(idx++, obj);
             }
+
+            // Second pass: collect popup/menu windows (layer > 0) from the same process
+            for (NSDictionary *w in wl) {
+                pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
+                if (filterPid != -1 && wPid != filterPid) continue;
+
+                // Only include if we have a parent normal window for this PID
+                auto parentIt = pidToParentWindowId.find(wPid);
+                if (parentIt == pidToParentWindowId.end()) continue;
+
+                int layer = [w[(__bridge NSString *)kCGWindowLayer] intValue];
+                float alpha = [w[(__bridge NSString *)kCGWindowAlpha] floatValue];
+                NSDictionary *bounds = w[(__bridge NSString *)kCGWindowBounds];
+                double width = [bounds[@"Width"] doubleValue];
+                double height = [bounds[@"Height"] doubleValue];
+                // Popup windows have layer > 0; skip tiny or invisible ones
+                if (layer <= 0 || alpha < 0.01 || width < 2 || height < 2) continue;
+
+                uint32_t windowId = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
+                NSString *title = w[(__bridge NSString *)kCGWindowName];
+
+                Napi::Object obj = Napi::Object::New(env);
+                obj.Set("id", std::to_string(windowId));
+                obj.Set("title", nsStringToStd(title));
+                obj.Set("isFocused", false);
+                obj.Set("isHidden", false);
+                obj.Set("isMinimized", false);
+                obj.Set("isMaximized", false);
+                obj.Set("parentWindowId", parentIt->second);
+                arr.Set(idx++, obj);
+            }
+
             CFRelease(windowList);
         }
         return arr;
@@ -444,74 +495,134 @@ public:
             size_t bytesPerRow = CGImageGetBytesPerRow(image);
             CGDataProviderRef provider = CGImageGetDataProvider(image);
             CFDataRef rawData = CGDataProviderCopyData(provider);
+            if (!rawData) {
+                CGImageRelease(image);
+                SetError("Failed to copy pixel data");
+                return;
+            }
             const uint8_t *pixels = CFDataGetBytePtr(rawData);
 
             int cols = (imgWidth + tileSize - 1) / tileSize;
             int rows = (imgHeight + tileSize - 1) / tileSize;
 
-            // Lock cache
-            std::lock_guard<std::mutex> lock(g_cacheMutex);
-            TileHashCache &cache = g_windowCaches[windowId];
+            // ── Phase 1: Hash all tiles, collect dirty list (under lock) ──
+            struct PendingTile {
+                int col, row, tileX, tileY, tw, th;
+            };
+            std::vector<PendingTile> changedTiles;
 
-            double now = [[NSDate date] timeIntervalSince1970] * 1000.0;
+            {
+                std::lock_guard<std::mutex> lock(g_cacheMutex);
+                TileHashCache &cache = g_windowCaches[windowId];
 
-            // Create a bitmap context for tile extraction
-            CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+                // If dimensions changed, invalidate cache
+                if (cache.lastWidth != imgWidth || cache.lastHeight != imgHeight) {
+                    cache.hashes.clear();
+                    cache.lastWidth = imgWidth;
+                    cache.lastHeight = imgHeight;
+                }
 
-            for (int row = 0; row < rows; row++) {
-                for (int col = 0; col < cols; col++) {
-                    int tileX = col * tileSize;
-                    int tileY = row * tileSize;
-                    int tw = std::min(tileSize, imgWidth - tileX);
-                    int th = std::min(tileSize, imgHeight - tileY);
+                for (int row = 0; row < rows; row++) {
+                    for (int col = 0; col < cols; col++) {
+                        int tileX = col * tileSize;
+                        int tileY = row * tileSize;
+                        int tw = std::min(tileSize, imgWidth - tileX);
+                        int th = std::min(tileSize, imgHeight - tileY);
 
-                    // Compute hash of this tile's pixels
-                    uint64_t tileHash = 14695981039346656037ULL;
-                    for (int y = tileY; y < tileY + th; y++) {
-                        const uint8_t *rowPtr = pixels + y * bytesPerRow + tileX * bpp;
-                        size_t rowBytes = tw * bpp;
-                        for (size_t b = 0; b < rowBytes; b++) {
-                            tileHash ^= rowPtr[b];
-                            tileHash *= 1099511628211ULL;
+                        // Compute hash of this tile's pixels (hardware CRC32)
+                        uint32_t tileHash = 0;
+                        for (int y = tileY; y < tileY + th; y++) {
+                            const uint8_t *rowPtr = pixels + y * bytesPerRow + tileX * bpp;
+                            size_t tileRowBytes = tw * bpp;
+                            size_t chunks = tileRowBytes / 8;
+                            const uint64_t *ptr64 = reinterpret_cast<const uint64_t *>(rowPtr);
+#if defined(__arm64__) || defined(__aarch64__)
+                            for (size_t c = 0; c < chunks; c++) {
+                                tileHash = __crc32cd(tileHash, ptr64[c]);
+                            }
+                            for (size_t b = chunks * 8; b < tileRowBytes; b++) {
+                                tileHash = __crc32cb(tileHash, rowPtr[b]);
+                            }
+#elif defined(__x86_64__)
+                            for (size_t c = 0; c < chunks; c++) {
+                                tileHash = (uint32_t)_mm_crc32_u64(tileHash, ptr64[c]);
+                            }
+                            for (size_t b = chunks * 8; b < tileRowBytes; b++) {
+                                tileHash = _mm_crc32_u8(tileHash, rowPtr[b]);
+                            }
+#else
+                            for (size_t c = 0; c < chunks; c++) {
+                                tileHash ^= (uint32_t)(ptr64[c] ^ (ptr64[c] >> 32));
+                                tileHash *= 16777619u;
+                            }
+                            for (size_t b = chunks * 8; b < tileRowBytes; b++) {
+                                tileHash ^= rowPtr[b];
+                                tileHash *= 16777619u;
+                            }
+#endif
                         }
+
+                        uint64_t key = ((uint64_t)col << 32) | (uint64_t)row;
+                        auto it = cache.hashes.find(key);
+                        bool changed = (it == cache.hashes.end()) || (it->second != tileHash);
+
+                        // If delta mode and tile hasn't changed, skip
+                        if (sinceTimestamp > 0 && !changed) continue;
+
+                        cache.hashes[key] = tileHash;
+                        changedTiles.push_back({col, row, tileX, tileY, tw, th});
                     }
+                }
+            } // mutex released
 
-                    uint64_t key = ((uint64_t)col << 32) | (uint64_t)row;
-                    auto it = cache.hashes.find(key);
-                    bool changed = (it == cache.hashes.end()) || (it->second != tileHash);
+            // ── Phase 2: JPEG-encode dirty tiles in parallel via GCD ──
+            double now = [[NSDate date] timeIntervalSince1970] * 1000.0;
+            size_t count = changedTiles.size();
+            tiles.resize(count);
 
-                    // If delta mode and tile hasn't changed, skip
-                    if (sinceTimestamp > 0 && !changed) continue;
+            // Initialize all tiles as failed; successful encodes overwrite
+            for (size_t i = 0; i < count; i++) {
+                tiles[i].width = 0;
+            }
 
-                    cache.hashes[key] = tileHash;
-
-                    // Extract tile as JPEG
-                    CGRect tileRect = CGRectMake(tileX, tileY, tw, th);
+            auto encodeOneTile = [&](size_t i) {
+                @autoreleasepool {
+                    auto &ct = changedTiles[i];
+                    CGRect tileRect = CGRectMake(ct.tileX, ct.tileY, ct.tw, ct.th);
                     CGImageRef tileImage = CGImageCreateWithImageInRect(image, tileRect);
-                    if (!tileImage) continue;
+                    if (!tileImage) return;
 
                     NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:tileImage];
                     NSDictionary *props = @{NSImageCompressionFactor: @(quality)};
                     NSData *jpegData = [rep representationUsingType:NSBitmapImageFileTypeJPEG properties:props];
                     CGImageRelease(tileImage);
 
-                    if (!jpegData) continue;
+                    if (!jpegData) return;
 
-                    // base64 encode
-                    NSString *b64 = [jpegData base64EncodedStringWithOptions:0];
+                    tiles[i].xIndex = ct.col;
+                    tiles[i].yIndex = ct.row;
+                    tiles[i].width = ct.tw;
+                    tiles[i].height = ct.th;
+                    const uint8_t *bytes = (const uint8_t *)[jpegData bytes];
+                    tiles[i].imageData.assign(bytes, bytes + [jpegData length]);
+                    tiles[i].timestamp = now;
+                }
+            };
 
-                    TileResult tile;
-                    tile.xIndex = col;
-                    tile.yIndex = row;
-                    tile.width = tw;
-                    tile.height = th;
-                    tile.image = nsStringToStd(b64);
-                    tile.timestamp = now;
-                    tiles.push_back(tile);
+            if (count >= 3) {
+                dispatch_apply(count, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^(size_t i) {
+                    encodeOneTile(i);
+                });
+            } else {
+                for (size_t i = 0; i < count; i++) {
+                    encodeOneTile(i);
                 }
             }
 
-            CGColorSpaceRelease(colorSpace);
+            // Remove failed tiles (width == 0)
+            tiles.erase(std::remove_if(tiles.begin(), tiles.end(),
+                [](const TileResult &t) { return t.width == 0; }), tiles.end());
+
             CFRelease(rawData);
             CGImageRelease(image);
         }
@@ -532,7 +643,8 @@ public:
             t.Set("yIndex", tiles[i].yIndex);
             t.Set("width", tiles[i].width);
             t.Set("height", tiles[i].height);
-            t.Set("image", tiles[i].image);
+            t.Set("image", Napi::Buffer<uint8_t>::Copy(
+                Env(), tiles[i].imageData.data(), tiles[i].imageData.size()));
             t.Set("timestamp", tiles[i].timestamp);
             tilesArr.Set(i, t);
         }
@@ -552,7 +664,7 @@ private:
 
     struct TileResult {
         int xIndex, yIndex, width, height;
-        std::string image;
+        std::vector<uint8_t> imageData;
         double timestamp;
     };
     std::vector<TileResult> tiles;
@@ -580,23 +692,107 @@ static Napi::Value CaptureWindow(const Napi::CallbackInfo &info) {
 // 8. Perform action
 // ──────────────────────────────────────────────
 
-// Helper: bring the window's owning application to front
-static void focusWindowApp(uint32_t windowId) {
+// Get the PID that owns a window. Returns -1 if not found.
+static pid_t pidForWindow(uint32_t windowId) {
+    CFArrayRef windowList = CGWindowListCopyWindowInfo(
+        kCGWindowListOptionIncludingWindow, windowId);
+    if (!windowList || CFArrayGetCount(windowList) == 0) {
+        if (windowList) CFRelease(windowList);
+        return -1;
+    }
+    NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
+    pid_t pid = [wInfo[(__bridge NSString *)kCGWindowOwnerPID] intValue];
+    CFRelease(windowList);
+    return pid;
+}
+
+// Calls block with AX windows for a given CGWindowID.
+// Handles CGWindowList → PID → AX boilerplate and cleanup.
+// Returns false if window not found or has no AX windows.
+static bool withAXWindows(uint32_t windowId, void (^block)(CFArrayRef axWindows)) {
     @autoreleasepool {
-        CFArrayRef windowList = CGWindowListCopyWindowInfo(
-            kCGWindowListOptionIncludingWindow, windowId);
-        if (!windowList || CFArrayGetCount(windowList) == 0) {
-            if (windowList) CFRelease(windowList);
-            return;
-        }
-        NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
-        pid_t pid = [wInfo[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-        CFRelease(windowList);
+        pid_t pid = pidForWindow(windowId);
+        if (pid < 0) return false;
+        AXUIElementRef appRef = AXUIElementCreateApplication(pid);
+        CFArrayRef axWindows = NULL;
+        AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
+        bool ok = (axWindows && CFArrayGetCount(axWindows) > 0);
+        if (ok) block(axWindows);
+        if (axWindows) CFRelease(axWindows);
+        CFRelease(appRef);
+        return ok;
+    }
+}
+
+// Helper: ensure the window is ready to receive input.
+// Returns false if the window no longer exists.
+static bool ensureWindowReady(uint32_t windowId) {
+    @autoreleasepool {
+        pid_t pid = pidForWindow(windowId);
+        if (pid < 0) return false;
 
         NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
-        if (app) {
+        if (!app) return false;
+
+        bool needsWait = false;
+
+        // 2. Activate the app only if it isn't already frontmost
+        if (![app isActive]) {
             [app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+            needsWait = true;
         }
+
+        // 3. Un-minimize the window if needed (via AX API)
+        bool wasMinimized = false;
+        AXUIElementRef appRef = AXUIElementCreateApplication(pid);
+        CFArrayRef axWindows = NULL;
+        AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
+        if (axWindows) {
+            for (CFIndex i = 0; i < CFArrayGetCount(axWindows); i++) {
+                AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, i);
+                CFBooleanRef minimized = NULL;
+                AXUIElementCopyAttributeValue(win, kAXMinimizedAttribute, (CFTypeRef *)&minimized);
+                if (minimized && CFBooleanGetValue(minimized)) {
+                    AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanFalse);
+                    wasMinimized = true;
+                }
+                if (minimized) CFRelease(minimized);
+            }
+            // Raise the first window to front
+            if (CFArrayGetCount(axWindows) > 0) {
+                AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+                AXUIElementPerformAction(win, kAXRaiseAction);
+            }
+            CFRelease(axWindows);
+        }
+        CFRelease(appRef);
+
+        // Wait until the conditions we changed are met (max 500ms)
+        if (needsWait || wasMinimized) {
+            for (int i = 0; i < 25; i++) {
+                usleep(20000);
+                bool ready = [app isActive];
+                if (wasMinimized) {
+                    // Re-check minimized state
+                    AXUIElementRef ar = AXUIElementCreateApplication(pid);
+                    CFArrayRef aw = NULL;
+                    AXUIElementCopyAttributeValue(ar, kAXWindowsAttribute, (CFTypeRef *)&aw);
+                    if (aw) {
+                        for (CFIndex j = 0; j < CFArrayGetCount(aw); j++) {
+                            AXUIElementRef w = (AXUIElementRef)CFArrayGetValueAtIndex(aw, j);
+                            CFBooleanRef m = NULL;
+                            AXUIElementCopyAttributeValue(w, kAXMinimizedAttribute, (CFTypeRef *)&m);
+                            if (m && CFBooleanGetValue(m)) ready = false;
+                            if (m) CFRelease(m);
+                        }
+                        CFRelease(aw);
+                    }
+                    CFRelease(ar);
+                }
+                if (ready) break;
+            }
+        }
+        return true;
     }
 }
 
@@ -619,15 +815,78 @@ static CGRect getWindowBounds(uint32_t windowId) {
     return rect;
 }
 
-static void postMouseClick(CGPoint point, CGMouseButton button, bool isRightClick) {
+static CGPoint screenPointFromPayload(uint32_t windowId, const Napi::Object &payload) {
+    double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
+    double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
+    CGRect bounds = getWindowBounds(windowId);
+    return CGPointMake(bounds.origin.x + x, bounds.origin.y + y);
+}
+
+static void postMouseClick(CGPoint point, CGMouseButton button, bool isRightClick, CGEventFlags modifiers = 0) {
     CGEventType downType = isRightClick ? kCGEventRightMouseDown : kCGEventLeftMouseDown;
     CGEventType upType = isRightClick ? kCGEventRightMouseUp : kCGEventLeftMouseUp;
 
     CGEventRef down = CGEventCreateMouseEvent(NULL, downType, point, button);
     CGEventRef up = CGEventCreateMouseEvent(NULL, upType, point, button);
+    if (modifiers) {
+        if (down) CGEventSetFlags(down, modifiers);
+        if (up) CGEventSetFlags(up, modifiers);
+    }
     if (down) { CGEventPost(kCGHIDEventTap, down); CFRelease(down); }
-    usleep(30000); // 30ms between down and up
     if (up) { CGEventPost(kCGHIDEventTap, up); CFRelease(up); }
+}
+
+static void postMouseDoubleClick(CGPoint point, CGMouseButton button, bool isRightClick, CGEventFlags modifiers = 0) {
+    CGEventType downType = isRightClick ? kCGEventRightMouseDown : kCGEventLeftMouseDown;
+    CGEventType upType = isRightClick ? kCGEventRightMouseUp : kCGEventLeftMouseUp;
+
+    for (int click = 1; click <= 2; click++) {
+        CGEventRef down = CGEventCreateMouseEvent(NULL, downType, point, button);
+        CGEventRef up = CGEventCreateMouseEvent(NULL, upType, point, button);
+        if (down) CGEventSetIntegerValueField(down, kCGMouseEventClickState, click);
+        if (up) CGEventSetIntegerValueField(up, kCGMouseEventClickState, click);
+        if (modifiers) {
+            if (down) CGEventSetFlags(down, modifiers);
+            if (up) CGEventSetFlags(up, modifiers);
+        }
+        if (down) { CGEventPost(kCGHIDEventTap, down); CFRelease(down); }
+        if (up) { CGEventPost(kCGHIDEventTap, up); CFRelease(up); }
+    }
+}
+
+static void postMouseDown(CGPoint point, CGMouseButton button, bool isRightClick, CGEventFlags modifiers = 0) {
+    CGEventType downType = isRightClick ? kCGEventRightMouseDown : kCGEventLeftMouseDown;
+    CGEventRef down = CGEventCreateMouseEvent(NULL, downType, point, button);
+    if (modifiers && down) CGEventSetFlags(down, modifiers);
+    if (down) { CGEventPost(kCGHIDEventTap, down); CFRelease(down); }
+}
+
+static void postMouseDrag(CGPoint point, bool isRightClick) {
+    CGEventType dragType = isRightClick ? kCGEventOtherMouseDragged : kCGEventLeftMouseDragged;
+    CGEventRef drag = CGEventCreateMouseEvent(NULL, dragType, point, kCGMouseButtonLeft);
+    if (drag) { CGEventPost(kCGHIDEventTap, drag); CFRelease(drag); }
+}
+
+static void postMouseUp(CGPoint point, CGMouseButton button, bool isRightClick, CGEventFlags modifiers = 0) {
+    CGEventType upType = isRightClick ? kCGEventRightMouseUp : kCGEventLeftMouseUp;
+    CGEventRef up = CGEventCreateMouseEvent(NULL, upType, point, button);
+    if (modifiers && up) CGEventSetFlags(up, modifiers);
+    if (up) { CGEventPost(kCGHIDEventTap, up); CFRelease(up); }
+}
+
+static CGEventFlags parseModifiers(const Napi::Object &payload) {
+    CGEventFlags flags = 0;
+    if (payload.Has("modifiers") && payload.Get("modifiers").IsArray()) {
+        Napi::Array mods = payload.Get("modifiers").As<Napi::Array>();
+        for (uint32_t i = 0; i < mods.Length(); i++) {
+            std::string mod = mods.Get(i).As<Napi::String>().Utf8Value();
+            if (mod == "shift") flags |= kCGEventFlagMaskShift;
+            else if (mod == "cmd" || mod == "command" || mod == "meta") flags |= kCGEventFlagMaskCommand;
+            else if (mod == "alt" || mod == "option") flags |= kCGEventFlagMaskAlternate;
+            else if (mod == "ctrl" || mod == "control") flags |= kCGEventFlagMaskControl;
+        }
+    }
+    return flags;
 }
 
 static void postMouseMove(CGPoint point) {
@@ -715,7 +974,6 @@ static void postKeyInput(const std::string &key) {
         if (up) CGEventSetFlags(up, modifiers);
     }
     if (down) { CGEventPost(kCGHIDEventTap, down); CFRelease(down); }
-    usleep(20000);
     if (up) { CGEventPost(kCGHIDEventTap, up); CFRelease(up); }
 }
 
@@ -731,7 +989,7 @@ static void postTextInput(const std::string &text) {
             if (up) CGEventKeyboardSetUnicodeString(up, 1, &uniChar);
             if (down) { CGEventPost(kCGHIDEventTap, down); CFRelease(down); }
             if (up) { CGEventPost(kCGHIDEventTap, up); CFRelease(up); }
-            usleep(10000); // 10ms between chars
+            usleep(1000); // 1ms pacing between chars
         }
     }
 }
@@ -749,177 +1007,120 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
     uint32_t windowId = (uint32_t)std::stoul(windowIdStr);
 
     if (action == "focus") {
-        focusWindowApp(windowId);
+        ensureWindowReady(windowId);
     }
     else if (action == "minimize") {
-        // Use Accessibility API to minimize
-        @autoreleasepool {
-            CFArrayRef windowList = CGWindowListCopyWindowInfo(
-                kCGWindowListOptionIncludingWindow, windowId);
-            if (windowList && CFArrayGetCount(windowList) > 0) {
-                NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
-                pid_t pid = [wInfo[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-                CFRelease(windowList);
-
-                AXUIElementRef appRef = AXUIElementCreateApplication(pid);
-                CFArrayRef axWindows = NULL;
-                AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
-                if (axWindows) {
-                    // Find matching window and minimize
-                    for (CFIndex i = 0; i < CFArrayGetCount(axWindows); i++) {
-                        AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, i);
-                        AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanTrue);
-                        break; // minimize first window
-                    }
-                    CFRelease(axWindows);
-                }
-                CFRelease(appRef);
-            } else {
-                if (windowList) CFRelease(windowList);
-            }
-        }
+        withAXWindows(windowId, ^(CFArrayRef axWindows) {
+            AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+            AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanTrue);
+        });
     }
     else if (action == "maximize") {
-        // Use Accessibility API zoom button
-        @autoreleasepool {
-            CFArrayRef windowList = CGWindowListCopyWindowInfo(
-                kCGWindowListOptionIncludingWindow, windowId);
-            if (windowList && CFArrayGetCount(windowList) > 0) {
-                NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
-                pid_t pid = [wInfo[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-                CFRelease(windowList);
-
-                AXUIElementRef appRef = AXUIElementCreateApplication(pid);
-                CFArrayRef axWindows = NULL;
-                AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
-                if (axWindows && CFArrayGetCount(axWindows) > 0) {
-                    AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
-                    // Get screen size and set window to full screen
-                    NSScreen *mainScreen = [NSScreen mainScreen];
-                    NSRect screenFrame = mainScreen.visibleFrame;
-                    CGPoint origin = CGPointMake(screenFrame.origin.x, screenFrame.origin.y);
-                    CGSize size = CGSizeMake(screenFrame.size.width, screenFrame.size.height);
-
-                    AXValueRef posVal = AXValueCreate((AXValueType)kAXValueCGPointType, &origin);
-                    AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
-                    AXUIElementSetAttributeValue(win, kAXPositionAttribute, posVal);
-                    AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
-                    CFRelease(posVal);
-                    CFRelease(sizeVal);
-                    CFRelease(axWindows);
-                }
-                CFRelease(appRef);
-            } else {
-                if (windowList) CFRelease(windowList);
-            }
-        }
+        withAXWindows(windowId, ^(CFArrayRef axWindows) {
+            AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+            NSScreen *mainScreen = [NSScreen mainScreen];
+            NSRect screenFrame = mainScreen.visibleFrame;
+            CGPoint origin = CGPointMake(screenFrame.origin.x, screenFrame.origin.y);
+            CGSize size = CGSizeMake(screenFrame.size.width, screenFrame.size.height);
+            AXValueRef posVal = AXValueCreate((AXValueType)kAXValueCGPointType, &origin);
+            AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
+            AXUIElementSetAttributeValue(win, kAXPositionAttribute, posVal);
+            AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
+            CFRelease(posVal);
+            CFRelease(sizeVal);
+        });
     }
     else if (action == "restore") {
-        // Un-minimize
-        @autoreleasepool {
-            CFArrayRef windowList = CGWindowListCopyWindowInfo(
-                kCGWindowListOptionIncludingWindow, windowId);
-            if (windowList && CFArrayGetCount(windowList) > 0) {
-                NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
-                pid_t pid = [wInfo[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-                CFRelease(windowList);
-
-                AXUIElementRef appRef = AXUIElementCreateApplication(pid);
-                CFArrayRef axWindows = NULL;
-                AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
-                if (axWindows) {
-                    for (CFIndex i = 0; i < CFArrayGetCount(axWindows); i++) {
-                        AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, i);
-                        AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanFalse);
-                    }
-                    CFRelease(axWindows);
-                }
-                CFRelease(appRef);
-            } else {
-                if (windowList) CFRelease(windowList);
+        withAXWindows(windowId, ^(CFArrayRef axWindows) {
+            for (CFIndex i = 0; i < CFArrayGetCount(axWindows); i++) {
+                AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, i);
+                AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanFalse);
             }
-        }
+        });
     }
     else if (action == "close") {
-        @autoreleasepool {
-            CFArrayRef windowList = CGWindowListCopyWindowInfo(
-                kCGWindowListOptionIncludingWindow, windowId);
-            if (windowList && CFArrayGetCount(windowList) > 0) {
-                NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
-                pid_t pid = [wInfo[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-                CFRelease(windowList);
-
-                AXUIElementRef appRef = AXUIElementCreateApplication(pid);
-                CFArrayRef axWindows = NULL;
-                AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
-                if (axWindows && CFArrayGetCount(axWindows) > 0) {
-                    AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
-                    // Press close button
-                    AXUIElementRef closeButton = NULL;
-                    AXUIElementCopyAttributeValue(win, kAXCloseButtonAttribute, (CFTypeRef *)&closeButton);
-                    if (closeButton) {
-                        AXUIElementPerformAction(closeButton, kAXPressAction);
-                        CFRelease(closeButton);
-                    }
-                    CFRelease(axWindows);
-                }
-                CFRelease(appRef);
-            } else {
-                if (windowList) CFRelease(windowList);
+        withAXWindows(windowId, ^(CFArrayRef axWindows) {
+            AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+            AXUIElementRef closeButton = NULL;
+            AXUIElementCopyAttributeValue(win, kAXCloseButtonAttribute, (CFTypeRef *)&closeButton);
+            if (closeButton) {
+                AXUIElementPerformAction(closeButton, kAXPressAction);
+                CFRelease(closeButton);
             }
-        }
+        });
     }
     else if (action == "click" || action == "rightClick") {
-        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-
-        // x, y are relative to the window — convert to screen coords
-        CGRect bounds = getWindowBounds(windowId);
-        CGPoint screenPoint = CGPointMake(bounds.origin.x + x, bounds.origin.y + y);
-
-        focusWindowApp(windowId);
-        usleep(50000); // wait for app focus
+        if (!ensureWindowReady(windowId)) {
+            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        CGEventFlags modifiers = parseModifiers(payload);
         CGWarpMouseCursorPosition(screenPoint);
         CGAssociateMouseAndMouseCursorPosition(true);
-        usleep(20000);
-
         bool isRight = (action == "rightClick");
-        postMouseClick(screenPoint, isRight ? kCGMouseButtonRight : kCGMouseButtonLeft, isRight);
+        postMouseClick(screenPoint, isRight ? kCGMouseButtonRight : kCGMouseButtonLeft, isRight, modifiers);
+    }
+    else if (action == "doubleClick") {
+        if (!ensureWindowReady(windowId)) {
+            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        CGEventFlags modifiers = parseModifiers(payload);
+        CGWarpMouseCursorPosition(screenPoint);
+        CGAssociateMouseAndMouseCursorPosition(true);
+        postMouseDoubleClick(screenPoint, kCGMouseButtonLeft, false, modifiers);
+    }
+    else if (action == "dragStart") {
+        if (!ensureWindowReady(windowId)) {
+            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        CGEventFlags modifiers = parseModifiers(payload);
+        CGWarpMouseCursorPosition(screenPoint);
+        CGAssociateMouseAndMouseCursorPosition(true);
+        postMouseDown(screenPoint, kCGMouseButtonLeft, false, modifiers);
+    }
+    else if (action == "dragMove") {
+        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        CGWarpMouseCursorPosition(screenPoint);
+        postMouseDrag(screenPoint, false);
+    }
+    else if (action == "dragEnd") {
+        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        CGEventFlags modifiers = parseModifiers(payload);
+        postMouseUp(screenPoint, kCGMouseButtonLeft, false, modifiers);
     }
     else if (action == "hover") {
-        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-
-        CGRect bounds = getWindowBounds(windowId);
-        CGPoint screenPoint = CGPointMake(bounds.origin.x + x, bounds.origin.y + y);
+        if (!ensureWindowReady(windowId)) return env.Undefined();
+        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
         CGWarpMouseCursorPosition(screenPoint);
         postMouseMove(screenPoint);
     }
     else if (action == "textInput") {
+        if (!ensureWindowReady(windowId)) {
+            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
+            return env.Null();
+        }
         std::string text = payload.Has("text") ? payload.Get("text").As<Napi::String>().Utf8Value() : "";
-        focusWindowApp(windowId);
-        usleep(100000);
         postTextInput(text);
     }
     else if (action == "keyInput") {
+        if (!ensureWindowReady(windowId)) {
+            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
+            return env.Null();
+        }
         std::string key = payload.Has("key") ? payload.Get("key").As<Napi::String>().Utf8Value() : "";
-        focusWindowApp(windowId);
-        usleep(100000);
         postKeyInput(key);
     }
     else if (action == "scroll") {
-        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
+        if (!ensureWindowReady(windowId)) return env.Undefined();
+        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
         int32_t deltaX = payload.Has("scrollDeltaX") ? payload.Get("scrollDeltaX").As<Napi::Number>().Int32Value() : 0;
         int32_t deltaY = payload.Has("scrollDeltaY") ? payload.Get("scrollDeltaY").As<Napi::Number>().Int32Value() : 0;
-
-        CGRect bounds = getWindowBounds(windowId);
-        CGPoint screenPoint = CGPointMake(bounds.origin.x + x, bounds.origin.y + y);
-
-        focusWindowApp(windowId);
-        usleep(50000);
         CGWarpMouseCursorPosition(screenPoint);
-        usleep(20000);
         postScroll(deltaX, deltaY);
     }
     else if (action == "resize") {
@@ -929,30 +1130,13 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
             Napi::Error::New(env, "resize requires positive newWidth and newHeight").ThrowAsJavaScriptException();
             return env.Null();
         }
-        @autoreleasepool {
-            CFArrayRef windowList = CGWindowListCopyWindowInfo(
-                kCGWindowListOptionIncludingWindow, windowId);
-            if (windowList && CFArrayGetCount(windowList) > 0) {
-                NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
-                pid_t pid = [wInfo[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-                CFRelease(windowList);
-
-                AXUIElementRef appRef = AXUIElementCreateApplication(pid);
-                CFArrayRef axWindows = NULL;
-                AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
-                if (axWindows && CFArrayGetCount(axWindows) > 0) {
-                    AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
-                    CGSize size = CGSizeMake(newWidth, newHeight);
-                    AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
-                    AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
-                    CFRelease(sizeVal);
-                    CFRelease(axWindows);
-                }
-                CFRelease(appRef);
-            } else {
-                if (windowList) CFRelease(windowList);
-            }
-        }
+        withAXWindows(windowId, ^(CFArrayRef axWindows) {
+            AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+            CGSize size = CGSizeMake(newWidth, newHeight);
+            AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
+            AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
+            CFRelease(sizeVal);
+        });
     }
     else {
         Napi::Error::New(env, "Unknown action: " + action).ThrowAsJavaScriptException();

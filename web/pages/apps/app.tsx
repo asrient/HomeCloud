@@ -62,6 +62,8 @@ function WindowCanvas({
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
   const currentDims = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
   const [isFocused, setIsFocused] = useState(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDraggingRef = useRef(false);
 
   // ── Tile rendering ──
   useEffect(() => {
@@ -102,14 +104,38 @@ function WindowCanvas({
     }
   }, [uiState]);
 
+  // ── Helper: extract modifiers from a mouse event ──
+  const getModifiers = useCallback((e: React.MouseEvent | MouseEvent): string[] | undefined => {
+    const mods: string[] = [];
+    if (e.shiftKey) mods.push('shift');
+    if (e.ctrlKey) mods.push('ctrl');
+    if (e.altKey) mods.push('alt');
+    if (e.metaKey) mods.push('cmd');
+    return mods.length > 0 ? mods : undefined;
+  }, []);
+
   // ── Mouse handlers ──
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!interactive || !canvasRef.current) return;
+      // Skip if this was the end of a drag
+      if (isDraggingRef.current) return;
       const { x, y } = canvasToWindowCoords(e, canvasRef.current);
-      onAction({ action: RemoteAppWindowAction.Click, x, y });
+      const modifiers = getModifiers(e);
+      onAction({ action: RemoteAppWindowAction.Click, x, y, modifiers });
     },
-    [interactive, onAction],
+    [interactive, onAction, getModifiers],
+  );
+
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!interactive || !canvasRef.current) return;
+      e.preventDefault();
+      const { x, y } = canvasToWindowCoords(e, canvasRef.current);
+      const modifiers = getModifiers(e);
+      onAction({ action: RemoteAppWindowAction.DoubleClick, x, y, modifiers });
+    },
+    [interactive, onAction, getModifiers],
   );
 
   const handleContextMenu = useCallback(
@@ -117,21 +143,82 @@ function WindowCanvas({
       if (!interactive || !canvasRef.current) return;
       e.preventDefault();
       const { x, y } = canvasToWindowCoords(e, canvasRef.current);
-      onAction({ action: RemoteAppWindowAction.RightClick, x, y });
+      const modifiers = getModifiers(e);
+      onAction({ action: RemoteAppWindowAction.RightClick, x, y, modifiers });
     },
-    [interactive, onAction],
+    [interactive, onAction, getModifiers],
+  );
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!interactive || !canvasRef.current) return;
+      if (e.button !== 0) return; // left button only for drag
+      isDraggingRef.current = false;
+    },
+    [interactive],
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!interactive || !canvasRef.current) return;
-      // Only send hover when a mouse button is held (drag-style), to avoid flooding
-      if (e.buttons === 0) return;
+
       const { x, y } = canvasToWindowCoords(e, canvasRef.current);
-      onAction({ action: RemoteAppWindowAction.Hover, x, y });
+
+      // Drag: left button held
+      if (e.buttons === 1) {
+        if (!isDraggingRef.current) {
+          isDraggingRef.current = true;
+          const modifiers = getModifiers(e);
+          onAction({ action: RemoteAppWindowAction.DragStart, x, y, modifiers });
+        } else {
+          onAction({ action: RemoteAppWindowAction.DragMove, x, y });
+        }
+        // Cancel any pending hover
+        if (hoverTimerRef.current) {
+          clearTimeout(hoverTimerRef.current);
+          hoverTimerRef.current = null;
+        }
+        return;
+      }
+
+      // Hover: fire after mouse rests at a position for 500ms
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = setTimeout(() => {
+        onAction({ action: RemoteAppWindowAction.Hover, x, y });
+        hoverTimerRef.current = null;
+      }, 500);
     },
-    [interactive, onAction],
+    [interactive, onAction, getModifiers],
   );
+
+  const handleMouseUp = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!interactive || !canvasRef.current) return;
+      if (isDraggingRef.current) {
+        const { x, y } = canvasToWindowCoords(e, canvasRef.current);
+        const modifiers = getModifiers(e);
+        onAction({ action: RemoteAppWindowAction.DragEnd, x, y, modifiers });
+        // Prevent the click handler from firing after drag
+        // isDraggingRef remains true and is checked in handleClick
+        setTimeout(() => { isDraggingRef.current = false; }, 0);
+      }
+    },
+    [interactive, onAction, getModifiers],
+  );
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }, []);
+
+  // Clean up hover timer on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    };
+  }, []);
 
   // ── Scroll handler (native listener for non-passive preventDefault) ──
   const handleWheel = useCallback(
@@ -194,8 +281,12 @@ function WindowCanvas({
       onFocus={() => setIsFocused(true)}
       onBlur={() => setIsFocused(false)}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
+      onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
       onKeyDown={handleKeyDown}
       className={cn(
         'max-w-full h-auto rounded-md shadow-lg border outline-none',

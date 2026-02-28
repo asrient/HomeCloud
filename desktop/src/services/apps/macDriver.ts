@@ -89,7 +89,15 @@ export function captureWindow(
     return new Promise((resolve, reject) => {
         getModule().captureWindow(windowId, tileSize, quality, sinceTimestamp, (err, result) => {
             if (err) reject(err);
-            else resolve(result);
+            else {
+                // Convert binary JPEG buffers to base64 strings for RPC transport
+                for (const tile of result.tiles) {
+                    if (Buffer.isBuffer(tile.image)) {
+                        tile.image = (tile.image as unknown as Buffer).toString('base64');
+                    }
+                }
+                resolve(result);
+            }
         });
     });
 }

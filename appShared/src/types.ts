@@ -333,6 +333,7 @@ export type RemoteAppWindow = {
     isHidden: boolean;
     isMinimized: boolean;
     isMaximized: boolean;
+    parentWindowId?: string;
 }
 
 export type RemoteAppState = {
@@ -365,12 +366,16 @@ export enum RemoteAppWindowAction {
     Restore = "restore",
     Close = "close",
     Click = "click",
+    DoubleClick = "doubleClick",
+    RightClick = "rightClick",
     Hover = "hover",
     TextInput = "textInput",
     KeyInput = "keyInput",
     Scroll = "scroll",
-    RightClick = "rightClick",
     Resize = "resize",
+    DragStart = "dragStart",
+    DragMove = "dragMove",
+    DragEnd = "dragEnd",
 }
 
 export type RemoteAppWindowActionPayload = {
@@ -384,4 +389,5 @@ export type RemoteAppWindowActionPayload = {
     scrollDeltaY?: number;
     newWidth?: number;
     newHeight?: number;
+    modifiers?: string[]; // e.g. ["shift", "cmd", "alt", "ctrl"]
 }
