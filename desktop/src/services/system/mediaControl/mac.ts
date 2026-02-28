@@ -260,7 +260,23 @@ tell application "System Events"
   if exists process "Spotify" then
     tell application "Spotify"
       if player state is playing or player state is paused then
-        return (player state as string) & "||" & name of current track & "||" & artist of current track & "||" & album of current track
+        set pState to (player state as string)
+        try
+          set tName to name of current track as text
+        on error
+          set tName to ""
+        end try
+        try
+          set tArtist to artist of current track as text
+        on error
+          set tArtist to ""
+        end try
+        try
+          set tAlbum to album of current track as text
+        on error
+          set tAlbum to ""
+        end try
+        return pState & "||" & tName & "||" & tArtist & "||" & tAlbum
       end if
     end tell
   end if
@@ -291,7 +307,23 @@ tell application "System Events"
   if exists process "Music" then
     tell application "Music"
       if player state is playing or player state is paused then
-        return (player state as string) & "||" & name of current track & "||" & artist of current track & "||" & album of current track
+        set pState to (player state as string)
+        try
+          set tName to name of current track as text
+        on error
+          set tName to ""
+        end try
+        try
+          set tArtist to artist of current track as text
+        on error
+          set tArtist to ""
+        end try
+        try
+          set tAlbum to album of current track as text
+        on error
+          set tAlbum to ""
+        end try
+        return pState & "||" & tName & "||" & tArtist & "||" & tAlbum
       end if
     end tell
   end if
