@@ -41,6 +41,9 @@
 #include <nmmintrin.h>
 #endif
 
+// Private AX API: map AXUIElementRef → CGWindowID
+extern "C" AXError _AXUIElementGetWindow(AXUIElementRef element, uint32_t *windowID);
+
 // ──────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────
@@ -706,18 +709,37 @@ static pid_t pidForWindow(uint32_t windowId) {
     return pid;
 }
 
-// Calls block with AX windows for a given CGWindowID.
-// Handles CGWindowList → PID → AX boilerplate and cleanup.
+// Find the AXUIElementRef matching a CGWindowID via _AXUIElementGetWindow.
+// Returns a non-retained reference from axWindows, or NULL if no match.
+static AXUIElementRef axWindowForId(uint32_t windowId, CFArrayRef axWindows) {
+    for (CFIndex i = 0; i < CFArrayGetCount(axWindows); i++) {
+        AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, i);
+        uint32_t wid = 0;
+        if (_AXUIElementGetWindow(win, &wid) == kAXErrorSuccess && wid == windowId) {
+            return win;
+        }
+    }
+    return NULL;
+}
+
+// Calls block with the specific AX window matching windowId.
+// Handles CGWindowList → PID → AX boilerplate, cleanup, and window matching.
+// Falls back to first AX window if no exact match found.
 // Returns false if window not found or has no AX windows.
-static bool withAXWindows(uint32_t windowId, void (^block)(CFArrayRef axWindows)) {
+static bool withAXWindow(uint32_t windowId, void (^block)(AXUIElementRef axWindow)) {
     @autoreleasepool {
         pid_t pid = pidForWindow(windowId);
         if (pid < 0) return false;
         AXUIElementRef appRef = AXUIElementCreateApplication(pid);
         CFArrayRef axWindows = NULL;
         AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
-        bool ok = (axWindows && CFArrayGetCount(axWindows) > 0);
-        if (ok) block(axWindows);
+        bool ok = false;
+        if (axWindows && CFArrayGetCount(axWindows) > 0) {
+            AXUIElementRef target = axWindowForId(windowId, axWindows);
+            if (!target) target = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+            block(target);
+            ok = true;
+        }
         if (axWindows) CFRelease(axWindows);
         CFRelease(appRef);
         return ok;
@@ -742,26 +764,27 @@ static bool ensureWindowReady(uint32_t windowId) {
             needsWait = true;
         }
 
-        // 3. Un-minimize the window if needed (via AX API)
+        // 3. Find and prepare the target window via AX API
         bool wasMinimized = false;
         AXUIElementRef appRef = AXUIElementCreateApplication(pid);
         CFArrayRef axWindows = NULL;
         AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
         if (axWindows) {
-            for (CFIndex i = 0; i < CFArrayGetCount(axWindows); i++) {
-                AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, i);
+            AXUIElementRef targetWin = axWindowForId(windowId, axWindows);
+            if (!targetWin && CFArrayGetCount(axWindows) > 0) {
+                targetWin = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+            }
+            if (targetWin) {
+                // Un-minimize only the target window if needed
                 CFBooleanRef minimized = NULL;
-                AXUIElementCopyAttributeValue(win, kAXMinimizedAttribute, (CFTypeRef *)&minimized);
+                AXUIElementCopyAttributeValue(targetWin, kAXMinimizedAttribute, (CFTypeRef *)&minimized);
                 if (minimized && CFBooleanGetValue(minimized)) {
-                    AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanFalse);
+                    AXUIElementSetAttributeValue(targetWin, kAXMinimizedAttribute, kCFBooleanFalse);
                     wasMinimized = true;
                 }
                 if (minimized) CFRelease(minimized);
-            }
-            // Raise the first window to front
-            if (CFArrayGetCount(axWindows) > 0) {
-                AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
-                AXUIElementPerformAction(win, kAXRaiseAction);
+                // Raise the target window to front
+                AXUIElementPerformAction(targetWin, kAXRaiseAction);
             }
             CFRelease(axWindows);
         }
@@ -773,15 +796,15 @@ static bool ensureWindowReady(uint32_t windowId) {
                 usleep(20000);
                 bool ready = [app isActive];
                 if (wasMinimized) {
-                    // Re-check minimized state
+                    // Re-check minimized state of the target window
                     AXUIElementRef ar = AXUIElementCreateApplication(pid);
                     CFArrayRef aw = NULL;
                     AXUIElementCopyAttributeValue(ar, kAXWindowsAttribute, (CFTypeRef *)&aw);
                     if (aw) {
-                        for (CFIndex j = 0; j < CFArrayGetCount(aw); j++) {
-                            AXUIElementRef w = (AXUIElementRef)CFArrayGetValueAtIndex(aw, j);
+                        AXUIElementRef tw = axWindowForId(windowId, aw);
+                        if (tw) {
                             CFBooleanRef m = NULL;
-                            AXUIElementCopyAttributeValue(w, kAXMinimizedAttribute, (CFTypeRef *)&m);
+                            AXUIElementCopyAttributeValue(tw, kAXMinimizedAttribute, (CFTypeRef *)&m);
                             if (m && CFBooleanGetValue(m)) ready = false;
                             if (m) CFRelease(m);
                         }
@@ -1010,14 +1033,12 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         ensureWindowReady(windowId);
     }
     else if (action == "minimize") {
-        withAXWindows(windowId, ^(CFArrayRef axWindows) {
-            AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+        withAXWindow(windowId, ^(AXUIElementRef win) {
             AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanTrue);
         });
     }
     else if (action == "maximize") {
-        withAXWindows(windowId, ^(CFArrayRef axWindows) {
-            AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+        withAXWindow(windowId, ^(AXUIElementRef win) {
             NSScreen *mainScreen = [NSScreen mainScreen];
             NSRect screenFrame = mainScreen.visibleFrame;
             CGPoint origin = CGPointMake(screenFrame.origin.x, screenFrame.origin.y);
@@ -1031,16 +1052,12 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         });
     }
     else if (action == "restore") {
-        withAXWindows(windowId, ^(CFArrayRef axWindows) {
-            for (CFIndex i = 0; i < CFArrayGetCount(axWindows); i++) {
-                AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, i);
-                AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanFalse);
-            }
+        withAXWindow(windowId, ^(AXUIElementRef win) {
+            AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanFalse);
         });
     }
     else if (action == "close") {
-        withAXWindows(windowId, ^(CFArrayRef axWindows) {
-            AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+        withAXWindow(windowId, ^(AXUIElementRef win) {
             AXUIElementRef closeButton = NULL;
             AXUIElementCopyAttributeValue(win, kAXCloseButtonAttribute, (CFTypeRef *)&closeButton);
             if (closeButton) {
@@ -1130,8 +1147,7 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
             Napi::Error::New(env, "resize requires positive newWidth and newHeight").ThrowAsJavaScriptException();
             return env.Null();
         }
-        withAXWindows(windowId, ^(CFArrayRef axWindows) {
-            AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
+        withAXWindow(windowId, ^(AXUIElementRef win) {
             CGSize size = CGSizeMake(newWidth, newHeight);
             AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
             AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
