@@ -233,9 +233,20 @@ function cleanupAppWatcher(appId: string, fingerprint: string | null) {
 }
 
 function onWindowsChanged(appId: string, fingerprint: string | null, windows: RemoteAppWindow[]) {
-    // Build a map for parent lookups
-    const windowMap = new Map(windows.map(w => [w.id, w]));
+    const prefix = `${fingerprint ?? 'local'}:`;
+    const currentIds = new Set(windows.map(w => w.id));
 
+    // Close BrowserWindows for windows that no longer exist on the remote
+    for (const [key, bw] of remoteWindows) {
+        if (!key.startsWith(prefix)) continue;
+        const windowId = key.slice(prefix.length);
+        if (!currentIds.has(windowId) && !bw.isDestroyed()) {
+            bw.close();
+        }
+    }
+
+    // Open new windows
+    const windowMap = new Map(windows.map(w => [w.id, w]));
     for (const w of windows) {
         const key = windowKey(fingerprint, w.id);
         if (remoteWindows.has(key)) continue;
