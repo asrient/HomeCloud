@@ -48,6 +48,15 @@ export enum ConnectionType {
     LOCAL = "local"
 }
 
+export enum RemoteAppWindowType {
+    Regular = "regular",
+    Modal = "modal",
+    Floating = "floating",
+    Tooltip = "tooltip",
+    ContextMenu = "contextMenu",
+    Popup = "popup",
+}
+
 export enum RemoteAppWindowAction {
     Focus = "focus",
     Minimize = "minimize",

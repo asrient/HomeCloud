@@ -90,6 +90,13 @@ export type NativeUtils = {
     checkForUpdates: (force?: boolean) => Promise<UpdateInfo | null>;
     getUpdateStatus: () => UpdateStatus;
     triggerUpdateCheck: () => void;
+    openAppWindow?: (window: import('shared/types').RemoteAppWindow, fingerprint: string | null, appId: string) => void;
+    windowControls?: {
+        close: () => void;
+        minimize: () => void;
+        maximize: () => void;
+        resize: (width: number, height: number) => void;
+    };
 }
 
 export enum UserPreferences {

@@ -8,6 +8,7 @@ const { webUtils } = require('electron');
 //contextBridge.exposeInMainWorld('getModules', () => getGlobal('modules'));
 
 const desktopWebUtils = require('@electron/remote').require('./desktopWebUtils');
+const remote = require('@electron/remote');
 
 window.modules = getGlobal('modules');
 window.utils = {
@@ -17,4 +18,6 @@ window.utils = {
     checkForUpdates: desktopWebUtils.checkForUpdates,
     getUpdateStatus: desktopWebUtils.getUpdateStatus,
     triggerUpdateCheck: desktopWebUtils.triggerUpdateCheck,
+    openAppWindow: desktopWebUtils.openAppWindow,
+    windowControls: desktopWebUtils.getWindowControls(remote.getCurrentWindow()),
 }

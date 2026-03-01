@@ -52,6 +52,36 @@ static std::string nsStringToStd(NSString *s) {
     return s ? std::string([s UTF8String]) : "";
 }
 
+// Resolve the .icns icon path from a bundle, or nil if not found.
+static NSString *iconPathForBundle(NSBundle *bundle) {
+    if (!bundle) return nil;
+    NSString *iconFile = [[bundle infoDictionary] objectForKey:@"CFBundleIconFile"];
+    if (!iconFile) return nil;
+    if (![iconFile hasSuffix:@".icns"]) iconFile = [iconFile stringByAppendingString:@".icns"];
+    NSString *path = [[bundle resourcePath] stringByAppendingPathComponent:iconFile];
+    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) return nil;
+    return path;
+}
+
+// Map a modifier name to a CGEventFlags bit. Returns 0 if not recognized.
+static CGEventFlags modifierNameToFlag(const std::string &mod) {
+    if (mod == "shift") return kCGEventFlagMaskShift;
+    if (mod == "cmd" || mod == "command" || mod == "meta") return kCGEventFlagMaskCommand;
+    if (mod == "alt" || mod == "option") return kCGEventFlagMaskAlternate;
+    if (mod == "ctrl" || mod == "control") return kCGEventFlagMaskControl;
+    return (CGEventFlags)0;
+}
+
+// Test whether a CGWindowList dictionary describes a normal (layer-0) window.
+static bool isNormalCGWindow(NSDictionary *w, int minSize = 50) {
+    int layer = [w[(__bridge NSString *)kCGWindowLayer] intValue];
+    float alpha = [w[(__bridge NSString *)kCGWindowAlpha] floatValue];
+    NSDictionary *bounds = w[(__bridge NSString *)kCGWindowBounds];
+    double width = [bounds[@"Width"] doubleValue];
+    double height = [bounds[@"Height"] doubleValue];
+    return layer == 0 && alpha >= 0.01 && width >= minSize && height >= minSize;
+}
+
 
 
 // ──────────────────────────────────────────────
@@ -92,13 +122,8 @@ static Napi::Value GetInstalledApps(const Napi::CallbackInfo &info) {
                 if (!name) name = [[bundle infoDictionary] objectForKey:@"CFBundleName"];
                 if (!name) name = [[item lastPathComponent] stringByDeletingPathExtension];
 
-                NSString *iconFile = [[bundle infoDictionary] objectForKey:@"CFBundleIconFile"];
-                NSString *iconPath = nil;
-                if (iconFile) {
-                    if (![iconFile hasSuffix:@".icns"]) iconFile = [iconFile stringByAppendingString:@".icns"];
-                    iconPath = [[bundle resourcePath] stringByAppendingPathComponent:iconFile];
-                    if (![fm fileExistsAtPath:iconPath]) iconPath = nil;
-                }
+                NSString *iconPath = iconPathForBundle(bundle);
+                if (!iconPath) iconPath = nil;
 
                 [results addObject:@{
                     @"name": name ?: @"",
@@ -144,12 +169,7 @@ static Napi::Value GetRunningApps(const Napi::CallbackInfo &info) {
             obj.Set("id", nsStringToStd(app.bundleIdentifier));
             NSString *iconPath = nil;
             if (app.bundleURL) {
-                NSBundle *bundle = [NSBundle bundleWithURL:app.bundleURL];
-                NSString *iconFile = [[bundle infoDictionary] objectForKey:@"CFBundleIconFile"];
-                if (iconFile) {
-                    if (![iconFile hasSuffix:@".icns"]) iconFile = [iconFile stringByAppendingString:@".icns"];
-                    iconPath = [[bundle resourcePath] stringByAppendingPathComponent:iconFile];
-                }
+                iconPath = iconPathForBundle([NSBundle bundleWithURL:app.bundleURL]);
             }
             if (iconPath) {
                 obj.Set("iconPath", nsStringToStd(iconPath));
@@ -202,12 +222,7 @@ static Napi::Value GetAppState(const Napi::CallbackInfo &info) {
             for (NSDictionary *w in wl) {
                 pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
                 if (wPid != pid) continue;
-                int layer = [w[(__bridge NSString *)kCGWindowLayer] intValue];
-                float alpha = [w[(__bridge NSString *)kCGWindowAlpha] floatValue];
-                NSDictionary *bounds = w[(__bridge NSString *)kCGWindowBounds];
-                double width = [bounds[@"Width"] doubleValue];
-                double height = [bounds[@"Height"] doubleValue];
-                if (layer != 0 || alpha < 0.01 || width < 50 || height < 50) continue;
+                if (!isNormalCGWindow(w)) continue;
 
                 uint32_t windowId = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
                 NSString *title = w[(__bridge NSString *)kCGWindowName];
@@ -215,6 +230,7 @@ static Napi::Value GetAppState(const Napi::CallbackInfo &info) {
                 Napi::Object wObj = Napi::Object::New(env);
                 wObj.Set("id", std::to_string(windowId));
                 wObj.Set("title", nsStringToStd(title));
+                wObj.Set("type", std::string("regular")); // GetAppState only returns layer-0 windows
                 wObj.Set("isFocused", (bool)app.isActive); // per-window focus not available from CG
                 wObj.Set("isHidden", (bool)app.isHidden);
                 wObj.Set("isMinimized", false); // on-screen only, so not minimized
@@ -339,6 +355,9 @@ static Napi::Value GetAppIcon(const Napi::CallbackInfo &info) {
     }
 }
 
+// Forward declaration — defined after section 7.
+static AXUIElementRef axWindowForId(uint32_t windowId, CFArrayRef axWindows);
+
 // ──────────────────────────────────────────────
 // 6. Get windows
 // ──────────────────────────────────────────────
@@ -372,16 +391,65 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
             // so popup windows can reference their parent.
             std::unordered_map<pid_t, std::string> pidToParentWindowId;
 
+            // Pre-fetch AX windows per PID for type detection (subrole/modal)
+            std::unordered_map<pid_t, CFArrayRef> pidAXWindows;
+            auto getAXWindows = [&](pid_t pid) -> CFArrayRef {
+                auto it = pidAXWindows.find(pid);
+                if (it != pidAXWindows.end()) return it->second;
+                AXUIElementRef appRef = AXUIElementCreateApplication(pid);
+                CFArrayRef axWins = NULL;
+                AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWins);
+                CFRelease(appRef);
+                pidAXWindows[pid] = axWins; // may be NULL
+                return axWins;
+            };
+
+            // Determine window type from AX subrole for layer-0 windows
+            auto detectWindowType = [&](uint32_t windowId, pid_t pid) -> std::string {
+                CFArrayRef axWins = getAXWindows(pid);
+                if (!axWins) return "regular";
+                AXUIElementRef axWin = axWindowForId(windowId, axWins);
+                if (!axWin) return "regular";
+
+                // Check if modal first
+                CFTypeRef modalVal = NULL;
+                if (AXUIElementCopyAttributeValue(axWin, CFSTR("AXModal"), &modalVal) == kAXErrorSuccess) {
+                    if (modalVal) {
+                        Boolean isModal = CFBooleanGetValue((CFBooleanRef)modalVal);
+                        CFRelease(modalVal);
+                        if (isModal) return "modal";
+                    }
+                }
+
+                // Check subrole
+                CFStringRef subrole = NULL;
+                if (AXUIElementCopyAttributeValue(axWin, kAXSubroleAttribute, (CFTypeRef *)&subrole) == kAXErrorSuccess && subrole) {
+                    std::string type = "regular";
+                    if (CFStringCompare(subrole, CFSTR("AXDialog"), 0) == kCFCompareEqualTo ||
+                        CFStringCompare(subrole, CFSTR("AXSheet"), 0) == kCFCompareEqualTo) {
+                        type = "modal";
+                    } else if (CFStringCompare(subrole, CFSTR("AXFloatingWindow"), 0) == kCFCompareEqualTo) {
+                        type = "floating";
+                    }
+                    CFRelease(subrole);
+                    return type;
+                }
+                return "regular";
+            };
+
+            // Determine window type from CG layer for non-zero layer windows
+            auto typeFromLayer = [](int layer) -> std::string {
+                if (layer == 3) return "floating";
+                if (layer == 8) return "modal";
+                if (layer == 25 || (layer >= 24 && layer <= 26)) return "tooltip";
+                if (layer == 101) return "contextMenu";
+                return "popup";
+            };
+
             for (NSDictionary *w in wl) {
                 pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
                 if (filterPid != -1 && wPid != filterPid) continue;
-
-                int layer = [w[(__bridge NSString *)kCGWindowLayer] intValue];
-                float alpha = [w[(__bridge NSString *)kCGWindowAlpha] floatValue];
-                NSDictionary *bounds = w[(__bridge NSString *)kCGWindowBounds];
-                double width = [bounds[@"Width"] doubleValue];
-                double height = [bounds[@"Height"] doubleValue];
-                if (layer != 0 || alpha < 0.01 || width < 50 || height < 50) continue;
+                if (!isNormalCGWindow(w)) continue;
 
                 uint32_t windowId = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
                 NSString *title = w[(__bridge NSString *)kCGWindowName];
@@ -398,6 +466,7 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
                 }
 
                 std::string idStr = std::to_string(windowId);
+                std::string windowType = detectWindowType(windowId, wPid);
 
                 // Remember the first normal window per PID as the parent for popups
                 if (pidToParentWindowId.find(wPid) == pidToParentWindowId.end()) {
@@ -407,10 +476,16 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
                 Napi::Object obj = Napi::Object::New(env);
                 obj.Set("id", idStr);
                 obj.Set("title", nsStringToStd(title));
+                obj.Set("type", windowType);
                 obj.Set("isFocused", isFocused);
                 obj.Set("isHidden", isHidden);
                 obj.Set("isMinimized", false);
                 obj.Set("isMaximized", false);
+                NSDictionary *wBounds = w[(__bridge NSString *)kCGWindowBounds];
+                obj.Set("x", [wBounds[@"X"] doubleValue]);
+                obj.Set("y", [wBounds[@"Y"] doubleValue]);
+                obj.Set("width", [wBounds[@"Width"] doubleValue]);
+                obj.Set("height", [wBounds[@"Height"] doubleValue]);
                 arr.Set(idx++, obj);
             }
 
@@ -437,12 +512,22 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
                 Napi::Object obj = Napi::Object::New(env);
                 obj.Set("id", std::to_string(windowId));
                 obj.Set("title", nsStringToStd(title));
+                obj.Set("type", typeFromLayer(layer));
                 obj.Set("isFocused", false);
                 obj.Set("isHidden", false);
                 obj.Set("isMinimized", false);
                 obj.Set("isMaximized", false);
+                obj.Set("x", [bounds[@"X"] doubleValue]);
+                obj.Set("y", [bounds[@"Y"] doubleValue]);
+                obj.Set("width", width);
+                obj.Set("height", height);
                 obj.Set("parentWindowId", parentIt->second);
                 arr.Set(idx++, obj);
+            }
+
+            // Clean up AX window arrays
+            for (auto &pair : pidAXWindows) {
+                if (pair.second) CFRelease(pair.second);
             }
 
             CFRelease(windowList);
@@ -898,15 +983,11 @@ static void postMouseUp(CGPoint point, CGMouseButton button, bool isRightClick, 
 }
 
 static CGEventFlags parseModifiers(const Napi::Object &payload) {
-    CGEventFlags flags = 0;
+    CGEventFlags flags = (CGEventFlags)0;
     if (payload.Has("modifiers") && payload.Get("modifiers").IsArray()) {
         Napi::Array mods = payload.Get("modifiers").As<Napi::Array>();
         for (uint32_t i = 0; i < mods.Length(); i++) {
-            std::string mod = mods.Get(i).As<Napi::String>().Utf8Value();
-            if (mod == "shift") flags |= kCGEventFlagMaskShift;
-            else if (mod == "cmd" || mod == "command" || mod == "meta") flags |= kCGEventFlagMaskCommand;
-            else if (mod == "alt" || mod == "option") flags |= kCGEventFlagMaskAlternate;
-            else if (mod == "ctrl" || mod == "control") flags |= kCGEventFlagMaskControl;
+            flags |= modifierNameToFlag(mods.Get(i).As<Napi::String>().Utf8Value());
         }
     }
     return flags;
@@ -959,15 +1040,11 @@ static void postKeyInput(const std::string &key) {
     if (parts.empty()) return;
 
     // Determine modifier flags and final key
-    CGEventFlags modifiers = 0;
+    CGEventFlags modifiers = (CGEventFlags)0;
     std::string mainKey = parts.back();
 
     for (size_t i = 0; i < parts.size() - 1; i++) {
-        const auto &mod = parts[i];
-        if (mod == "cmd" || mod == "command" || mod == "meta") modifiers |= kCGEventFlagMaskCommand;
-        else if (mod == "shift") modifiers |= kCGEventFlagMaskShift;
-        else if (mod == "alt" || mod == "option") modifiers |= kCGEventFlagMaskAlternate;
-        else if (mod == "ctrl" || mod == "control") modifiers |= kCGEventFlagMaskControl;
+        modifiers |= modifierNameToFlag(parts[i]);
     }
 
     CGKeyCode keyCode = 0;

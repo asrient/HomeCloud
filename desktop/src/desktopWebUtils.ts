@@ -1,6 +1,7 @@
-import { Menu, MenuItem } from 'electron/main';
+import { BrowserWindow, Menu, MenuItem } from 'electron/main';
 import { hasFilePathsInClipboard } from './services/system/clipboard';
 import { checkForUpdates as _checkForUpdates, getUpdateStatus as _getUpdateStatus, triggerUpdateCheck as _triggerUpdateCheck, UpdateInfo, UpdateStatus } from './updateCheck';
+import { createRemoteWindow } from './remoteWindow';
 
 export type ContextMenuItem = {
     label?: string;
@@ -52,4 +53,21 @@ export function getUpdateStatus(): UpdateStatus {
 
 export function triggerUpdateCheck(): void {
     _triggerUpdateCheck();
+}
+
+export function openAppWindow(
+    window: import('shared/types').RemoteAppWindow,
+    fingerprint: string | null,
+    appId: string,
+): void {
+    createRemoteWindow(window, fingerprint, appId);
+}
+
+export function getWindowControls(win: BrowserWindow) {
+    return {
+        close: () => win.close(),
+        minimize: () => win.minimize(),
+        maximize: () => win.isMaximized() ? win.unmaximize() : win.maximize(),
+        resize: (w: number, h: number) => win.setContentSize(w, h),
+    };
 }

@@ -174,6 +174,76 @@ static bool IsAppWindow(HWND hwnd) {
     return true;
 }
 
+// Detect window type string for normal app windows (first pass)
+static std::string DetectWindowType(HWND hwnd) {
+    LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+
+    // Check if this is a modal dialog
+    if (exStyle & WS_EX_DLGMODALFRAME) return "modal";
+
+    // Check class name for dialog
+    WCHAR className[256] = {0};
+    GetClassNameW(hwnd, className, 256);
+    if (_wcsicmp(className, L"#32770") == 0) return "modal"; // system dialog class
+
+    return "regular";
+}
+
+// Detect window type string for owned/popup windows (second pass)
+static std::string DetectPopupWindowType(HWND hwnd) {
+    WCHAR className[256] = {0};
+    GetClassNameW(hwnd, className, 256);
+
+    if (_wcsicmp(className, L"tooltips_class32") == 0) return "tooltip";
+    if (_wcsicmp(className, L"#32768") == 0) return "contextMenu"; // system menu class
+
+    LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+
+    // Tool windows that are topmost → floating
+    if ((exStyle & WS_EX_TOOLWINDOW) && (exStyle & WS_EX_TOPMOST)) return "floating";
+    if (exStyle & WS_EX_TOOLWINDOW) return "floating";
+
+    // Modal-frame popups
+    if (exStyle & WS_EX_DLGMODALFRAME) return "modal";
+    if (_wcsicmp(className, L"#32770") == 0) return "modal";
+
+    return "popup";
+}
+
+// Build a Napi window-info object from an HWND.
+// For owned/popup windows pass the owner HWND; for top-level windows pass nullptr.
+static Napi::Object MakeWindowInfo(Napi::Env env, HWND hwnd, HWND foregroundHwnd,
+                                    HWND ownerHwnd = nullptr) {
+    WCHAR title[512] = {0};
+    GetWindowTextW(hwnd, title, 512);
+
+    Napi::Object obj = Napi::Object::New(env);
+    obj.Set("id", std::to_string((uintptr_t)hwnd));
+    obj.Set("title", WideToUtf8(title));
+    obj.Set("type", ownerHwnd ? DetectPopupWindowType(hwnd) : DetectWindowType(hwnd));
+    obj.Set("isFocused", hwnd == foregroundHwnd);
+    obj.Set("isHidden", ownerHwnd ? false : (bool)!IsWindowVisible(hwnd));
+    obj.Set("isMinimized", ownerHwnd ? false : (bool)IsIconic(hwnd));
+    obj.Set("isMaximized", ownerHwnd ? false : (bool)IsZoomed(hwnd));
+    RECT wndrect;
+    if (GetWindowRect(hwnd, &wndrect)) {
+        obj.Set("x", (double)wndrect.left);
+        obj.Set("y", (double)wndrect.top);
+        obj.Set("width", (double)(wndrect.right - wndrect.left));
+        obj.Set("height", (double)(wndrect.bottom - wndrect.top));
+    } else {
+        obj.Set("x", 0.0);
+        obj.Set("y", 0.0);
+        obj.Set("width", 0.0);
+        obj.Set("height", 0.0);
+    }
+    if (ownerHwnd) {
+        obj.Set("parentWindowId", std::to_string((uintptr_t)ownerHwnd));
+    }
+    return obj;
+}
+
 // ──────────────────────────────────────────────
 // Tile hash cache for delta capture
 // ──────────────────────────────────────────────
@@ -429,17 +499,7 @@ static Napi::Value GetAppState(const Napi::CallbackInfo &info) {
 
         for (HWND hwnd : pInfo.windows) {
             if (!hwnd) continue;
-            WCHAR title[512] = {0};
-            GetWindowTextW(hwnd, title, 512);
-
-            Napi::Object wObj = Napi::Object::New(env);
-            wObj.Set("id", std::to_string((uintptr_t)hwnd));
-            wObj.Set("title", WideToUtf8(title));
-            wObj.Set("isFocused", hwnd == ctx.foregroundHwnd);
-            wObj.Set("isHidden", (bool)!IsWindowVisible(hwnd));
-            wObj.Set("isMinimized", (bool)IsIconic(hwnd));
-            wObj.Set("isMaximized", (bool)IsZoomed(hwnd));
-            windowsArr.Set(wIdx++, wObj);
+            windowsArr.Set(wIdx++, MakeWindowInfo(env, hwnd, ctx.foregroundHwnd));
         }
         break;
     }
@@ -596,17 +656,7 @@ static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
             return TRUE;
     }
 
-    WCHAR title[512] = {0};
-    GetWindowTextW(hwnd, title, 512);
-
-    Napi::Object obj = Napi::Object::New(ctx->env);
-    obj.Set("id", std::to_string((uintptr_t)hwnd));
-    obj.Set("title", WideToUtf8(title));
-    obj.Set("isFocused", hwnd == ctx->foregroundHwnd);
-    obj.Set("isHidden", (bool)!IsWindowVisible(hwnd));
-    obj.Set("isMinimized", (bool)IsIconic(hwnd));
-    obj.Set("isMaximized", (bool)IsZoomed(hwnd));
-    ctx->windows.push_back(obj);
+    ctx->windows.push_back(MakeWindowInfo(ctx->env, hwnd, ctx->foregroundHwnd));
     ctx->appHwnds.insert(hwnd);
     return TRUE;
 }
@@ -642,18 +692,7 @@ static BOOL CALLBACK EnumPopupWindowsProc(HWND hwnd, LPARAM lParam) {
             return TRUE;
     }
 
-    WCHAR title[512] = {0};
-    GetWindowTextW(hwnd, title, 512);
-
-    Napi::Object obj = Napi::Object::New(ctx->env);
-    obj.Set("id", std::to_string((uintptr_t)hwnd));
-    obj.Set("title", WideToUtf8(title));
-    obj.Set("isFocused", hwnd == ctx->foregroundHwnd);
-    obj.Set("isHidden", false);
-    obj.Set("isMinimized", false);
-    obj.Set("isMaximized", false);
-    obj.Set("parentWindowId", std::to_string((uintptr_t)owner));
-    ctx->windows.push_back(obj);
+    ctx->windows.push_back(MakeWindowInfo(ctx->env, hwnd, ctx->foregroundHwnd, owner));
     return TRUE;
 }
 
@@ -1046,145 +1085,96 @@ static bool EnsureWindowReady(HWND hwnd) {
     return true;
 }
 
-static void PostMouseClick(POINT pt, bool isRight) {
-    // Use absolute coordinates for reliable click placement
+// Map modifier name to VK code (0 if not recognized)
+static WORD ModifierToVK(const std::string &mod) {
+    if (mod == "shift") return VK_SHIFT;
+    if (mod == "ctrl" || mod == "control") return VK_CONTROL;
+    if (mod == "alt" || mod == "option") return VK_MENU;
+    if (mod == "cmd" || mod == "command" || mod == "meta") return VK_LWIN;
+    return 0;
+}
+
+// Create an absolute mouse-move INPUT for a screen point
+static INPUT MakeAbsoluteMoveInput(POINT pt) {
     double fScreenWidth = GetSystemMetrics(SM_CXSCREEN) - 1;
     double fScreenHeight = GetSystemMetrics(SM_CYSCREEN) - 1;
-    double fx = pt.x * (65535.0 / fScreenWidth);
-    double fy = pt.y * (65535.0 / fScreenHeight);
+    INPUT input = {};
+    input.type = INPUT_MOUSE;
+    input.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+    input.mi.dx = (LONG)(pt.x * (65535.0 / fScreenWidth));
+    input.mi.dy = (LONG)(pt.y * (65535.0 / fScreenHeight));
+    return input;
+}
 
+// Send modifier keys from payload (press when release=false, release when true)
+static void SendModifiers(const Napi::Object &payload, bool release) {
+    if (!payload.Has("modifiers") || !payload.Get("modifiers").IsArray()) return;
+    Napi::Array mods = payload.Get("modifiers").As<Napi::Array>();
+    std::vector<INPUT> inputs;
+    for (uint32_t i = 0; i < mods.Length(); i++) {
+        WORD vk = ModifierToVK(mods.Get(i).As<Napi::String>().Utf8Value());
+        if (vk) {
+            INPUT inp = {};
+            inp.type = INPUT_KEYBOARD;
+            inp.ki.wVk = vk;
+            if (release) inp.ki.dwFlags = KEYEVENTF_KEYUP;
+            inputs.push_back(inp);
+        }
+    }
+    if (!inputs.empty()) SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
+}
+
+// Get screen point from payload x,y offset relative to window rect
+static POINT ScreenPointFromPayload(HWND hwnd, const Napi::Object &payload) {
+    double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
+    double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
+    RECT rect;
+    GetWindowRect(hwnd, &rect);
+    return {rect.left + (LONG)x, rect.top + (LONG)y};
+}
+
+static void PostMouseClick(POINT pt, bool isRight) {
     INPUT inputs[3] = {};
-    // Move to position
-    inputs[0].type = INPUT_MOUSE;
-    inputs[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
-    inputs[0].mi.dx = (LONG)fx;
-    inputs[0].mi.dy = (LONG)fy;
-    // Button down
+    inputs[0] = MakeAbsoluteMoveInput(pt);
     inputs[1].type = INPUT_MOUSE;
     inputs[1].mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
-    // Button up
     inputs[2].type = INPUT_MOUSE;
     inputs[2].mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
-
     SendInput(3, inputs, sizeof(INPUT));
 }
 
 static void PostMouseDoubleClick(POINT pt) {
-    double fScreenWidth = GetSystemMetrics(SM_CXSCREEN) - 1;
-    double fScreenHeight = GetSystemMetrics(SM_CYSCREEN) - 1;
-    double fx = pt.x * (65535.0 / fScreenWidth);
-    double fy = pt.y * (65535.0 / fScreenHeight);
-
     INPUT inputs[5] = {};
-    // Move to position
-    inputs[0].type = INPUT_MOUSE;
-    inputs[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
-    inputs[0].mi.dx = (LONG)fx;
-    inputs[0].mi.dy = (LONG)fy;
-    // First click
+    inputs[0] = MakeAbsoluteMoveInput(pt);
     inputs[1].type = INPUT_MOUSE;
     inputs[1].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
     inputs[2].type = INPUT_MOUSE;
     inputs[2].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-    // Second click
     inputs[3].type = INPUT_MOUSE;
     inputs[3].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
     inputs[4].type = INPUT_MOUSE;
     inputs[4].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-
     SendInput(5, inputs, sizeof(INPUT));
 }
 
 static void PostMouseDown(POINT pt, bool isRight) {
-    double fScreenWidth = GetSystemMetrics(SM_CXSCREEN) - 1;
-    double fScreenHeight = GetSystemMetrics(SM_CYSCREEN) - 1;
-    double fx = pt.x * (65535.0 / fScreenWidth);
-    double fy = pt.y * (65535.0 / fScreenHeight);
-
     INPUT inputs[2] = {};
-    inputs[0].type = INPUT_MOUSE;
-    inputs[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
-    inputs[0].mi.dx = (LONG)fx;
-    inputs[0].mi.dy = (LONG)fy;
+    inputs[0] = MakeAbsoluteMoveInput(pt);
     inputs[1].type = INPUT_MOUSE;
     inputs[1].mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
-
     SendInput(2, inputs, sizeof(INPUT));
 }
 
 static void PostMouseUp(POINT pt, bool isRight) {
-    double fScreenWidth = GetSystemMetrics(SM_CXSCREEN) - 1;
-    double fScreenHeight = GetSystemMetrics(SM_CYSCREEN) - 1;
-    double fx = pt.x * (65535.0 / fScreenWidth);
-    double fy = pt.y * (65535.0 / fScreenHeight);
-
     INPUT inputs[2] = {};
-    inputs[0].type = INPUT_MOUSE;
-    inputs[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
-    inputs[0].mi.dx = (LONG)fx;
-    inputs[0].mi.dy = (LONG)fy;
+    inputs[0] = MakeAbsoluteMoveInput(pt);
     inputs[1].type = INPUT_MOUSE;
     inputs[1].mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
-
     SendInput(2, inputs, sizeof(INPUT));
 }
 
-// Press/release modifier keys around an action
-static void PressModifiers(const Napi::Object &payload) {
-    if (!payload.Has("modifiers") || !payload.Get("modifiers").IsArray()) return;
-    Napi::Array mods = payload.Get("modifiers").As<Napi::Array>();
-    std::vector<INPUT> inputs;
-    for (uint32_t i = 0; i < mods.Length(); i++) {
-        std::string mod = mods.Get(i).As<Napi::String>().Utf8Value();
-        WORD vk = 0;
-        if (mod == "shift") vk = VK_SHIFT;
-        else if (mod == "ctrl" || mod == "control") vk = VK_CONTROL;
-        else if (mod == "alt" || mod == "option") vk = VK_MENU;
-        else if (mod == "cmd" || mod == "command" || mod == "meta") vk = VK_LWIN;
-        if (vk) {
-            INPUT inp = {};
-            inp.type = INPUT_KEYBOARD;
-            inp.ki.wVk = vk;
-            inputs.push_back(inp);
-        }
-    }
-    if (!inputs.empty()) SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
-}
-
-static void ReleaseModifiers(const Napi::Object &payload) {
-    if (!payload.Has("modifiers") || !payload.Get("modifiers").IsArray()) return;
-    Napi::Array mods = payload.Get("modifiers").As<Napi::Array>();
-    std::vector<INPUT> inputs;
-    for (uint32_t i = 0; i < mods.Length(); i++) {
-        std::string mod = mods.Get(i).As<Napi::String>().Utf8Value();
-        WORD vk = 0;
-        if (mod == "shift") vk = VK_SHIFT;
-        else if (mod == "ctrl" || mod == "control") vk = VK_CONTROL;
-        else if (mod == "alt" || mod == "option") vk = VK_MENU;
-        else if (mod == "cmd" || mod == "command" || mod == "meta") vk = VK_LWIN;
-        if (vk) {
-            INPUT inp = {};
-            inp.type = INPUT_KEYBOARD;
-            inp.ki.wVk = vk;
-            inp.ki.dwFlags = KEYEVENTF_KEYUP;
-            inputs.push_back(inp);
-        }
-    }
-    if (!inputs.empty()) SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
-}
-
 static void PostMouseMove(POINT pt) {
-    // Use absolute coordinates via SendInput
-    double fScreenWidth = GetSystemMetrics(SM_CXSCREEN) - 1;
-    double fScreenHeight = GetSystemMetrics(SM_CYSCREEN) - 1;
-    double fx = pt.x * (65535.0 / fScreenWidth);
-    double fy = pt.y * (65535.0 / fScreenHeight);
-
-    INPUT input = {};
-    input.type = INPUT_MOUSE;
-    input.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
-    input.mi.dx = (LONG)fx;
-    input.mi.dy = (LONG)fy;
+    INPUT input = MakeAbsoluteMoveInput(pt);
     SendInput(1, &input, sizeof(INPUT));
 }
 
@@ -1247,11 +1237,8 @@ static void PostKeyInput(const std::string &keyStr) {
     // Collect modifier VKs
     std::vector<WORD> modVKs;
     for (size_t i = 0; i < parts.size() - 1; i++) {
-        const auto &mod = parts[i];
-        if (mod == "ctrl" || mod == "control") modVKs.push_back(VK_CONTROL);
-        else if (mod == "shift") modVKs.push_back(VK_SHIFT);
-        else if (mod == "alt" || mod == "option") modVKs.push_back(VK_MENU);
-        else if (mod == "cmd" || mod == "command" || mod == "meta") modVKs.push_back(VK_LWIN);
+        WORD vk = ModifierToVK(parts[i]);
+        if (vk) modVKs.push_back(vk);
     }
 
     // Resolve main key VK
@@ -1373,78 +1360,39 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
-        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
-
-        PressModifiers(payload);
+        POINT screenPt = ScreenPointFromPayload(hwnd, payload);
+        SendModifiers(payload, false);
         PostMouseClick(screenPt, action == "rightClick");
-        ReleaseModifiers(payload);
+        SendModifiers(payload, true);
     }
     else if (action == "doubleClick") {
         if (!EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
-        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
-
-        PressModifiers(payload);
+        POINT screenPt = ScreenPointFromPayload(hwnd, payload);
+        SendModifiers(payload, false);
         PostMouseDoubleClick(screenPt);
-        ReleaseModifiers(payload);
+        SendModifiers(payload, true);
     }
     else if (action == "dragStart") {
         if (!EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
-        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
-
-        PressModifiers(payload);
-        PostMouseDown(screenPt, false);
+        SendModifiers(payload, false);
+        PostMouseDown(ScreenPointFromPayload(hwnd, payload), false);
     }
     else if (action == "dragMove") {
-        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
-
-        PostMouseMove(screenPt);
+        PostMouseMove(ScreenPointFromPayload(hwnd, payload));
     }
     else if (action == "dragEnd") {
-        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
-
-        PostMouseUp(screenPt, false);
-        ReleaseModifiers(payload);
+        PostMouseUp(ScreenPointFromPayload(hwnd, payload), false);
+        SendModifiers(payload, true);
     }
     else if (action == "hover") {
         if (!EnsureWindowReady(hwnd)) return env.Undefined();
-        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
-        PostMouseMove(screenPt);
+        PostMouseMove(ScreenPointFromPayload(hwnd, payload));
     }
     else if (action == "textInput") {
         if (!EnsureWindowReady(hwnd)) {
@@ -1466,17 +1414,11 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
     }
     else if (action == "scroll") {
         if (!EnsureWindowReady(hwnd)) return env.Undefined();
-        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
+        POINT screenPt = ScreenPointFromPayload(hwnd, payload);
         int deltaX = payload.Has("scrollDeltaX")
             ? payload.Get("scrollDeltaX").As<Napi::Number>().Int32Value() : 0;
         int deltaY = payload.Has("scrollDeltaY")
             ? payload.Get("scrollDeltaY").As<Napi::Number>().Int32Value() : 0;
-
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-        POINT screenPt = {rect.left + (LONG)x, rect.top + (LONG)y};
-
         SetCursorPos(screenPt.x, screenPt.y);
         PostScroll(deltaX, deltaY);
     }

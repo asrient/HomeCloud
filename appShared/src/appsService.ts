@@ -1,4 +1,5 @@
 import { Service, exposed, serviceStartMethod, serviceStopMethod } from './servicePrimatives';
+import Signal from './signals';
 import {
     RemoteAppInfo,
     RemoteAppWindow,
@@ -14,13 +15,25 @@ export abstract class AppsService extends Service {
         this._init();
     }
 
+    /**
+     * Fired when the set of running apps changes (app launched or quit).
+     * Payload is the updated list of running apps.
+     */
+    public runningAppsChanged = new Signal<[RemoteAppInfo[]]>({ isExposed: true, isAllowAll: false });
+
+    /**
+     * Fired when the set of windows for a given app changes (window opened or closed).
+     * Payload is [appId, updatedWindowsList].
+     */
+    public windowsChanged = new Signal<[string, RemoteAppWindow[]]>({ isExposed: true, isAllowAll: false });
+
     // ── App enumeration ──
 
     /**
      * List all installed applications on this device.
      */
     @exposed
-    public async getInstalledApps(): Promise<RemoteAppInfo[]> {
+    public async getInstalledApps(force?: boolean): Promise<RemoteAppInfo[]> {
         throw new Error("Not implemented");
     }
 
@@ -75,6 +88,40 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async getWindows(appId?: string): Promise<RemoteAppWindow[]> {
+        throw new Error("Not implemented");
+    }
+
+    /**
+     * Start watching running apps changes.
+     * The server will poll and dispatch runningAppsChanged signals.
+     */
+    @exposed
+    public async watchRunningApps(): Promise<void> {
+        throw new Error("Not implemented");
+    }
+
+    /**
+     * Stop watching running apps changes.
+     */
+    @exposed
+    public async unwatchRunningApps(): Promise<void> {
+        throw new Error("Not implemented");
+    }
+
+    /**
+     * Start watching window changes for a given app.
+     * The server will poll and dispatch windowsChanged signals.
+     */
+    @exposed
+    public async watchWindows(appId: string): Promise<void> {
+        throw new Error("Not implemented");
+    }
+
+    /**
+     * Stop watching window changes for a given app.
+     */
+    @exposed
+    public async unwatchWindows(appId: string): Promise<void> {
         throw new Error("Not implemented");
     }
 
