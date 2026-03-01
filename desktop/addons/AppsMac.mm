@@ -843,7 +843,7 @@ static bool ensureWindowReady(uint32_t windowId) {
 
         bool needsWait = false;
 
-        // 2. Activate the app only if it isn't already frontmost
+        // 2. Activate the app (even if already active, to refresh window ordering)
         if (![app isActive]) {
             [app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
             needsWait = true;
@@ -868,8 +868,11 @@ static bool ensureWindowReady(uint32_t windowId) {
                     wasMinimized = true;
                 }
                 if (minimized) CFRelease(minimized);
-                // Raise the target window to front
+                // Raise and make it the main window
                 AXUIElementPerformAction(targetWin, kAXRaiseAction);
+                AXUIElementSetAttributeValue(targetWin, kAXMainAttribute, kCFBooleanTrue);
+                // Set as the app's focused window (kAXFocusedWindowAttribute is on the app element)
+                AXUIElementSetAttributeValue(appRef, kAXFocusedWindowAttribute, targetWin);
             }
             CFRelease(axWindows);
         }
