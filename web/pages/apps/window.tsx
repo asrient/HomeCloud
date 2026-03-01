@@ -226,9 +226,6 @@ const AppWindowPage: NextPageWithConfig = () => {
     setIsConnecting(true);
     consecutiveErrorsRef.current = 0;
 
-    // Focus the remote window
-    dispatchAction({ action: RemoteAppWindowAction.Focus });
-
     captureLoop();
 
     return () => {
