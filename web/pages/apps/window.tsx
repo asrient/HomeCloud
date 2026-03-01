@@ -272,6 +272,9 @@ const AppWindowPage: NextPageWithConfig = () => {
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
     isDraggingRef.current = false;
+    // Ensure BrowserWindow and canvas are focused when clicking from behind
+    window.focus();
+    canvasRef.current?.focus();
   }, []);
 
   const handleMouseMove = useCallback(
@@ -329,12 +332,15 @@ const AppWindowPage: NextPageWithConfig = () => {
     [dispatchAction],
   );
 
+  const isCanvasVisible = useMemo(() => !isConnecting || !!uiState, [isConnecting, uiState]);
+
   useEffect(() => {
+    if (!isCanvasVisible) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', handleWheel);
-  }, [handleWheel]);
+  }, [handleWheel, isCanvasVisible]);
 
   // ── Keyboard ──
   const handleKeyDown = useCallback(
@@ -396,7 +402,7 @@ const AppWindowPage: NextPageWithConfig = () => {
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseLeave}
               onKeyDown={handleKeyDown}
-              className='w-full h-full outline-none cursor-crosshair'
+              className='w-full h-full outline-none'
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             />
           )}

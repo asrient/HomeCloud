@@ -46,14 +46,16 @@ export default function WindowFab({ onDispatchAction }: WindowFabProps) {
       {/* Collapsed: clickable pill */}
       {!open && (
         <div
-          className='absolute top-0 left-1/2 -translate-x-1/2 z-30 pt-1'
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          className='absolute top-0 left-1/2 -translate-x-1/2 z-30 app-dragable'
         >
           <div
-            className='w-20 h-4 flex items-start justify-center'
-            onClick={() => setOpen(true)}
+            className='w-20 h-3 flex items-center justify-center bg-neutral-500/30 rounded-b-sm'
           >
-            <div className='w-10 h-1.5 rounded-full bg-neutral-500/40 hover:bg-neutral-400/60 hover:w-14 hover:h-2 transition-all duration-200' />
+            <div
+              className='w-10 h-1.5 rounded-full bg-neutral-500/40 hover:bg-neutral-400/60 hover:w-14 hover:h-2 transition-all duration-200'
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+              onClick={() => setOpen(true)}
+            />
           </div>
         </div>
       )}

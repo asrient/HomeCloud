@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { PageBar, PageContent, MenuGroup, MenuButton } from '@/components/pagePrimatives';
+import { PageBar, PageContent } from '@/components/pagePrimatives';
 import { ThemedIconName } from '@/lib/enums';
 import { getServiceController, buildPageConfig, cn, isMacosTheme, getAppName } from '@/lib/utils';
 import { RemoteAppInfo } from 'shared/types';
@@ -71,17 +71,9 @@ const Page: NextPageWithConfig = () => {
 
     const [launchingAppId, setLaunchingAppId] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
-    const [autoOpen, setAutoOpen] = useState(true);
-
-    const openAppWindowsRef = useRef<((app: RemoteAppInfo) => void) | null>(null);
-    const autoOpenRef = useRef(autoOpen);
-    autoOpenRef.current = autoOpen;
 
     const { runningApps, isLoading: runningLoading, error: runningError, reload } = useRunningApps(
         fingerprint,
-        useCallback((app: RemoteAppInfo) => {
-            if (autoOpenRef.current) openAppWindowsRef.current?.(app);
-        }, []),
     );
     const { installedApps, isLoading: installedLoading, error: installedError } = useInstalledApps(fingerprint);
     const isLoading = runningLoading || installedLoading;
@@ -108,8 +100,6 @@ const Page: NextPageWithConfig = () => {
             setActionError(`Failed to open ${app.name}`);
         }
     }, [fingerprint]);
-
-    openAppWindowsRef.current = openAppWindows;
 
     const handleAppClick = useCallback(async (app: RemoteAppInfo, isRunning: boolean) => {
         if (isRunning) {
@@ -146,19 +136,7 @@ const Page: NextPageWithConfig = () => {
             <Head>
                 <title>Apps - {getAppName()}</title>
             </Head>
-            <PageBar title='Apps' icon={ThemedIconName.Apps}>
-                <MenuGroup>
-                    <MenuButton
-                        title='Auto-open windows'
-                        selected={autoOpen}
-                        onClick={() => setAutoOpen(v => !v)}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                        </svg>
-                    </MenuButton>
-                </MenuGroup>
-            </PageBar>
+            <PageBar title='Apps' icon={ThemedIconName.Apps} />
             <PageContent>
                 {isLoading ? (
                     <div className='flex items-center justify-center py-20'>

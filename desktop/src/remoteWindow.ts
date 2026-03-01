@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
 import path from 'node:path';
-import { RemoteAppWindow, RemoteAppWindowType } from 'shared/types';
+import { RemoteAppWindow, RemoteAppWindowType, RemoteAppWindowAction } from 'shared/types';
 import { buildUrl } from './window';
 
 // ── Constants ──
@@ -163,6 +163,24 @@ export function createRemoteWindow(
             if (!win.isDestroyed()) win.close();
         });
     }
+
+    // Focus the remote window when this BrowserWindow gains focus
+    win.on('focus', async () => {
+        console.log('[remoteWindow] focus event fired for window:', w.id, 'fingerprint:', fingerprint);
+        try {
+            const sc = fingerprint
+                ? await modules.getRemoteServiceController(fingerprint)
+                : modules.getLocalServiceController();
+            console.log('[remoteWindow] got SC, dispatching focus action');
+            await sc.apps.performWindowAction({
+                action: RemoteAppWindowAction.Focus,
+                windowId: w.id,
+            });
+            console.log('[remoteWindow] focus action completed');
+        } catch (e) {
+            console.error('Failed to focus remote window:', e);
+        }
+    });
 
     win.on('closed', () => {
         remoteWindows.delete(key);

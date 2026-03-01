@@ -1340,7 +1340,6 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
     }
 
     if (action == "focus") {
-        // Bring window to foreground
         EnsureWindowReady(hwnd);
     }
     else if (action == "minimize") {
