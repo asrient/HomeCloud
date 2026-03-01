@@ -141,13 +141,14 @@ export const useResource = ({
 };
 
 export const useResourceWithPolling = ({
-    deviceFingerprint, load, interval, clearSignals, setupSignals,
+    deviceFingerprint, load, interval, clearSignals, setupSignals, poll,
 }: {
     deviceFingerprint: string | null;
     load: (serviceController: ServiceController, shouldAbort: () => boolean) => Promise<void>;
     interval: number;
     clearSignals?: (serviceController: ServiceController) => void;
     setupSignals?: (serviceController: ServiceController) => void;
+    poll?: () => void;
 }) => {
     const { isLoading, error, reload } = useResource({
         deviceFingerprint,
@@ -156,15 +157,15 @@ export const useResourceWithPolling = ({
         setupSignals,
     });
 
+    const pollFn = poll ?? reload;
+
     useEffect(() => {
-        const pollingInterval = setInterval(() => {
-            reload();
-        }, interval);
+        const pollingInterval = setInterval(pollFn, interval);
 
         return () => {
             clearInterval(pollingInterval);
         };
-    }, [deviceFingerprint, interval, reload]);
+    }, [deviceFingerprint, interval, pollFn]);
 
     return { isLoading, error, reload };
 };

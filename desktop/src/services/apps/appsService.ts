@@ -32,14 +32,12 @@ export default class DesktopAppsService extends AppsService {
     private runningAppsIds: Set<string> | null = null;
     private pollTimer: ReturnType<typeof setInterval> | null = null;
     private lastRunningAppsCall = 0;
-    private runningAppsRefCount = 0;
 
     // Per-app window tracking
     private windowWatchers = new Map<string, {
         timer: ReturnType<typeof setInterval>;
         windowIds: Set<string>;
         lastAccess: number;
-        refCount: number;
     }>();
 
     // ── App enumeration ──
@@ -63,7 +61,6 @@ export default class DesktopAppsService extends AppsService {
      */
     @exposed
     public async watchRunningApps(): Promise<void> {
-        this.runningAppsRefCount++;
         this.lastRunningAppsCall = Date.now();
         if (this.pollTimer) return;
         this.runningAppsIds = new Set(getDriver().getRunningApps().map(a => a.id));
@@ -72,10 +69,7 @@ export default class DesktopAppsService extends AppsService {
 
     @exposed
     public async unwatchRunningApps(): Promise<void> {
-        this.runningAppsRefCount--;
-        if (this.runningAppsRefCount <= 0) {
-            this.stopPolling();
-        }
+        this.stopPolling();
     }
 
     private stopPolling() {
@@ -84,7 +78,6 @@ export default class DesktopAppsService extends AppsService {
             this.pollTimer = null;
         }
         this.runningAppsIds = null;
-        this.runningAppsRefCount = 0;
     }
 
     private pollRunningApps() {
@@ -92,7 +85,6 @@ export default class DesktopAppsService extends AppsService {
             this.stopPolling();
             return;
         }
-        this.lastRunningAppsCall = Date.now();
         const apps = getDriver().getRunningApps();
         const currentIds = new Set(apps.map(a => a.id));
         if (this.runningAppsIds) {
@@ -149,23 +141,17 @@ export default class DesktopAppsService extends AppsService {
         const existing = this.windowWatchers.get(appId);
         if (existing) {
             existing.lastAccess = Date.now();
-            existing.refCount++;
             return;
         }
         const windows = getDriver().getWindows(appId);
         const windowIds = new Set(windows.map(w => w.id));
         const timer = setInterval(() => this.pollWindows(appId), WINDOW_POLL_INTERVAL);
-        this.windowWatchers.set(appId, { timer, windowIds, lastAccess: Date.now(), refCount: 1 });
+        this.windowWatchers.set(appId, { timer, windowIds, lastAccess: Date.now() });
     }
 
     @exposed
     public async unwatchWindows(appId: string): Promise<void> {
-        const watcher = this.windowWatchers.get(appId);
-        if (!watcher) return;
-        watcher.refCount--;
-        if (watcher.refCount <= 0) {
-            this.stopWindowWatcher(appId);
-        }
+        this.stopWindowWatcher(appId);
     }
 
     private stopWindowWatcher(appId: string) {

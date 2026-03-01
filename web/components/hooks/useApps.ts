@@ -4,12 +4,15 @@ import { RemoteAppInfo } from 'shared/types';
 import ServiceController from 'shared/controller';
 import { SignalNodeRef } from 'shared/signals';
 
+const WATCH_HEARTBEAT_MS = 60_000;
+
 export const useRunningApps = (
     deviceFingerprint: string | null,
     onAppOpened?: (app: RemoteAppInfo) => void,
 ) => {
     const [runningApps, setRunningApps] = useState<RemoteAppInfo[]>([]);
     const signalRef = useRef<SignalNodeRef<[RemoteAppInfo[]], string> | null>(null);
+    const scRef = useRef<ServiceController | null>(null);
     const prevIdsRef = useRef<Set<string> | null>(null);
     const onAppOpenedRef = useRef(onAppOpened);
     onAppOpenedRef.current = onAppOpened;
@@ -27,10 +30,12 @@ export const useRunningApps = (
             signalRef.current = null;
         }
         serviceController.apps.unwatchRunningApps();
+        scRef.current = null;
     }, []);
 
     const setupSignals = useCallback((serviceController: ServiceController) => {
         clearSignals(serviceController);
+        scRef.current = serviceController;
         serviceController.apps.watchRunningApps();
         signalRef.current = serviceController.apps.runningAppsChanged.add((apps: RemoteAppInfo[]) => {
             if (prevIdsRef.current && onAppOpenedRef.current) {
@@ -45,12 +50,17 @@ export const useRunningApps = (
         });
     }, [clearSignals]);
 
+    const poll = useCallback(() => {
+        scRef.current?.apps.watchRunningApps();
+    }, []);
+
     const { isLoading, error, reload } = useResourceWithPolling({
         deviceFingerprint,
         load,
         setupSignals,
         clearSignals,
-        interval: 60_000,
+        interval: WATCH_HEARTBEAT_MS,
+        poll,
     });
 
     return { runningApps, isLoading, error, reload };

@@ -8,12 +8,6 @@ import { buildUrl } from './window';
 /** Skip windows smaller than this in either dimension */
 const MIN_WINDOW_SIZE = 10;
 
-/** Window types that close when they lose focus */
-const CLOSE_ON_BLUR_TYPES = new Set<RemoteAppWindowType>([
-    RemoteAppWindowType.ContextMenu,
-    RemoteAppWindowType.Popup,
-]);
-
 /** Window types that should not be user-resizable */
 const NON_RESIZABLE_TYPES = new Set<RemoteAppWindowType>([
     RemoteAppWindowType.Modal,
@@ -35,8 +29,11 @@ const ALWAYS_ON_TOP_TYPES = new Set<RemoteAppWindowType>([
 /** Open remote BrowserWindows keyed by "fingerprint:windowId" */
 const remoteWindows = new Map<string, BrowserWindow>();
 
+/** Heartbeat interval — must be well under server's WINDOW_POLL_IDLE_TIMEOUT (3 min) */
+const WATCH_HEARTBEAT_MS = 60_000; // 1 minute
+
 /** Per-app signal watchers keyed by "fingerprint:appId" */
-const appWindowWatchers = new Map<string, { signalRef: any; sc: any }>();
+const appWindowWatchers = new Map<string, { signalRef: any; sc: any; heartbeat: ReturnType<typeof setInterval> }>();
 
 // ── Helpers ──
 
@@ -120,7 +117,6 @@ export function createRemoteWindow(
     const type = w.type as RemoteAppWindowType;
     const resizable = !NON_RESIZABLE_TYPES.has(type);
     const alwaysOnTop = ALWAYS_ON_TOP_TYPES.has(type);
-    const closeOnBlur = CLOSE_ON_BLUR_TYPES.has(type);
 
     // Position relative to parent if available
     let x: number | undefined;
@@ -157,12 +153,6 @@ export function createRemoteWindow(
     win.loadURL(url);
 
     remoteWindows.set(key, win);
-
-    if (closeOnBlur) {
-        win.on('blur', () => {
-            if (!win.isDestroyed()) win.close();
-        });
-    }
 
     // Focus the remote window when this BrowserWindow gains focus
     win.on('focus', async () => {
@@ -211,7 +201,12 @@ async function ensureAppWindowWatcher(appId: string, fingerprint: string | null)
             onWindowsChanged(appId, fingerprint, windows);
         });
 
-        appWindowWatchers.set(wKey, { signalRef, sc });
+        // Periodically re-call watchWindows to keep the server-side watcher alive
+        const heartbeat = setInterval(() => {
+            sc.apps.watchWindows(appId).catch(() => {});
+        }, WATCH_HEARTBEAT_MS);
+
+        appWindowWatchers.set(wKey, { signalRef, sc, heartbeat });
     } catch (e) {
         console.error(`Failed to watch windows for ${appId}:`, e);
     }
@@ -228,6 +223,7 @@ function cleanupAppWatcher(appId: string, fingerprint: string | null) {
 
     const watcher = appWindowWatchers.get(wKey);
     if (watcher) {
+        clearInterval(watcher.heartbeat);
         try {
             watcher.sc.apps.windowsChanged.detach(watcher.signalRef);
         } catch { }
