@@ -230,8 +230,8 @@ function cleanupAppWatcher(appId: string, fingerprint: string | null) {
     if (watcher) {
         try {
             watcher.sc.apps.windowsChanged.detach(watcher.signalRef);
-            watcher.sc.apps.unwatchWindows(appId);
         } catch { }
+        watcher.sc.apps.unwatchWindows(appId).catch(() => { });
         appWindowWatchers.delete(wKey);
     }
 }
