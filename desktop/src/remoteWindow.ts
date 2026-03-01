@@ -24,6 +24,13 @@ const ALWAYS_ON_TOP_TYPES = new Set<RemoteAppWindowType>([
     RemoteAppWindowType.Popup,
 ]);
 
+/** Transient window types that should not steal focus (avoids dismissing remote context menus on Windows) */
+const SHOW_INACTIVE_TYPES = new Set<RemoteAppWindowType>([
+    RemoteAppWindowType.Tooltip,
+    RemoteAppWindowType.ContextMenu,
+    RemoteAppWindowType.Popup,
+]);
+
 // ── State ──
 
 /** Open remote BrowserWindows keyed by "fingerprint:windowId" */
@@ -117,6 +124,7 @@ export function createRemoteWindow(
     const type = w.type as RemoteAppWindowType;
     const resizable = !NON_RESIZABLE_TYPES.has(type);
     const alwaysOnTop = ALWAYS_ON_TOP_TYPES.has(type);
+    const showInactive = SHOW_INACTIVE_TYPES.has(type);
 
     // Position relative to parent if available
     let x: number | undefined;
@@ -141,6 +149,7 @@ export function createRemoteWindow(
         hasShadow: true,
         resizable,
         alwaysOnTop,
+        show: !showInactive,
         skipTaskbar: type !== RemoteAppWindowType.Regular,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -152,25 +161,32 @@ export function createRemoteWindow(
     require('@electron/remote/main').enable(win.webContents);
     win.loadURL(url);
 
+    if (showInactive) {
+        win.showInactive();
+    }
+
     remoteWindows.set(key, win);
 
     // Focus the remote window when this BrowserWindow gains focus
-    win.on('focus', async () => {
-        console.log('[remoteWindow] focus event fired for window:', w.id, 'fingerprint:', fingerprint);
-        try {
-            const sc = fingerprint
-                ? await modules.getRemoteServiceController(fingerprint)
-                : modules.getLocalServiceController();
-            console.log('[remoteWindow] got SC, dispatching focus action');
-            await sc.apps.performWindowAction({
-                action: RemoteAppWindowAction.Focus,
-                windowId: w.id,
-            });
-            console.log('[remoteWindow] focus action completed');
-        } catch (e) {
-            console.error('Failed to focus remote window:', e);
-        }
-    });
+    // Skip for transient types — focusing them on the remote can dismiss context menus on Windows
+    if (!showInactive) {
+        win.on('focus', async () => {
+            console.log('[remoteWindow] focus event fired for window:', w.id, 'fingerprint:', fingerprint);
+            try {
+                const sc = fingerprint
+                    ? await modules.getRemoteServiceController(fingerprint)
+                    : modules.getLocalServiceController();
+                console.log('[remoteWindow] got SC, dispatching focus action');
+                await sc.apps.performWindowAction({
+                    action: RemoteAppWindowAction.Focus,
+                    windowId: w.id,
+                });
+                console.log('[remoteWindow] focus action completed');
+            } catch (e) {
+                console.error('Failed to focus remote window:', e);
+            }
+        });
+    }
 
     win.on('closed', () => {
         remoteWindows.delete(key);
