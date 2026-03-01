@@ -847,49 +847,43 @@ static bool ensureWindowReady(uint32_t windowId) {
             return false;
         }
 
-        bool needsWait = false;
+        bool needsActivation = false;
+        bool wasMinimized = false;
 
-        // 2. Activate the app only if it isn't already frontmost
-        // Use NSWorkspace frontmostApplication for a live check (NSRunningApplication
-        // isActive can return stale data when called off the main run loop).
+        // Use AX API for everything — NSRunningApplication activation APIs
+        // are unreliable from helper/background processes on macOS 14+.
+        AXUIElementRef appRef = AXUIElementCreateApplication(pid);
+
+        // 1. Check if app is frontmost, activate via AX if not
         NSRunningApplication *frontmost = [[NSWorkspace sharedWorkspace] frontmostApplication];
         if (!frontmost || frontmost.processIdentifier != pid) {
-            BOOL activated;
-            if (@available(macOS 14.0, *)) {
-                // macOS 14+: use cooperative activation API
-                activated = [app activateFromApplication:[NSRunningApplication currentApplication]
-                                                 options:NSApplicationActivateAllWindows];
-            } else {
-                // Pre-14 fallback: force-activate (IgnoringOtherApps deprecated in 14.0)
+            // Set app as frontmost via Accessibility API
+            AXError frontErr = AXUIElementSetAttributeValue(appRef, kAXFrontmostAttribute, kCFBooleanTrue);
+            if (frontErr != kAXErrorSuccess) {
+                NSLog(@"[ensureWindowReady] set kAXFrontmostAttribute failed: %d, falling back to NSRunningApplication", (int)frontErr);
+                // Fallback: try NSRunningApplication activate
                 #pragma clang diagnostic push
                 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-                activated = [app activateWithOptions:
+                [app activateWithOptions:
                     NSApplicationActivateIgnoringOtherApps | NSApplicationActivateAllWindows];
                 #pragma clang diagnostic pop
             }
-            if (!activated) {
-                NSLog(@"[ensureWindowReady] activation returned NO for pid %d", pid);
-            }
-            needsWait = true;
+            needsActivation = true;
         }
 
-        // 3. Find and prepare the target window via AX API
-        bool wasMinimized = false;
-        AXUIElementRef appRef = AXUIElementCreateApplication(pid);
+        // 2. Find and prepare the target window via AX API
         CFArrayRef axWindows = NULL;
         AXError axErr = AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
         if (axErr != kAXErrorSuccess) {
-            NSLog(@"[ensureWindowReady] AXUIElementCopyAttributeValue(kAXWindowsAttribute) failed: %d", (int)axErr);
+            NSLog(@"[ensureWindowReady] kAXWindowsAttribute failed: %d", (int)axErr);
         }
         if (axWindows) {
-            NSLog(@"[ensureWindowReady] Found %ld AX windows for pid %d", CFArrayGetCount(axWindows), pid);
             AXUIElementRef targetWin = axWindowForId(windowId, axWindows);
             if (!targetWin && CFArrayGetCount(axWindows) > 0) {
-                NSLog(@"[ensureWindowReady] axWindowForId failed, falling back to first AX window");
                 targetWin = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
             }
             if (targetWin) {
-                // Un-minimize only the target window if needed
+                // Un-minimize if needed
                 CFBooleanRef minimized = NULL;
                 AXUIElementCopyAttributeValue(targetWin, kAXMinimizedAttribute, (CFTypeRef *)&minimized);
                 if (minimized && CFBooleanGetValue(minimized)) {
@@ -897,37 +891,22 @@ static bool ensureWindowReady(uint32_t windowId) {
                     wasMinimized = true;
                 }
                 if (minimized) CFRelease(minimized);
-                // Raise and make it the main window
-                AXError raiseErr = AXUIElementPerformAction(targetWin, kAXRaiseAction);
-                if (raiseErr != kAXErrorSuccess) {
-                    NSLog(@"[ensureWindowReady] kAXRaiseAction failed: %d", (int)raiseErr);
-                }
-                AXError mainErr = AXUIElementSetAttributeValue(targetWin, kAXMainAttribute, kCFBooleanTrue);
-                if (mainErr != kAXErrorSuccess) {
-                    NSLog(@"[ensureWindowReady] set kAXMainAttribute failed: %d", (int)mainErr);
-                }
-                // Set as the app's focused window
-                AXError focusErr = AXUIElementSetAttributeValue(appRef, kAXFocusedWindowAttribute, targetWin);
-                if (focusErr != kAXErrorSuccess) {
-                    NSLog(@"[ensureWindowReady] set kAXFocusedWindowAttribute failed: %d", (int)focusErr);
-                }
-            } else {
-                NSLog(@"[ensureWindowReady] No target window found");
+                // Raise, make main, and set as focused window
+                AXUIElementPerformAction(targetWin, kAXRaiseAction);
+                AXUIElementSetAttributeValue(targetWin, kAXMainAttribute, kCFBooleanTrue);
+                AXUIElementSetAttributeValue(appRef, kAXFocusedWindowAttribute, targetWin);
             }
             CFRelease(axWindows);
-        } else {
-            NSLog(@"[ensureWindowReady] No AX windows found for pid %d", pid);
         }
         CFRelease(appRef);
 
-        // Wait until the conditions we changed are met (max 500ms)
-        if (needsWait || wasMinimized) {
+        // 3. Wait until activation completes (max 500ms)
+        if (needsActivation || wasMinimized) {
             for (int i = 0; i < 25; i++) {
                 usleep(20000);
                 NSRunningApplication *current = [[NSWorkspace sharedWorkspace] frontmostApplication];
                 bool ready = (current && current.processIdentifier == pid);
                 if (wasMinimized) {
-                    // Re-check minimized state of the target window
                     AXUIElementRef ar = AXUIElementCreateApplication(pid);
                     CFArrayRef aw = NULL;
                     AXUIElementCopyAttributeValue(ar, kAXWindowsAttribute, (CFTypeRef *)&aw);
