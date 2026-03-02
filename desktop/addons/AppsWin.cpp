@@ -1053,6 +1053,30 @@ static void ForceForegroundWindow(HWND hwnd) {
     }
 }
 
+/**
+ * Transient windows (context menus, tooltips, popups) must not be activated /
+ * brought to the foreground — doing so dismisses the owning app's menu on
+ * Windows. We detect them the same way we classify them in DetectPopupWindowType.
+ */
+static bool IsTransientWindow(HWND hwnd) {
+    HWND owner = GetWindow(hwnd, GW_OWNER);
+    if (!owner) return false; // top-level → not transient
+
+    WCHAR className[256] = {0};
+    GetClassNameW(hwnd, className, 256);
+    if (_wcsicmp(className, L"tooltips_class32") == 0) return true;
+    if (_wcsicmp(className, L"#32768") == 0) return true; // system menu
+
+    LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    // Tool windows and generic popups are transient
+    if (exStyle & WS_EX_TOOLWINDOW) return true;
+    // Modal dialogs are NOT transient — they want focus
+    if (exStyle & WS_EX_DLGMODALFRAME) return false;
+    if (_wcsicmp(className, L"#32770") == 0) return false;
+
+    return true; // owned, non-modal → popup → transient
+}
+
 // Ensure window is ready to receive input: exists, visible, foreground.
 // Returns false if the window no longer exists.
 // Only sleeps when the window actually needed to be restored or brought forward.
@@ -1339,8 +1363,10 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         return env.Null();
     }
 
+    bool skipEnsure = IsTransientWindow(hwnd);
+
     if (action == "focus") {
-        EnsureWindowReady(hwnd);
+        if (!skipEnsure) EnsureWindowReady(hwnd);
     }
     else if (action == "minimize") {
         ShowWindow(hwnd, SW_MINIMIZE);
@@ -1355,7 +1381,7 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         PostMessageW(hwnd, WM_CLOSE, 0, 0);
     }
     else if (action == "click" || action == "rightClick") {
-        if (!EnsureWindowReady(hwnd)) {
+        if (!skipEnsure && !EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
@@ -1365,7 +1391,7 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         SendModifiers(payload, true);
     }
     else if (action == "doubleClick") {
-        if (!EnsureWindowReady(hwnd)) {
+        if (!skipEnsure && !EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
@@ -1375,7 +1401,7 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         SendModifiers(payload, true);
     }
     else if (action == "dragStart") {
-        if (!EnsureWindowReady(hwnd)) {
+        if (!skipEnsure && !EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
@@ -1390,11 +1416,11 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         SendModifiers(payload, true);
     }
     else if (action == "hover") {
-        if (!EnsureWindowReady(hwnd)) return env.Undefined();
+        if (!skipEnsure && !EnsureWindowReady(hwnd)) return env.Undefined();
         PostMouseMove(ScreenPointFromPayload(hwnd, payload));
     }
     else if (action == "textInput") {
-        if (!EnsureWindowReady(hwnd)) {
+        if (!skipEnsure && !EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
@@ -1403,7 +1429,7 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         PostTextInput(text);
     }
     else if (action == "keyInput") {
-        if (!EnsureWindowReady(hwnd)) {
+        if (!skipEnsure && !EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
@@ -1412,7 +1438,7 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         PostKeyInput(key);
     }
     else if (action == "scroll") {
-        if (!EnsureWindowReady(hwnd)) return env.Undefined();
+        if (!skipEnsure && !EnsureWindowReady(hwnd)) return env.Undefined();
         POINT screenPt = ScreenPointFromPayload(hwnd, payload);
         int deltaX = payload.Has("scrollDeltaX")
             ? payload.Get("scrollDeltaX").As<Napi::Number>().Int32Value() : 0;
