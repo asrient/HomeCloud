@@ -10,9 +10,18 @@ import {
     RemoteAppWindowActionPayload,
 } from './types';
 
-export abstract class AppsService extends Service {
+export class AppsService extends Service {
     public init() {
         this._init();
+    }
+
+    /**
+     * Check whether the apps/screen-control service is available on this device.
+     * Returns false by default; desktop overrides to return true.
+     */
+    @exposed
+    public async isAvailable(): Promise<boolean> {
+        return false;
     }
 
     /**
@@ -34,7 +43,7 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async getInstalledApps(force?: boolean): Promise<RemoteAppInfo[]> {
-        throw new Error("Not implemented");
+        return [];
     }
 
     /**
@@ -42,7 +51,7 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async getRunningApps(): Promise<RemoteAppInfo[]> {
-        throw new Error("Not implemented");
+        return [];
     }
 
     /**
@@ -50,7 +59,7 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async getAppState(appId: string): Promise<RemoteAppState> {
-        throw new Error("Not implemented");
+        return { isRunning: false, isFocused: false };
     }
 
     // ── App lifecycle ──
@@ -60,7 +69,6 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async launchApp(appId: string): Promise<void> {
-        throw new Error("Not implemented");
     }
 
     /**
@@ -68,7 +76,6 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async quitApp(appId: string): Promise<void> {
-        throw new Error("Not implemented");
     }
 
     /**
@@ -78,7 +85,7 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async getAppIcon(appId: string): Promise<string | null> {
-        throw new Error("Not implemented");
+        return null;
     }
 
     // ── Window enumeration ──
@@ -88,7 +95,7 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async getWindows(appId?: string): Promise<RemoteAppWindow[]> {
-        throw new Error("Not implemented");
+        return [];
     }
 
     /**
@@ -97,7 +104,6 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async watchRunningApps(): Promise<void> {
-        throw new Error("Not implemented");
     }
 
     /**
@@ -105,7 +111,6 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async unwatchRunningApps(): Promise<void> {
-        throw new Error("Not implemented");
     }
 
     /**
@@ -114,7 +119,6 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async watchWindows(appId: string): Promise<void> {
-        throw new Error("Not implemented");
     }
 
     /**
@@ -122,7 +126,6 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async unwatchWindows(appId: string): Promise<void> {
-        throw new Error("Not implemented");
     }
 
     // ── Window capture ──
@@ -144,7 +147,7 @@ export abstract class AppsService extends Service {
         tileSize?: number,
         quality?: number,
     ): Promise<RemoteAppWindowUIState> {
-        throw new Error("Not implemented");
+        return { x: 0, y: 0, width: 0, height: 0, tiles: [] };
     }
 
     // ── Window control ──
@@ -154,7 +157,6 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async performWindowAction(payload: RemoteAppWindowActionPayload): Promise<void> {
-        throw new Error("Not implemented");
     }
 
     // ── Permissions ──
@@ -164,7 +166,7 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async hasScreenRecordingPermission(): Promise<boolean> {
-        throw new Error("Not implemented");
+        return false;
     }
 
     /**
@@ -172,7 +174,7 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async hasAccessibilityPermission(): Promise<boolean> {
-        throw new Error("Not implemented");
+        return false;
     }
 
     /**
@@ -180,7 +182,6 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async requestScreenRecordingPermission(): Promise<void> {
-        throw new Error("Not implemented");
     }
 
     /**
@@ -188,7 +189,6 @@ export abstract class AppsService extends Service {
      */
     @exposed
     public async requestAccessibilityPermission(): Promise<void> {
-        throw new Error("Not implemented");
     }
 
     @serviceStartMethod

@@ -9,6 +9,7 @@ import {
 import { serviceStartMethod, serviceStopMethod, exposed } from "shared/servicePrimatives";
 import * as macDriver from "./macDriver";
 import * as winDriver from "./winDriver";
+import { powerSaveBlocker } from "electron";
 
 const DEFAULT_TILE_SIZE = 64;
 const DEFAULT_QUALITY = 0.6;
@@ -39,6 +40,17 @@ export default class DesktopAppsService extends AppsService {
         windowIds: Set<string>;
         lastAccess: number;
     }>();
+
+    // Prevent display sleep/lock during active capture sessions
+    private powerBlockerId: number | null = null;
+    private lastCaptureTime = 0;
+    private powerBlockerTimer: ReturnType<typeof setInterval> | null = null;
+    private static readonly POWER_BLOCKER_TIMEOUT = 10_000; // Release after 10s of no captures
+
+    @exposed
+    public override async isAvailable(): Promise<boolean> {
+        return true;
+    }
 
     // ── App enumeration ──
 
@@ -182,6 +194,33 @@ export default class DesktopAppsService extends AppsService {
 
     // ── Window capture ──
 
+    private startPowerBlocker() {
+        if (this.powerBlockerId !== null && powerSaveBlocker.isStarted(this.powerBlockerId)) return;
+        this.powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+        console.log('PowerSaveBlocker started (prevent-display-sleep) id:', this.powerBlockerId);
+
+        // Start a timer to auto-release if captures stop
+        if (!this.powerBlockerTimer) {
+            this.powerBlockerTimer = setInterval(() => {
+                if (Date.now() - this.lastCaptureTime > DesktopAppsService.POWER_BLOCKER_TIMEOUT) {
+                    this.stopPowerBlocker();
+                }
+            }, 10_000);
+        }
+    }
+
+    private stopPowerBlocker() {
+        if (this.powerBlockerTimer) {
+            clearInterval(this.powerBlockerTimer);
+            this.powerBlockerTimer = null;
+        }
+        if (this.powerBlockerId !== null && powerSaveBlocker.isStarted(this.powerBlockerId)) {
+            powerSaveBlocker.stop(this.powerBlockerId);
+            console.log('PowerSaveBlocker stopped, id:', this.powerBlockerId);
+        }
+        this.powerBlockerId = null;
+    }
+
     @exposed
     public async getWindowSnapshot(
         windowId: string,
@@ -189,6 +228,9 @@ export default class DesktopAppsService extends AppsService {
         tileSize?: number,
         quality?: number,
     ): Promise<RemoteAppWindowUIState> {
+        this.lastCaptureTime = Date.now();
+        this.startPowerBlocker();
+
         const driver = getDriver();
         // On Windows, windowId is a stringified HWND (uintptr_t), use parseInt for compat
         const numId = isMac ? parseInt(windowId, 10) : Number(windowId);
@@ -245,6 +287,7 @@ export default class DesktopAppsService extends AppsService {
     @serviceStopMethod
     public async stop() {
         this.stopPolling();
+        this.stopPowerBlocker();
         for (const appId of this.windowWatchers.keys()) {
             this.stopWindowWatcher(appId);
         }

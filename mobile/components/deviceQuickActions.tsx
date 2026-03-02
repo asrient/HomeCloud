@@ -1,5 +1,5 @@
-import { PeerInfo } from "shared/types";
-import { Bento } from "./bento";
+import { PeerInfo, RemoteAppInfo } from "shared/types";
+import { Bento, BentoGroup } from "./bento";
 import { UIText } from "./ui/UIText";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useBatteryInfo, useClipboard, useMediaPlayback, useVolume } from "@/hooks/useSystemState";
@@ -11,6 +11,8 @@ import { UIView } from "./ui/UIView";
 import { UITextInput } from "./ui/UITextInput";
 import Slider from '@react-native-community/slider';
 import { DisksGrid } from "./disksGrid";
+import { RunningAppsRow, AppsGrid } from "./appsGrid";
+import { useAppsAvailable } from "@/hooks/useApps";
 import { getLocalServiceController, getServiceController } from "@/lib/utils";
 import { useRouter } from "expo-router";
 import { UIIcon } from "./ui/UIIcon";
@@ -202,6 +204,7 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
     }, [connections, deviceFingerprint]);
 
     const { batteryInfo, isLoading: isBatteryLoading } = useBatteryInfo(deviceFingerprint);
+    const { available: appsAvailable } = useAppsAvailable(deviceFingerprint);
 
     const batteryIcon = useMemo(() => {
         if (!batteryInfo) {
@@ -265,6 +268,16 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
             label: 'photos',
         });
     }, [deviceFingerprint, sendAssets]);
+
+    const handleSelectApp = useCallback((app: RemoteAppInfo) => {
+        if (!deviceFingerprint) return;
+        const subPath = `screen-control?appId=${encodeURIComponent(app.id)}&appName=${encodeURIComponent(app.name)}`;
+        if (onNavigate) {
+            onNavigate(subPath);
+        } else {
+            router.push(`/device/${routeFingerprint}/${subPath}`);
+        }
+    }, [deviceFingerprint, routeFingerprint, router, onNavigate]);
 
     return <>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, maxWidth: 500, alignSelf: 'center', width: '100%' }}>
@@ -348,6 +361,21 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                     },
                 ]
             },
+            ...(appsAvailable ? [{
+                flow: 'row',
+                boxes: [
+                    {
+                        type: 'half',
+                        icon: 'macwindow.on.rectangle',
+                        title: 'Apps',
+                        subtitle: 'Screen control',
+                        disabled: !deviceFingerprint,
+                        canExpand: !!deviceFingerprint,
+                        expandedContent: (dismiss: () => void) => <AppsGrid fingerprint={deviceFingerprint} onSelectApp={handleSelectApp} dismiss={dismiss} />,
+                        expandedContentHeight: 400,
+                    },
+                ]
+            }] as BentoGroup[] : []),
             {
                 flow: 'row',
                 boxes: [
@@ -357,6 +385,16 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                     },
                 ]
             },
+            ...(appsAvailable ? [{
+                flow: 'row',
+                boxes: [
+                    {
+                        type: 'full',
+                        content: <RunningAppsRow fingerprint={deviceFingerprint} onSelectApp={handleSelectApp} />,
+                        contentHeight: 140,
+                    },
+                ]
+            }] as BentoGroup[] : []),
             {
                 flow: 'row',
                 boxes: [

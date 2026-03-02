@@ -90,6 +90,20 @@ export const useInstalledApps = (deviceFingerprint: string | null) => {
     return { installedApps, isLoading, error, reload: forceReload };
 };
 
+export const useAppsAvailable = (deviceFingerprint: string | null) => {
+    const [available, setAvailable] = useState<boolean | null>(null);
+
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        const result = await serviceController.apps.isAvailable();
+        if (shouldAbort()) return;
+        setAvailable(result);
+    }, []);
+
+    const { isLoading } = useResource({ deviceFingerprint, load });
+
+    return { available, isLoading };
+};
+
 export const useAppIcon = (appId: string, deviceFingerprint: string | null) => {
     const [iconUri, setIconUri] = useState<string | null>(null);
 

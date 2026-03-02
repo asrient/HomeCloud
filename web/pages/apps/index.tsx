@@ -9,7 +9,7 @@ import LoadingIcon from '@/components/ui/loadingIcon';
 import { NextPageWithConfig } from '@/pages/_app';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildNextUrl } from '@/lib/urls';
-import { useRunningApps, useInstalledApps, useAppIcon } from '@/components/hooks/useApps';
+import { useRunningApps, useInstalledApps, useAppIcon, useAppsAvailable } from '@/components/hooks/useApps';
 
 const MIN_WINDOW_SIZE = 10;
 
@@ -76,7 +76,8 @@ const Page: NextPageWithConfig = () => {
         fingerprint,
     );
     const { installedApps, isLoading: installedLoading, error: installedError } = useInstalledApps(fingerprint);
-    const isLoading = runningLoading || installedLoading;
+    const { available, isLoading: availableLoading } = useAppsAvailable(fingerprint);
+    const isLoading = availableLoading || runningLoading || installedLoading;
     const error = actionError || runningError || installedError;
 
     const openAppWindows = useCallback(async (app: RemoteAppInfo) => {
@@ -155,6 +156,13 @@ const Page: NextPageWithConfig = () => {
                         >
                             Retry
                         </button>
+                    </div>
+                ) : available === false ? (
+                    <div className='flex flex-col items-center justify-center py-20 text-muted-foreground'>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor" className="h-8 w-8 mb-2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25h-13.5A2.25 2.25 0 0 1 3 15V5.25A2.25 2.25 0 0 1 5.25 3h13.5A2.25 2.25 0 0 1 21 5.25Z" />
+                        </svg>
+                        <span>Apps are not available on this device</span>
                     </div>
                 ) : (
                     <Tabs defaultValue='running' className='w-full'>

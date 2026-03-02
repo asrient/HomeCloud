@@ -74,6 +74,22 @@ const MAPPING = {
   'arrow.left.arrow.right': 'swap-horiz',
   'lock.shield': 'lock',
   'text.bubble.fill': 'chat',
+  'macwindow': 'web-asset',
+  'macwindow.on.rectangle': 'picture-in-picture-alt',
+  'keyboard': 'keyboard',
+  'keyboard.fill': 'keyboard',
+  'hand.tap.fill': 'touch-app',
+  'cursorarrow': 'mouse',
+  'cursorarrow.click': 'mouse',
+  'rectangle.grid.2x2.fill': 'grid-view',
+  'squareshape.split.2x2': 'grid-view',
+  'app.fill': 'apps',
+  'eye.fill': 'visibility',
+  'eye.slash.fill': 'visibility-off',
+  'hand.raised.fill': 'pan-tool',
+  'arrow.uturn.backward': 'undo',
+  'scroll': 'swap-vert',
+  'hand.draw.fill': 'gesture',
 } as IconMapping;
 
 /**
