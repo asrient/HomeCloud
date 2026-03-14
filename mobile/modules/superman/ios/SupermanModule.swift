@@ -176,8 +176,8 @@ public class SupermanModule: Module {
     // H.264 decoder functions
     AsyncFunction("h264DecoderDecode") { (data: Data, isKeyframe: Bool, promise: Promise) in
       DispatchQueue.global(qos: .userInteractive).async {
-        if let base64 = self.h264Decoder.decode(annexBData: data, isKeyframe: isKeyframe) {
-          promise.resolve(base64)
+        if let jpegData = self.h264Decoder.decode(annexBData: data, isKeyframe: isKeyframe) {
+          promise.resolve(jpegData)
         } else {
           promise.resolve(nil)
         }

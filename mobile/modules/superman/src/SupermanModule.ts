@@ -19,7 +19,7 @@ declare class SupermanModule extends NativeModule<SupermanModuleEvents> {
   hasAllFilesAccess(): boolean;
   requestAllFilesAccess(): boolean;
   openFile(filePath: string): Promise<void>;
-  h264DecoderDecode(data: Uint8Array, isKeyframe: boolean): Promise<string | null>;
+  h264DecoderDecode(data: Uint8Array, isKeyframe: boolean): Promise<Uint8Array | null>;
   h264DecoderDestroy(): void;
 }
 

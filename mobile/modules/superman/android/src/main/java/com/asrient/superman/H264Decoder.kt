@@ -5,23 +5,22 @@ import android.graphics.ImageFormat
 import android.media.Image
 import android.media.MediaCodec
 import android.media.MediaFormat
-import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
 /**
  * Lightweight H.264 Annex B decoder using Android MediaCodec hardware acceleration.
- * Decodes frames synchronously and returns JPEG-compressed base64 strings for display.
+ * Decodes frames and returns raw JPEG bytes for display.
  */
 class H264Decoder {
     private var codec: MediaCodec? = null
     private var isConfigured = false
 
     /**
-     * Feed an Annex B H.264 frame. Returns base64 JPEG string on success, null otherwise.
+     * Feed an Annex B H.264 frame. Returns raw JPEG bytes on success, null otherwise.
      */
     @Synchronized
-    fun decode(annexBData: ByteArray, isKeyframe: Boolean): String? {
+    fun decode(annexBData: ByteArray, isKeyframe: Boolean): ByteArray? {
         try {
             if (isKeyframe && !isConfigured) {
                 configure(annexBData)
@@ -48,9 +47,9 @@ class H264Decoder {
             if (outputIndex >= 0) {
                 val image = codec.getOutputImage(outputIndex)
                 val result = if (image != null) {
-                    val base64 = imageToBase64Jpeg(image)
+                    val jpegBytes = imageToJpegBytes(image)
                     image.close()
-                    base64
+                    jpegBytes
                 } else {
                     null
                 }
@@ -126,7 +125,7 @@ class H264Decoder {
         return result
     }
 
-    private fun imageToBase64Jpeg(image: Image): String? {
+    private fun imageToJpegBytes(image: Image): ByteArray? {
         if (image.format != ImageFormat.YUV_420_888) return null
 
         val width = image.width
@@ -176,7 +175,7 @@ class H264Decoder {
 
         val jpegBytes = outputStream.toByteArray()
         outputStream.close()
-        return Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
+        return jpegBytes
     }
 
     /**

@@ -273,13 +273,14 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
                         currentDpi = Number(metadata.dpi);
                     }
 
-                    // Decode H.264 frame via native decoder
-                    const base64Jpeg = await superman.h264DecoderDecode(payload, isKeyframe);
+                    // Decode H.264 frame via native decoder → raw JPEG bytes
+                    const jpegBytes = await superman.h264DecoderDecode(payload, isKeyframe);
                     if (cancelled || !isMountedRef.current) break;
 
-                    if (base64Jpeg) {
+                    if (jpegBytes && jpegBytes.byteLength > 0) {
+                        const base64 = Buffer.from(jpegBytes).toString('base64');
                         setFrameState({
-                            frameUri: `data:image/jpeg;base64,${base64Jpeg}`,
+                            frameUri: `data:image/jpeg;base64,${base64}`,
                             width: currentWidth,
                             height: currentHeight,
                             dpi: currentDpi,

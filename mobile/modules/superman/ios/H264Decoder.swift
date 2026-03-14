@@ -3,7 +3,7 @@ import VideoToolbox
 import UIKit
 
 /// Lightweight H.264 Annex B decoder using VideoToolbox hardware acceleration.
-/// Decodes frames synchronously and returns JPEG-compressed base64 strings for display.
+/// Decodes frames and returns raw JPEG bytes for display.
 class H264Decoder {
     private var session: VTDecompressionSession?
     private var formatDescription: CMVideoFormatDescription?
@@ -15,8 +15,8 @@ class H264Decoder {
         destroy()
     }
 
-    /// Feed an Annex B H.264 frame. Returns base64 JPEG string on success, nil otherwise.
-    func decode(annexBData: Data, isKeyframe: Bool) -> String? {
+    /// Feed an Annex B H.264 frame. Returns raw JPEG data on success, nil otherwise.
+    func decode(annexBData: Data, isKeyframe: Bool) -> Data? {
         let nalUnits = parseAnnexB(annexBData)
         if nalUnits.isEmpty { return nil }
 
@@ -119,10 +119,10 @@ class H264Decoder {
 
         guard let image = decodedImage else { return nil }
 
-        // Convert CGImage to JPEG base64
+        // Convert CGImage to JPEG bytes
         let uiImage = UIImage(cgImage: image)
         guard let jpegData = uiImage.jpegData(compressionQuality: 0.7) else { return nil }
-        return jpegData.base64EncodedString()
+        return jpegData
     }
 
     func destroy() {
