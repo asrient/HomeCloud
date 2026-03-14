@@ -19,8 +19,9 @@ declare class SupermanModule extends NativeModule<SupermanModuleEvents> {
   hasAllFilesAccess(): boolean;
   requestAllFilesAccess(): boolean;
   openFile(filePath: string): Promise<void>;
-  h264DecoderDecode(data: Uint8Array, isKeyframe: boolean): Promise<Uint8Array | null>;
-  h264DecoderDestroy(): void;
+  h264DecoderCreate(): string;
+  h264DecoderDecode(sessionId: string, data: Uint8Array, isKeyframe: boolean): Promise<Uint8Array | null>;
+  h264DecoderDestroy(sessionId: string): void;
 }
 
 // This call loads the native module object from the JSI.

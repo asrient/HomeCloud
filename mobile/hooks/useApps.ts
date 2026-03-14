@@ -196,6 +196,8 @@ export type WindowFrameState = {
 export const useWindowCapture = (windowId: string | null, deviceFingerprint: string | null) => {
     const [frameState, setFrameState] = useState<WindowFrameState | null>(null);
     const [isConnecting, setIsConnecting] = useState(true);
+    const [isReconnecting, setIsReconnecting] = useState(false);
+    const [retryAttempt, setRetryAttempt] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
     const isMountedRef = useRef(true);
@@ -203,6 +205,8 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
     const fingerprintRef = useRef<string | null>(null);
     const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
     const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const decoderSessionRef = useRef<string | null>(null);
+    const captureIdRef = useRef(0);
 
     windowIdRef.current = windowId;
     fingerprintRef.current = deviceFingerprint;
@@ -216,7 +220,10 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
             readerRef.current.cancel().catch(() => {});
             readerRef.current = null;
         }
-        superman.h264DecoderDestroy();
+        if (decoderSessionRef.current) {
+            superman.h264DecoderDestroy(decoderSessionRef.current);
+            decoderSessionRef.current = null;
+        }
     }, []);
 
     const startCapture = useCallback(() => {
@@ -224,20 +231,27 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
         isMountedRef.current = true;
         setFrameState(null);
         setIsConnecting(true);
+        setIsReconnecting(false);
+        setRetryAttempt(0);
         setError(null);
 
-        let cancelled = false;
+        const captureId = ++captureIdRef.current;
         let retryCount = 0;
+
+        const isStale = () => captureId !== captureIdRef.current || !isMountedRef.current;
 
         const startStream = async () => {
             cleanup();
 
+            // Create a fresh native decoder session for this capture
+            decoderSessionRef.current = superman.h264DecoderCreate();
+
             try {
                 const sc = await getServiceController(fingerprintRef.current);
-                if (cancelled || !isMountedRef.current) return;
+                if (isStale()) return;
 
                 const session = await sc.apps.startStreamingSession(windowId);
-                if (cancelled || !isMountedRef.current) return;
+                if (isStale()) return;
 
                 let currentWidth = session.width;
                 let currentHeight = session.height;
@@ -259,7 +273,7 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
 
                 while (true) {
                     const { done, value } = await reader.read();
-                    if (done || cancelled || !isMountedRef.current) break;
+                    if (done || isStale()) break;
 
                     const { metadata, payload } = decodeMediaChunk(value);
                     const isKeyframe = metadata.type === 'keyframe';
@@ -273,9 +287,14 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
                         currentDpi = Number(metadata.dpi);
                     }
 
-                    // Decode H.264 frame via native decoder → raw JPEG bytes
-                    const jpegBytes = await superman.h264DecoderDecode(payload, isKeyframe);
-                    if (cancelled || !isMountedRef.current) break;
+                    // Decode H.264 frame via native decoder session → raw JPEG bytes
+                    if (!decoderSessionRef.current) break;
+                    const jpegBytes = await superman.h264DecoderDecode(
+                        decoderSessionRef.current,
+                        payload,
+                        isKeyframe,
+                    );
+                    if (isStale()) break;
 
                     if (jpegBytes && jpegBytes.byteLength > 0) {
                         const base64 = Buffer.from(jpegBytes).toString('base64');
@@ -286,17 +305,19 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
                             dpi: currentDpi,
                         });
                         setIsConnecting(false);
+                        setIsReconnecting(false);
+                        setRetryAttempt(0);
                     }
 
                     retryCount = 0;
                 }
 
-                // Stream ended normally
-                if (!cancelled && isMountedRef.current) {
+                // Stream ended — only show error if this capture is still active
+                if (!isStale()) {
                     setError('Window stream ended.');
                 }
             } catch (e: any) {
-                if (cancelled || !isMountedRef.current) return;
+                if (isStale()) return;
 
                 console.error('Stream error:', e);
                 cleanup();
@@ -305,13 +326,15 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
                     retryCount++;
                     const delay = 1000 + retryCount * 500;
                     console.log(`Reconnecting (attempt ${retryCount}/${MAX_RETRIES}) in ${delay}ms...`);
-                    setIsConnecting(true);
+                    setIsReconnecting(true);
+                    setRetryAttempt(retryCount);
                     await new Promise(r => setTimeout(r, delay));
-                    if (!cancelled && isMountedRef.current) {
+                    if (!isStale()) {
                         startStream();
                     }
                 } else {
                     setError('Connection lost. Could not reconnect.');
+                    setIsReconnecting(false);
                 }
             }
         };
@@ -319,7 +342,7 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
         startStream();
 
         return () => {
-            cancelled = true;
+            captureIdRef.current++;
             cleanup();
             // Best-effort stop session on server
             const wId = windowIdRef.current;
@@ -333,6 +356,7 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
 
     const stopCapture = useCallback(() => {
         isMountedRef.current = false;
+        captureIdRef.current++;
         cleanup();
         // Best-effort stop
         const wId = windowIdRef.current;
@@ -343,7 +367,15 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
         }
     }, [cleanup]);
 
-    return { frameState, isConnecting, error, startCapture, stopCapture };
+    const cancelReconnect = useCallback(() => {
+        captureIdRef.current++;
+        cleanup();
+        setIsReconnecting(false);
+        setRetryAttempt(0);
+        setError('Connection cancelled.');
+    }, [cleanup]);
+
+    return { frameState, isConnecting, isReconnecting, retryAttempt, error, startCapture, stopCapture, cancelReconnect };
 };
 
 // ── Window Action Dispatch ──

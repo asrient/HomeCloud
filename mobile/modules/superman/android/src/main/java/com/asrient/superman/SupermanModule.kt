@@ -57,8 +57,9 @@ class SupermanModule : Module(), LifecycleEventObserver {
   private val udpSockets = ConcurrentHashMap<String, UdpSocket>()
   private val socketIdCounter = java.util.concurrent.atomic.AtomicInteger(0)
 
-  // H.264 decoder
-  private val h264Decoder = H264Decoder()
+  // H.264 decoder sessions (keyed by session ID)
+  private val h264Decoders = ConcurrentHashMap<String, H264Decoder>()
+  private val decoderIdCounter = java.util.concurrent.atomic.AtomicInteger(0)
 
   // Cached resolved addresses for UDP send fast-path (avoids InetSocketAddress allocation per packet)
   private val udpAddressCache = ConcurrentHashMap<String, java.net.InetSocketAddress>()
@@ -726,13 +727,21 @@ class SupermanModule : Module(), LifecycleEventObserver {
       context.startActivity(intent)
     }
 
-    // H.264 decoder functions
-    AsyncFunction("h264DecoderDecode") { data: ByteArray, isKeyframe: Boolean ->
-      h264Decoder.decode(data, isKeyframe)
+    // H.264 decoder functions — session-based for concurrent window captures
+    Function("h264DecoderCreate") {
+      val sessionId = "h264-${decoderIdCounter.incrementAndGet()}"
+      h264Decoders[sessionId] = H264Decoder()
+      sessionId
     }
 
-    Function("h264DecoderDestroy") {
-      h264Decoder.destroy()
+    AsyncFunction("h264DecoderDecode") { sessionId: String, data: ByteArray, isKeyframe: Boolean ->
+      val decoder = h264Decoders[sessionId]
+        ?: throw IllegalArgumentException("No decoder session: $sessionId")
+      decoder.decode(data, isKeyframe)
+    }
+
+    Function("h264DecoderDestroy") { sessionId: String ->
+      h264Decoders.remove(sessionId)?.destroy()
     }
 
     Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessageBatch", "udpError", "udpListening", "udpClose")

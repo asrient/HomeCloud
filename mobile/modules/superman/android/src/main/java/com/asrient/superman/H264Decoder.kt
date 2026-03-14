@@ -9,12 +9,17 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
 /**
- * Lightweight H.264 Annex B decoder using Android MediaCodec hardware acceleration.
- * Decodes frames and returns raw JPEG bytes for display.
+ * H.264 Annex B decoder using Android MediaCodec hardware acceleration.
+ * Each instance maintains its own codec session. Decodes frames synchronously
+ * and returns raw JPEG bytes for display.
+ *
+ * @see <a href="https://developer.android.com/reference/android/media/MediaCodec">MediaCodec docs</a>
  */
 class H264Decoder {
     private var codec: MediaCodec? = null
     private var isConfigured = false
+    private var lastSPS: ByteArray? = null
+    private var lastPPS: ByteArray? = null
 
     /**
      * Feed an Annex B H.264 frame. Returns raw JPEG bytes on success, null otherwise.
@@ -22,14 +27,32 @@ class H264Decoder {
     @Synchronized
     fun decode(annexBData: ByteArray, isKeyframe: Boolean): ByteArray? {
         try {
-            if (isKeyframe && !isConfigured) {
-                configure(annexBData)
+            if (isKeyframe) {
+                // Extract SPS/PPS from keyframe and (re)configure if changed
+                val nalUnits = parseAnnexB(annexBData)
+                var sps: ByteArray? = null
+                var pps: ByteArray? = null
+                for (nal in nalUnits) {
+                    if (nal.isEmpty()) continue
+                    val nalType = nal[0].toInt() and 0x1F
+                    when (nalType) {
+                        7 -> sps = nal  // SPS
+                        8 -> pps = nal  // PPS
+                    }
+                }
+                if (sps != null && pps != null) {
+                    if (!isConfigured || !sps.contentEquals(lastSPS) || !pps.contentEquals(lastPPS)) {
+                        configure(sps, pps)
+                    }
+                }
             }
 
             val codec = this.codec ?: return null
             if (!isConfigured) return null
 
-            // Queue input buffer
+            // Queue input buffer with no special flags for decoder input.
+            // Per Android docs, BUFFER_FLAG_KEY_FRAME is an output/encoder flag —
+            // decoders infer frame type from the NAL unit headers in the bitstream.
             val inputIndex = codec.dequeueInputBuffer(10_000) // 10ms timeout
             if (inputIndex < 0) return null
 
@@ -37,8 +60,7 @@ class H264Decoder {
             inputBuffer.clear()
             inputBuffer.put(annexBData)
 
-            val flags = if (isKeyframe) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0
-            codec.queueInputBuffer(inputIndex, 0, annexBData.size, 0, flags)
+            codec.queueInputBuffer(inputIndex, 0, annexBData.size, 0, 0)
 
             // Dequeue output buffer
             val bufferInfo = MediaCodec.BufferInfo()
@@ -56,7 +78,7 @@ class H264Decoder {
                 codec.releaseOutputBuffer(outputIndex, false)
                 return result
             } else if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                // Format changed, try again
+                // Format changed, try again on next frame
                 return null
             }
 
@@ -75,36 +97,37 @@ class H264Decoder {
         } catch (_: Exception) {}
         codec = null
         isConfigured = false
+        lastSPS = null
+        lastPPS = null
     }
 
-    private fun configure(keyframeData: ByteArray) {
-        // Parse SPS and PPS from Annex B keyframe
-        val nalUnits = parseAnnexB(keyframeData)
-        var sps: ByteArray? = null
-        var pps: ByteArray? = null
+    private fun configure(sps: ByteArray, pps: ByteArray) {
+        // Clean up any existing codec
+        try {
+            codec?.stop()
+            codec?.release()
+        } catch (_: Exception) {}
+        codec = null
+        isConfigured = false
 
-        for (nal in nalUnits) {
-            if (nal.isEmpty()) continue
-            val nalType = nal[0].toInt() and 0x1F
-            when (nalType) {
-                7 -> sps = nal  // SPS
-                8 -> pps = nal  // PPS
-            }
-        }
+        lastSPS = sps.copyOf()
+        lastPPS = pps.copyOf()
 
-        if (sps == null || pps == null) return
-
-        // Parse width/height from SPS (basic parsing)
         val dimensions = parseSPSDimensions(sps)
 
         try {
-            // Clean up any existing codec
-            destroy()
-
-            val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, dimensions.first, dimensions.second)
+            val format = MediaFormat.createVideoFormat(
+                MediaFormat.MIMETYPE_VIDEO_AVC,
+                dimensions.first,
+                dimensions.second
+            )
+            // Codec-specific data: SPS (csd-0) and PPS (csd-1) in Annex B format
             format.setByteBuffer("csd-0", ByteBuffer.wrap(addStartCode(sps)))
             format.setByteBuffer("csd-1", ByteBuffer.wrap(addStartCode(pps)))
-            format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodec.CodecCapabilities.COLOR_FormatYUV420Flexible)
+            format.setInteger(
+                MediaFormat.KEY_COLOR_FORMAT,
+                MediaCodec.CodecCapabilities.COLOR_FormatYUV420Flexible
+            )
 
             val decoder = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
             decoder.configure(format, null, null, 0)
@@ -139,8 +162,10 @@ class H264Decoder {
         val vBuffer = vPlane.buffer
 
         val yRowStride = yPlane.rowStride
-        val uvRowStride = uPlane.rowStride
-        val uvPixelStride = uPlane.pixelStride
+        val uRowStride = uPlane.rowStride
+        val uPixelStride = uPlane.pixelStride
+        val vRowStride = vPlane.rowStride
+        val vPixelStride = vPlane.pixelStride
 
         // Convert YUV420 to ARGB bitmap
         val argb = IntArray(width * height)
@@ -149,8 +174,8 @@ class H264Decoder {
                 val yIdx = row * yRowStride + col
                 val uvRow = row / 2
                 val uvCol = col / 2
-                val uIdx = uvRow * uvRowStride + uvCol * uvPixelStride
-                val vIdx = uvRow * uvRowStride + uvCol * uvPixelStride
+                val uIdx = uvRow * uRowStride + uvCol * uPixelStride
+                val vIdx = uvRow * vRowStride + uvCol * vPixelStride
 
                 val y = (yBuffer.get(yIdx).toInt() and 0xFF) - 16
                 val u = (uBuffer.get(uIdx).toInt() and 0xFF) - 128
@@ -227,20 +252,182 @@ class H264Decoder {
     }
 
     /**
-     * Basic SPS dimension parsing. Returns (width, height).
-     * Falls back to 1920x1080 which is used only for initial MediaCodec configuration.
-     * MediaCodec adapts to actual stream dimensions from the SPS/PPS data in csd-0/csd-1,
-     * so this fallback is safe — the decoder will produce correctly sized output regardless.
+     * Parse width and height from an H.264 SPS NAL unit.
+     * Handles emulation prevention byte removal and exp-Golomb decoding
+     * per ITU-T H.264 §7.3.2.1.1.
      */
     private fun parseSPSDimensions(sps: ByteArray): Pair<Int, Int> {
         try {
             if (sps.size < 4) return Pair(1920, 1080)
-            // Simplified: use MediaFormat to extract dimensions when possible
-            // For now, use a reasonable default and let MediaCodec handle the actual SPS
-            // The decoder will adapt to the actual frame dimensions
-            return Pair(1920, 1080)
-        } catch (_: Exception) {
-            return Pair(1920, 1080)
+
+            // Remove emulation prevention bytes (0x00 0x00 0x03 → 0x00 0x00)
+            val rbsp = removeEmulationPrevention(sps)
+            val reader = BitReader(rbsp)
+
+            // forbidden_zero_bit (1) + nal_ref_idc (2) + nal_unit_type (5)
+            reader.skip(8)
+
+            val profileIdc = reader.readBits(8)
+            reader.skip(8) // constraint_set flags + reserved
+            reader.skip(8) // level_idc
+            reader.readExpGolomb() // seq_parameter_set_id
+
+            val highProfiles = setOf(100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135)
+            var chromaFormatIdc = 1
+            if (profileIdc in highProfiles) {
+                chromaFormatIdc = reader.readExpGolomb()
+                if (chromaFormatIdc == 3) {
+                    reader.skip(1) // separate_colour_plane_flag
+                }
+                reader.readExpGolomb() // bit_depth_luma_minus8
+                reader.readExpGolomb() // bit_depth_chroma_minus8
+                reader.skip(1) // qpprime_y_zero_transform_bypass_flag
+                val seqScalingMatrixPresent = reader.readBit()
+                if (seqScalingMatrixPresent == 1) {
+                    val count = if (chromaFormatIdc != 3) 8 else 12
+                    for (i in 0 until count) {
+                        val present = reader.readBit()
+                        if (present == 1) {
+                            skipScalingList(reader, if (i < 6) 16 else 64)
+                        }
+                    }
+                }
+            }
+
+            reader.readExpGolomb() // log2_max_frame_num_minus4
+            val picOrderCntType = reader.readExpGolomb()
+            if (picOrderCntType == 0) {
+                reader.readExpGolomb() // log2_max_pic_order_cnt_lsb_minus4
+            } else if (picOrderCntType == 1) {
+                reader.skip(1) // delta_pic_order_always_zero_flag
+                reader.readSignedExpGolomb() // offset_for_non_ref_pic
+                reader.readSignedExpGolomb() // offset_for_top_to_bottom_field
+                val numRefFrames = reader.readExpGolomb()
+                for (i in 0 until numRefFrames) {
+                    reader.readSignedExpGolomb() // offset_for_ref_frame
+                }
+            }
+
+            reader.readExpGolomb() // max_num_ref_frames
+            reader.skip(1) // gaps_in_frame_num_value_allowed_flag
+
+            val picWidthInMbsMinus1 = reader.readExpGolomb()
+            val picHeightInMapUnitsMinus1 = reader.readExpGolomb()
+            val frameMbsOnlyFlag = reader.readBit()
+
+            if (frameMbsOnlyFlag == 0) {
+                reader.skip(1) // mb_adaptive_frame_field_flag
+            }
+            reader.skip(1) // direct_8x8_inference_flag
+
+            var width = (picWidthInMbsMinus1 + 1) * 16
+            var height = (2 - frameMbsOnlyFlag) * (picHeightInMapUnitsMinus1 + 1) * 16
+
+            val frameCroppingFlag = reader.readBit()
+            if (frameCroppingFlag == 1) {
+                val cropLeft = reader.readExpGolomb()
+                val cropRight = reader.readExpGolomb()
+                val cropTop = reader.readExpGolomb()
+                val cropBottom = reader.readExpGolomb()
+
+                // Chroma array type affects crop unit
+                val subWidthC = if (chromaFormatIdc == 1 || chromaFormatIdc == 2) 2 else 1
+                val subHeightC = if (chromaFormatIdc == 1) 2 else 1
+                val cropUnitX = subWidthC
+                val cropUnitY = subHeightC * (2 - frameMbsOnlyFlag)
+
+                width -= (cropLeft + cropRight) * cropUnitX
+                height -= (cropTop + cropBottom) * cropUnitY
+            }
+
+            if (width > 0 && height > 0) {
+                return Pair(width, height)
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("H264Decoder", "SPS parse failed, using fallback: ${e.message}")
+        }
+        return Pair(1920, 1080)
+    }
+
+    /**
+     * Remove emulation prevention bytes from NAL unit data.
+     * Sequences of 0x00 0x00 0x03 are replaced with 0x00 0x00.
+     */
+    private fun removeEmulationPrevention(data: ByteArray): ByteArray {
+        val result = ByteArrayOutputStream(data.size)
+        var i = 0
+        while (i < data.size) {
+            if (i + 2 < data.size &&
+                data[i] == 0.toByte() && data[i + 1] == 0.toByte() && data[i + 2] == 3.toByte()
+            ) {
+                result.write(0)
+                result.write(0)
+                i += 3 // skip the 0x03 byte
+            } else {
+                result.write(data[i].toInt() and 0xFF)
+                i++
+            }
+        }
+        return result.toByteArray()
+    }
+
+    private fun skipScalingList(reader: BitReader, size: Int) {
+        var lastScale = 8
+        var nextScale = 8
+        for (j in 0 until size) {
+            if (nextScale != 0) {
+                val deltaScale = reader.readSignedExpGolomb()
+                nextScale = (lastScale + deltaScale + 256) % 256
+            }
+            lastScale = if (nextScale == 0) lastScale else nextScale
+        }
+    }
+
+    /**
+     * Bitwise reader for parsing SPS fields.
+     */
+    private class BitReader(private val data: ByteArray) {
+        private var byteOffset = 0
+        private var bitOffset = 0
+
+        fun readBit(): Int {
+            if (byteOffset >= data.size) return 0
+            val bit = (data[byteOffset].toInt() shr (7 - bitOffset)) and 1
+            bitOffset++
+            if (bitOffset == 8) {
+                bitOffset = 0
+                byteOffset++
+            }
+            return bit
+        }
+
+        fun readBits(n: Int): Int {
+            var value = 0
+            for (i in 0 until n) {
+                value = (value shl 1) or readBit()
+            }
+            return value
+        }
+
+        fun skip(n: Int) {
+            for (i in 0 until n) readBit()
+        }
+
+        /** Unsigned exp-Golomb (ue(v)) */
+        fun readExpGolomb(): Int {
+            var leadingZeros = 0
+            while (readBit() == 0) {
+                leadingZeros++
+                if (leadingZeros > 31) return 0 // safety
+            }
+            if (leadingZeros == 0) return 0
+            return (1 shl leadingZeros) - 1 + readBits(leadingZeros)
+        }
+
+        /** Signed exp-Golomb (se(v)) */
+        fun readSignedExpGolomb(): Int {
+            val value = readExpGolomb()
+            return if (value % 2 == 0) -(value / 2) else (value + 1) / 2
         }
     }
 }

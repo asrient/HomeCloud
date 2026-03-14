@@ -5,7 +5,8 @@ public class SupermanModule: Module {
   private let tcpNetworking = TcpNetworking()
   private let udpNetworking = UdpNetworking()
   private let thumbnailGenerator = ThumbnailGenerator()
-  private let h264Decoder = H264Decoder()
+  private var h264Decoders: [String: H264Decoder] = [:]
+  private var decoderIdCounter = 0
   
   // Each module class must implement the definition function. The definition consists of components
   // that describes the module's functionality and behavior.
@@ -173,10 +174,21 @@ public class SupermanModule: Module {
       // No-op on iOS; file opening is handled via expo-quicklook-preview in JS
     }
 
-    // H.264 decoder functions
-    AsyncFunction("h264DecoderDecode") { (data: Data, isKeyframe: Bool, promise: Promise) in
+    // H.264 decoder functions — session-based for concurrent window captures
+    Function("h264DecoderCreate") {
+      self.decoderIdCounter += 1
+      let sessionId = "h264-\(self.decoderIdCounter)"
+      self.h264Decoders[sessionId] = H264Decoder()
+      return sessionId
+    }
+
+    AsyncFunction("h264DecoderDecode") { (sessionId: String, data: Data, isKeyframe: Bool, promise: Promise) in
+      guard let decoder = self.h264Decoders[sessionId] else {
+        promise.reject("ERR_NO_SESSION", "No decoder session: \(sessionId)")
+        return
+      }
       DispatchQueue.global(qos: .userInteractive).async {
-        if let jpegData = self.h264Decoder.decode(annexBData: data, isKeyframe: isKeyframe) {
+        if let jpegData = decoder.decode(annexBData: data, isKeyframe: isKeyframe) {
           promise.resolve(jpegData)
         } else {
           promise.resolve(nil)
@@ -184,8 +196,9 @@ public class SupermanModule: Module {
       }
     }
 
-    Function("h264DecoderDestroy") {
-      self.h264Decoder.destroy()
+    Function("h264DecoderDestroy") { (sessionId: String) in
+      self.h264Decoders[sessionId]?.destroy()
+      self.h264Decoders.removeValue(forKey: sessionId)
     }
 
     // Events

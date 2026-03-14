@@ -97,9 +97,8 @@ class H264Decoder {
         )
         guard status == noErr, let sampleBuf = sampleBuffer else { return nil }
 
-        // Decode synchronously
+        // Decode: dispatch asynchronously, then wait for all pending frames
         var decodedImage: CGImage?
-        let semaphore = DispatchSemaphore(value: 0)
 
         let decodeFlags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression]
         var infoFlags: VTDecodeInfoFlags = []

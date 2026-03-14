@@ -674,7 +674,7 @@ export default function ScreenControlScreen() {
     }, [mainWindows, selectedWindowId]);
 
     // Capture + actions for selected window
-    const { frameState, isConnecting, error, startCapture, stopCapture } = useWindowCapture(
+    const { frameState, isConnecting, isReconnecting, retryAttempt, error, startCapture, stopCapture, cancelReconnect } = useWindowCapture(
         selectedWindowId,
         deviceFingerprint,
     );
@@ -880,6 +880,34 @@ export default function ScreenControlScreen() {
                                 Connecting to window...
                             </UIText>
                         </View>
+                    ) : isReconnecting ? (
+                        <View style={styles.centerContent}>
+                            {frameState ? (
+                                <View style={[styles.canvasWrapper, { opacity: 0.4 }]}>
+                                    <WindowCanvas
+                                        frameState={frameState}
+                                        controlMode={controlMode}
+                                        touchSubMode={touchSubMode}
+                                        dispatchAction={dispatchAction}
+                                        canvasWidth={screenWidth - 16}
+                                        canvasHeight={canvasAreaHeight - 16}
+                                    />
+                                </View>
+                            ) : null}
+                            <View style={frameState ? styles.reconnectOverlay : undefined}>
+                                <ActivityIndicator />
+                                <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
+                                    Reconnecting (attempt {retryAttempt})...
+                                </UIText>
+                                <UIButton
+                                    title="Cancel"
+                                    type="secondary"
+                                    size="sm"
+                                    style={{ marginTop: 12 }}
+                                    onPress={cancelReconnect}
+                                />
+                            </View>
+                        </View>
                     ) : error ? (
                         <View style={styles.centerContent}>
                             <UIIcon name="exclamationmark.triangle" size={32} themeColor="textSecondary" />
@@ -1063,5 +1091,10 @@ const styles = StyleSheet.create({
         padding: 40,
         alignItems: 'center',
         gap: 12,
+    },
+    reconnectOverlay: {
+        position: 'absolute',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });
