@@ -194,7 +194,7 @@ const AppWindowPage: NextPageWithConfig = () => {
             if (!isMountedRef.current) { frame.close(); return; }
             const c = canvasRef.current;
             if (c) {
-              const ctx = c.getContext('2d');
+              const ctx = c.getContext('2d', { willReadFrequently: false });
               if (ctx) {
                 if (c.width !== frame.displayWidth || c.height !== frame.displayHeight) {
                   c.width = frame.displayWidth;
@@ -475,28 +475,29 @@ const AppWindowPage: NextPageWithConfig = () => {
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
         <div className='relative flex-1 flex items-center justify-center min-h-0'>
-          {isConnecting && !hasFrame ? (
-            <div className='flex flex-col items-center gap-2 text-white/60 text-sm'>
-              <div className='h-6 w-6 border-2 border-white/30 border-t-white/80 rounded-full animate-spin' />
-              Connecting...
+          {isConnecting && !hasFrame && (
+            <div className='absolute inset-0 flex items-center justify-center bg-black/70 rounded-lg z-10'>
+              <div className='flex flex-col items-center gap-2 text-white/80 text-sm'>
+                <div className='h-6 w-6 border-2 border-white/30 border-t-white/80 rounded-full animate-spin' />
+                Connecting...
+              </div>
             </div>
-          ) : (
-            <canvas
-              ref={canvasRef}
-              tabIndex={0}
-              autoFocus
-              onClick={handleClick}
-              onDoubleClick={handleDoubleClick}
-              onContextMenu={handleContextMenu}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseLeave}
-              onKeyDown={handleKeyDown}
-              className='w-full h-full outline-none'
-              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-            />
           )}
+          <canvas
+            ref={canvasRef}
+            tabIndex={0}
+            autoFocus
+            onClick={handleClick}
+            onDoubleClick={handleDoubleClick}
+            onContextMenu={handleContextMenu}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            onKeyDown={handleKeyDown}
+            className='w-full h-full outline-none'
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          />
 
           {error && (
             <div

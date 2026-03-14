@@ -151,10 +151,12 @@ export function createRemoteWindow(
         alwaysOnTop,
         show: !showInactive,
         skipTaskbar: type !== RemoteAppWindowType.Regular,
+        paintWhenInitiallyHidden: true,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             sandbox: false,
             contextIsolation: false,
+            backgroundThrottling: false,
         },
     });
 
