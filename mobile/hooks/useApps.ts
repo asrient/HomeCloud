@@ -1,9 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
 import { useResource, useResourceWithPolling } from './useResource';
-import { RemoteAppInfo, RemoteAppWindow, RemoteAppWindowTile, RemoteAppWindowUIState, RemoteAppWindowActionPayload } from 'shared/types';
+import { RemoteAppInfo, RemoteAppWindow, RemoteAppWindowActionPayload } from 'shared/types';
 import ServiceController from 'shared/controller';
 import { SignalNodeRef } from 'shared/signals';
+import { decodeMediaChunk } from 'shared/mediaStream';
 import { getServiceController } from '@/lib/utils';
+import superman from '@/modules/superman';
 
 const WATCH_HEARTBEAT_MS = 60_000;
 
@@ -177,114 +179,170 @@ export const useAppWindows = (appId: string | null, deviceFingerprint: string | 
     return { windows, isLoading, error, reload };
 };
 
-// ── Window Capture Loop ──
+// ── Window Capture via H.264 Stream ──
 
-const TILE_SIZE = 128;
-const QUALITY = 1;
-const CAPTURE_INTERVAL_MS = 50;
-const MAX_CONSECUTIVE_ERRORS = 5;
+const HEARTBEAT_INTERVAL_MS = 3_000;
+const MOBILE_STREAM_FPS = 8;
+const MOBILE_STREAM_QUALITY = 0.4;
+const MAX_RETRIES = 5;
+
+export type WindowFrameState = {
+    frameUri: string;
+    width: number;
+    height: number;
+    dpi: number;
+};
 
 export const useWindowCapture = (windowId: string | null, deviceFingerprint: string | null) => {
-    const [uiState, setUiState] = useState<RemoteAppWindowUIState | null>(null);
+    const [frameState, setFrameState] = useState<WindowFrameState | null>(null);
     const [isConnecting, setIsConnecting] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const sessionKeyRef = useRef<string | null>(null);
-    const pixelDensityRef = useRef<number>(1);
     const isMountedRef = useRef(true);
-    const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const consecutiveErrorsRef = useRef(0);
     const windowIdRef = useRef<string | null>(null);
     const fingerprintRef = useRef<string | null>(null);
+    const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+    const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     windowIdRef.current = windowId;
     fingerprintRef.current = deviceFingerprint;
 
-    const captureLoop = useCallback(async () => {
-        const wId = windowIdRef.current;
-        const key = sessionKeyRef.current;
-        if (!wId || !key || !isMountedRef.current) return;
-
-        try {
-            const sc = await getServiceController(fingerprintRef.current);
-            if (wId !== windowIdRef.current || !isMountedRef.current) return;
-
-            const snapshot = await sc.apps.getWindowSnapshot(wId, key, QUALITY);
-            if (wId !== windowIdRef.current || !isMountedRef.current) return;
-
-            consecutiveErrorsRef.current = 0;
-            setIsConnecting(false);
-
-            if (snapshot.dpi) pixelDensityRef.current = snapshot.dpi;
-
-            if (snapshot.tiles.length > 0) {
-                setUiState((prev) => {
-                    if (!prev) return snapshot;
-                    const tileMap = new Map<string, RemoteAppWindowTile>();
-                    for (const t of prev.tiles) tileMap.set(`${t.xIndex}_${t.yIndex}`, t);
-                    for (const t of snapshot.tiles) tileMap.set(`${t.xIndex}_${t.yIndex}`, t);
-                    return { ...snapshot, tiles: Array.from(tileMap.values()) };
-                });
-            }
-        } catch (e: any) {
-            console.error('Capture error:', e);
-            if (e?.message?.includes?.('Session invalidated')) {
-                setError('Another device took control of this window.');
-                return;
-            }
-            consecutiveErrorsRef.current++;
-            if (consecutiveErrorsRef.current >= MAX_CONSECUTIVE_ERRORS) {
-                setError('Window is no longer available. It may have been closed.');
-                return;
-            }
+    const cleanup = useCallback(() => {
+        if (heartbeatTimerRef.current) {
+            clearInterval(heartbeatTimerRef.current);
+            heartbeatTimerRef.current = null;
         }
-
-        if (isMountedRef.current && windowIdRef.current === wId) {
-            captureTimerRef.current = setTimeout(captureLoop, CAPTURE_INTERVAL_MS);
+        if (readerRef.current) {
+            readerRef.current.cancel().catch(() => {});
+            readerRef.current = null;
         }
+        superman.h264DecoderDestroy();
     }, []);
 
-    // Start/stop capture loop when windowId changes
     const startCapture = useCallback(() => {
         if (!windowId) return;
-        sessionKeyRef.current = null;
-        setUiState(null);
+        isMountedRef.current = true;
+        setFrameState(null);
         setIsConnecting(true);
         setError(null);
-        consecutiveErrorsRef.current = 0;
-        isMountedRef.current = true;
 
-        (async () => {
+        let cancelled = false;
+        let retryCount = 0;
+
+        const startStream = async () => {
+            cleanup();
+
             try {
                 const sc = await getServiceController(fingerprintRef.current);
-                if (!isMountedRef.current) return;
-                const session = await sc.apps.startStreamingSession(windowId, TILE_SIZE);
-                if (!isMountedRef.current) return;
-                sessionKeyRef.current = session.key;
-                captureLoop();
+                if (cancelled || !isMountedRef.current) return;
+
+                const session = await sc.apps.startStreamingSession(windowId);
+                if (cancelled || !isMountedRef.current) return;
+
+                let currentWidth = session.width;
+                let currentHeight = session.height;
+                let currentDpi = session.dpi || 1;
+
+                // Request mobile-friendly stream parameters
+                sc.apps.streamControl(windowId, MOBILE_STREAM_FPS, MOBILE_STREAM_QUALITY).catch(() => {});
+
+                // Heartbeat to keep stream alive
+                heartbeatTimerRef.current = setInterval(() => {
+                    getServiceController(fingerprintRef.current)
+                        .then(sc => sc.apps.streamControl(windowId, MOBILE_STREAM_FPS, MOBILE_STREAM_QUALITY))
+                        .catch(() => {});
+                }, HEARTBEAT_INTERVAL_MS);
+
+                // Read the stream
+                const reader = session.stream.getReader();
+                readerRef.current = reader;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done || cancelled || !isMountedRef.current) break;
+
+                    const { metadata, payload } = decodeMediaChunk(value);
+                    const isKeyframe = metadata.type === 'keyframe';
+
+                    // Track dimension changes from keyframe metadata
+                    if (metadata.width && metadata.height) {
+                        currentWidth = Number(metadata.width);
+                        currentHeight = Number(metadata.height);
+                    }
+                    if (metadata.dpi) {
+                        currentDpi = Number(metadata.dpi);
+                    }
+
+                    // Decode H.264 frame via native decoder
+                    const base64Jpeg = await superman.h264DecoderDecode(payload, isKeyframe);
+                    if (cancelled || !isMountedRef.current) break;
+
+                    if (base64Jpeg) {
+                        setFrameState({
+                            frameUri: `data:image/jpeg;base64,${base64Jpeg}`,
+                            width: currentWidth,
+                            height: currentHeight,
+                            dpi: currentDpi,
+                        });
+                        setIsConnecting(false);
+                    }
+
+                    retryCount = 0;
+                }
+
+                // Stream ended normally
+                if (!cancelled && isMountedRef.current) {
+                    setError('Window stream ended.');
+                }
             } catch (e: any) {
-                if (isMountedRef.current) setError('Failed to start streaming session.');
+                if (cancelled || !isMountedRef.current) return;
+
+                console.error('Stream error:', e);
+                cleanup();
+
+                if (retryCount < MAX_RETRIES) {
+                    retryCount++;
+                    const delay = 1000 + retryCount * 500;
+                    console.log(`Reconnecting (attempt ${retryCount}/${MAX_RETRIES}) in ${delay}ms...`);
+                    setIsConnecting(true);
+                    await new Promise(r => setTimeout(r, delay));
+                    if (!cancelled && isMountedRef.current) {
+                        startStream();
+                    }
+                } else {
+                    setError('Connection lost. Could not reconnect.');
+                }
             }
-        })();
-    }, [windowId, captureLoop]);
+        };
+
+        startStream();
+
+        return () => {
+            cancelled = true;
+            cleanup();
+            // Best-effort stop session on server
+            const wId = windowIdRef.current;
+            if (wId) {
+                getServiceController(fingerprintRef.current)
+                    .then(sc => sc.apps.stopStreamingSession(wId))
+                    .catch(() => {});
+            }
+        };
+    }, [windowId, cleanup]);
 
     const stopCapture = useCallback(() => {
         isMountedRef.current = false;
-        if (captureTimerRef.current) {
-            clearTimeout(captureTimerRef.current);
-            captureTimerRef.current = null;
-        }
+        cleanup();
         // Best-effort stop
         const wId = windowIdRef.current;
-        if (wId && sessionKeyRef.current) {
+        if (wId) {
             getServiceController(fingerprintRef.current)
                 .then(sc => sc.apps.stopStreamingSession(wId))
                 .catch(() => {});
-            sessionKeyRef.current = null;
         }
-    }, []);
+    }, [cleanup]);
 
-    return { uiState, isConnecting, error, startCapture, stopCapture, pixelDensity: pixelDensityRef };
+    return { frameState, isConnecting, error, startCapture, stopCapture };
 };
 
 // ── Window Action Dispatch ──

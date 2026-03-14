@@ -57,6 +57,9 @@ class SupermanModule : Module(), LifecycleEventObserver {
   private val udpSockets = ConcurrentHashMap<String, UdpSocket>()
   private val socketIdCounter = java.util.concurrent.atomic.AtomicInteger(0)
 
+  // H.264 decoder
+  private val h264Decoder = H264Decoder()
+
   // Cached resolved addresses for UDP send fast-path (avoids InetSocketAddress allocation per packet)
   private val udpAddressCache = ConcurrentHashMap<String, java.net.InetSocketAddress>()
 
@@ -721,6 +724,15 @@ class SupermanModule : Module(), LifecycleEventObserver {
         addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
       }
       context.startActivity(intent)
+    }
+
+    // H.264 decoder functions
+    AsyncFunction("h264DecoderDecode") { data: ByteArray, isKeyframe: Boolean ->
+      h264Decoder.decode(data, isKeyframe)
+    }
+
+    Function("h264DecoderDestroy") {
+      h264Decoder.destroy()
     }
 
     Events("tcpData", "tcpError", "tcpClose", "tcpIncomingConnection", "udpMessageBatch", "udpError", "udpListening", "udpClose")

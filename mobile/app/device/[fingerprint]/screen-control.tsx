@@ -4,7 +4,6 @@ import {
     StyleSheet,
     ActivityIndicator,
     Pressable,
-    Image,
     ScrollView,
     Dimensions,
     Modal,
@@ -13,25 +12,24 @@ import {
     KeyboardAvoidingView,
     GestureResponderEvent,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UIText } from '@/components/ui/UIText';
 import { UIButton } from '@/components/ui/UIButton';
 import { UIView } from '@/components/ui/UIView';
 import { UIIcon } from '@/components/ui/UIIcon';
-import { useAppWindows, useWindowCapture, useWindowActions } from '@/hooks/useApps';
+import { useAppWindows, useWindowCapture, useWindowActions, WindowFrameState } from '@/hooks/useApps';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import {
     RemoteAppWindow,
     RemoteAppWindowAction,
     RemoteAppWindowType,
-    RemoteAppWindowUIState,
 } from 'shared/types';
 import { isGlassEnabled, getServiceController } from '@/lib/utils';
 
 // ── Constants ──
 
-const TILE_SIZE = 128;
 const LONG_PRESS_MS = 500;
 const DOUBLE_TAP_MS = 300;
 const POINTER_MOVE_SENSITIVITY = 1.5;
@@ -42,40 +40,35 @@ type TouchSubMode = 'scroll' | 'select';
 // ── Window Canvas ──
 
 function WindowCanvas({
-    uiState,
+    frameState,
     controlMode,
     touchSubMode,
     dispatchAction,
     canvasWidth,
     canvasHeight,
 }: {
-    uiState: RemoteAppWindowUIState;
+    frameState: WindowFrameState;
     controlMode: ControlMode;
     touchSubMode: TouchSubMode;
     dispatchAction: (payload: any) => void;
     canvasWidth: number;
     canvasHeight: number;
-    dpi: number;
 }) {
-    // Build full image from tiles. We use an offscreen approach storing tile images.
-    const tileImages = useRef<Map<string, { uri: string; ts: number }>>(new Map());
-
     // Scale factor: fit remote window into canvasWidth/canvasHeight
-    // width/height are in pixel space; divide by dpi for logical dimensions
     const scale = useMemo(() => {
-        if (!uiState) return 1;
-        const sx = canvasWidth / uiState.width;
-        const sy = canvasHeight / uiState.height;
+        if (!frameState) return 1;
+        const sx = canvasWidth / frameState.width;
+        const sy = canvasHeight / frameState.height;
         return Math.min(sx, sy, 1);
-    }, [uiState, canvasWidth, canvasHeight]);
+    }, [frameState, canvasWidth, canvasHeight]);
 
-    const displayWidth = uiState.width * scale;
-    const displayHeight = uiState.height * scale;
+    const displayWidth = frameState.width * scale;
+    const displayHeight = frameState.height * scale;
 
     // Pointer mode state
     const pointerPos = useRef<{ x: number; y: number }>({
-        x: uiState.width / 2,
-        y: uiState.height / 2,
+        x: frameState.width / 2,
+        y: frameState.height / 2,
     });
     const [pointerDisplay, setPointerDisplay] = useState<{ x: number; y: number }>({
         x: 0.5,
@@ -216,12 +209,12 @@ function WindowCanvas({
                     }
 
                     if (isDraggingRef.current) {
-                        const newX = Math.max(0, Math.min(uiState.width, pointerPos.current.x + dx));
-                        const newY = Math.max(0, Math.min(uiState.height, pointerPos.current.y + dy));
+                        const newX = Math.max(0, Math.min(frameState.width, pointerPos.current.x + dx));
+                        const newY = Math.max(0, Math.min(frameState.height, pointerPos.current.y + dy));
                         pointerPos.current = { x: newX, y: newY };
                         setPointerDisplay({
-                            x: newX / uiState.width,
-                            y: newY / uiState.height,
+                            x: newX / frameState.width,
+                            y: newY / frameState.height,
                         });
                         touchStartRef.current = { x: pageX, y: pageY, time: touchStartRef.current.time };
 
@@ -280,7 +273,7 @@ function WindowCanvas({
                 }
             }
         },
-        [controlMode, touchSubMode, dispatchAction, touchToWindowCoords, uiState?.width, uiState?.height],
+        [controlMode, touchSubMode, dispatchAction, touchToWindowCoords, frameState?.width, frameState?.height],
     );
 
     const handleTouchEnd = useCallback(
@@ -374,37 +367,6 @@ function WindowCanvas({
         [controlMode, dispatchAction, touchToWindowCoords],
     );
 
-    // Build tile grid
-    const tileElements = useMemo(() => {
-        const elements: React.ReactNode[] = [];
-        for (const tile of uiState.tiles) {
-            const key = `${tile.xIndex}_${tile.yIndex}`;
-            const cached = tileImages.current.get(key);
-            if (!cached || cached.ts !== tile.timestamp) {
-                tileImages.current.set(key, {
-                    uri: `data:image/jpeg;base64,${tile.image}`,
-                    ts: tile.timestamp,
-                });
-            }
-            const tileData = tileImages.current.get(key)!;
-            elements.push(
-                <Image
-                    key={key}
-                    source={{ uri: tileData.uri }}
-                    style={{
-                        position: 'absolute',
-                        left: Math.floor(tile.xIndex * TILE_SIZE * scale),
-                        top: Math.floor(tile.yIndex * TILE_SIZE * scale),
-                        width: Math.ceil(tile.width * scale) + 1,
-                        height: Math.ceil(tile.height * scale) + 1,
-                    }}
-                    resizeMode="cover"
-                />,
-            );
-        }
-        return elements;
-    }, [uiState.tiles, scale]);
-
     return (
         <View
             style={[styles.canvasContainer, { width: displayWidth, height: displayHeight }]}
@@ -415,7 +377,12 @@ function WindowCanvas({
             onResponderMove={handleTouchMove}
             onResponderRelease={handleTouchEnd}
         >
-            {tileElements}
+            <Image
+                source={{ uri: frameState.frameUri }}
+                style={{ width: displayWidth, height: displayHeight }}
+                contentFit="contain"
+                cachePolicy="none"
+            />
 
             {/* Pointer cursor overlay in pointer mode */}
             {controlMode === 'pointer' && (
@@ -533,7 +500,7 @@ function ChildWindowModal({
     deviceFingerprint: string | null;
     onClose: () => void;
 }) {
-    const { uiState, isConnecting, error, startCapture, stopCapture, pixelDensity } = useWindowCapture(
+    const { frameState, isConnecting, error, startCapture, stopCapture } = useWindowCapture(
         childWindow.id,
         deviceFingerprint,
     );
@@ -561,22 +528,21 @@ function ChildWindowModal({
                     style={styles.modalContent}
                     onPress={(e) => e.stopPropagation()}
                 >
-                    {isConnecting && !uiState ? (
+                    {isConnecting && !frameState ? (
                         <View style={styles.modalLoading}>
                             <ActivityIndicator color="#fff" />
                             <UIText color="textSecondary" size="sm">
                                 Loading...
                             </UIText>
                         </View>
-                    ) : uiState ? (
+                    ) : frameState ? (
                         <WindowCanvas
-                            uiState={uiState}
+                            frameState={frameState}
                             controlMode="touch"
                             touchSubMode="scroll"
                             dispatchAction={dispatchAction}
                             canvasWidth={maxWidth}
                             canvasHeight={maxHeight}
-                            dpi={pixelDensity.current}
                         />
                     ) : null}
                 </Pressable>
@@ -708,7 +674,7 @@ export default function ScreenControlScreen() {
     }, [mainWindows, selectedWindowId]);
 
     // Capture + actions for selected window
-    const { uiState, isConnecting, error, startCapture, stopCapture, pixelDensity } = useWindowCapture(
+    const { frameState, isConnecting, error, startCapture, stopCapture } = useWindowCapture(
         selectedWindowId,
         deviceFingerprint,
     );
@@ -752,7 +718,7 @@ export default function ScreenControlScreen() {
     // Corrective resize: if the OS clamped width (app min width > our target),
     // increase height to maintain the phone's portrait aspect ratio.
     useEffect(() => {
-        if (!selectedWindowId || !deviceFingerprint || !uiState) return;
+        if (!selectedWindowId || !deviceFingerprint || !frameState) return;
         if (hasCorrectedRef.current.has(selectedWindowId)) return;
 
         // Only correct after initial resize has been attempted and
@@ -760,8 +726,8 @@ export default function ScreenControlScreen() {
         if (!hasResizedRef.current.has(selectedWindowId)) return;
         if (Date.now() - resizeTimestampRef.current < 2000) return;
 
-        const actualWidth = uiState.width;
-        const actualHeight = uiState.height;
+        const actualWidth = frameState.width;
+        const actualHeight = frameState.height;
 
         // If the width was clamped wider than requested, compensate with more height
         if (actualWidth > idealSize.width * 1.05) {
@@ -788,7 +754,7 @@ export default function ScreenControlScreen() {
             // Width matched our request, no correction needed
             hasCorrectedRef.current.add(selectedWindowId);
         }
-    }, [selectedWindowId, deviceFingerprint, uiState, idealSize]);
+    }, [selectedWindowId, deviceFingerprint, frameState, idealSize]);
 
     // Restore original sizes on unmount
     useEffect(() => {
@@ -907,7 +873,7 @@ export default function ScreenControlScreen() {
                                 onPress={() => router.back()}
                             />
                         </View>
-                    ) : isConnecting && !uiState ? (
+                    ) : isConnecting && !frameState ? (
                         <View style={styles.centerContent}>
                             <ActivityIndicator />
                             <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
@@ -928,16 +894,15 @@ export default function ScreenControlScreen() {
                                 onPress={() => router.back()}
                             />
                         </View>
-                    ) : uiState ? (
+                    ) : frameState ? (
                         <View style={styles.canvasWrapper}>
                             <WindowCanvas
-                                uiState={uiState}
+                                frameState={frameState}
                                 controlMode={controlMode}
                                 touchSubMode={touchSubMode}
                                 dispatchAction={dispatchAction}
                                 canvasWidth={screenWidth - 16}
                                 canvasHeight={canvasAreaHeight - 16}
-                                dpi={pixelDensity.current}
                             />
                         </View>
                     ) : null}

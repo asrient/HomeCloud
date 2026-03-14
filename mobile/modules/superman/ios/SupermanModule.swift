@@ -5,6 +5,7 @@ public class SupermanModule: Module {
   private let tcpNetworking = TcpNetworking()
   private let udpNetworking = UdpNetworking()
   private let thumbnailGenerator = ThumbnailGenerator()
+  private let h264Decoder = H264Decoder()
   
   // Each module class must implement the definition function. The definition consists of components
   // that describes the module's functionality and behavior.
@@ -170,6 +171,21 @@ public class SupermanModule: Module {
     // Open file with system viewer (Android-only, iOS uses QuickLook via JS)
     AsyncFunction("openFile") { (filePath: String) in
       // No-op on iOS; file opening is handled via expo-quicklook-preview in JS
+    }
+
+    // H.264 decoder functions
+    AsyncFunction("h264DecoderDecode") { (data: Data, isKeyframe: Bool, promise: Promise) in
+      DispatchQueue.global(qos: .userInteractive).async {
+        if let base64 = self.h264Decoder.decode(annexBData: data, isKeyframe: isKeyframe) {
+          promise.resolve(base64)
+        } else {
+          promise.resolve(nil)
+        }
+      }
+    }
+
+    Function("h264DecoderDestroy") {
+      self.h264Decoder.destroy()
     }
 
     // Events
