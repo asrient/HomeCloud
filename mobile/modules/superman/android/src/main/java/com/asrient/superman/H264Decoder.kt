@@ -1,6 +1,5 @@
 package com.asrient.superman
 
-import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.media.Image
 import android.media.MediaCodec
@@ -148,6 +147,13 @@ class H264Decoder {
         return result
     }
 
+    /**
+     * Convert YUV_420_888 Image to JPEG bytes using Android's YuvImage for native-speed
+     * compression. This avoids per-pixel Kotlin loops and intermediate Bitmap allocations,
+     * which is critical for 30fps decode throughput.
+     *
+     * @see <a href="https://developer.android.com/reference/android/graphics/YuvImage">YuvImage docs</a>
+     */
     private fun imageToJpegBytes(image: Image): ByteArray? {
         if (image.format != ImageFormat.YUV_420_888) return null
 
@@ -167,36 +173,41 @@ class H264Decoder {
         val vRowStride = vPlane.rowStride
         val vPixelStride = vPlane.pixelStride
 
-        // Convert YUV420 to ARGB bitmap
-        val argb = IntArray(width * height)
-        for (row in 0 until height) {
-            for (col in 0 until width) {
-                val yIdx = row * yRowStride + col
-                val uvRow = row / 2
-                val uvCol = col / 2
-                val uIdx = uvRow * uRowStride + uvCol * uPixelStride
-                val vIdx = uvRow * vRowStride + uvCol * vPixelStride
+        // Build NV21 byte array: Y plane followed by interleaved VU bytes.
+        // YuvImage.compressToJpeg uses native libjpeg — much faster than
+        // manual YUV→RGB conversion + Bitmap.compress per frame.
+        val nv21Size = width * height * 3 / 2
+        val nv21 = ByteArray(nv21Size)
 
-                val y = (yBuffer.get(yIdx).toInt() and 0xFF) - 16
-                val u = (uBuffer.get(uIdx).toInt() and 0xFF) - 128
-                val v = (vBuffer.get(vIdx).toInt() and 0xFF) - 128
-
-                var r = (1.164 * y + 1.596 * v).toInt()
-                var g = (1.164 * y - 0.813 * v - 0.391 * u).toInt()
-                var b = (1.164 * y + 2.018 * u).toInt()
-
-                r = r.coerceIn(0, 255)
-                g = g.coerceIn(0, 255)
-                b = b.coerceIn(0, 255)
-
-                argb[row * width + col] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+        // Copy Y plane
+        if (yRowStride == width) {
+            yBuffer.position(0)
+            yBuffer.get(nv21, 0, width * height)
+        } else {
+            for (row in 0 until height) {
+                yBuffer.position(row * yRowStride)
+                yBuffer.get(nv21, row * width, width)
             }
         }
 
-        val bitmap = Bitmap.createBitmap(argb, width, height, Bitmap.Config.ARGB_8888)
+        // Copy UV planes as interleaved VU (NV21 format)
+        // Per Android Image.Plane docs, U and V planes may have different
+        // rowStride/pixelStride, so we index each plane independently.
+        val uvHeight = height / 2
+        val uvWidth = width / 2
+        var uvOffset = width * height
+        for (row in 0 until uvHeight) {
+            for (col in 0 until uvWidth) {
+                val vIdx = row * vRowStride + col * vPixelStride
+                val uIdx = row * uRowStride + col * uPixelStride
+                nv21[uvOffset++] = vBuffer.get(vIdx)
+                nv21[uvOffset++] = uBuffer.get(uIdx)
+            }
+        }
+
+        val yuvImage = android.graphics.YuvImage(nv21, ImageFormat.NV21, width, height, null)
         val outputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
-        bitmap.recycle()
+        yuvImage.compressToJpeg(android.graphics.Rect(0, 0, width, height), 70, outputStream)
 
         val jpegBytes = outputStream.toByteArray()
         outputStream.close()

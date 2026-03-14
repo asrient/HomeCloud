@@ -182,8 +182,8 @@ export const useAppWindows = (appId: string | null, deviceFingerprint: string | 
 // ── Window Capture via H.264 Stream ──
 
 const HEARTBEAT_INTERVAL_MS = 3_000;
-const MOBILE_STREAM_FPS = 8;
-const MOBILE_STREAM_QUALITY = 0.4;
+const MOBILE_STREAM_FPS = 30;
+const MOBILE_STREAM_QUALITY = 0.8;
 const MAX_RETRIES = 5;
 
 export type WindowFrameState = {
@@ -307,6 +307,7 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
                         setIsConnecting(false);
                         setIsReconnecting(false);
                         setRetryAttempt(0);
+                        setError(null);
                     }
 
                     retryCount = 0;
