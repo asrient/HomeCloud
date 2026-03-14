@@ -325,14 +325,14 @@ struct H264WinStreamContext {
 
         // Create DXGI Device Manager to share D3D11 device between MFTs
         HRESULT hr = MFCreateDXGIDeviceManager(&dxgiResetToken, dxgiManager.put());
-        if (FAILED(hr)) return false;
+        if (FAILED(hr)) { printf("[H264Win] initPipeline: MFCreateDXGIDeviceManager failed 0x%08lX\n", hr); return false; }
         hr = dxgiManager->ResetDevice(d3dDevice.get(), dxgiResetToken);
-        if (FAILED(hr)) return false;
+        if (FAILED(hr)) { printf("[H264Win] initPipeline: ResetDevice failed 0x%08lX\n", hr); return false; }
 
         // ── Video Processor MFT (BGRA → NV12, GPU) ──
         hr = CoCreateInstance(CLSID_VideoProcessorMFT, nullptr, CLSCTX_INPROC_SERVER,
             IID_PPV_ARGS(videoProcessor.put()));
-        if (FAILED(hr)) return false;
+        if (FAILED(hr)) { printf("[H264Win] initPipeline: CoCreateInstance VP failed 0x%08lX\n", hr); return false; }
 
         // Enable D3D11 on the video processor
         videoProcessor->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER,
@@ -347,7 +347,7 @@ struct H264WinStreamContext {
         MFSetAttributeRatio(vpInType.get(), MF_MT_FRAME_RATE, targetFps, 1);
         vpInType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
         hr = videoProcessor->SetInputType(0, vpInType.get(), 0);
-        if (FAILED(hr)) { videoProcessor = nullptr; return false; }
+        if (FAILED(hr)) { printf("[H264Win] initPipeline: VP SetInputType failed 0x%08lX\n", hr); videoProcessor = nullptr; return false; }
 
         // VP output type: NV12
         winrt::com_ptr<IMFMediaType> vpOutType;
@@ -358,7 +358,7 @@ struct H264WinStreamContext {
         MFSetAttributeRatio(vpOutType.get(), MF_MT_FRAME_RATE, targetFps, 1);
         vpOutType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
         hr = videoProcessor->SetOutputType(0, vpOutType.get(), 0);
-        if (FAILED(hr)) { videoProcessor = nullptr; return false; }
+        if (FAILED(hr)) { printf("[H264Win] initPipeline: VP SetOutputType failed 0x%08lX\n", hr); videoProcessor = nullptr; return false; }
 
         videoProcessor->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
 
@@ -374,7 +374,7 @@ struct H264WinStreamContext {
                 MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_SORTANDFILTER,
                 nullptr, &encOutInfo, &ppActivate, &count);
         }
-        if (FAILED(hr) || count == 0) return false;
+        if (FAILED(hr) || count == 0) { printf("[H264Win] initPipeline: MFTEnumEx failed hr=0x%08lX count=%u\n", hr, count); return false; }
 
         hr = ppActivate[0]->ActivateObject(IID_PPV_ARGS(encoder.put()));
         for (UINT32 i = 0; i < count; i++) ppActivate[i]->Release();
@@ -554,6 +554,7 @@ struct H264WinStreamContext {
 
 static std::mutex g_h264WinMutex;
 static std::unordered_map<uintptr_t, std::shared_ptr<H264WinStreamContext>> g_h264WinStreams;
+static int g_mfRefCount = 0;  // reference count for MFStartup/MFShutdown
 
 static void stopH264WinStream(HWND hwnd) {
     std::shared_ptr<H264WinStreamContext> ctx;
@@ -583,7 +584,14 @@ static void stopH264WinStream(HWND hwnd) {
     if (ctx->framePool) ctx->framePool.Close();
     ctx->item = nullptr;
     ctx->tsfn.Release();
-    MFShutdown();
+    {
+        std::lock_guard<std::mutex> lock(g_h264WinMutex);
+        g_mfRefCount--;
+        if (g_mfRefCount <= 0) {
+            MFShutdown();
+            g_mfRefCount = 0;
+        }
+    }
 }
 
 // ──────────────────────────────────────────────
@@ -1550,6 +1558,10 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
             });
         });
 
+        {
+            std::lock_guard<std::mutex> lock(g_h264WinMutex);
+            g_mfRefCount++;
+        }
         MFStartup(MF_VERSION);
         ctx->session.StartCapture();
         printf("[H264Win] StartCapture called, size=%dx%d\n", ctx->width, ctx->height);
