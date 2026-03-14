@@ -439,18 +439,18 @@ struct H264WinStreamContext {
         winrt::Windows::Foundation::IInspectable const&)
     {
         auto frame = sender.TryGetNextFrame();
-        if (!frame) return;
+        if (!frame) { printf("[H264Win] onFrameArrived: TryGetNextFrame returned null\n"); return; }
 
         std::lock_guard<std::mutex> lock(mutex);
-        if (stopped) return;
+        if (stopped) { return; }
 
         auto surface = frame.Surface();
-        if (!surface) return;
+        if (!surface) { printf("[H264Win] onFrameArrived: no surface\n"); return; }
 
         auto access = surface.as<Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess>();
         winrt::com_ptr<ID3D11Texture2D> frameTex;
         access->GetInterface(IID_PPV_ARGS(frameTex.put()));
-        if (!frameTex) return;
+        if (!frameTex) { printf("[H264Win] onFrameArrived: no texture\n"); return; }
 
         D3D11_TEXTURE2D_DESC desc;
         frameTex->GetDesc(&desc);
@@ -459,10 +459,11 @@ struct H264WinStreamContext {
 
         // Create/recreate pipeline if dimensions changed
         if (w != width || h != height || !encoder) {
+            printf("[H264Win] initPipeline: %dx%d (was %dx%d)\n", w, h, width, height);
             width = w;
             height = h;
             isFirstFrame = true;
-            if (!initPipeline(w, h)) return;
+            if (!initPipeline(w, h)) { printf("[H264Win] initPipeline FAILED\n"); return; }
         }
 
         // Create IMFSample wrapping the D3D11 texture (zero-copy)
@@ -479,13 +480,14 @@ struct H264WinStreamContext {
 
         // Step 1: Video Processor (BGRA → NV12 on GPU)
         HRESULT hr = videoProcessor->ProcessInput(0, inputSample.get(), 0);
-        if (FAILED(hr)) return;
+        if (FAILED(hr)) { printf("[H264Win] VP ProcessInput failed: 0x%08lX\n", hr); return; }
 
         MFT_OUTPUT_DATA_BUFFER vpOutput = {};
         vpOutput.dwStreamID = 0;
         DWORD vpStatus = 0;
         hr = videoProcessor->ProcessOutput(0, 1, &vpOutput, &vpStatus);
         if (FAILED(hr) || !vpOutput.pSample) {
+            printf("[H264Win] VP ProcessOutput failed: 0x%08lX\n", hr);
             if (vpOutput.pEvents) vpOutput.pEvents->Release();
             return;
         }
@@ -494,7 +496,7 @@ struct H264WinStreamContext {
         hr = encoder->ProcessInput(encInputStreamId, vpOutput.pSample, 0);
         vpOutput.pSample->Release();
         if (vpOutput.pEvents) vpOutput.pEvents->Release();
-        if (FAILED(hr)) return;
+        if (FAILED(hr)) { printf("[H264Win] Encoder ProcessInput failed: 0x%08lX\n", hr); return; }
 
         // Drain encoded output
         MFT_OUTPUT_DATA_BUFFER encOutput = {};
@@ -511,7 +513,7 @@ struct H264WinStreamContext {
         if (encOutput.pEvents) encOutput.pEvents->Release();
 
         if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) return;
-        if (FAILED(hr)) return;
+        if (FAILED(hr)) { printf("[H264Win] Encoder ProcessOutput failed: 0x%08lX\n", hr); return; }
 
         // Extract encoded H.264 data
         winrt::com_ptr<IMFMediaBuffer> encBuf;
@@ -562,6 +564,7 @@ static void stopH264WinStream(HWND hwnd) {
         ctx = it->second;
         g_h264WinStreams.erase(it);
     }
+    printf("[H264Win] stopH264WinStream: hwnd=%p\n", (void*)hwnd);
     {
         std::lock_guard<std::mutex> lock(ctx->mutex);
         ctx->stopped = true;
@@ -1487,6 +1490,7 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
 
     try {
         stopH264WinStream(hwnd);
+        printf("[H264Win] StartH264Stream: hwnd=%p\\n", (void*)hwnd);
         auto ctx = std::make_shared<H264WinStreamContext>();
         ctx->hwnd = hwnd;
         ctx->dpi = 1;
@@ -1548,6 +1552,7 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
 
         MFStartup(MF_VERSION);
         ctx->session.StartCapture();
+        printf("[H264Win] StartCapture called, size=%dx%d\n", ctx->width, ctx->height);
 
         {
             std::lock_guard<std::mutex> lock(g_h264WinMutex);
@@ -1559,7 +1564,11 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
         result.Set("height", ctx->height);
         result.Set("dpi", ctx->dpi);
         return result;
+    } catch (std::exception const& ex) {
+        printf("[H264Win] StartH264Stream exception: %s\n", ex.what());
+        return env.Null();
     } catch (...) {
+        printf("[H264Win] StartH264Stream unknown exception\n");
         return env.Null();
     }
 }
