@@ -97,8 +97,8 @@ class H264Decoder {
         )
         guard status == noErr, let sampleBuf = sampleBuffer else { return nil }
 
-        // Decode: dispatch asynchronously, then wait for all pending frames
-        var decodedImage: CGImage?
+        // Decode: clear stale image, dispatch asynchronously, then wait for output
+        lastDecodedImage = nil
 
         let decodeFlags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression]
         var infoFlags: VTDecodeInfoFlags = []
@@ -111,6 +111,7 @@ class H264Decoder {
             infoFlagsOut: &infoFlags
         )
 
+        var decodedImage: CGImage?
         if status == noErr {
             VTDecompressionSessionWaitForAsynchronousFrames(session)
             decodedImage = lastDecodedImage
@@ -148,23 +149,27 @@ class H264Decoder {
         lastPPS = pps
 
         // Create format description from SPS/PPS
-        // Use contiguous arrays to ensure pointer stability during the C API call
+        // Use withUnsafeBufferPointer to pass stable C pointers to the CoreMedia API
         let spsBytes = [UInt8](sps)
         let ppsBytes = [UInt8](pps)
         var formatDesc: CMVideoFormatDescription?
 
         let status = spsBytes.withUnsafeBufferPointer { spsBuf in
             ppsBytes.withUnsafeBufferPointer { ppsBuf in
-                var pointers: [UnsafePointer<UInt8>] = [spsBuf.baseAddress!, ppsBuf.baseAddress!]
-                var sizes: [Int] = [spsBytes.count, ppsBytes.count]
-                return CMVideoFormatDescriptionCreateFromH264ParameterSets(
-                    allocator: kCFAllocatorDefault,
-                    parameterSetCount: 2,
-                    parameterSetPointers: &pointers,
-                    parameterSetSizes: &sizes,
-                    nalUnitHeaderLength: 4,
-                    formatDescriptionOut: &formatDesc
-                )
+                let pointers: [UnsafePointer<UInt8>] = [spsBuf.baseAddress!, ppsBuf.baseAddress!]
+                let sizes: [Int] = [spsBytes.count, ppsBytes.count]
+                return pointers.withUnsafeBufferPointer { ptrsBuf in
+                    sizes.withUnsafeBufferPointer { sizesBuf in
+                        CMVideoFormatDescriptionCreateFromH264ParameterSets(
+                            allocator: kCFAllocatorDefault,
+                            parameterSetCount: 2,
+                            parameterSetPointers: ptrsBuf.baseAddress!,
+                            parameterSetSizes: sizesBuf.baseAddress!,
+                            nalUnitHeaderLength: 4,
+                            formatDescriptionOut: &formatDesc
+                        )
+                    }
+                }
             }
         }
 

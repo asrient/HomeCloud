@@ -5,8 +5,10 @@ public class SupermanModule: Module {
   private let tcpNetworking = TcpNetworking()
   private let udpNetworking = UdpNetworking()
   private let thumbnailGenerator = ThumbnailGenerator()
+  // H.264 decoder sessions — protected by decoderQueue for thread safety
   private var h264Decoders: [String: H264Decoder] = [:]
   private var decoderIdCounter = 0
+  private let decoderQueue = DispatchQueue(label: "com.asrient.superman.h264decoders")
   
   // Each module class must implement the definition function. The definition consists of components
   // that describes the module's functionality and behavior.
@@ -175,19 +177,22 @@ public class SupermanModule: Module {
     }
 
     // H.264 decoder functions — session-based for concurrent window captures
+    // All decoder operations are serialized via decoderQueue for thread safety
     Function("h264DecoderCreate") {
-      self.decoderIdCounter += 1
-      let sessionId = "h264-\(self.decoderIdCounter)"
-      self.h264Decoders[sessionId] = H264Decoder()
-      return sessionId
+      return self.decoderQueue.sync { () -> String in
+        self.decoderIdCounter += 1
+        let sessionId = "h264-\(self.decoderIdCounter)"
+        self.h264Decoders[sessionId] = H264Decoder()
+        return sessionId
+      }
     }
 
     AsyncFunction("h264DecoderDecode") { (sessionId: String, data: Data, isKeyframe: Bool, promise: Promise) in
-      guard let decoder = self.h264Decoders[sessionId] else {
-        promise.reject("ERR_NO_SESSION", "No decoder session: \(sessionId)")
-        return
-      }
-      DispatchQueue.global(qos: .userInteractive).async {
+      self.decoderQueue.async {
+        guard let decoder = self.h264Decoders[sessionId] else {
+          promise.reject("ERR_NO_SESSION", "No decoder session: \(sessionId)")
+          return
+        }
         if let jpegData = decoder.decode(annexBData: data, isKeyframe: isKeyframe) {
           promise.resolve(jpegData)
         } else {
@@ -197,8 +202,10 @@ public class SupermanModule: Module {
     }
 
     Function("h264DecoderDestroy") { (sessionId: String) in
-      self.h264Decoders[sessionId]?.destroy()
-      self.h264Decoders.removeValue(forKey: sessionId)
+      self.decoderQueue.sync {
+        self.h264Decoders[sessionId]?.destroy()
+        self.h264Decoders.removeValue(forKey: sessionId)
+      }
     }
 
     // Events

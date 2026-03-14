@@ -54,21 +54,26 @@ function WindowCanvas({
     canvasWidth: number;
     canvasHeight: number;
 }) {
-    // Scale factor: fit remote window into canvasWidth/canvasHeight
+    // Derive logical dimensions from pixel dimensions + DPI for layout and input mapping.
+    // The stream provides pixel dimensions; the remote window expects logical coordinates.
+    const dpi = frameState.dpi || 1;
+    const logicalWidth = Math.round(frameState.width / dpi);
+    const logicalHeight = Math.round(frameState.height / dpi);
+
+    // Scale factor: fit remote window (logical size) into canvasWidth/canvasHeight
     const scale = useMemo(() => {
-        if (!frameState) return 1;
-        const sx = canvasWidth / frameState.width;
-        const sy = canvasHeight / frameState.height;
+        const sx = canvasWidth / logicalWidth;
+        const sy = canvasHeight / logicalHeight;
         return Math.min(sx, sy, 1);
-    }, [frameState, canvasWidth, canvasHeight]);
+    }, [logicalWidth, logicalHeight, canvasWidth, canvasHeight]);
 
-    const displayWidth = frameState.width * scale;
-    const displayHeight = frameState.height * scale;
+    const displayWidth = logicalWidth * scale;
+    const displayHeight = logicalHeight * scale;
 
-    // Pointer mode state
+    // Pointer mode state — initialized in logical coordinates
     const pointerPos = useRef<{ x: number; y: number }>({
-        x: frameState.width / 2,
-        y: frameState.height / 2,
+        x: logicalWidth / 2,
+        y: logicalHeight / 2,
     });
     const [pointerDisplay, setPointerDisplay] = useState<{ x: number; y: number }>({
         x: 0.5,
@@ -209,12 +214,12 @@ function WindowCanvas({
                     }
 
                     if (isDraggingRef.current) {
-                        const newX = Math.max(0, Math.min(frameState.width, pointerPos.current.x + dx));
-                        const newY = Math.max(0, Math.min(frameState.height, pointerPos.current.y + dy));
+                        const newX = Math.max(0, Math.min(logicalWidth, pointerPos.current.x + dx));
+                        const newY = Math.max(0, Math.min(logicalHeight, pointerPos.current.y + dy));
                         pointerPos.current = { x: newX, y: newY };
                         setPointerDisplay({
-                            x: newX / frameState.width,
-                            y: newY / frameState.height,
+                            x: newX / logicalWidth,
+                            y: newY / logicalHeight,
                         });
                         touchStartRef.current = { x: pageX, y: pageY, time: touchStartRef.current.time };
 
@@ -381,7 +386,8 @@ function WindowCanvas({
                 source={{ uri: frameState.frameUri }}
                 style={{ width: displayWidth, height: displayHeight }}
                 contentFit="contain"
-                cachePolicy="memory"
+                cachePolicy="none"
+                recyclingKey="stream-frame"
             />
 
             {/* Pointer cursor overlay in pointer mode */}
@@ -726,8 +732,9 @@ export default function ScreenControlScreen() {
         if (!hasResizedRef.current.has(selectedWindowId)) return;
         if (Date.now() - resizeTimestampRef.current < 2000) return;
 
-        const actualWidth = frameState.width;
-        const actualHeight = frameState.height;
+        const actualDpi = frameState.dpi || 1;
+        const actualWidth = Math.round(frameState.width / actualDpi);
+        const actualHeight = Math.round(frameState.height / actualDpi);
 
         // If the width was clamped wider than requested, compensate with more height
         if (actualWidth > idealSize.width * 1.05) {
@@ -1093,8 +1100,9 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     reconnectOverlay: {
-        position: 'absolute',
+        ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.4)',
     },
 });
