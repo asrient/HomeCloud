@@ -418,7 +418,7 @@ class H264Decoder {
             var leadingZeros = 0
             while (readBit() == 0) {
                 leadingZeros++
-                if (leadingZeros > 31) return 0 // safety
+                if (leadingZeros >= 31) return 0 // safety: avoid int overflow
             }
             if (leadingZeros == 0) return 0
             return (1 shl leadingZeros) - 1 + readBits(leadingZeros)
