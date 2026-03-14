@@ -73,6 +73,7 @@ const AppWindowPage: NextPageWithConfig = () => {
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasFrame, setHasFrame] = useState(false);
+  const hasFrameRef = useRef(false);
 
   windowIdRef.current = windowId;
   fingerprintRef.current = fingerprint;
@@ -129,6 +130,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     setIsConnecting(true);
     setError(null);
     setHasFrame(false);
+    hasFrameRef.current = false;
 
     let cancelled = false;
     let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
@@ -202,7 +204,10 @@ const AppWindowPage: NextPageWithConfig = () => {
               }
             }
             frame.close();
-            if (!hasFrame) setHasFrame(true);
+            if (!hasFrameRef.current) {
+              hasFrameRef.current = true;
+              setHasFrame(true);
+            }
             setIsConnecting(false);
           },
           error: (e: DOMException) => {
@@ -327,7 +332,7 @@ const AppWindowPage: NextPageWithConfig = () => {
         .then(sc => sc.apps.stopStreamingSession(windowId!))
         .catch(() => {});
     };
-  }, [windowId, dispatchAction, hasFrame]);
+  }, [windowId, dispatchAction]);
 
   // ── Mouse handlers ──
   const handleClick = useCallback(
