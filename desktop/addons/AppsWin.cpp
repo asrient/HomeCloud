@@ -320,6 +320,10 @@ struct H264WinStreamContext {
     Napi::ThreadSafeFunction tsfn;
 
     bool initPipeline(int w, int h) {
+        // NV12 and H.264 require even dimensions — round up
+        w = (w + 1) & ~1;
+        h = (h + 1) & ~1;
+
         videoProcessor = nullptr;
         encoder = nullptr;
 
