@@ -3,7 +3,6 @@ import { platform } from "os";
 import {
     RemoteAppInfo,
     RemoteAppWindow,
-    RemoteAppState,
     RemoteAppWindowActionPayload,
 } from "shared/types";
 
@@ -26,7 +25,6 @@ export interface H264StreamResult {
 interface AppsMacModule {
     getInstalledApps(): RemoteAppInfo[];
     getRunningApps(): RemoteAppInfo[];
-    getAppState(bundleId: string): RemoteAppState;
     launchApp(bundleId: string): void;
     quitApp(bundleId: string): void;
     getAppIcon(bundleId: string): string | null;
@@ -65,10 +63,6 @@ export function getInstalledApps(): RemoteAppInfo[] {
 
 export function getRunningApps(): RemoteAppInfo[] {
     return getModule().getRunningApps();
-}
-
-export function getAppState(bundleId: string): RemoteAppState {
-    return getModule().getAppState(bundleId);
 }
 
 // ── App lifecycle ──

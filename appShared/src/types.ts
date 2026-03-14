@@ -350,12 +350,6 @@ export type RemoteAppWindow = {
     parentWindowId?: string;
 }
 
-export type RemoteAppState = {
-    isRunning: boolean;
-    isFocused: boolean;
-    windows?: RemoteAppWindow[];
-}
-
 export type StreamingSessionInfo = {
     stream: ReadableStream<Uint8Array>;
     width: number;

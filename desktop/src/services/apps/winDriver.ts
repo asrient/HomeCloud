@@ -3,7 +3,6 @@ import { platform } from "os";
 import {
     RemoteAppInfo,
     RemoteAppWindow,
-    RemoteAppState,
     RemoteAppWindowActionPayload,
 } from "shared/types";
 import type { H264FrameInfo, H264StreamResult } from "./macDriver";
@@ -11,7 +10,6 @@ import type { H264FrameInfo, H264StreamResult } from "./macDriver";
 interface AppsWinModule {
     getInstalledApps(): RemoteAppInfo[];
     getRunningApps(): RemoteAppInfo[];
-    getAppState(appId: string): RemoteAppState;
     launchApp(appId: string): void;
     quitApp(appId: string): void;
     getAppIcon(appId: string): string | null;
@@ -50,10 +48,6 @@ export function getInstalledApps(): RemoteAppInfo[] {
 
 export function getRunningApps(): RemoteAppInfo[] {
     return getModule().getRunningApps();
-}
-
-export function getAppState(appId: string): RemoteAppState {
-    return getModule().getAppState(appId);
 }
 
 // ── App lifecycle ──

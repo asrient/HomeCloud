@@ -190,6 +190,15 @@ export function createRemoteWindow(
 
     win.on('closed', () => {
         remoteWindows.delete(key);
+        // Stop any active streaming session for this window (main-process, reliable)
+        (async () => {
+            try {
+                const sc = fingerprint
+                    ? await modules.getRemoteServiceController(fingerprint)
+                    : modules.getLocalServiceController();
+                await sc.apps.stopStreamingSession(w.id);
+            } catch { }
+        })();
         cleanupAppWatcher(appId, fingerprint);
     });
 

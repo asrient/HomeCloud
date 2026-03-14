@@ -1,9 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
 import { useResource, useResourceWithPolling } from './useResource';
-import { RemoteAppInfo, RemoteAppWindow, RemoteAppWindowTile, RemoteAppWindowUIState, RemoteAppWindowActionPayload } from 'shared/types';
+import { RemoteAppInfo, RemoteAppWindow, RemoteAppWindowActionPayload } from 'shared/types';
+import { decodeMediaChunk } from 'shared/mediaStream';
 import ServiceController from 'shared/controller';
 import { SignalNodeRef } from 'shared/signals';
 import { getServiceController } from '@/lib/utils';
+import H264Player from '@/modules/h264-player';
 
 const WATCH_HEARTBEAT_MS = 60_000;
 
@@ -177,114 +179,217 @@ export const useAppWindows = (appId: string | null, deviceFingerprint: string | 
     return { windows, isLoading, error, reload };
 };
 
-// ── Window Capture Loop ──
+// ── Window Capture (H.264 stream) ──
 
-const TILE_SIZE = 128;
-const QUALITY = 1;
-const CAPTURE_INTERVAL_MS = 50;
-const MAX_CONSECUTIVE_ERRORS = 5;
+const MAX_RETRIES = 5;
+const HEARTBEAT_INTERVAL_MS = 3000;
+
+export type WindowFrameState = {
+    width: number;
+    height: number;
+    dpi: number;
+};
 
 export const useWindowCapture = (windowId: string | null, deviceFingerprint: string | null) => {
-    const [uiState, setUiState] = useState<RemoteAppWindowUIState | null>(null);
+    const [frameState, setFrameState] = useState<WindowFrameState | null>(null);
     const [isConnecting, setIsConnecting] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isReconnecting, setIsReconnecting] = useState(false);
+    const [retryAttempt, setRetryAttempt] = useState(0);
+    const [sessionId, setSessionId] = useState<string | null>(null);
 
-    const sessionKeyRef = useRef<string | null>(null);
-    const pixelDensityRef = useRef<number>(1);
     const isMountedRef = useRef(true);
-    const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const consecutiveErrorsRef = useRef(0);
     const windowIdRef = useRef<string | null>(null);
     const fingerprintRef = useRef<string | null>(null);
+    const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+    const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const sessionIdRef = useRef<string | null>(null);
+    const captureIdRef = useRef(0);
 
     windowIdRef.current = windowId;
     fingerprintRef.current = deviceFingerprint;
 
-    const captureLoop = useCallback(async () => {
-        const wId = windowIdRef.current;
-        const key = sessionKeyRef.current;
-        if (!wId || !key || !isMountedRef.current) return;
-
-        try {
-            const sc = await getServiceController(fingerprintRef.current);
-            if (wId !== windowIdRef.current || !isMountedRef.current) return;
-
-            const snapshot = await sc.apps.getWindowSnapshot(wId, key, QUALITY);
-            if (wId !== windowIdRef.current || !isMountedRef.current) return;
-
-            consecutiveErrorsRef.current = 0;
-            setIsConnecting(false);
-
-            if (snapshot.dpi) pixelDensityRef.current = snapshot.dpi;
-
-            if (snapshot.tiles.length > 0) {
-                setUiState((prev) => {
-                    if (!prev) return snapshot;
-                    const tileMap = new Map<string, RemoteAppWindowTile>();
-                    for (const t of prev.tiles) tileMap.set(`${t.xIndex}_${t.yIndex}`, t);
-                    for (const t of snapshot.tiles) tileMap.set(`${t.xIndex}_${t.yIndex}`, t);
-                    return { ...snapshot, tiles: Array.from(tileMap.values()) };
-                });
-            }
-        } catch (e: any) {
-            console.error('Capture error:', e);
-            if (e?.message?.includes?.('Session invalidated')) {
-                setError('Another device took control of this window.');
-                return;
-            }
-            consecutiveErrorsRef.current++;
-            if (consecutiveErrorsRef.current >= MAX_CONSECUTIVE_ERRORS) {
-                setError('Window is no longer available. It may have been closed.');
-                return;
-            }
+    const cleanup = useCallback(() => {
+        if (heartbeatTimerRef.current) {
+            clearInterval(heartbeatTimerRef.current);
+            heartbeatTimerRef.current = null;
         }
-
-        if (isMountedRef.current && windowIdRef.current === wId) {
-            captureTimerRef.current = setTimeout(captureLoop, CAPTURE_INTERVAL_MS);
+        if (readerRef.current) {
+            readerRef.current.cancel().catch(() => {});
+            readerRef.current = null;
+        }
+        if (sessionIdRef.current) {
+            H264Player.destroySession(sessionIdRef.current);
+            sessionIdRef.current = null;
+            setSessionId(null);
         }
     }, []);
 
-    // Start/stop capture loop when windowId changes
     const startCapture = useCallback(() => {
         if (!windowId) return;
-        sessionKeyRef.current = null;
-        setUiState(null);
+        isMountedRef.current = true;
+        setFrameState(null);
         setIsConnecting(true);
         setError(null);
-        consecutiveErrorsRef.current = 0;
-        isMountedRef.current = true;
+        setIsReconnecting(false);
+        setRetryAttempt(0);
 
-        (async () => {
+        const captureId = ++captureIdRef.current;
+        let retryCount = 0;
+
+        const startStream = async () => {
+            cleanup();
+            console.log('[H264Capture] startStream called, windowId:', windowIdRef.current);
+
             try {
                 const sc = await getServiceController(fingerprintRef.current);
-                if (!isMountedRef.current) return;
-                const session = await sc.apps.startStreamingSession(windowId, TILE_SIZE);
-                if (!isMountedRef.current) return;
-                sessionKeyRef.current = session.key;
-                captureLoop();
+                if (!isMountedRef.current || captureId !== captureIdRef.current) return;
+
+                console.log('[H264Capture] calling startStreamingSession...');
+                const session = await sc.apps.startStreamingSession(windowIdRef.current!);
+                if (!isMountedRef.current || captureId !== captureIdRef.current) return;
+
+                let currentWidth = session.width;
+                let currentHeight = session.height;
+                let currentDpi = session.dpi || 1;
+                console.log('[H264Capture] session started:', { width: currentWidth, height: currentHeight, dpi: currentDpi });
+
+                // Create native decoder session
+                console.log('[H264Capture] creating native session...');
+                const nativeSessionId = H264Player.createSession(currentWidth, currentHeight);
+                sessionIdRef.current = nativeSessionId;
+                setSessionId(nativeSessionId);
+                console.log('[H264Capture] native session created:', nativeSessionId);
+
+                setFrameState({ width: currentWidth, height: currentHeight, dpi: currentDpi });
+                setIsConnecting(false);
+                setIsReconnecting(false);
+
+                // Start heartbeat
+                heartbeatTimerRef.current = setInterval(() => {
+                    getServiceController(fingerprintRef.current)
+                        .then(sc => sc.apps.streamControl(windowIdRef.current!))
+                        .catch(() => {});
+                }, HEARTBEAT_INTERVAL_MS);
+
+                // Read stream — yield first to let React mount H264PlayerView
+                await new Promise(r => setTimeout(r, 0));
+                const reader = session.stream.getReader();
+                readerRef.current = reader;
+                let frameCount = 0;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done || !isMountedRef.current || captureId !== captureIdRef.current) {
+                        console.log('[H264Capture] stream loop exit, done:', done);
+                        break;
+                    }
+
+                    const { metadata, payload } = decodeMediaChunk(value);
+                    const isKeyframe = metadata.type === 'keyframe';
+                    frameCount++;
+
+                    if (frameCount <= 5 || frameCount % 30 === 0) {
+                        console.log(`[H264Capture] frame #${frameCount}: type=${metadata.type} payload=${payload.byteLength}B`, metadata.width ? `${metadata.width}x${metadata.height}` : '');
+                    }
+
+                    // Update dimensions if changed
+                    if (metadata.width && metadata.height) {
+                        const newW = Number(metadata.width);
+                        const newH = Number(metadata.height);
+                        const newDpi = metadata.dpi ? Number(metadata.dpi) : currentDpi;
+
+                        if (newW !== currentWidth || newH !== currentHeight || newDpi !== currentDpi) {
+                            currentWidth = newW;
+                            currentHeight = newH;
+                            currentDpi = newDpi;
+                            setFrameState({ width: currentWidth, height: currentHeight, dpi: currentDpi });
+
+                            // Recreate decoder session for new dimensions
+                            if (sessionIdRef.current) {
+                                H264Player.destroySession(sessionIdRef.current);
+                            }
+                            const newSessionId = H264Player.createSession(currentWidth, currentHeight);
+                            sessionIdRef.current = newSessionId;
+                            setSessionId(newSessionId);
+                        }
+                    }
+
+                    // Feed frame to native decoder/display
+                    if (sessionIdRef.current) {
+                        try {
+                            await H264Player.feedFrame(sessionIdRef.current, payload, isKeyframe);
+                            if (frameCount <= 3) {
+                                console.log(`[H264Capture] feedFrame #${frameCount} completed`);
+                            }
+                        } catch (feedErr: any) {
+                            console.error(`[H264Capture] feedFrame #${frameCount} error:`, feedErr?.message || feedErr);
+                        }
+                    }
+
+                    // Reset retry counter on successful frame
+                    retryCount = 0;
+                }
+
+                // Stream ended normally
+                if (!isMountedRef.current || captureId !== captureIdRef.current) return;
+                setError('Window stream ended.');
             } catch (e: any) {
-                if (isMountedRef.current) setError('Failed to start streaming session.');
+                if (!isMountedRef.current || captureId !== captureIdRef.current) return;
+
+                console.error('[H264Capture] Stream error:', e?.message || e, e?.stack);
+                cleanup();
+
+                // Auto-reconnect with backoff
+                if (retryCount < MAX_RETRIES) {
+                    retryCount++;
+                    setRetryAttempt(retryCount);
+                    setIsReconnecting(true);
+                    const delay = 1000 + retryCount * 500;
+                    await new Promise(r => setTimeout(r, delay));
+                    if (isMountedRef.current && captureId === captureIdRef.current) {
+                        startStream();
+                    }
+                } else {
+                    setError('Connection lost. Could not reconnect.');
+                    setIsReconnecting(false);
+                }
             }
-        })();
-    }, [windowId, captureLoop]);
+        };
+
+        startStream();
+    }, [windowId, cleanup]);
 
     const stopCapture = useCallback(() => {
         isMountedRef.current = false;
-        if (captureTimerRef.current) {
-            clearTimeout(captureTimerRef.current);
-            captureTimerRef.current = null;
-        }
-        // Best-effort stop
+        captureIdRef.current++;
+        cleanup();
+        // Best-effort stop session on server
         const wId = windowIdRef.current;
-        if (wId && sessionKeyRef.current) {
+        if (wId) {
             getServiceController(fingerprintRef.current)
                 .then(sc => sc.apps.stopStreamingSession(wId))
                 .catch(() => {});
-            sessionKeyRef.current = null;
         }
+    }, [cleanup]);
+
+    const cancelReconnect = useCallback(() => {
+        captureIdRef.current++;
+        setIsReconnecting(false);
+        setError('Reconnection cancelled.');
     }, []);
 
-    return { uiState, isConnecting, error, startCapture, stopCapture, pixelDensity: pixelDensityRef };
+    return {
+        sessionId,
+        frameState,
+        isConnecting,
+        error,
+        isReconnecting,
+        retryAttempt,
+        startCapture,
+        stopCapture,
+        cancelReconnect,
+    };
 };
 
 // ── Window Action Dispatch ──

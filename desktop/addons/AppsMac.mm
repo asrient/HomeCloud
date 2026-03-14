@@ -6,7 +6,6 @@
  * Provides:
  *   - getInstalledApps()        → list installed GUI apps from /Applications
  *   - getRunningApps()          → list running GUI apps (NSWorkspace)
- *   - getAppState(bundleId)     → running / focused state + windows
  *   - launchApp(bundleId)       → open app via NSWorkspace
  *   - quitApp(bundleId)         → terminate app
  *   - getWindows(bundleId?)     → visible windows (CGWindowList)
@@ -34,6 +33,7 @@
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
 #include <unordered_map>
+
 #include <vector>
 #include <string>
 #include <mutex>
@@ -106,6 +106,12 @@ struct H264StreamContext {
     id streamHandler = nil; // WindowH264StreamHandler
     dispatch_queue_t frameQueue = nil;
 
+    // SCStream configured dimensions (may differ from encoder width/height during resize)
+    int configuredWidth = 0;
+    int configuredHeight = 0;
+    double lastBoundsCheckTime = 0; // CACurrentMediaTime() seconds
+    bool pendingReconfig = false;
+
     // VideoToolbox encoder
     VTCompressionSessionRef vtSession = NULL;
     bool isFirstFrame = true;
@@ -121,6 +127,9 @@ struct H264StreamContext {
 
 static std::mutex g_h264Mutex;
 static std::unordered_map<uint32_t, std::shared_ptr<H264StreamContext>> g_h264Streams;
+
+// Forward declaration — defined later in the file
+static CGRect getWindowBounds(uint32_t windowId);
 
 // VTCompressionSession output callback — called when an encoded frame is ready
 static void vtCompressionCallback(void *outputCallbackRefCon,
@@ -256,6 +265,39 @@ API_AVAILABLE(macos(12.3))
     auto ctx = _ctxWeak.lock();
     if (!ctx || ctx->stopped) return;
 
+    // Check for window resize every ~500ms and reconfigure SCStream if needed
+    if (@available(macOS 12.3, *)) {
+        double now = CACurrentMediaTime();
+        double elapsed = now - ctx->lastBoundsCheckTime;
+
+        if (elapsed >= 0.5 && !ctx->pendingReconfig) {
+            ctx->lastBoundsCheckTime = now;
+            CGRect bounds = getWindowBounds(ctx->windowId);
+            int newW = (int)(bounds.size.width * ctx->dpi);
+            int newH = (int)(bounds.size.height * ctx->dpi);
+            if (newW > 0 && newH > 0 && (newW != ctx->configuredWidth || newH != ctx->configuredHeight)) {
+                ctx->pendingReconfig = true;
+                SCStreamConfiguration *newConfig = [[SCStreamConfiguration alloc] init];
+                newConfig.width = (size_t)newW;
+                newConfig.height = (size_t)newH;
+                newConfig.scalesToFit = YES;
+                newConfig.showsCursor = NO;
+                newConfig.pixelFormat = kCVPixelFormatType_32BGRA;
+                newConfig.minimumFrameInterval = CMTimeMake(1, ctx->targetFps);
+                auto ctxWeak = std::weak_ptr<H264StreamContext>(ctx);
+                [(SCStream *)ctx->stream updateConfiguration:newConfig completionHandler:^(NSError *err) {
+                    auto c = ctxWeak.lock();
+                    if (!c) return;
+                    c->pendingReconfig = false;
+                    if (!err) {
+                        c->configuredWidth = newW;
+                        c->configuredHeight = newH;
+                    }
+                }];
+            }
+        }
+    }
+
     CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
     if (!imageBuffer) return;
 
@@ -302,8 +344,8 @@ API_AVAILABLE(macos(12.3))
         VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_ExpectedFrameRate, fpsRef);
         CFRelease(fpsRef);
 
-        // Keyframe every 2 seconds
-        int keyInterval = fps * 2;
+        // Keyframe every 10 seconds
+        int keyInterval = fps * 10;
         CFNumberRef keyRef = CFNumberCreate(NULL, kCFNumberIntType, &keyInterval);
         VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_MaxKeyFrameInterval, keyRef);
         CFRelease(keyRef);
@@ -456,68 +498,6 @@ static Napi::Value GetRunningApps(const Napi::CallbackInfo &info) {
 }
 
 // ──────────────────────────────────────────────
-// 3. App state
-// ──────────────────────────────────────────────
-static Napi::Value GetAppState(const Napi::CallbackInfo &info) {
-    Napi::Env env = info.Env();
-    if (info.Length() < 1 || !info[0].IsString()) {
-        Napi::TypeError::New(env, "Expected bundleId string").ThrowAsJavaScriptException();
-        return env.Null();
-    }
-    std::string bundleId = info[0].As<Napi::String>().Utf8Value();
-
-    @autoreleasepool {
-        NSArray<NSRunningApplication *> *apps =
-            [NSRunningApplication runningApplicationsWithBundleIdentifier:
-                [NSString stringWithUTF8String:bundleId.c_str()]];
-
-        Napi::Object result = Napi::Object::New(env);
-        if (apps.count == 0) {
-            result.Set("isRunning", false);
-            result.Set("isFocused", false);
-            return result;
-        }
-
-        NSRunningApplication *app = apps.firstObject;
-        result.Set("isRunning", true);
-        result.Set("isFocused", (bool)app.isActive);
-
-        // Get windows for this app via CGWindowList
-        pid_t pid = app.processIdentifier;
-        CFArrayRef windowList = CGWindowListCopyWindowInfo(
-            kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
-            kCGNullWindowID);
-
-        Napi::Array windows = Napi::Array::New(env);
-        uint32_t wIdx = 0;
-        if (windowList) {
-            NSArray *wl = (__bridge NSArray *)windowList;
-            for (NSDictionary *w in wl) {
-                pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-                if (wPid != pid) continue;
-                if (!isNormalCGWindow(w)) continue;
-
-                uint32_t windowId = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
-                NSString *title = w[(__bridge NSString *)kCGWindowName];
-
-                Napi::Object wObj = Napi::Object::New(env);
-                wObj.Set("id", std::to_string(windowId));
-                wObj.Set("title", nsStringToStd(title));
-                wObj.Set("type", std::string("regular")); // GetAppState only returns layer-0 windows
-                wObj.Set("isFocused", (bool)app.isActive); // per-window focus not available from CG
-                wObj.Set("isHidden", (bool)app.isHidden);
-                wObj.Set("isMinimized", false); // on-screen only, so not minimized
-                wObj.Set("isMaximized", false);
-                windows.Set(wIdx++, wObj);
-            }
-            CFRelease(windowList);
-        }
-        result.Set("windows", windows);
-        return result;
-    }
-}
-
-// ──────────────────────────────────────────────
 // 4. Launch app
 // ──────────────────────────────────────────────
 static Napi::Value LaunchApp(const Napi::CallbackInfo &info) {
@@ -657,6 +637,14 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
 
         Napi::Array arr = Napi::Array::New(env);
         uint32_t idx = 0;
+
+        // Cache running-app info by PID for focus/hidden lookups.
+        std::unordered_map<pid_t, NSRunningApplication *> runningByPid;
+        for (NSRunningApplication *ra in [[NSWorkspace sharedWorkspace] runningApplications]) {
+            if (ra.activationPolicy != NSApplicationActivationPolicyRegular) continue;
+            runningByPid[ra.processIdentifier] = ra;
+        }
+
         if (windowList) {
             NSArray *wl = (__bridge NSArray *)windowList;
 
@@ -727,15 +715,12 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
                 uint32_t windowId = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
                 NSString *title = w[(__bridge NSString *)kCGWindowName];
 
-                // Determine focus state from owning app
                 bool isFocused = false;
                 bool isHidden = false;
-                for (NSRunningApplication *ra in [[NSWorkspace sharedWorkspace] runningApplications]) {
-                    if (ra.processIdentifier == wPid) {
-                        isFocused = ra.isActive;
-                        isHidden = ra.isHidden;
-                        break;
-                    }
+                auto appIt = runningByPid.find(wPid);
+                if (appIt != runningByPid.end()) {
+                    isFocused = appIt->second.isActive;
+                    isHidden = appIt->second.isHidden;
                 }
 
                 std::string idStr = std::to_string(windowId);
@@ -762,40 +747,46 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
                 arr.Set(idx++, obj);
             }
 
-            // Second pass: collect popup/menu windows (layer > 0) from the same process
-            for (NSDictionary *w in wl) {
-                pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-                if (filterPid != -1 && wPid != filterPid) continue;
+            // Second pass: collect popup/menu windows (layer > 0) from the same process.
+            // On macOS 14.2+, SCStream's includeChildWindows (default true) already captures
+            // these in the stream, so skip to avoid duplication.
+            if (@available(macOS 14.2, *)) {
+                // Child windows included in stream — no separate enumeration needed
+            } else {
+                for (NSDictionary *w in wl) {
+                    pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
+                    if (filterPid != -1 && wPid != filterPid) continue;
 
-                // Only include if we have a parent normal window for this PID
-                auto parentIt = pidToParentWindowId.find(wPid);
-                if (parentIt == pidToParentWindowId.end()) continue;
+                    // Only include if we have a parent normal window for this PID
+                    auto parentIt = pidToParentWindowId.find(wPid);
+                    if (parentIt == pidToParentWindowId.end()) continue;
 
-                int layer = [w[(__bridge NSString *)kCGWindowLayer] intValue];
-                float alpha = [w[(__bridge NSString *)kCGWindowAlpha] floatValue];
-                NSDictionary *bounds = w[(__bridge NSString *)kCGWindowBounds];
-                double width = [bounds[@"Width"] doubleValue];
-                double height = [bounds[@"Height"] doubleValue];
-                // Popup windows have layer > 0; skip tiny or invisible ones
-                if (layer <= 0 || alpha < 0.01 || width < 2 || height < 2) continue;
+                    int layer = [w[(__bridge NSString *)kCGWindowLayer] intValue];
+                    float alpha = [w[(__bridge NSString *)kCGWindowAlpha] floatValue];
+                    NSDictionary *bounds = w[(__bridge NSString *)kCGWindowBounds];
+                    double width = [bounds[@"Width"] doubleValue];
+                    double height = [bounds[@"Height"] doubleValue];
+                    // Popup windows have layer > 0; skip tiny or invisible ones
+                    if (layer <= 0 || alpha < 0.01 || width < 2 || height < 2) continue;
 
-                uint32_t windowId = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
-                NSString *title = w[(__bridge NSString *)kCGWindowName];
+                    uint32_t windowId = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
+                    NSString *title = w[(__bridge NSString *)kCGWindowName];
 
-                Napi::Object obj = Napi::Object::New(env);
-                obj.Set("id", std::to_string(windowId));
-                obj.Set("title", nsStringToStd(title));
-                obj.Set("type", typeFromLayer(layer));
-                obj.Set("isFocused", false);
-                obj.Set("isHidden", false);
-                obj.Set("isMinimized", false);
-                obj.Set("isMaximized", false);
-                obj.Set("x", [bounds[@"X"] doubleValue]);
-                obj.Set("y", [bounds[@"Y"] doubleValue]);
-                obj.Set("width", width);
-                obj.Set("height", height);
-                obj.Set("parentWindowId", parentIt->second);
-                arr.Set(idx++, obj);
+                    Napi::Object obj = Napi::Object::New(env);
+                    obj.Set("id", std::to_string(windowId));
+                    obj.Set("title", nsStringToStd(title));
+                    obj.Set("type", typeFromLayer(layer));
+                    obj.Set("isFocused", false);
+                    obj.Set("isHidden", false);
+                    obj.Set("isMinimized", false);
+                    obj.Set("isMaximized", false);
+                    obj.Set("x", [bounds[@"X"] doubleValue]);
+                    obj.Set("y", [bounds[@"Y"] doubleValue]);
+                    obj.Set("width", width);
+                    obj.Set("height", height);
+                    obj.Set("parentWindowId", parentIt->second);
+                    arr.Set(idx++, obj);
+                }
             }
 
             // Clean up AX window arrays
@@ -1371,6 +1362,10 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
     uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
     Napi::Function callback = info[1].As<Napi::Function>();
 
+    // Bring the window to front / un-minimize before streaming so SCStream
+    // captures real content instead of blank frames.
+    ensureWindowReady(windowId);
+
 #if HAS_SCREENCAPTUREKIT
     if (@available(macOS 12.3, *)) {
         // Stop any existing stream
@@ -1417,6 +1412,9 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
             int h = (int)(targetWindow.frame.size.height * scaleFactor);
             outWidth = w;
             outHeight = h;
+            ctx->configuredWidth = w;
+            ctx->configuredHeight = h;
+            ctx->lastBoundsCheckTime = CACurrentMediaTime();
 
             SCContentFilter *filter = [[SCContentFilter alloc]
                 initWithDesktopIndependentWindow:targetWindow];
@@ -1503,7 +1501,7 @@ static Napi::Value SetStreamFps(const Napi::CallbackInfo &info) {
         CFNumberRef fpsRef = CFNumberCreate(NULL, kCFNumberIntType, &fps);
         VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_ExpectedFrameRate, fpsRef);
         CFRelease(fpsRef);
-        int keyInterval = fps * 2;
+        int keyInterval = fps * 10;
         CFNumberRef keyRef = CFNumberCreate(NULL, kCFNumberIntType, &keyInterval);
         VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_MaxKeyFrameInterval, keyRef);
         CFRelease(keyRef);
@@ -1550,7 +1548,6 @@ static Napi::Value SetStreamBitrate(const Napi::CallbackInfo &info) {
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("getInstalledApps", Napi::Function::New(env, GetInstalledApps));
     exports.Set("getRunningApps", Napi::Function::New(env, GetRunningApps));
-    exports.Set("getAppState", Napi::Function::New(env, GetAppState));
     exports.Set("launchApp", Napi::Function::New(env, LaunchApp));
     exports.Set("quitApp", Napi::Function::New(env, QuitApp));
     exports.Set("getAppIcon", Napi::Function::New(env, GetAppIcon));

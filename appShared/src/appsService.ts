@@ -3,7 +3,6 @@ import Signal from './signals';
 import {
     RemoteAppInfo,
     RemoteAppWindow,
-    RemoteAppState,
     RemoteAppWindowAction,
     RemoteAppWindowActionPayload,
     StreamingSessionInfo,
@@ -51,14 +50,6 @@ export class AppsService extends Service {
     @exposed
     public async getRunningApps(): Promise<RemoteAppInfo[]> {
         return [];
-    }
-
-    /**
-     * Get the current state of an app by its bundle/app ID.
-     */
-    @exposed
-    public async getAppState(appId: string): Promise<RemoteAppState> {
-        return { isRunning: false, isFocused: false };
     }
 
     // ── App lifecycle ──

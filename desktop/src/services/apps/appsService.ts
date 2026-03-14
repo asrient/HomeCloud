@@ -2,7 +2,6 @@ import { AppsService } from "shared/appsService";
 import {
     RemoteAppInfo,
     RemoteAppWindow,
-    RemoteAppState,
     RemoteAppWindowActionPayload,
     StreamingSessionInfo,
 } from "shared/types";
@@ -32,6 +31,9 @@ interface StreamSession {
     windowId: string;
     controller: ReadableStreamDefaultController<Uint8Array> | null;
     lastHeartbeat: number;
+    lastWidth?: number;
+    lastHeight?: number;
+    lastDpi?: number;
 }
 
 export default class DesktopAppsService extends AppsService {
@@ -111,11 +113,6 @@ export default class DesktopAppsService extends AppsService {
             }
         }
         this.runningAppsIds = currentIds;
-    }
-
-    @exposed
-    public async getAppState(appId: string): Promise<RemoteAppState> {
-        return getDriver().getAppState(appId);
     }
 
     @exposed
@@ -222,7 +219,6 @@ export default class DesktopAppsService extends AppsService {
             const session = this.windowSessions.get(windowId);
             if (!session || !session.controller) return;
 
-            session.lastHeartbeat = Date.now();
             this.lastCaptureTime = Date.now();
 
             // Encode as HCMediaStream chunk
@@ -230,11 +226,14 @@ export default class DesktopAppsService extends AppsService {
                 type: frame.isKeyframe ? 'keyframe' : 'delta',
                 ts: String(frame.timestamp),
             };
-            // Send dimensions on every keyframe — handles resize, monitor change, DPI change
-            if (frame.isKeyframe) {
+            // Send dimensions only when they change (first frame always has them since last* starts undefined)
+            if (frame.width !== session.lastWidth || frame.height !== session.lastHeight || frame.dpi !== session.lastDpi) {
                 metadata.width = String(frame.width);
                 metadata.height = String(frame.height);
                 metadata.dpi = String(frame.dpi);
+                session.lastWidth = frame.width;
+                session.lastHeight = frame.height;
+                session.lastDpi = frame.dpi;
             }
 
             try {
@@ -312,7 +311,7 @@ export default class DesktopAppsService extends AppsService {
                 clearInterval(this.sessionCleanupTimer!);
                 this.sessionCleanupTimer = null;
             }
-        }, 10_000);
+        }, 4_000);
     }
 
     // ── Power management ──

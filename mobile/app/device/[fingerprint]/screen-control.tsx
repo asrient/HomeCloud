@@ -4,7 +4,6 @@ import {
     StyleSheet,
     ActivityIndicator,
     Pressable,
-    Image,
     ScrollView,
     Dimensions,
     Modal,
@@ -19,19 +18,18 @@ import { UIText } from '@/components/ui/UIText';
 import { UIButton } from '@/components/ui/UIButton';
 import { UIView } from '@/components/ui/UIView';
 import { UIIcon } from '@/components/ui/UIIcon';
-import { useAppWindows, useWindowCapture, useWindowActions } from '@/hooks/useApps';
+import { useAppWindows, useWindowCapture, useWindowActions, WindowFrameState } from '@/hooks/useApps';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import {
     RemoteAppWindow,
     RemoteAppWindowAction,
     RemoteAppWindowType,
-    RemoteAppWindowUIState,
 } from 'shared/types';
 import { isGlassEnabled, getServiceController } from '@/lib/utils';
+import { H264PlayerView } from '@/modules/h264-player';
 
 // ── Constants ──
 
-const TILE_SIZE = 128;
 const LONG_PRESS_MS = 500;
 const DOUBLE_TAP_MS = 300;
 const POINTER_MOVE_SENSITIVITY = 1.5;
@@ -42,40 +40,41 @@ type TouchSubMode = 'scroll' | 'select';
 // ── Window Canvas ──
 
 function WindowCanvas({
-    uiState,
+    frameState,
+    sessionId,
     controlMode,
     touchSubMode,
     dispatchAction,
     canvasWidth,
     canvasHeight,
 }: {
-    uiState: RemoteAppWindowUIState;
+    frameState: WindowFrameState;
+    sessionId: string | null;
     controlMode: ControlMode;
     touchSubMode: TouchSubMode;
     dispatchAction: (payload: any) => void;
     canvasWidth: number;
     canvasHeight: number;
-    dpi: number;
 }) {
-    // Build full image from tiles. We use an offscreen approach storing tile images.
-    const tileImages = useRef<Map<string, { uri: string; ts: number }>>(new Map());
+    // Use logical (point) dimensions for layout and input mapping
+    const dpi = frameState.dpi || 1;
+    const logicalWidth = frameState.width / dpi;
+    const logicalHeight = frameState.height / dpi;
 
-    // Scale factor: fit remote window into canvasWidth/canvasHeight
-    // width/height are in pixel space; divide by dpi for logical dimensions
+    // Scale factor: fit remote window (logical) into canvasWidth/canvasHeight
     const scale = useMemo(() => {
-        if (!uiState) return 1;
-        const sx = canvasWidth / uiState.width;
-        const sy = canvasHeight / uiState.height;
+        const sx = canvasWidth / logicalWidth;
+        const sy = canvasHeight / logicalHeight;
         return Math.min(sx, sy, 1);
-    }, [uiState, canvasWidth, canvasHeight]);
+    }, [logicalWidth, logicalHeight, canvasWidth, canvasHeight]);
 
-    const displayWidth = uiState.width * scale;
-    const displayHeight = uiState.height * scale;
+    const displayWidth = logicalWidth * scale;
+    const displayHeight = logicalHeight * scale;
 
-    // Pointer mode state
+    // Pointer mode state — in logical coordinates
     const pointerPos = useRef<{ x: number; y: number }>({
-        x: uiState.width / 2,
-        y: uiState.height / 2,
+        x: logicalWidth / 2,
+        y: logicalHeight / 2,
     });
     const [pointerDisplay, setPointerDisplay] = useState<{ x: number; y: number }>({
         x: 0.5,
@@ -216,12 +215,12 @@ function WindowCanvas({
                     }
 
                     if (isDraggingRef.current) {
-                        const newX = Math.max(0, Math.min(uiState.width, pointerPos.current.x + dx));
-                        const newY = Math.max(0, Math.min(uiState.height, pointerPos.current.y + dy));
+                        const newX = Math.max(0, Math.min(logicalWidth, pointerPos.current.x + dx));
+                        const newY = Math.max(0, Math.min(logicalHeight, pointerPos.current.y + dy));
                         pointerPos.current = { x: newX, y: newY };
                         setPointerDisplay({
-                            x: newX / uiState.width,
-                            y: newY / uiState.height,
+                            x: newX / logicalWidth,
+                            y: newY / logicalHeight,
                         });
                         touchStartRef.current = { x: pageX, y: pageY, time: touchStartRef.current.time };
 
@@ -280,7 +279,7 @@ function WindowCanvas({
                 }
             }
         },
-        [controlMode, touchSubMode, dispatchAction, touchToWindowCoords, uiState?.width, uiState?.height],
+        [controlMode, touchSubMode, dispatchAction, touchToWindowCoords, logicalWidth, logicalHeight],
     );
 
     const handleTouchEnd = useCallback(
@@ -374,37 +373,6 @@ function WindowCanvas({
         [controlMode, dispatchAction, touchToWindowCoords],
     );
 
-    // Build tile grid
-    const tileElements = useMemo(() => {
-        const elements: React.ReactNode[] = [];
-        for (const tile of uiState.tiles) {
-            const key = `${tile.xIndex}_${tile.yIndex}`;
-            const cached = tileImages.current.get(key);
-            if (!cached || cached.ts !== tile.timestamp) {
-                tileImages.current.set(key, {
-                    uri: `data:image/jpeg;base64,${tile.image}`,
-                    ts: tile.timestamp,
-                });
-            }
-            const tileData = tileImages.current.get(key)!;
-            elements.push(
-                <Image
-                    key={key}
-                    source={{ uri: tileData.uri }}
-                    style={{
-                        position: 'absolute',
-                        left: Math.floor(tile.xIndex * TILE_SIZE * scale),
-                        top: Math.floor(tile.yIndex * TILE_SIZE * scale),
-                        width: Math.ceil(tile.width * scale) + 1,
-                        height: Math.ceil(tile.height * scale) + 1,
-                    }}
-                    resizeMode="cover"
-                />,
-            );
-        }
-        return elements;
-    }, [uiState.tiles, scale]);
-
     return (
         <View
             style={[styles.canvasContainer, { width: displayWidth, height: displayHeight }]}
@@ -415,7 +383,12 @@ function WindowCanvas({
             onResponderMove={handleTouchMove}
             onResponderRelease={handleTouchEnd}
         >
-            {tileElements}
+            {sessionId && (
+                <H264PlayerView
+                    sessionId={sessionId}
+                    style={StyleSheet.absoluteFill}
+                />
+            )}
 
             {/* Pointer cursor overlay in pointer mode */}
             {controlMode === 'pointer' && (
@@ -533,7 +506,7 @@ function ChildWindowModal({
     deviceFingerprint: string | null;
     onClose: () => void;
 }) {
-    const { uiState, isConnecting, error, startCapture, stopCapture, pixelDensity } = useWindowCapture(
+    const { sessionId, frameState, isConnecting, error, startCapture, stopCapture } = useWindowCapture(
         childWindow.id,
         deviceFingerprint,
     );
@@ -561,22 +534,22 @@ function ChildWindowModal({
                     style={styles.modalContent}
                     onPress={(e) => e.stopPropagation()}
                 >
-                    {isConnecting && !uiState ? (
+                    {isConnecting && !frameState ? (
                         <View style={styles.modalLoading}>
                             <ActivityIndicator color="#fff" />
                             <UIText color="textSecondary" size="sm">
                                 Loading...
                             </UIText>
                         </View>
-                    ) : uiState ? (
+                    ) : frameState ? (
                         <WindowCanvas
-                            uiState={uiState}
+                            frameState={frameState}
+                            sessionId={sessionId}
                             controlMode="touch"
                             touchSubMode="scroll"
                             dispatchAction={dispatchAction}
                             canvasWidth={maxWidth}
                             canvasHeight={maxHeight}
-                            dpi={pixelDensity.current}
                         />
                     ) : null}
                 </Pressable>
@@ -708,7 +681,7 @@ export default function ScreenControlScreen() {
     }, [mainWindows, selectedWindowId]);
 
     // Capture + actions for selected window
-    const { uiState, isConnecting, error, startCapture, stopCapture, pixelDensity } = useWindowCapture(
+    const { sessionId, frameState, isConnecting, error, startCapture, stopCapture, isReconnecting, retryAttempt, cancelReconnect } = useWindowCapture(
         selectedWindowId,
         deviceFingerprint,
     );
@@ -752,7 +725,7 @@ export default function ScreenControlScreen() {
     // Corrective resize: if the OS clamped width (app min width > our target),
     // increase height to maintain the phone's portrait aspect ratio.
     useEffect(() => {
-        if (!selectedWindowId || !deviceFingerprint || !uiState) return;
+        if (!selectedWindowId || !deviceFingerprint || !frameState) return;
         if (hasCorrectedRef.current.has(selectedWindowId)) return;
 
         // Only correct after initial resize has been attempted and
@@ -760,8 +733,9 @@ export default function ScreenControlScreen() {
         if (!hasResizedRef.current.has(selectedWindowId)) return;
         if (Date.now() - resizeTimestampRef.current < 2000) return;
 
-        const actualWidth = uiState.width;
-        const actualHeight = uiState.height;
+        const dpi = frameState.dpi || 1;
+        const actualWidth = frameState.width / dpi;
+        const actualHeight = frameState.height / dpi;
 
         // If the width was clamped wider than requested, compensate with more height
         if (actualWidth > idealSize.width * 1.05) {
@@ -788,7 +762,7 @@ export default function ScreenControlScreen() {
             // Width matched our request, no correction needed
             hasCorrectedRef.current.add(selectedWindowId);
         }
-    }, [selectedWindowId, deviceFingerprint, uiState, idealSize]);
+    }, [selectedWindowId, deviceFingerprint, frameState, idealSize]);
 
     // Restore original sizes on unmount
     useEffect(() => {
@@ -814,12 +788,7 @@ export default function ScreenControlScreen() {
         };
     }, [deviceFingerprint]);
 
-    useEffect(() => {
-        if (selectedWindowId) {
-            startCapture();
-            return () => stopCapture();
-        }
-    }, [selectedWindowId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Capture lifecycle is managed below after visibleChildren is computed
 
     // Launch the app if not already running
     useEffect(() => {
@@ -860,16 +829,15 @@ export default function ScreenControlScreen() {
         return childWindows.filter((w) => !closedChildIds.has(w.id));
     }, [childWindows, closedChildIds]);
 
-    // Pause main window capture while child overlays are visible
     const hasVisibleChildren = visibleChildren.length > 0;
+
+    // Start/stop capture — single consolidated effect avoids double-start race
     useEffect(() => {
-        if (!selectedWindowId) return;
-        if (hasVisibleChildren) {
-            stopCapture();
-        } else {
+        if (selectedWindowId && !hasVisibleChildren) {
             startCapture();
+            return () => stopCapture();
         }
-    }, [hasVisibleChildren, selectedWindowId, startCapture, stopCapture]);
+    }, [selectedWindowId, hasVisibleChildren]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <UIView themeColor="background" style={{ flex: 1 }}>
@@ -907,7 +875,7 @@ export default function ScreenControlScreen() {
                                 onPress={() => router.back()}
                             />
                         </View>
-                    ) : isConnecting && !uiState ? (
+                    ) : isConnecting && !frameState ? (
                         <View style={styles.centerContent}>
                             <ActivityIndicator />
                             <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
@@ -928,17 +896,32 @@ export default function ScreenControlScreen() {
                                 onPress={() => router.back()}
                             />
                         </View>
-                    ) : uiState ? (
+                    ) : frameState ? (
                         <View style={styles.canvasWrapper}>
                             <WindowCanvas
-                                uiState={uiState}
+                                frameState={frameState}
+                                sessionId={sessionId}
                                 controlMode={controlMode}
                                 touchSubMode={touchSubMode}
                                 dispatchAction={dispatchAction}
                                 canvasWidth={screenWidth - 16}
                                 canvasHeight={canvasAreaHeight - 16}
-                                dpi={pixelDensity.current}
                             />
+                            {isReconnecting && (
+                                <View style={styles.reconnectOverlay}>
+                                    <ActivityIndicator color="#fff" />
+                                    <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
+                                        Reconnecting (attempt {retryAttempt})...
+                                    </UIText>
+                                    <UIButton
+                                        title="Cancel"
+                                        type="secondary"
+                                        size="sm"
+                                        style={{ marginTop: 12 }}
+                                        onPress={cancelReconnect}
+                                    />
+                                </View>
+                            )}
                         </View>
                     ) : null}
                 </View>
@@ -1098,5 +1081,11 @@ const styles = StyleSheet.create({
         padding: 40,
         alignItems: 'center',
         gap: 12,
+    },
+    reconnectOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });

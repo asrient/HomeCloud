@@ -6,7 +6,6 @@
  * Provides:
  *   - getInstalledApps()        → list installed apps from registry + shell
  *   - getRunningApps()          → list running GUI apps (EnumWindows)
- *   - getAppState(appId)        → running / focused state + windows
  *   - launchApp(appId)          → open app via ShellExecuteEx
  *   - quitApp(appId)            → close app via WM_CLOSE
  *   - getAppIcon(appId)         → extract icon as base64 PNG data URI
@@ -395,8 +394,8 @@ struct H264WinStreamContext {
             // No B-frames — equivalent of VT AllowFrameReordering=false
             v.vt = VT_UI4; v.ulVal = 0;
             codecApi->SetValue(&CODECAPI_AVEncMPVDefaultBPictureCount, &v);
-            // Keyframe every 2 seconds
-            v.vt = VT_UI4; v.ulVal = (ULONG)(targetFps * 2);
+            // Keyframe every 10 seconds
+            v.vt = VT_UI4; v.ulVal = (ULONG)(targetFps * 10);
             codecApi->SetValue(&CODECAPI_AVEncMPVGOPSize, &v);
         }
 
@@ -787,54 +786,6 @@ static Napi::Value GetRunningApps(const Napi::CallbackInfo &info) {
         arr.Set(idx++, obj);
     }
     return arr;
-}
-
-// ──────────────────────────────────────────────
-// 3. App state
-// ──────────────────────────────────────────────
-
-static Napi::Value GetAppState(const Napi::CallbackInfo &info) {
-    Napi::Env env = info.Env();
-    if (info.Length() < 1 || !info[0].IsString()) {
-        Napi::TypeError::New(env, "Expected appId string").ThrowAsJavaScriptException();
-        return env.Null();
-    }
-    std::wstring appId = Utf8ToWide(info[0].As<Napi::String>().Utf8Value());
-
-    // Find process by exe path
-    EnumRunningCtx ctx;
-    ctx.foregroundHwnd = GetForegroundWindow();
-    EnumWindows(EnumRunningProc, (LPARAM)&ctx);
-
-    bool isRunning = false;
-    bool isFocused = false;
-
-    DWORD fgPid = 0;
-    if (ctx.foregroundHwnd) {
-        GetWindowThreadProcessId(ctx.foregroundHwnd, &fgPid);
-    }
-
-    Napi::Array windowsArr = Napi::Array::New(env);
-    uint32_t wIdx = 0;
-
-    for (auto &[pid, pInfo] : ctx.procs) {
-        // Case-insensitive path comparison
-        if (_wcsicmp(pInfo.exePath.c_str(), appId.c_str()) != 0) continue;
-        isRunning = true;
-        isFocused = (pid == fgPid);
-
-        for (HWND hwnd : pInfo.windows) {
-            if (!hwnd) continue;
-            windowsArr.Set(wIdx++, MakeWindowInfo(env, hwnd, ctx.foregroundHwnd));
-        }
-        break;
-    }
-
-    Napi::Object result = Napi::Object::New(env);
-    result.Set("isRunning", isRunning);
-    result.Set("isFocused", isFocused);
-    result.Set("windows", windowsArr);
-    return result;
 }
 
 // ──────────────────────────────────────────────
@@ -1524,6 +1475,9 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
     HWND hwnd = (HWND)hwndVal;
     Napi::Function callback = info[1].As<Napi::Function>();
 
+    // Bring the window to front / restore if minimized before streaming
+    // EnsureWindowReady(hwnd);
+
     if (!IsWGCAvailable() || !IsWindow(hwnd)) {
         Napi::Error::New(env, "WGC not available or invalid window").ThrowAsJavaScriptException();
         return env.Null();
@@ -1633,7 +1587,7 @@ static Napi::Value SetStreamFps(const Napi::CallbackInfo &info) {
     if (codecApi) {
         VARIANT v;
         VariantInit(&v);
-        v.vt = VT_UI4; v.ulVal = (ULONG)(fps * 2);
+        v.vt = VT_UI4; v.ulVal = (ULONG)(fps * 10);
         codecApi->SetValue(&CODECAPI_AVEncMPVGOPSize, &v);
     }
     return env.Undefined();
@@ -1671,7 +1625,6 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     EnsureGdiPlus();
     exports.Set("getInstalledApps", Napi::Function::New(env, GetInstalledApps));
     exports.Set("getRunningApps", Napi::Function::New(env, GetRunningApps));
-    exports.Set("getAppState", Napi::Function::New(env, GetAppState));
     exports.Set("launchApp", Napi::Function::New(env, LaunchApp));
     exports.Set("quitApp", Napi::Function::New(env, QuitApp));
     exports.Set("getAppIcon", Napi::Function::New(env, GetAppIcon));

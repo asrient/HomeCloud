@@ -310,7 +310,7 @@ const AppWindowPage: NextPageWithConfig = () => {
         .then(sc => sc.apps.stopStreamingSession(windowId!))
         .catch(() => {});
     };
-  }, [windowId, dispatchAction]);
+  }, [windowId, dispatchAction, hasFrame]);
 
   // ── Mouse handlers ──
   const handleClick = useCallback(

@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["H264PlayerModule"]
+  },
+  "android": {
+    "modules": ["com.asrient.h264player.H264PlayerModule"]
+  }
+}
