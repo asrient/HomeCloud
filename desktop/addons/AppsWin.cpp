@@ -11,7 +11,7 @@
  *   - quitApp(appId)            → close app via WM_CLOSE
  *   - getAppIcon(appId)         → extract icon as base64 PNG data URI
  *   - getWindows(appId?)        → visible windows (EnumWindows)
- *   - captureWindow(hwnd, tileSize, quality, sinceTimestamp, cb)
+ *   - captureWindow(hwnd, tileSize, quality, cb)
  *                               → tile-based JPEG capture via PrintWindow
  *   - performAction(payload)    → mouse / keyboard / window actions
  *   - clearWindowCache(hwnd)    → clear tile hash cache for a window
@@ -42,9 +42,31 @@
 #include <cstring>
 #include <cmath>
 #include <ppl.h>
-#if defined(_M_X64) || defined(_M_IX86)
-#include <nmmintrin.h>
-#endif
+
+// Windows Graphics Capture (Windows 10 1803+)
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Graphics.Capture.h>
+#include <winrt/Windows.Graphics.DirectX.h>
+#include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
+#include <windows.graphics.capture.interop.h>
+#include <windows.graphics.directx.direct3d11.interop.h>
+#include <d3d11.h>
+#include <d3d11_4.h>
+#include <dxgi.h>
+
+// Media Foundation H.264 encoding
+#include <mfapi.h>
+#include <mfidl.h>
+#include <mfreadwrite.h>
+#include <mftransform.h>
+#include <codecapi.h>
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "windowsapp.lib")
+#pragma comment(lib, "mf.lib")
+#pragma comment(lib, "mfplat.lib")
+#pragma comment(lib, "mfuuid.lib")
+#pragma comment(lib, "mfreadwrite.lib")
 
 // PW_RENDERFULLCONTENT was added in Windows 8.1 but may be missing from older SDK headers
 #ifndef PW_RENDERFULLCONTENT
@@ -245,16 +267,320 @@ static Napi::Object MakeWindowInfo(Napi::Env env, HWND hwnd, HWND foregroundHwnd
 }
 
 // ──────────────────────────────────────────────
-// Tile hash cache for delta capture
+// H.264 streaming via WGC + Media Foundation
 // ──────────────────────────────────────────────
-struct TileHashCache {
-    std::unordered_map<uint64_t, uint64_t> hashes; // key = (col<<32|row), value = hash
-    int lastWidth = 0;
-    int lastHeight = 0;
+
+// Check if WGC is available at runtime (Win10 1803+)
+static bool IsWGCAvailable() {
+    static int cached = -1;
+    if (cached >= 0) return cached != 0;
+    try {
+        cached = winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported() ? 1 : 0;
+    } catch (...) {
+        cached = 0;
+    }
+    return cached != 0;
+}
+
+// Forward declarations for H.264 stream management
+struct H264WinStreamContext;
+static void stopH264WinStream(HWND hwnd);
+
+struct H264WinStreamContext {
+    HWND hwnd = NULL;
+    int width = 0;
+    int height = 0;
+    int dpi = 1;
+    int targetFps = 30;
+    int targetBitrate = 15000000;
+    bool stopped = false;
+    bool isFirstFrame = true;
+    std::mutex mutex;
+
+    // WGC
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem item{nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool framePool{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession session{nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool::FrameArrived_revoker frameArrivedRevoker;
+
+    // D3D11
+    winrt::com_ptr<ID3D11Device> d3dDevice;
+    winrt::com_ptr<ID3D11DeviceContext> d3dContext;
+
+    // MF pipeline: Video Processor (BGRA→NV12 on GPU) → H.264 encoder
+    winrt::com_ptr<IMFTransform> videoProcessor;
+    winrt::com_ptr<IMFTransform> encoder;
+    winrt::com_ptr<IMFDXGIDeviceManager> dxgiManager;
+    UINT dxgiResetToken = 0;
+    DWORD encInputStreamId = 0;
+    DWORD encOutputStreamId = 0;
+
+    // N-API callback
+    Napi::ThreadSafeFunction tsfn;
+
+    bool initPipeline(int w, int h) {
+        videoProcessor = nullptr;
+        encoder = nullptr;
+
+        // Create DXGI Device Manager to share D3D11 device between MFTs
+        HRESULT hr = MFCreateDXGIDeviceManager(&dxgiResetToken, dxgiManager.put());
+        if (FAILED(hr)) return false;
+        hr = dxgiManager->ResetDevice(d3dDevice.get(), dxgiResetToken);
+        if (FAILED(hr)) return false;
+
+        // ── Video Processor MFT (BGRA → NV12, GPU) ──
+        hr = CoCreateInstance(CLSID_VideoProcessorMFT, nullptr, CLSCTX_INPROC_SERVER,
+            IID_PPV_ARGS(videoProcessor.put()));
+        if (FAILED(hr)) return false;
+
+        // Enable D3D11 on the video processor
+        videoProcessor->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER,
+            (ULONG_PTR)dxgiManager.get());
+
+        // VP input type: ARGB32 (BGRA)
+        winrt::com_ptr<IMFMediaType> vpInType;
+        MFCreateMediaType(vpInType.put());
+        vpInType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        vpInType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_ARGB32);
+        MFSetAttributeSize(vpInType.get(), MF_MT_FRAME_SIZE, w, h);
+        MFSetAttributeRatio(vpInType.get(), MF_MT_FRAME_RATE, targetFps, 1);
+        vpInType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+        hr = videoProcessor->SetInputType(0, vpInType.get(), 0);
+        if (FAILED(hr)) { videoProcessor = nullptr; return false; }
+
+        // VP output type: NV12
+        winrt::com_ptr<IMFMediaType> vpOutType;
+        MFCreateMediaType(vpOutType.put());
+        vpOutType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        vpOutType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
+        MFSetAttributeSize(vpOutType.get(), MF_MT_FRAME_SIZE, w, h);
+        MFSetAttributeRatio(vpOutType.get(), MF_MT_FRAME_RATE, targetFps, 1);
+        vpOutType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+        hr = videoProcessor->SetOutputType(0, vpOutType.get(), 0);
+        if (FAILED(hr)) { videoProcessor = nullptr; return false; }
+
+        videoProcessor->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
+
+        // ── H.264 Encoder MFT ──
+        MFT_REGISTER_TYPE_INFO encOutInfo = { MFMediaType_Video, MFVideoFormat_H264 };
+        IMFActivate **ppActivate = nullptr;
+        UINT32 count = 0;
+        hr = MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER,
+            MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER,
+            nullptr, &encOutInfo, &ppActivate, &count);
+        if (FAILED(hr) || count == 0) {
+            hr = MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER,
+                MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_SORTANDFILTER,
+                nullptr, &encOutInfo, &ppActivate, &count);
+        }
+        if (FAILED(hr) || count == 0) return false;
+
+        hr = ppActivate[0]->ActivateObject(IID_PPV_ARGS(encoder.put()));
+        for (UINT32 i = 0; i < count; i++) ppActivate[i]->Release();
+        CoTaskMemFree(ppActivate);
+        if (FAILED(hr)) return false;
+
+        // Enable D3D11 on encoder too
+        encoder->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER,
+            (ULONG_PTR)dxgiManager.get());
+
+        // Low latency, no B-frames, zero pipeline delay
+        auto codecApi = encoder.try_as<ICodecAPI>();
+        if (codecApi) {
+            VARIANT v;
+            VariantInit(&v);
+            // Low latency mode — equivalent of VT RealTime + MaxFrameDelayCount=0
+            v.vt = VT_BOOL; v.boolVal = VARIANT_TRUE;
+            codecApi->SetValue(&CODECAPI_AVLowLatencyMode, &v);
+            // No B-frames — equivalent of VT AllowFrameReordering=false
+            v.vt = VT_UI4; v.ulVal = 0;
+            codecApi->SetValue(&CODECAPI_AVEncMPVDefaultBPictureCount, &v);
+            // Keyframe every 2 seconds
+            v.vt = VT_UI4; v.ulVal = (ULONG)(targetFps * 2);
+            codecApi->SetValue(&CODECAPI_AVEncMPVGOPSize, &v);
+        }
+
+        // Encoder output type (H.264)
+        winrt::com_ptr<IMFMediaType> encOutType;
+        MFCreateMediaType(encOutType.put());
+        encOutType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        encOutType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_H264);
+        encOutType->SetUINT32(MF_MT_AVG_BITRATE, targetBitrate);
+        MFSetAttributeRatio(encOutType.get(), MF_MT_FRAME_RATE, targetFps, 1);
+        MFSetAttributeSize(encOutType.get(), MF_MT_FRAME_SIZE, w, h);
+        encOutType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+        encOutType->SetUINT32(MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_Main);
+        hr = encoder->SetOutputType(0, encOutType.get(), 0);
+        if (FAILED(hr)) { encoder = nullptr; return false; }
+
+        // Encoder input type (NV12)
+        winrt::com_ptr<IMFMediaType> encInType;
+        MFCreateMediaType(encInType.put());
+        encInType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        encInType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
+        MFSetAttributeRatio(encInType.get(), MF_MT_FRAME_RATE, targetFps, 1);
+        MFSetAttributeSize(encInType.get(), MF_MT_FRAME_SIZE, w, h);
+        encInType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+        hr = encoder->SetInputType(0, encInType.get(), 0);
+        if (FAILED(hr)) { encoder = nullptr; return false; }
+
+        hr = encoder->GetStreamIDs(1, &encInputStreamId, 1, &encOutputStreamId);
+        if (hr == E_NOTIMPL) { encInputStreamId = 0; encOutputStreamId = 0; }
+
+        encoder->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
+        encoder->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0);
+
+        return true;
+    }
+
+    void onFrameArrived(
+        winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const& sender,
+        winrt::Windows::Foundation::IInspectable const&)
+    {
+        auto frame = sender.TryGetNextFrame();
+        if (!frame) return;
+
+        std::lock_guard<std::mutex> lock(mutex);
+        if (stopped) return;
+
+        auto surface = frame.Surface();
+        if (!surface) return;
+
+        auto access = surface.as<Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess>();
+        winrt::com_ptr<ID3D11Texture2D> frameTex;
+        access->GetInterface(IID_PPV_ARGS(frameTex.put()));
+        if (!frameTex) return;
+
+        D3D11_TEXTURE2D_DESC desc;
+        frameTex->GetDesc(&desc);
+        int w = (int)desc.Width;
+        int h = (int)desc.Height;
+
+        // Create/recreate pipeline if dimensions changed
+        if (w != width || h != height || !encoder) {
+            width = w;
+            height = h;
+            isFirstFrame = true;
+            if (!initPipeline(w, h)) return;
+        }
+
+        // Create IMFSample wrapping the D3D11 texture (zero-copy)
+        winrt::com_ptr<IMFMediaBuffer> texBuf;
+        MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), frameTex.get(), 0, FALSE, texBuf.put());
+        if (!texBuf) return;
+
+        winrt::com_ptr<IMFSample> inputSample;
+        MFCreateSample(inputSample.put());
+        inputSample->AddBuffer(texBuf.get());
+        LONGLONG now = MFGetSystemTime();
+        inputSample->SetSampleTime(now);
+        inputSample->SetSampleDuration(10000000LL / targetFps);
+
+        // Step 1: Video Processor (BGRA → NV12 on GPU)
+        HRESULT hr = videoProcessor->ProcessInput(0, inputSample.get(), 0);
+        if (FAILED(hr)) return;
+
+        MFT_OUTPUT_DATA_BUFFER vpOutput = {};
+        vpOutput.dwStreamID = 0;
+        DWORD vpStatus = 0;
+        hr = videoProcessor->ProcessOutput(0, 1, &vpOutput, &vpStatus);
+        if (FAILED(hr) || !vpOutput.pSample) {
+            if (vpOutput.pEvents) vpOutput.pEvents->Release();
+            return;
+        }
+
+        // Step 2: H.264 Encoder (NV12 → H.264)
+        hr = encoder->ProcessInput(encInputStreamId, vpOutput.pSample, 0);
+        vpOutput.pSample->Release();
+        if (vpOutput.pEvents) vpOutput.pEvents->Release();
+        if (FAILED(hr)) return;
+
+        // Drain encoded output
+        MFT_OUTPUT_DATA_BUFFER encOutput = {};
+        encOutput.dwStreamID = encOutputStreamId;
+        winrt::com_ptr<IMFSample> outSample;
+        MFCreateSample(outSample.put());
+        winrt::com_ptr<IMFMediaBuffer> outBuf;
+        MFCreateMemoryBuffer(w * h, outBuf.put());
+        outSample->AddBuffer(outBuf.get());
+        encOutput.pSample = outSample.get();
+
+        DWORD encStatus = 0;
+        hr = encoder->ProcessOutput(0, 1, &encOutput, &encStatus);
+        if (encOutput.pEvents) encOutput.pEvents->Release();
+
+        if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) return;
+        if (FAILED(hr)) return;
+
+        // Extract encoded H.264 data
+        winrt::com_ptr<IMFMediaBuffer> encBuf;
+        encOutput.pSample->ConvertToContiguousBuffer(encBuf.put());
+        BYTE *encData = nullptr;
+        DWORD encLen = 0;
+        encBuf->Lock(&encData, nullptr, &encLen);
+
+        if (encData && encLen > 0) {
+            UINT32 picType = 0;
+            bool kf = false;
+            if (SUCCEEDED(encOutput.pSample->GetUINT32(
+                MFSampleExtension_VideoEncodePictureType, &picType))) {
+                kf = (picType == eAVEncH264PictureType_IDR);
+            }
+            if (isFirstFrame) { kf = true; isFirstFrame = false; }
+
+            int cw = width, ch = height, cdpi = dpi;
+            bool first = isFirstFrame;
+            double ts = (double)now / 10000.0;
+
+            auto nalCopy = std::make_shared<std::vector<uint8_t>>(encData, encData + encLen);
+            tsfn.NonBlockingCall([nalCopy, cw, ch, cdpi, kf, first, ts](Napi::Env env, Napi::Function cb) {
+                Napi::Object info = Napi::Object::New(env);
+                info.Set("data", Napi::Buffer<uint8_t>::Copy(env, nalCopy->data(), nalCopy->size()));
+                info.Set("isKeyframe", kf);
+                info.Set("width", cw);
+                info.Set("height", ch);
+                info.Set("dpi", cdpi);
+                info.Set("isFirst", first);
+                info.Set("timestamp", ts);
+                cb.Call({env.Null(), info});
+            });
+        }
+        encBuf->Unlock();
+    }
 };
 
-static std::mutex g_cacheMutex;
-static std::unordered_map<uintptr_t, TileHashCache> g_windowCaches; // HWND → cache
+static std::mutex g_h264WinMutex;
+static std::unordered_map<uintptr_t, std::shared_ptr<H264WinStreamContext>> g_h264WinStreams;
+
+static void stopH264WinStream(HWND hwnd) {
+    std::shared_ptr<H264WinStreamContext> ctx;
+    {
+        std::lock_guard<std::mutex> lock(g_h264WinMutex);
+        auto it = g_h264WinStreams.find((uintptr_t)hwnd);
+        if (it == g_h264WinStreams.end()) return;
+        ctx = it->second;
+        g_h264WinStreams.erase(it);
+    }
+    {
+        std::lock_guard<std::mutex> lock(ctx->mutex);
+        ctx->stopped = true;
+    }
+    ctx->frameArrivedRevoker.revoke();
+    // Flush and release MF encoder
+    if (ctx->encoder) {
+        ctx->encoder->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
+        ctx->encoder->ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0);
+        ctx->encoder = nullptr;
+    }
+    if (ctx->videoProcessor) {
+        ctx->videoProcessor = nullptr;
+    }
+    if (ctx->session) ctx->session.Close();
+    if (ctx->framePool) ctx->framePool.Close();
+    ctx->item = nullptr;
+    ctx->tsfn.Release();
+    MFShutdown();
+}
 
 // ──────────────────────────────────────────────
 // Per-process info structure for enumeration
@@ -719,313 +1045,6 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
     return arr;
 }
 
-// ──────────────────────────────────────────────
-// 8. Capture window — PrintWindow + tile-based delta
-// ──────────────────────────────────────────────
-
-class CaptureWorker : public Napi::AsyncWorker {
-public:
-    CaptureWorker(const Napi::Function &cb, HWND hwnd, int tileSize,
-                  double quality, double sinceTimestamp)
-        : Napi::AsyncWorker(cb), hwnd(hwnd), tileSize(tileSize),
-          quality(quality), sinceTimestamp(sinceTimestamp) {}
-
-    void Execute() override {
-        if (!IsWindow(hwnd)) {
-            SetError("Window no longer exists");
-            return;
-        }
-
-        // Get window rect
-        RECT rect;
-        if (!GetWindowRect(hwnd, &rect)) {
-            SetError("Failed to get window rect");
-            return;
-        }
-
-        winX = rect.left;
-        winY = rect.top;
-        imgWidth = rect.right - rect.left;
-        imgHeight = rect.bottom - rect.top;
-
-        if (imgWidth <= 0 || imgHeight <= 0) {
-            SetError("Window has zero dimensions");
-            return;
-        }
-
-        // Create compatible DC and bitmap
-        HDC hdcScreen = GetDC(nullptr);
-        HDC hdcMem = CreateCompatibleDC(hdcScreen);
-        HBITMAP hBitmap = CreateCompatibleBitmap(hdcScreen, imgWidth, imgHeight);
-        HGDIOBJ hOld = SelectObject(hdcMem, hBitmap);
-        ReleaseDC(nullptr, hdcScreen);
-
-        // Use PrintWindow with PW_RENDERFULLCONTENT for best results
-        BOOL captured = PrintWindow(hwnd, hdcMem, PW_RENDERFULLCONTENT);
-        if (!captured) {
-            // Fallback: try BitBlt
-            HDC hdcWin = GetDC(hwnd);
-            if (hdcWin) {
-                BitBlt(hdcMem, 0, 0, imgWidth, imgHeight, hdcWin, 0, 0, SRCCOPY);
-                ReleaseDC(hwnd, hdcWin);
-                captured = TRUE;
-            }
-        }
-
-        if (!captured) {
-            SelectObject(hdcMem, hOld);
-            DeleteObject(hBitmap);
-            DeleteDC(hdcMem);
-            SetError("Failed to capture window");
-            return;
-        }
-
-        // Get raw pixel data for hashing
-        BITMAPINFOHEADER bi = {};
-        bi.biSize = sizeof(bi);
-        bi.biWidth = imgWidth;
-        bi.biHeight = -imgHeight; // top-down
-        bi.biPlanes = 1;
-        bi.biBitCount = 32;
-        bi.biCompression = BI_RGB;
-
-        int rowBytes = imgWidth * 4;
-        std::vector<BYTE> pixels(rowBytes * imgHeight);
-        int scanLines = GetDIBits(hdcMem, hBitmap, 0, imgHeight, pixels.data(),
-                  (BITMAPINFO *)&bi, DIB_RGB_COLORS);
-
-        // Clean up GDI resources before heavy processing
-        SelectObject(hdcMem, hOld);
-        DeleteObject(hBitmap);
-        DeleteDC(hdcMem);
-
-        if (scanLines == 0) {
-            SetError("Failed to retrieve pixel data");
-            return;
-        }
-
-        int cols = (imgWidth + tileSize - 1) / tileSize;
-        int rows = (imgHeight + tileSize - 1) / tileSize;
-
-        // ── Phase 1: Hash all tiles and diff against cache (under lock) ──
-        struct PendingTile {
-            int col, row, tileX, tileY, tw, th;
-        };
-        std::vector<PendingTile> changedTiles;
-
-        {
-            std::lock_guard<std::mutex> lock(g_cacheMutex);
-            uintptr_t hwndKey = (uintptr_t)hwnd;
-            TileHashCache &cache = g_windowCaches[hwndKey];
-
-            // If dimensions changed, invalidate cache
-            if (cache.lastWidth != imgWidth || cache.lastHeight != imgHeight) {
-                cache.hashes.clear();
-                cache.lastWidth = imgWidth;
-                cache.lastHeight = imgHeight;
-            }
-
-            for (int row = 0; row < rows; row++) {
-                for (int col = 0; col < cols; col++) {
-                    int tileX = col * tileSize;
-                    int tileY = row * tileSize;
-                    int tw = (std::min)(tileSize, imgWidth - tileX);
-                    int th = (std::min)(tileSize, imgHeight - tileY);
-
-                    // Hardware CRC32 hash of tile pixels
-                    uint32_t tileHash = 0;
-                    for (int y = tileY; y < tileY + th; y++) {
-                        const BYTE *rowPtr = pixels.data() + y * rowBytes + tileX * 4;
-                        size_t tileRowBytes = tw * 4;
-#if defined(_M_X64)
-                        size_t chunks = tileRowBytes / 8;
-                        const uint64_t *ptr64 = reinterpret_cast<const uint64_t *>(rowPtr);
-                        for (size_t c = 0; c < chunks; c++) {
-                            tileHash = (uint32_t)_mm_crc32_u64(tileHash, ptr64[c]);
-                        }
-                        for (size_t b = chunks * 8; b < tileRowBytes; b++) {
-                            tileHash = _mm_crc32_u8(tileHash, rowPtr[b]);
-                        }
-#else
-                        // Fallback: FNV-1a 8-byte-at-a-time
-                        size_t chunks = tileRowBytes / 8;
-                        const uint64_t *ptr64 = reinterpret_cast<const uint64_t *>(rowPtr);
-                        for (size_t c = 0; c < chunks; c++) {
-                            tileHash ^= (uint32_t)(ptr64[c] ^ (ptr64[c] >> 32));
-                            tileHash *= 16777619u;
-                        }
-                        for (size_t b = chunks * 8; b < tileRowBytes; b++) {
-                            tileHash ^= rowPtr[b];
-                            tileHash *= 16777619u;
-                        }
-#endif
-                    }
-
-                    uint64_t key = ((uint64_t)col << 32) | (uint64_t)row;
-                    auto it = cache.hashes.find(key);
-                    bool changed = (it == cache.hashes.end()) || (it->second != tileHash);
-
-                    if (sinceTimestamp > 0 && !changed) continue;
-                    cache.hashes[key] = tileHash;
-
-                    changedTiles.push_back({col, row, tileX, tileY, tw, th});
-                }
-            }
-        } // mutex released here
-
-        // ── Phase 2: JPEG-encode only changed tiles (no lock needed) ──
-        LARGE_INTEGER freq, counter;
-        QueryPerformanceFrequency(&freq);
-        QueryPerformanceCounter(&counter);
-        double now = (double)counter.QuadPart / (double)freq.QuadPart * 1000.0;
-
-        EnsureGdiPlus();
-        CLSID jpegClsid;
-        bool hasJpegEncoder = GetEncoderClsid(L"image/jpeg", &jpegClsid);
-        if (!hasJpegEncoder) return;
-
-        size_t count = changedTiles.size();
-        tiles.resize(count);
-
-        // Initialize all tiles as failed; successful encodes overwrite
-        for (size_t i = 0; i < count; i++) {
-            tiles[i].width = 0;
-        }
-
-        auto encodeOneTile = [&](size_t i) {
-            // Ensure COM is initialized on this thread (no-op if already done)
-            CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-
-            auto &ct = changedTiles[i];
-
-            // Create a bitmap for just this tile
-            Gdiplus::Bitmap tileBmp(ct.tw, ct.th, PixelFormat32bppRGB);
-            Gdiplus::BitmapData bmpData;
-            Gdiplus::Rect lockRect(0, 0, ct.tw, ct.th);
-            if (tileBmp.LockBits(&lockRect, Gdiplus::ImageLockModeWrite,
-                                 PixelFormat32bppRGB, &bmpData) == Gdiplus::Ok) {
-                for (int y = 0; y < ct.th; y++) {
-                    const BYTE *src = pixels.data() + (ct.tileY + y) * rowBytes + ct.tileX * 4;
-                    BYTE *dst = (BYTE *)bmpData.Scan0 + y * bmpData.Stride;
-                    memcpy(dst, src, ct.tw * 4);
-                }
-                tileBmp.UnlockBits(&bmpData);
-            }
-
-            // Encode to JPEG
-            IStream *pStream = nullptr;
-            if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &pStream)) || !pStream) {
-                return;
-            }
-
-            ULONG jpegQuality = (ULONG)(quality * 100);
-            Gdiplus::EncoderParameters params;
-            params.Count = 1;
-            params.Parameter[0].Guid = Gdiplus::EncoderQuality;
-            params.Parameter[0].Type = Gdiplus::EncoderParameterValueTypeLong;
-            params.Parameter[0].NumberOfValues = 1;
-            params.Parameter[0].Value = &jpegQuality;
-
-            if (tileBmp.Save(pStream, &jpegClsid, &params) == Gdiplus::Ok) {
-                STATSTG stat;
-                pStream->Stat(&stat, STATFLAG_NONAME);
-                ULONG dataSize = (ULONG)stat.cbSize.QuadPart;
-                std::vector<BYTE> jpegData(dataSize);
-                LARGE_INTEGER seekZero;
-                seekZero.QuadPart = 0;
-                pStream->Seek(seekZero, STREAM_SEEK_SET, nullptr);
-                ULONG bytesRead = 0;
-                pStream->Read(jpegData.data(), dataSize, &bytesRead);
-
-                tiles[i].xIndex = ct.col;
-                tiles[i].yIndex = ct.row;
-                tiles[i].width = ct.tw;
-                tiles[i].height = ct.th;
-                tiles[i].imageData.assign(jpegData.begin(), jpegData.end());
-                tiles[i].timestamp = now;
-            }
-            pStream->Release();
-        };
-
-        if (count >= 3) {
-            concurrency::parallel_for(size_t(0), count, [&](size_t i) {
-                encodeOneTile(i);
-            });
-        } else {
-            for (size_t i = 0; i < count; i++) {
-                encodeOneTile(i);
-            }
-        }
-
-        // Remove failed tiles (width == 0)
-        tiles.erase(std::remove_if(tiles.begin(), tiles.end(),
-            [](const TileResult &t) { return t.width == 0; }), tiles.end());
-    }
-
-    void OnOK() override {
-        Napi::HandleScope scope(Env());
-        Napi::Object result = Napi::Object::New(Env());
-        result.Set("x", winX);
-        result.Set("y", winY);
-        result.Set("width", imgWidth);
-        result.Set("height", imgHeight);
-
-        Napi::Array tilesArr = Napi::Array::New(Env(), tiles.size());
-        for (size_t i = 0; i < tiles.size(); i++) {
-            Napi::Object t = Napi::Object::New(Env());
-            t.Set("xIndex", tiles[i].xIndex);
-            t.Set("yIndex", tiles[i].yIndex);
-            t.Set("width", tiles[i].width);
-            t.Set("height", tiles[i].height);
-            t.Set("image", Napi::Buffer<uint8_t>::Copy(
-                Env(), tiles[i].imageData.data(), tiles[i].imageData.size()));
-            t.Set("timestamp", tiles[i].timestamp);
-            tilesArr.Set((uint32_t)i, t);
-        }
-        result.Set("tiles", tilesArr);
-        Callback().Call({Env().Null(), result});
-    }
-
-private:
-    HWND hwnd;
-    int tileSize;
-    double quality;
-    double sinceTimestamp;
-    int imgWidth = 0;
-    int imgHeight = 0;
-    int winX = 0;
-    int winY = 0;
-
-    struct TileResult {
-        int xIndex, yIndex, width, height;
-        std::vector<uint8_t> imageData;
-        double timestamp;
-    };
-    std::vector<TileResult> tiles;
-};
-
-static Napi::Value CaptureWindow(const Napi::CallbackInfo &info) {
-    Napi::Env env = info.Env();
-    if (info.Length() < 5) {
-        Napi::TypeError::New(env,
-            "Expected (windowId, tileSize, quality, sinceTimestamp, callback)")
-            .ThrowAsJavaScriptException();
-        return env.Null();
-    }
-    // windowId is passed as a number (the HWND cast to uintptr_t)
-    uintptr_t hwndVal = (uintptr_t)info[0].As<Napi::Number>().Int64Value();
-    HWND hwnd = (HWND)hwndVal;
-    int tileSize = info[1].As<Napi::Number>().Int32Value();
-    double quality = info[2].As<Napi::Number>().DoubleValue();
-    double sinceTimestamp = info[3].As<Napi::Number>().DoubleValue();
-    Napi::Function cb = info[4].As<Napi::Function>();
-
-    auto *worker = new CaptureWorker(cb, hwnd, tileSize, quality, sinceTimestamp);
-    worker->Queue();
-    return env.Undefined();
-}
-
-// ──────────────────────────────────────────────
 // 9. Perform action
 // ──────────────────────────────────────────────
 
@@ -1473,39 +1492,175 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
     return env.Undefined();
 }
 
-// ──────────────────────────────────────────────
-// 10. Clear window cache
-// ──────────────────────────────────────────────
-
-static Napi::Value ClearWindowCache(const Napi::CallbackInfo &info) {
-    Napi::Env env = info.Env();
-    if (info.Length() < 1 || !info[0].IsNumber()) {
-        return env.Undefined();
-    }
-    uintptr_t hwndVal = (uintptr_t)info[0].As<Napi::Number>().Int64Value();
-    std::lock_guard<std::mutex> lock(g_cacheMutex);
-    g_windowCaches.erase(hwndVal);
-    return env.Undefined();
-}
 
 // ──────────────────────────────────────────────
-// 11. Permissions — no-op on Windows
+// 10. Permissions — no-op on Windows
 // ──────────────────────────────────────────────
 
 static Napi::Value HasScreenRecordingPermission(const Napi::CallbackInfo &info) {
     return Napi::Boolean::New(info.Env(), true);
 }
-
 static Napi::Value HasAccessibilityPermission(const Napi::CallbackInfo &info) {
     return Napi::Boolean::New(info.Env(), true);
 }
-
 static Napi::Value RequestScreenRecordingPermission(const Napi::CallbackInfo &info) {
     return info.Env().Undefined();
 }
-
 static Napi::Value RequestAccessibilityPermission(const Napi::CallbackInfo &info) {
     return info.Env().Undefined();
+}
+
+// ──────────────────────────────────────────────
+// 11. H.264 stream N-API exports
+// ──────────────────────────────────────────────
+
+static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsFunction()) {
+        Napi::TypeError::New(env, "Expected (windowId, callback)").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    uintptr_t hwndVal = (uintptr_t)info[0].As<Napi::Number>().Int64Value();
+    HWND hwnd = (HWND)hwndVal;
+    Napi::Function callback = info[1].As<Napi::Function>();
+
+    if (!IsWGCAvailable() || !IsWindow(hwnd)) {
+        Napi::Error::New(env, "WGC not available or invalid window").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    try {
+        stopH264WinStream(hwnd);
+        auto ctx = std::make_shared<H264WinStreamContext>();
+        ctx->hwnd = hwnd;
+        ctx->dpi = 1;
+        ctx->tsfn = Napi::ThreadSafeFunction::New(env, callback, "H264WinStreamCB", 0, 1);
+
+        D3D_FEATURE_LEVEL featureLevel;
+        HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+            D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
+            ctx->d3dDevice.put(), &featureLevel, ctx->d3dContext.put());
+        if (FAILED(hr)) { ctx->tsfn.Release(); return env.Null(); }
+
+        auto multithread = ctx->d3dDevice.as<ID3D11Multithread>();
+        if (multithread) multithread->SetMultithreadProtected(TRUE);
+
+        auto dxgiDevice = ctx->d3dDevice.as<IDXGIDevice>();
+        winrt::com_ptr<IInspectable> inspectable;
+        hr = CreateDirect3D11DeviceFromDXGIDevice(dxgiDevice.get(), inspectable.put());
+        if (FAILED(hr)) { ctx->tsfn.Release(); return env.Null(); }
+        auto d3dDeviceWinRT = inspectable.as<winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice>();
+
+        auto interop = winrt::get_activation_factory<
+            winrt::Windows::Graphics::Capture::GraphicsCaptureItem,
+            IGraphicsCaptureItemInterop>();
+        winrt::Windows::Graphics::Capture::GraphicsCaptureItem item{nullptr};
+        hr = interop->CreateForWindow(hwnd, winrt::guid_of<winrt::Windows::Graphics::Capture::GraphicsCaptureItem>(),
+            winrt::put_abi(item));
+        if (FAILED(hr) || !item) { ctx->tsfn.Release(); return env.Null(); }
+        ctx->item = item;
+
+        auto size = item.Size();
+        if (size.Width <= 0 || size.Height <= 0) { ctx->tsfn.Release(); return env.Null(); }
+        ctx->width = size.Width;
+        ctx->height = size.Height;
+
+        ctx->framePool = winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool::CreateFreeThreaded(
+            d3dDeviceWinRT, winrt::Windows::Graphics::DirectX::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+            1, size);
+        ctx->session = ctx->framePool.CreateCaptureSession(item);
+        try { ctx->session.IsBorderRequired(false); } catch (...) {}
+        try { ctx->session.IsCursorCaptureEnabled(false); } catch (...) {}
+
+        ctx->frameArrivedRevoker = ctx->framePool.FrameArrived(
+            winrt::auto_revoke,
+            [ctxWeak = std::weak_ptr<H264WinStreamContext>(ctx)](
+                auto const& sender, auto const& args) {
+                if (auto c = ctxWeak.lock()) c->onFrameArrived(sender, args);
+            });
+
+        // Detect window close via GraphicsCaptureItem.Closed
+        item.Closed([ctxWeak = std::weak_ptr<H264WinStreamContext>(ctx)](
+            auto const&, auto const&) {
+            auto c = ctxWeak.lock();
+            if (!c || c->stopped) return;
+            c->stopped = true;
+            c->tsfn.NonBlockingCall([](Napi::Env env, Napi::Function cb) {
+                cb.Call({Napi::String::New(env, "Window closed"), env.Null()});
+            });
+        });
+
+        MFStartup(MF_VERSION);
+        ctx->session.StartCapture();
+
+        {
+            std::lock_guard<std::mutex> lock(g_h264WinMutex);
+            g_h264WinStreams[(uintptr_t)hwnd] = ctx;
+        }
+
+        Napi::Object result = Napi::Object::New(env);
+        result.Set("width", ctx->width);
+        result.Set("height", ctx->height);
+        result.Set("dpi", ctx->dpi);
+        return result;
+    } catch (...) {
+        return env.Null();
+    }
+}
+
+static Napi::Value StopH264Stream(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsNumber()) return env.Undefined();
+    stopH264WinStream((HWND)(uintptr_t)info[0].As<Napi::Number>().Int64Value());
+    return env.Undefined();
+}
+
+static Napi::Value SetStreamFps(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) return env.Undefined();
+    uintptr_t hwndVal = (uintptr_t)info[0].As<Napi::Number>().Int64Value();
+    int fps = info[1].As<Napi::Number>().Int32Value();
+    if (fps < 1 || fps > 120) return env.Undefined();
+
+    std::lock_guard<std::mutex> lock(g_h264WinMutex);
+    auto it = g_h264WinStreams.find(hwndVal);
+    if (it == g_h264WinStreams.end()) return env.Undefined();
+    auto &ctx = it->second;
+    std::lock_guard<std::mutex> ctxLock(ctx->mutex);
+    ctx->targetFps = fps;
+    // Update MF encoder GOP size
+    auto codecApi = ctx->encoder.try_as<ICodecAPI>();
+    if (codecApi) {
+        VARIANT v;
+        VariantInit(&v);
+        v.vt = VT_UI4; v.ulVal = (ULONG)(fps * 2);
+        codecApi->SetValue(&CODECAPI_AVEncMPVGOPSize, &v);
+    }
+    return env.Undefined();
+}
+
+static Napi::Value SetStreamBitrate(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) return env.Undefined();
+    uintptr_t hwndVal = (uintptr_t)info[0].As<Napi::Number>().Int64Value();
+    int bitrate = info[1].As<Napi::Number>().Int32Value();
+    if (bitrate < 100000) return env.Undefined();
+
+    std::lock_guard<std::mutex> lock(g_h264WinMutex);
+    auto it = g_h264WinStreams.find(hwndVal);
+    if (it == g_h264WinStreams.end()) return env.Undefined();
+    auto &ctx = it->second;
+    std::lock_guard<std::mutex> ctxLock(ctx->mutex);
+    ctx->targetBitrate = bitrate;
+    // Update MF encoder bitrate
+    auto codecApi = ctx->encoder.try_as<ICodecAPI>();
+    if (codecApi) {
+        VARIANT v;
+        VariantInit(&v);
+        v.vt = VT_UI4; v.ulVal = (ULONG)bitrate;
+        codecApi->SetValue(&CODECAPI_AVEncCommonMeanBitRate, &v);
+    }
+    return env.Undefined();
 }
 
 // ──────────────────────────────────────────────
@@ -1513,9 +1668,7 @@ static Napi::Value RequestAccessibilityPermission(const Napi::CallbackInfo &info
 // ──────────────────────────────────────────────
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
-    // Initialise GDI+ on module load
     EnsureGdiPlus();
-
     exports.Set("getInstalledApps", Napi::Function::New(env, GetInstalledApps));
     exports.Set("getRunningApps", Napi::Function::New(env, GetRunningApps));
     exports.Set("getAppState", Napi::Function::New(env, GetAppState));
@@ -1523,13 +1676,15 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("quitApp", Napi::Function::New(env, QuitApp));
     exports.Set("getAppIcon", Napi::Function::New(env, GetAppIcon));
     exports.Set("getWindows", Napi::Function::New(env, GetWindows));
-    exports.Set("captureWindow", Napi::Function::New(env, CaptureWindow));
     exports.Set("performAction", Napi::Function::New(env, PerformAction));
-    exports.Set("clearWindowCache", Napi::Function::New(env, ClearWindowCache));
     exports.Set("hasScreenRecordingPermission", Napi::Function::New(env, HasScreenRecordingPermission));
     exports.Set("hasAccessibilityPermission", Napi::Function::New(env, HasAccessibilityPermission));
     exports.Set("requestScreenRecordingPermission", Napi::Function::New(env, RequestScreenRecordingPermission));
     exports.Set("requestAccessibilityPermission", Napi::Function::New(env, RequestAccessibilityPermission));
+    exports.Set("startH264Stream", Napi::Function::New(env, StartH264Stream));
+    exports.Set("stopH264Stream", Napi::Function::New(env, StopH264Stream));
+    exports.Set("setStreamFps", Napi::Function::New(env, SetStreamFps));
+    exports.Set("setStreamBitrate", Napi::Function::New(env, SetStreamBitrate));
     return exports;
 }
 

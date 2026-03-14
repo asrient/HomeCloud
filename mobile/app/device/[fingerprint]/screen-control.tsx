@@ -31,7 +31,7 @@ import { isGlassEnabled, getServiceController } from '@/lib/utils';
 
 // ── Constants ──
 
-const TILE_SIZE = 64;
+const TILE_SIZE = 128;
 const LONG_PRESS_MS = 500;
 const DOUBLE_TAP_MS = 300;
 const POINTER_MOVE_SENSITIVITY = 1.5;
@@ -55,11 +55,13 @@ function WindowCanvas({
     dispatchAction: (payload: any) => void;
     canvasWidth: number;
     canvasHeight: number;
+    dpi: number;
 }) {
     // Build full image from tiles. We use an offscreen approach storing tile images.
     const tileImages = useRef<Map<string, { uri: string; ts: number }>>(new Map());
 
     // Scale factor: fit remote window into canvasWidth/canvasHeight
+    // width/height are in pixel space; divide by dpi for logical dimensions
     const scale = useMemo(() => {
         if (!uiState) return 1;
         const sx = canvasWidth / uiState.width;
@@ -531,7 +533,7 @@ function ChildWindowModal({
     deviceFingerprint: string | null;
     onClose: () => void;
 }) {
-    const { uiState, isConnecting, error, startCapture, stopCapture } = useWindowCapture(
+    const { uiState, isConnecting, error, startCapture, stopCapture, pixelDensity } = useWindowCapture(
         childWindow.id,
         deviceFingerprint,
     );
@@ -574,6 +576,7 @@ function ChildWindowModal({
                             dispatchAction={dispatchAction}
                             canvasWidth={maxWidth}
                             canvasHeight={maxHeight}
+                            dpi={pixelDensity.current}
                         />
                     ) : null}
                 </Pressable>
@@ -705,7 +708,7 @@ export default function ScreenControlScreen() {
     }, [mainWindows, selectedWindowId]);
 
     // Capture + actions for selected window
-    const { uiState, isConnecting, error, startCapture, stopCapture } = useWindowCapture(
+    const { uiState, isConnecting, error, startCapture, stopCapture, pixelDensity } = useWindowCapture(
         selectedWindowId,
         deviceFingerprint,
     );
@@ -934,6 +937,7 @@ export default function ScreenControlScreen() {
                                 dispatchAction={dispatchAction}
                                 canvasWidth={screenWidth - 16}
                                 canvasHeight={canvasAreaHeight - 16}
+                                dpi={pixelDensity.current}
                             />
                         </View>
                     ) : null}

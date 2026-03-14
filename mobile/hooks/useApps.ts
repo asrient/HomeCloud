@@ -179,9 +179,9 @@ export const useAppWindows = (appId: string | null, deviceFingerprint: string | 
 
 // ── Window Capture Loop ──
 
-const TILE_SIZE = 64;
-const QUALITY = 0.5;
-const CAPTURE_INTERVAL_MS = 350;
+const TILE_SIZE = 128;
+const QUALITY = 1;
+const CAPTURE_INTERVAL_MS = 50;
 const MAX_CONSECUTIVE_ERRORS = 5;
 
 export const useWindowCapture = (windowId: string | null, deviceFingerprint: string | null) => {
@@ -189,7 +189,8 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
     const [isConnecting, setIsConnecting] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const lastTimestampRef = useRef<number>(0);
+    const sessionKeyRef = useRef<string | null>(null);
+    const pixelDensityRef = useRef<number>(1);
     const isMountedRef = useRef(true);
     const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const consecutiveErrorsRef = useRef(0);
@@ -201,42 +202,36 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
 
     const captureLoop = useCallback(async () => {
         const wId = windowIdRef.current;
-        if (!wId || !isMountedRef.current) return;
+        const key = sessionKeyRef.current;
+        if (!wId || !key || !isMountedRef.current) return;
 
         try {
             const sc = await getServiceController(fingerprintRef.current);
             if (wId !== windowIdRef.current || !isMountedRef.current) return;
 
-            const sinceTimestamp = lastTimestampRef.current;
-            const snapshot = await sc.apps.getWindowSnapshot(wId, sinceTimestamp, TILE_SIZE, QUALITY);
+            const snapshot = await sc.apps.getWindowSnapshot(wId, key, QUALITY);
             if (wId !== windowIdRef.current || !isMountedRef.current) return;
 
             consecutiveErrorsRef.current = 0;
             setIsConnecting(false);
 
-            if (sinceTimestamp > 0) {
-                // Delta update — merge new tiles into existing state
-                if (snapshot.tiles.length > 0) {
-                    setUiState((prev) => {
-                        if (!prev) return snapshot;
-                        const tileMap = new Map<string, RemoteAppWindowTile>();
-                        for (const t of prev.tiles) tileMap.set(`${t.xIndex}_${t.yIndex}`, t);
-                        for (const t of snapshot.tiles) tileMap.set(`${t.xIndex}_${t.yIndex}`, t);
-                        return { ...snapshot, tiles: Array.from(tileMap.values()) };
-                    });
-                }
-                // If no tiles changed, keep current uiState as-is
-            } else {
-                // Initial full snapshot
-                setUiState(snapshot);
-            }
+            if (snapshot.dpi) pixelDensityRef.current = snapshot.dpi;
 
             if (snapshot.tiles.length > 0) {
-                const maxTs = Math.max(...snapshot.tiles.map((t) => t.timestamp));
-                lastTimestampRef.current = maxTs;
+                setUiState((prev) => {
+                    if (!prev) return snapshot;
+                    const tileMap = new Map<string, RemoteAppWindowTile>();
+                    for (const t of prev.tiles) tileMap.set(`${t.xIndex}_${t.yIndex}`, t);
+                    for (const t of snapshot.tiles) tileMap.set(`${t.xIndex}_${t.yIndex}`, t);
+                    return { ...snapshot, tiles: Array.from(tileMap.values()) };
+                });
             }
         } catch (e: any) {
             console.error('Capture error:', e);
+            if (e?.message?.includes?.('Session invalidated')) {
+                setError('Another device took control of this window.');
+                return;
+            }
             consecutiveErrorsRef.current++;
             if (consecutiveErrorsRef.current >= MAX_CONSECUTIVE_ERRORS) {
                 setError('Window is no longer available. It may have been closed.');
@@ -252,13 +247,25 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
     // Start/stop capture loop when windowId changes
     const startCapture = useCallback(() => {
         if (!windowId) return;
-        lastTimestampRef.current = 0;
+        sessionKeyRef.current = null;
         setUiState(null);
         setIsConnecting(true);
         setError(null);
         consecutiveErrorsRef.current = 0;
         isMountedRef.current = true;
-        captureLoop();
+
+        (async () => {
+            try {
+                const sc = await getServiceController(fingerprintRef.current);
+                if (!isMountedRef.current) return;
+                const session = await sc.apps.startStreamingSession(windowId, TILE_SIZE);
+                if (!isMountedRef.current) return;
+                sessionKeyRef.current = session.key;
+                captureLoop();
+            } catch (e: any) {
+                if (isMountedRef.current) setError('Failed to start streaming session.');
+            }
+        })();
     }, [windowId, captureLoop]);
 
     const stopCapture = useCallback(() => {
@@ -267,9 +274,17 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
             clearTimeout(captureTimerRef.current);
             captureTimerRef.current = null;
         }
+        // Best-effort stop
+        const wId = windowIdRef.current;
+        if (wId && sessionKeyRef.current) {
+            getServiceController(fingerprintRef.current)
+                .then(sc => sc.apps.stopStreamingSession(wId))
+                .catch(() => {});
+            sessionKeyRef.current = null;
+        }
     }, []);
 
-    return { uiState, isConnecting, error, startCapture, stopCapture };
+    return { uiState, isConnecting, error, startCapture, stopCapture, pixelDensity: pixelDensityRef };
 };
 
 // ── Window Action Dispatch ──

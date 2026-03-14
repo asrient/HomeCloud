@@ -4,10 +4,9 @@ import {
     RemoteAppInfo,
     RemoteAppWindow,
     RemoteAppState,
-    RemoteAppWindowTile,
-    RemoteAppWindowUIState,
     RemoteAppWindowAction,
     RemoteAppWindowActionPayload,
+    StreamingSessionInfo,
 } from './types';
 
 export class AppsService extends Service {
@@ -128,26 +127,39 @@ export class AppsService extends Service {
     public async unwatchWindows(appId: string): Promise<void> {
     }
 
-    // ── Window capture ──
+    // ── Window streaming ──
 
     /**
-     * Get the full UI state (position, size, and tile snapshot) of a window.
-     * Uses tile-based diffing: on the first call returns all tiles; subsequent
-     * calls return only changed tiles since the given timestamp.
-     * @param windowId The CGWindowID of the target window.
-     * @param sinceTimestamp Optional. If provided, only tiles that changed after
-     *                       this timestamp are returned (delta mode).
-     * @param tileSize Optional tile size in px (default 64).
-     * @param quality Optional JPEG quality 0-1 (default 0.6).
+     * Start an H.264 video stream for a window. Returns a ReadableStream of
+     * HCMediaStream chunks (binary: metadata + H.264 NAL units) along with
+     * initial frame dimensions and pixel density. Only one session per window
+     * is allowed — starting a new session invalidates the previous one.
+     * @param windowId The window to stream.
      */
     @exposed
-    public async getWindowSnapshot(
-        windowId: string,
-        sinceTimestamp?: number,
-        tileSize?: number,
-        quality?: number,
-    ): Promise<RemoteAppWindowUIState> {
-        return { x: 0, y: 0, width: 0, height: 0, tiles: [] };
+    public async startStreamingSession(windowId: string): Promise<StreamingSessionInfo> {
+        throw new Error('Streaming is not supported on this device');
+    }
+
+    /**
+     * Stop a streaming session for a window.
+     * May not always be called (e.g. client disconnect); the session is
+     * automatically cleaned up on inactivity or when a new session starts.
+     */
+    @exposed
+    public async stopStreamingSession(windowId: string): Promise<void> {
+    }
+
+    /**
+     * Stream control + heartbeat. Call every ~3s to keep the stream alive.
+     * Optionally pass fps/quality to adjust the stream on the fly.
+     * If not received for ~8s the server closes the stream.
+     * @param windowId The window being streamed.
+     * @param fps Optional target frames per second.
+     * @param quality Optional 0.0-1.0 quality (maps to bitrate).
+     */
+    @exposed
+    public async streamControl(windowId: string, fps?: number, quality?: number): Promise<void> {
     }
 
     // ── Window control ──

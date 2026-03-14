@@ -4,32 +4,42 @@ import Head from 'next/head';
 import { getServiceController, buildPageConfig, cn } from '@/lib/utils';
 import { NextPageWithConfig } from '@/pages/_app';
 import { RemoteAppWindowAction } from '@/lib/enums';
-import {
-  RemoteAppWindowTile,
-  RemoteAppWindowUIState,
-  RemoteAppWindowActionPayload,
-} from 'shared/types';
+import { RemoteAppWindowActionPayload } from 'shared/types';
 import WindowFab from '@/components/windowFab';
 
-const TILE_SIZE = 64;
-const QUALITY = 0.6;
-const CAPTURE_INTERVAL_MS = 300;
+/** Decode an HCMediaStream binary chunk into metadata + payload. */
+function decodeMediaChunk(chunk: Uint8Array): { metadata: Record<string, string>; payload: Uint8Array } {
+  const metaLen = (chunk[0] << 8) | chunk[1];
+  const metaBytes = chunk.slice(2, 2 + metaLen);
+  const payload = chunk.slice(2 + metaLen);
+  const metadata: Record<string, string> = {};
+  const metaStr = new TextDecoder().decode(metaBytes);
+  if (metaStr.length > 0) {
+    for (const line of metaStr.split('\n')) {
+      const eq = line.indexOf('=');
+      if (eq > 0) metadata[line.slice(0, eq)] = line.slice(eq + 1);
+    }
+  }
+  return { metadata, payload };
+}
 
 /** Convert a mouse event on the (possibly CSS-scaled) canvas to native window coordinates. */
 function canvasToWindowCoords(
   e: React.MouseEvent<HTMLCanvasElement> | MouseEvent,
   canvas: HTMLCanvasElement,
+  dpi: number,
 ): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
+  // Canvas internal resolution is in pixels (dpi × logical),
+  // but actions use logical (point) coordinates.
+  const scaleX = (canvas.width / dpi) / rect.width;
+  const scaleY = (canvas.height / dpi) / rect.height;
   return {
     x: Math.round(((e as MouseEvent).clientX - rect.left) * scaleX),
     y: Math.round(((e as MouseEvent).clientY - rect.top) * scaleY),
   };
 }
 
-/** Extract modifier keys from a mouse/keyboard event. */
 function getModifiers(e: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean }): string[] | undefined {
   const mods: string[] = [];
   if (e.shiftKey) mods.push('shift');
@@ -38,8 +48,6 @@ function getModifiers(e: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean;
   if (e.metaKey) mods.push('cmd');
   return mods.length > 0 ? mods : undefined;
 }
-
-// ── Full-window canvas with capture loop ──
 
 const AppWindowPage: NextPageWithConfig = () => {
   const router = useRouter();
@@ -51,23 +59,21 @@ const AppWindowPage: NextPageWithConfig = () => {
   const fingerprint = useMemo(() => fingerprintStr || null, [fingerprintStr]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
-  const currentDims = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isDraggingRef = useRef(false);
-  const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastTimestampRef = useRef<number>(0);
+  const decoderRef = useRef<VideoDecoder | null>(null);
   const isMountedRef = useRef(true);
   const windowIdRef = useRef<string | undefined>(undefined);
   const fingerprintRef = useRef<string | null>(null);
+  const dpiRef = useRef<number>(1);
   const resizingFromRemoteRef = useRef(false);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDraggingRef = useRef(false);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
 
-  const [uiState, setUiState] = useState<RemoteAppWindowUIState | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasFrame, setHasFrame] = useState(false);
 
-  // Keep refs in sync
   windowIdRef.current = windowId;
   fingerprintRef.current = fingerprint;
 
@@ -76,7 +82,6 @@ const AppWindowPage: NextPageWithConfig = () => {
     return () => { isMountedRef.current = false; };
   }, []);
 
-  // Clean up hover timer on unmount
   useEffect(() => {
     return () => {
       if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
@@ -98,19 +103,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     [],
   );
 
-  // ── Sync BrowserWindow size to remote window dimensions ──
-  useEffect(() => {
-    if (!uiState) return;
-    const { width, height } = uiState;
-    if (currentDims.current.w === width && currentDims.current.h === height) return;
-    resizingFromRemoteRef.current = true;
-    window.utils?.windowControls?.resize(width, height);
-    // Reset flag after the resize event has fired
-    setTimeout(() => { resizingFromRemoteRef.current = false; }, 200);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uiState?.width, uiState?.height]);
-
-  // ── Dispatch Resize on BrowserWindow resize ──
+  // ── Resize sync ──
   useEffect(() => {
     const onResize = () => {
       if (resizingFromRemoteRef.current) return;
@@ -130,117 +123,200 @@ const AppWindowPage: NextPageWithConfig = () => {
     };
   }, [dispatchAction]);
 
-  // ── Tile rendering ──
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !uiState) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    if (currentDims.current.w !== uiState.width || currentDims.current.h !== uiState.height) {
-      canvas.width = uiState.width;
-      canvas.height = uiState.height;
-      currentDims.current = { w: uiState.width, h: uiState.height };
-      imageCache.current.forEach((img, key) => {
-        const [colStr, rowStr] = key.split('_');
-        const x = parseInt(colStr) * TILE_SIZE;
-        const y = parseInt(rowStr) * TILE_SIZE;
-        ctx.drawImage(img, x, y, img.width, img.height);
-      });
-    }
-
-    for (const tile of uiState.tiles) {
-      const key = `${tile.xIndex}_${tile.yIndex}`;
-      const cached = imageCache.current.get(key);
-      if (cached && cached.dataset.ts === String(tile.timestamp)) continue;
-
-      const img = new Image();
-      img.onload = () => {
-        img.dataset.ts = String(tile.timestamp);
-        imageCache.current.set(key, img);
-        const c = canvasRef.current;
-        if (c) {
-          const ct = c.getContext('2d');
-          ct?.drawImage(img, tile.xIndex * TILE_SIZE, tile.yIndex * TILE_SIZE, tile.width, tile.height);
-        }
-      };
-      img.src = `data:image/jpeg;base64,${tile.image}`;
-    }
-  }, [uiState]);
-
-  // ── Capture loop ──
-  const consecutiveErrorsRef = useRef(0);
-  const MAX_CONSECUTIVE_ERRORS = 5;
-
-  const captureLoop = useCallback(async () => {
-    const wId = windowIdRef.current;
-    if (!wId || !isMountedRef.current) return;
-
-    try {
-      const sc = await getServiceController(fingerprintRef.current);
-      if (wId !== windowIdRef.current || !isMountedRef.current) return;
-
-      const sinceTimestamp = lastTimestampRef.current;
-      const snapshot = await sc.apps.getWindowSnapshot(wId, sinceTimestamp, TILE_SIZE, QUALITY);
-      if (wId !== windowIdRef.current || !isMountedRef.current) return;
-
-      consecutiveErrorsRef.current = 0;
-      setIsConnecting(false);
-
-      if (sinceTimestamp > 0 && snapshot.tiles.length > 0) {
-        setUiState((prev) => {
-          if (!prev) return snapshot;
-          const tileMap = new Map<string, RemoteAppWindowTile>();
-          for (const t of prev.tiles) tileMap.set(`${t.xIndex}_${t.yIndex}`, t);
-          for (const t of snapshot.tiles) tileMap.set(`${t.xIndex}_${t.yIndex}`, t);
-          return { ...snapshot, tiles: Array.from(tileMap.values()) };
-        });
-      } else {
-        setUiState(snapshot);
-      }
-
-      if (snapshot.tiles.length > 0) {
-        const maxTs = Math.max(...snapshot.tiles.map((t) => t.timestamp));
-        lastTimestampRef.current = maxTs;
-      }
-    } catch (e: any) {
-      console.error('Capture error:', e);
-      consecutiveErrorsRef.current++;
-      if (consecutiveErrorsRef.current >= MAX_CONSECUTIVE_ERRORS) {
-        setError('Window is no longer available. It may have been closed.');
-        return;
-      }
-    }
-
-    if (isMountedRef.current && windowIdRef.current === wId) {
-      captureTimerRef.current = setTimeout(captureLoop, CAPTURE_INTERVAL_MS);
-    }
-  }, []);
-
-  // Start capture when windowId is available
+  // ── H.264 stream consumer ──
   useEffect(() => {
     if (!windowId) return;
-    lastTimestampRef.current = 0;
-    setUiState(null);
     setIsConnecting(true);
-    consecutiveErrorsRef.current = 0;
+    setError(null);
+    setHasFrame(false);
 
-    captureLoop();
+    let cancelled = false;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+    let retryCount = 0;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+    const MAX_RETRIES = 5;
 
-    return () => {
-      if (captureTimerRef.current) {
-        clearTimeout(captureTimerRef.current);
-        captureTimerRef.current = null;
+    const cleanup = () => {
+      if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+      if (reader) { reader.cancel().catch(() => {}); reader = null; }
+      readerRef.current = null;
+      if (decoderRef.current && decoderRef.current.state !== 'closed') {
+        try { decoderRef.current.close(); } catch {}
+      }
+      decoderRef.current = null;
+    };
+
+    const startStream = async () => {
+      cleanup(); // Clean up any previous decoder/reader before (re)starting
+
+      try {
+        const sc = await getServiceController(fingerprintRef.current);
+        if (cancelled) return;
+
+        const session = await sc.apps.startStreamingSession(windowId);
+        if (cancelled) return;
+
+        let currentWidth = session.width;
+        let currentHeight = session.height;
+        dpiRef.current = session.dpi || 1;
+
+        // Resize BrowserWindow to logical size
+        const logicalW = Math.round(session.width / dpiRef.current);
+        const logicalH = Math.round(session.height / dpiRef.current);
+        resizingFromRemoteRef.current = true;
+        window.utils?.windowControls?.resize(logicalW, logicalH);
+        setTimeout(() => { resizingFromRemoteRef.current = false; }, 200);
+
+        // Set up canvas
+        const canvas = canvasRef.current;
+        if (canvas) {
+          canvas.width = session.width;
+          canvas.height = session.height;
+        }
+
+        // Start heartbeat — keeps the server-side session alive
+        heartbeatTimer = setInterval(() => {
+          getServiceController(fingerprintRef.current)
+            .then(sc => sc.apps.streamControl(windowId))
+            .catch(() => {});
+        }, 3000);
+
+        // Set up VideoDecoder
+        const decoder = new VideoDecoder({
+          output: (frame: VideoFrame) => {
+            if (!isMountedRef.current) { frame.close(); return; }
+            const c = canvasRef.current;
+            if (c) {
+              const ctx = c.getContext('2d');
+              if (ctx) {
+                if (c.width !== frame.displayWidth || c.height !== frame.displayHeight) {
+                  c.width = frame.displayWidth;
+                  c.height = frame.displayHeight;
+                }
+                ctx.drawImage(frame, 0, 0);
+              }
+            }
+            frame.close();
+            if (!hasFrame) setHasFrame(true);
+            setIsConnecting(false);
+          },
+          error: (e: DOMException) => {
+            console.error('VideoDecoder error:', e);
+          },
+        });
+        decoderRef.current = decoder;
+
+        // Read the stream
+        reader = session.stream.getReader();
+        readerRef.current = reader;
+
+        let codecConfigured = false;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done || cancelled || !isMountedRef.current) break;
+
+          const { metadata, payload } = decodeMediaChunk(value);
+          const isKeyframe = metadata.type === 'keyframe';
+
+          if (metadata.dpi) dpiRef.current = Number(metadata.dpi);
+          if (metadata.width && metadata.height) {
+            const newW = Number(metadata.width);
+            const newH = Number(metadata.height);
+
+            // Only resize BrowserWindow + reconfigure decoder if dimensions actually changed
+            if (newW !== currentWidth || newH !== currentHeight) {
+              const logW = Math.round(newW / dpiRef.current);
+              const logH = Math.round(newH / dpiRef.current);
+              resizingFromRemoteRef.current = true;
+              window.utils?.windowControls?.resize(logW, logH);
+              setTimeout(() => { resizingFromRemoteRef.current = false; }, 200);
+
+              currentWidth = newW;
+              currentHeight = newH;
+
+              // Reconfigure decoder for new dimensions
+              if (isKeyframe) {
+                decoder.configure({
+                  codec: 'avc1.4D0032',
+                  codedWidth: newW,
+                  codedHeight: newH,
+                  description: undefined,
+                });
+                codecConfigured = true;
+              }
+            }
+          }
+
+          if (isKeyframe && !codecConfigured) {
+            decoder.configure({
+              codec: 'avc1.4D0032',
+              codedWidth: currentWidth,
+              codedHeight: currentHeight,
+              description: undefined,
+            });
+            codecConfigured = true;
+          }
+
+          if (!codecConfigured) continue;
+
+          const chunk = new EncodedVideoChunk({
+            type: isKeyframe ? 'key' : 'delta',
+            timestamp: Number(metadata.ts || 0) * 1000,
+            data: payload,
+          });
+
+          if (decoder.state === 'configured') {
+            decoder.decode(chunk);
+          }
+
+          // Reset retry counter on successful frame
+          retryCount = 0;
+        }
+
+        // Stream ended normally (done: true) — window may have closed
+        if (!cancelled && isMountedRef.current) {
+          setError('Window stream ended.');
+        }
+      } catch (e: any) {
+        if (cancelled || !isMountedRef.current) return;
+
+        console.error('Stream error:', e);
+        cleanup();
+
+        // Auto-reconnect with backoff
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          const delay = 1000 + retryCount * 500;
+          console.log(`Reconnecting (attempt ${retryCount}/${MAX_RETRIES}) in ${delay}ms...`);
+          setIsConnecting(true);
+          await new Promise(r => setTimeout(r, delay));
+          if (!cancelled && isMountedRef.current) {
+            startStream();
+          }
+        } else {
+          setError('Connection lost. Could not reconnect.');
+        }
       }
     };
-  }, [windowId, captureLoop, dispatchAction]);
+
+    startStream();
+
+    return () => {
+      cancelled = true;
+      cleanup();
+      // Best-effort stop session on server
+      getServiceController(fingerprintRef.current)
+        .then(sc => sc.apps.stopStreamingSession(windowId!))
+        .catch(() => {});
+    };
+  }, [windowId, dispatchAction]);
 
   // ── Mouse handlers ──
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canvasRef.current || isDraggingRef.current) return;
-      const { x, y } = canvasToWindowCoords(e, canvasRef.current);
+      const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
       dispatchAction({ action: RemoteAppWindowAction.Click, x, y, modifiers: getModifiers(e) });
     },
     [dispatchAction],
@@ -250,7 +326,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canvasRef.current) return;
       e.preventDefault();
-      const { x, y } = canvasToWindowCoords(e, canvasRef.current);
+      const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
       dispatchAction({ action: RemoteAppWindowAction.DoubleClick, x, y, modifiers: getModifiers(e) });
     },
     [dispatchAction],
@@ -260,7 +336,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canvasRef.current) return;
       e.preventDefault();
-      const { x, y } = canvasToWindowCoords(e, canvasRef.current);
+      const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
       dispatchAction({ action: RemoteAppWindowAction.RightClick, x, y, modifiers: getModifiers(e) });
     },
     [dispatchAction],
@@ -269,7 +345,6 @@ const AppWindowPage: NextPageWithConfig = () => {
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
     isDraggingRef.current = false;
-    // Ensure BrowserWindow and canvas are focused when clicking from behind
     window.focus();
     canvasRef.current?.focus();
   }, []);
@@ -277,7 +352,7 @@ const AppWindowPage: NextPageWithConfig = () => {
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canvasRef.current) return;
-      const { x, y } = canvasToWindowCoords(e, canvasRef.current);
+      const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
 
       if (e.buttons === 1) {
         if (!isDraggingRef.current) {
@@ -303,7 +378,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canvasRef.current) return;
       if (isDraggingRef.current) {
-        const { x, y } = canvasToWindowCoords(e, canvasRef.current);
+        const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
         dispatchAction({ action: RemoteAppWindowAction.DragEnd, x, y, modifiers: getModifiers(e) });
         setTimeout(() => { isDraggingRef.current = false; }, 0);
       }
@@ -315,12 +390,11 @@ const AppWindowPage: NextPageWithConfig = () => {
     if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
   }, []);
 
-  // ── Scroll (native listener for non-passive) ──
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       if (!canvasRef.current) return;
       e.preventDefault();
-      const { x, y } = canvasToWindowCoords(e, canvasRef.current);
+      const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
       const deltaX = Math.round(e.deltaX / 3);
       const deltaY = Math.round(e.deltaY / 3);
       if (deltaX === 0 && deltaY === 0) return;
@@ -329,7 +403,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     [dispatchAction],
   );
 
-  const isCanvasVisible = useMemo(() => !isConnecting || !!uiState, [isConnecting, uiState]);
+  const isCanvasVisible = useMemo(() => !isConnecting || hasFrame, [isConnecting, hasFrame]);
 
   useEffect(() => {
     if (!isCanvasVisible) return;
@@ -339,7 +413,6 @@ const AppWindowPage: NextPageWithConfig = () => {
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, [handleWheel, isCanvasVisible]);
 
-  // ── Keyboard ──
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLCanvasElement>) => {
       e.preventDefault();
@@ -379,9 +452,8 @@ const AppWindowPage: NextPageWithConfig = () => {
         className='flex flex-col w-screen h-screen bg-transparent overflow-hidden'
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        {/* Canvas area */}
         <div className='relative flex-1 flex items-center justify-center min-h-0'>
-          {isConnecting && !uiState ? (
+          {isConnecting && !hasFrame ? (
             <div className='flex flex-col items-center gap-2 text-white/60 text-sm'>
               <div className='h-6 w-6 border-2 border-white/30 border-t-white/80 rounded-full animate-spin' />
               Connecting...
@@ -404,7 +476,6 @@ const AppWindowPage: NextPageWithConfig = () => {
             />
           )}
 
-          {/* Error / disconnected overlay */}
           {error && (
             <div
               className='absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 backdrop-blur-sm z-10'
@@ -423,8 +494,7 @@ const AppWindowPage: NextPageWithConfig = () => {
             </div>
           )}
 
-          {/* Floating Action Button */}
-          {!error && uiState && <WindowFab onDispatchAction={dispatchAction} />}
+          {!error && hasFrame && <WindowFab onDispatchAction={dispatchAction} />}
         </div>
       </div>
     </>

@@ -356,21 +356,11 @@ export type RemoteAppState = {
     windows?: RemoteAppWindow[];
 }
 
-export type RemoteAppWindowTile = {
-    xIndex: number;
-    yIndex: number;
+export type StreamingSessionInfo = {
+    stream: ReadableStream<Uint8Array>;
     width: number;
     height: number;
-    image: string; // base64 encoded image of the window content
-    timestamp: number;
-}
-
-export type RemoteAppWindowUIState = {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    tiles: RemoteAppWindowTile[];
+    dpi: number;
 }
 
 export enum RemoteAppWindowAction {

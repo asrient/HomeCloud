@@ -4,11 +4,10 @@ import {
     RemoteAppInfo,
     RemoteAppWindow,
     RemoteAppState,
-    RemoteAppWindowUIState,
     RemoteAppWindowActionPayload,
 } from "shared/types";
+import type { H264FrameInfo, H264StreamResult } from "./macDriver";
 
-// Type declarations for the native module — mirrors macDriver but for Windows
 interface AppsWinModule {
     getInstalledApps(): RemoteAppInfo[];
     getRunningApps(): RemoteAppInfo[];
@@ -17,15 +16,14 @@ interface AppsWinModule {
     quitApp(appId: string): void;
     getAppIcon(appId: string): string | null;
     getWindows(appId?: string): RemoteAppWindow[];
-    captureWindow(
-        windowId: number,
-        tileSize: number,
-        quality: number,
-        sinceTimestamp: number,
-        callback: (err: Error | null, result: RemoteAppWindowUIState) => void,
-    ): void;
     performAction(payload: RemoteAppWindowActionPayload): void;
-    clearWindowCache(windowId: number): void;
+    startH264Stream(
+        windowId: number,
+        callback: (err: Error | null, frame: H264FrameInfo) => void,
+    ): H264StreamResult | null;
+    stopH264Stream(windowId: number): void;
+    setStreamFps(windowId: number, fps: number): void;
+    setStreamBitrate(windowId: number, bitrate: number): void;
     hasScreenRecordingPermission(): boolean;
     hasAccessibilityPermission(): boolean;
     requestScreenRecordingPermission(): void;
@@ -78,43 +76,34 @@ export function getWindows(appId?: string): RemoteAppWindow[] {
     return getModule().getWindows(appId);
 }
 
-// ── Window capture ──
-
-export function captureWindow(
-    windowId: number,
-    tileSize: number,
-    quality: number,
-    sinceTimestamp: number,
-): Promise<RemoteAppWindowUIState> {
-    return new Promise((resolve, reject) => {
-        getModule().captureWindow(windowId, tileSize, quality, sinceTimestamp, (err, result) => {
-            if (err) reject(err);
-            else {
-                // Convert binary JPEG buffers to base64 strings for RPC transport
-                for (const tile of result.tiles) {
-                    if (Buffer.isBuffer(tile.image)) {
-                        tile.image = (tile.image as unknown as Buffer).toString('base64');
-                    }
-                }
-                resolve(result);
-            }
-        });
-    });
-}
-
 // ── Actions ──
 
 export function performAction(payload: RemoteAppWindowActionPayload): void {
     getModule().performAction(payload);
 }
 
-// ── Cache management ──
+// ── H.264 streaming ──
 
-export function clearWindowCache(windowId: number): void {
-    getModule().clearWindowCache(windowId);
+export function startH264Stream(
+    windowId: number,
+    callback: (err: Error | null, frame: H264FrameInfo) => void,
+): H264StreamResult | null {
+    return getModule().startH264Stream(windowId, callback);
 }
 
-// ── Permissions (always true on Windows) ──
+export function stopH264Stream(windowId: number): void {
+    getModule().stopH264Stream(windowId);
+}
+
+export function setStreamFps(windowId: number, fps: number): void {
+    getModule().setStreamFps(windowId, fps);
+}
+
+export function setStreamBitrate(windowId: number, bitrate: number): void {
+    getModule().setStreamBitrate(windowId, bitrate);
+}
+
+// ── Permissions ──
 
 export function hasScreenRecordingPermission(): boolean {
     return getModule().hasScreenRecordingPermission();

@@ -29,18 +29,22 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <ApplicationServices/ApplicationServices.h>
 #import <Carbon/Carbon.h>
+#import <CoreImage/CoreImage.h>
+#import <VideoToolbox/VideoToolbox.h>
+#import <CoreMedia/CoreMedia.h>
+#import <CoreVideo/CoreVideo.h>
 #include <unordered_map>
 #include <vector>
 #include <string>
 #include <mutex>
 #include <cstring>
 #include <dispatch/dispatch.h>
-#if defined(__arm64__) || defined(__aarch64__)
-#include <arm_acle.h>
-#elif defined(__x86_64__)
-#include <nmmintrin.h>
+#if __has_include(<ScreenCaptureKit/ScreenCaptureKit.h>)
+#import <ScreenCaptureKit/ScreenCaptureKit.h>
+#define HAS_SCREENCAPTUREKIT 1
+#else
+#define HAS_SCREENCAPTUREKIT 0
 #endif
-
 // Private AX API: map AXUIElementRef → CGWindowID
 extern "C" AXError _AXUIElementGetWindow(AXUIElementRef element, uint32_t *windowID);
 
@@ -85,16 +89,285 @@ static bool isNormalCGWindow(NSDictionary *w, int minSize = 50) {
 
 
 // ──────────────────────────────────────────────
-// Tile hash cache for delta capture
+// H.264 streaming via SCStream + VideoToolbox
 // ──────────────────────────────────────────────
-struct TileHashCache {
-    std::unordered_map<uint64_t, uint64_t> hashes; // key = (col<<32|row), value = hash
-    int lastWidth = 0;
-    int lastHeight = 0;
+#if HAS_SCREENCAPTUREKIT
+
+// Thread-safe N-API callback helper: calls a JS function from any thread.
+// Uses napi_threadsafe_function to marshal calls to the main JS thread.
+struct H264StreamContext {
+    uint32_t windowId;
+    int width = 0;
+    int height = 0;
+    int dpi = 1;
+
+    // SCStream (stored as id to avoid availability warnings)
+    id stream = nil; // SCStream *
+    id streamHandler = nil; // WindowH264StreamHandler
+    dispatch_queue_t frameQueue = nil;
+
+    // VideoToolbox encoder
+    VTCompressionSessionRef vtSession = NULL;
+    bool isFirstFrame = true;
+    int targetFps = 30;
+    int targetBitrate = 15000000; // 15 Mbps default
+
+    // N-API callback
+    Napi::ThreadSafeFunction tsfn;
+    bool stopped = false;
+    std::mutex encodeMutex;   // guards VT encode calls + session lifecycle
+    std::atomic<bool> callbackStopped{false}; // lock-free flag for VT callback
 };
 
-static std::mutex g_cacheMutex;
-static std::unordered_map<uint32_t, TileHashCache> g_windowCaches; // windowId → cache
+static std::mutex g_h264Mutex;
+static std::unordered_map<uint32_t, std::shared_ptr<H264StreamContext>> g_h264Streams;
+
+// VTCompressionSession output callback — called when an encoded frame is ready
+static void vtCompressionCallback(void *outputCallbackRefCon,
+                                   void *sourceFrameRefCon,
+                                   OSStatus status,
+                                   VTEncodeInfoFlags infoFlags,
+                                   CMSampleBufferRef sampleBuffer) {
+    if (status != noErr || !sampleBuffer) return;
+
+    auto *ctx = (H264StreamContext *)outputCallbackRefCon;
+    // Use atomic flag — NOT the encodeMutex — to avoid deadlock with EncodeFrame
+    if (ctx->callbackStopped.load()) return;
+
+    // Check if keyframe
+    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, false);
+    bool isKeyframe = false;
+    if (attachments && CFArrayGetCount(attachments) > 0) {
+        CFDictionaryRef dict = (CFDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+        CFBooleanRef notSync = (CFBooleanRef)CFDictionaryGetValue(dict, kCMSampleAttachmentKey_NotSync);
+        isKeyframe = !notSync || !CFBooleanGetValue(notSync);
+    }
+
+    // Extract NAL units from the CMSampleBuffer
+    CMBlockBufferRef blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer);
+    if (!blockBuffer) return;
+
+    size_t totalLen = 0;
+    char *dataPtr = NULL;
+    OSStatus blockStatus = CMBlockBufferGetDataPointer(blockBuffer, 0, NULL, &totalLen, &dataPtr);
+    if (blockStatus != noErr || !dataPtr || totalLen == 0) return;
+
+    // For keyframes, prepend SPS and PPS from the format description
+    std::vector<uint8_t> nalData;
+
+    if (isKeyframe) {
+        CMFormatDescriptionRef formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer);
+        if (formatDesc) {
+            // SPS
+            size_t spsSize = 0;
+            const uint8_t *spsPtr = NULL;
+            size_t spsCount = 0;
+            CMVideoFormatDescriptionGetH264ParameterSetAtIndex(formatDesc, 0, &spsPtr, &spsSize, &spsCount, NULL);
+            if (spsPtr && spsSize > 0) {
+                // Annex B start code
+                nalData.push_back(0); nalData.push_back(0); nalData.push_back(0); nalData.push_back(1);
+                nalData.insert(nalData.end(), spsPtr, spsPtr + spsSize);
+            }
+            // PPS
+            size_t ppsSize = 0;
+            const uint8_t *ppsPtr = NULL;
+            CMVideoFormatDescriptionGetH264ParameterSetAtIndex(formatDesc, 1, &ppsPtr, &ppsSize, NULL, NULL);
+            if (ppsPtr && ppsSize > 0) {
+                nalData.push_back(0); nalData.push_back(0); nalData.push_back(0); nalData.push_back(1);
+                nalData.insert(nalData.end(), ppsPtr, ppsPtr + ppsSize);
+            }
+        }
+    }
+
+    // Convert AVCC (length-prefixed) NAL units to Annex B (start-code-prefixed)
+    size_t offset = 0;
+    while (offset < totalLen) {
+        uint32_t naluLen = 0;
+        memcpy(&naluLen, dataPtr + offset, 4);
+        naluLen = CFSwapInt32BigToHost(naluLen);
+        offset += 4;
+        if (naluLen > 0 && offset + naluLen <= totalLen) {
+            nalData.push_back(0); nalData.push_back(0); nalData.push_back(0); nalData.push_back(1);
+            nalData.insert(nalData.end(), (uint8_t *)dataPtr + offset, (uint8_t *)dataPtr + offset + naluLen);
+        }
+        offset += naluLen;
+    }
+
+    if (nalData.empty()) return;
+
+    // Capture values for the callback
+    int w = ctx->width;
+    int h = ctx->height;
+    int dpi = ctx->dpi;
+    bool kf = isKeyframe;
+    bool firstFrame = ctx->isFirstFrame;
+    ctx->isFirstFrame = false;
+
+    // Call JS callback via ThreadSafeFunction
+    auto naluCopy = std::make_shared<std::vector<uint8_t>>(std::move(nalData));
+    ctx->tsfn.NonBlockingCall([naluCopy, w, h, dpi, kf, firstFrame](Napi::Env env, Napi::Function cb) {
+        Napi::Object info = Napi::Object::New(env);
+        info.Set("data", Napi::Buffer<uint8_t>::Copy(env, naluCopy->data(), naluCopy->size()));
+        info.Set("isKeyframe", kf);
+        info.Set("width", w);
+        info.Set("height", h);
+        info.Set("dpi", dpi);
+        info.Set("isFirst", firstFrame);
+        info.Set("timestamp", (double)[[NSDate date] timeIntervalSince1970] * 1000.0);
+        cb.Call({env.Null(), info});
+    });
+}
+
+API_AVAILABLE(macos(12.3))
+@interface WindowH264StreamHandler : NSObject <SCStreamOutput, SCStreamDelegate>
+@end
+
+@implementation WindowH264StreamHandler {
+    std::weak_ptr<H264StreamContext> _ctxWeak;
+    dispatch_queue_t _frameQueue;
+}
+
+- (instancetype)initWithContext:(std::shared_ptr<H264StreamContext>)ctx {
+    self = [super init];
+    if (self) {
+        _ctxWeak = ctx;
+        _frameQueue = dispatch_queue_create("com.homecloud.h264stream", DISPATCH_QUEUE_SERIAL);
+    }
+    return self;
+}
+
+- (dispatch_queue_t)frameQueue {
+    return _frameQueue;
+}
+
+// SCStreamDelegate — called when the stream stops (window closed, permission revoked, etc.)
+- (void)stream:(SCStream *)stream didStopWithError:(NSError *)error {
+    auto ctx = _ctxWeak.lock();
+    if (!ctx || ctx->callbackStopped.load()) return;
+    ctx->callbackStopped.store(true);
+    // Signal JS that the stream ended
+    ctx->tsfn.NonBlockingCall([](Napi::Env env, Napi::Function cb) {
+        cb.Call({Napi::String::New(env, "Stream ended: window closed or capture stopped"), env.Null()});
+    });
+}
+
+- (void)stream:(SCStream *)stream didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer ofType:(SCStreamOutputType)type {
+    if (type != SCStreamOutputTypeScreen) return;
+    auto ctx = _ctxWeak.lock();
+    if (!ctx || ctx->stopped) return;
+
+    CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+    if (!imageBuffer) return;
+
+    int w = (int)CVPixelBufferGetWidth(imageBuffer);
+    int h = (int)CVPixelBufferGetHeight(imageBuffer);
+
+    std::lock_guard<std::mutex> lock(ctx->encodeMutex);
+    if (w != ctx->width || h != ctx->height) {
+        // Recreate encoder for new dimensions
+        if (ctx->vtSession) {
+            VTCompressionSessionCompleteFrames(ctx->vtSession, kCMTimeInvalid);
+            VTCompressionSessionInvalidate(ctx->vtSession);
+            CFRelease(ctx->vtSession);
+            ctx->vtSession = NULL;
+        }
+        ctx->width = w;
+        ctx->height = h;
+        ctx->isFirstFrame = true;
+
+        // Create new VT session
+        OSStatus status = VTCompressionSessionCreate(NULL, w, h,
+            kCMVideoCodecType_H264, NULL, NULL, NULL,
+            vtCompressionCallback, ctx.get(), &ctx->vtSession);
+        if (status != noErr || !ctx->vtSession) return;
+
+        VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_RealTime, kCFBooleanTrue);
+        VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_ProfileLevel,
+            kVTProfileLevel_H264_Main_AutoLevel);
+        VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_AllowFrameReordering,
+            kCFBooleanFalse);
+        // Zero-frame delay — output each frame immediately, don't buffer for lookahead
+        int maxDelay = 0;
+        CFNumberRef delayRef = CFNumberCreate(NULL, kCFNumberIntType, &maxDelay);
+        VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_MaxFrameDelayCount, delayRef);
+        CFRelease(delayRef);
+
+        int bitrate = ctx->targetBitrate;
+        CFNumberRef bitrateRef = CFNumberCreate(NULL, kCFNumberIntType, &bitrate);
+        VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_AverageBitRate, bitrateRef);
+        CFRelease(bitrateRef);
+
+        int fps = ctx->targetFps;
+        CFNumberRef fpsRef = CFNumberCreate(NULL, kCFNumberIntType, &fps);
+        VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_ExpectedFrameRate, fpsRef);
+        CFRelease(fpsRef);
+
+        // Keyframe every 2 seconds
+        int keyInterval = fps * 2;
+        CFNumberRef keyRef = CFNumberCreate(NULL, kCFNumberIntType, &keyInterval);
+        VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_MaxKeyFrameInterval, keyRef);
+        CFRelease(keyRef);
+
+        VTCompressionSessionPrepareToEncodeFrames(ctx->vtSession);
+    }
+
+    if (!ctx->vtSession) return;
+
+    // Encode the frame
+    CMTime pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+    CMTime dur = CMSampleBufferGetDuration(sampleBuffer);
+
+    // Force keyframe on first frame
+    NSDictionary *frameProps = nil;
+    if (ctx->isFirstFrame) {
+        frameProps = @{
+            (__bridge NSString *)kVTEncodeFrameOptionKey_ForceKeyFrame: @YES
+        };
+    }
+
+    VTCompressionSessionEncodeFrame(ctx->vtSession, imageBuffer, pts,
+        dur, (__bridge CFDictionaryRef)frameProps, NULL, NULL);
+}
+
+@end
+
+static void stopH264Stream(uint32_t windowId) API_AVAILABLE(macos(12.3)) {
+    std::shared_ptr<H264StreamContext> ctx;
+    {
+        std::lock_guard<std::mutex> lock(g_h264Mutex);
+        auto it = g_h264Streams.find(windowId);
+        if (it == g_h264Streams.end()) return;
+        ctx = it->second;
+        g_h264Streams.erase(it);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(ctx->encodeMutex);
+        ctx->stopped = true;
+        ctx->callbackStopped.store(true);
+    }
+
+    if (ctx->stream) {
+        SCStream *scStream = (SCStream *)ctx->stream;
+        dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+        [scStream stopCaptureWithCompletionHandler:^(NSError *) {
+            dispatch_semaphore_signal(sem);
+        }];
+        // Wait up to 2s for capture to actually stop
+        dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+        ctx->stream = nil;
+        ctx->streamHandler = nil;
+    }
+    if (ctx->vtSession) {
+        VTCompressionSessionCompleteFrames(ctx->vtSession, kCMTimeInvalid);
+        VTCompressionSessionInvalidate(ctx->vtSession);
+        CFRelease(ctx->vtSession);
+        ctx->vtSession = NULL;
+    }
+    ctx->tsfn.Release();
+}
+
+#endif // HAS_SCREENCAPTUREKIT
 
 // ──────────────────────────────────────────────
 // 1. Installed apps
@@ -534,246 +807,6 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
         }
         return arr;
     }
-}
-
-// ──────────────────────────────────────────────
-// 7. Capture window — tile-based with delta
-// ──────────────────────────────────────────────
-//
-// captureWindow(windowId: number, tileSize: number, quality: number, sinceTimestamp: number, callback)
-// callback(err, { x, y, width, height, tiles: [{xIndex, yIndex, width, height, image, timestamp}] })
-//
-
-class CaptureWorker : public Napi::AsyncWorker {
-public:
-    CaptureWorker(const Napi::Function &cb, uint32_t windowId, int tileSize, double quality, double sinceTimestamp)
-        : Napi::AsyncWorker(cb), windowId(windowId), tileSize(tileSize),
-          quality(quality), sinceTimestamp(sinceTimestamp) {}
-
-    void Execute() override {
-        @autoreleasepool {
-            // Capture the window
-            CGImageRef image = CGWindowListCreateImage(
-                CGRectNull,
-                kCGWindowListOptionIncludingWindow,
-                windowId,
-                kCGWindowImageBoundsIgnoreFraming | kCGWindowImageNominalResolution);
-
-            if (!image) {
-                SetError("Failed to capture window");
-                return;
-            }
-
-            imgWidth = (int)CGImageGetWidth(image);
-            imgHeight = (int)CGImageGetHeight(image);
-
-            // Get window bounds for position
-            CFArrayRef windowList = CGWindowListCopyWindowInfo(
-                kCGWindowListOptionIncludingWindow, windowId);
-            if (windowList && CFArrayGetCount(windowList) > 0) {
-                NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
-                NSDictionary *bounds = wInfo[(__bridge NSString *)kCGWindowBounds];
-                winX = [bounds[@"X"] doubleValue];
-                winY = [bounds[@"Y"] doubleValue];
-            }
-            if (windowList) CFRelease(windowList);
-
-            // Get raw pixel data
-            size_t bpp = CGImageGetBitsPerPixel(image) / 8;
-            size_t bytesPerRow = CGImageGetBytesPerRow(image);
-            CGDataProviderRef provider = CGImageGetDataProvider(image);
-            CFDataRef rawData = CGDataProviderCopyData(provider);
-            if (!rawData) {
-                CGImageRelease(image);
-                SetError("Failed to copy pixel data");
-                return;
-            }
-            const uint8_t *pixels = CFDataGetBytePtr(rawData);
-
-            int cols = (imgWidth + tileSize - 1) / tileSize;
-            int rows = (imgHeight + tileSize - 1) / tileSize;
-
-            // ── Phase 1: Hash all tiles, collect dirty list (under lock) ──
-            struct PendingTile {
-                int col, row, tileX, tileY, tw, th;
-            };
-            std::vector<PendingTile> changedTiles;
-
-            {
-                std::lock_guard<std::mutex> lock(g_cacheMutex);
-                TileHashCache &cache = g_windowCaches[windowId];
-
-                // If dimensions changed, invalidate cache
-                if (cache.lastWidth != imgWidth || cache.lastHeight != imgHeight) {
-                    cache.hashes.clear();
-                    cache.lastWidth = imgWidth;
-                    cache.lastHeight = imgHeight;
-                }
-
-                for (int row = 0; row < rows; row++) {
-                    for (int col = 0; col < cols; col++) {
-                        int tileX = col * tileSize;
-                        int tileY = row * tileSize;
-                        int tw = std::min(tileSize, imgWidth - tileX);
-                        int th = std::min(tileSize, imgHeight - tileY);
-
-                        // Compute hash of this tile's pixels (hardware CRC32)
-                        uint32_t tileHash = 0;
-                        for (int y = tileY; y < tileY + th; y++) {
-                            const uint8_t *rowPtr = pixels + y * bytesPerRow + tileX * bpp;
-                            size_t tileRowBytes = tw * bpp;
-                            size_t chunks = tileRowBytes / 8;
-                            const uint64_t *ptr64 = reinterpret_cast<const uint64_t *>(rowPtr);
-#if defined(__arm64__) || defined(__aarch64__)
-                            for (size_t c = 0; c < chunks; c++) {
-                                tileHash = __crc32cd(tileHash, ptr64[c]);
-                            }
-                            for (size_t b = chunks * 8; b < tileRowBytes; b++) {
-                                tileHash = __crc32cb(tileHash, rowPtr[b]);
-                            }
-#elif defined(__x86_64__)
-                            for (size_t c = 0; c < chunks; c++) {
-                                tileHash = (uint32_t)_mm_crc32_u64(tileHash, ptr64[c]);
-                            }
-                            for (size_t b = chunks * 8; b < tileRowBytes; b++) {
-                                tileHash = _mm_crc32_u8(tileHash, rowPtr[b]);
-                            }
-#else
-                            for (size_t c = 0; c < chunks; c++) {
-                                tileHash ^= (uint32_t)(ptr64[c] ^ (ptr64[c] >> 32));
-                                tileHash *= 16777619u;
-                            }
-                            for (size_t b = chunks * 8; b < tileRowBytes; b++) {
-                                tileHash ^= rowPtr[b];
-                                tileHash *= 16777619u;
-                            }
-#endif
-                        }
-
-                        uint64_t key = ((uint64_t)col << 32) | (uint64_t)row;
-                        auto it = cache.hashes.find(key);
-                        bool changed = (it == cache.hashes.end()) || (it->second != tileHash);
-
-                        // If delta mode and tile hasn't changed, skip
-                        if (sinceTimestamp > 0 && !changed) continue;
-
-                        cache.hashes[key] = tileHash;
-                        changedTiles.push_back({col, row, tileX, tileY, tw, th});
-                    }
-                }
-            } // mutex released
-
-            // ── Phase 2: JPEG-encode dirty tiles in parallel via GCD ──
-            double now = [[NSDate date] timeIntervalSince1970] * 1000.0;
-            size_t count = changedTiles.size();
-            tiles.resize(count);
-
-            // Initialize all tiles as failed; successful encodes overwrite
-            for (size_t i = 0; i < count; i++) {
-                tiles[i].width = 0;
-            }
-
-            auto encodeOneTile = [&](size_t i) {
-                @autoreleasepool {
-                    auto &ct = changedTiles[i];
-                    CGRect tileRect = CGRectMake(ct.tileX, ct.tileY, ct.tw, ct.th);
-                    CGImageRef tileImage = CGImageCreateWithImageInRect(image, tileRect);
-                    if (!tileImage) return;
-
-                    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:tileImage];
-                    NSDictionary *props = @{NSImageCompressionFactor: @(quality)};
-                    NSData *jpegData = [rep representationUsingType:NSBitmapImageFileTypeJPEG properties:props];
-                    CGImageRelease(tileImage);
-
-                    if (!jpegData) return;
-
-                    tiles[i].xIndex = ct.col;
-                    tiles[i].yIndex = ct.row;
-                    tiles[i].width = ct.tw;
-                    tiles[i].height = ct.th;
-                    const uint8_t *bytes = (const uint8_t *)[jpegData bytes];
-                    tiles[i].imageData.assign(bytes, bytes + [jpegData length]);
-                    tiles[i].timestamp = now;
-                }
-            };
-
-            if (count >= 3) {
-                dispatch_apply(count, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^(size_t i) {
-                    encodeOneTile(i);
-                });
-            } else {
-                for (size_t i = 0; i < count; i++) {
-                    encodeOneTile(i);
-                }
-            }
-
-            // Remove failed tiles (width == 0)
-            tiles.erase(std::remove_if(tiles.begin(), tiles.end(),
-                [](const TileResult &t) { return t.width == 0; }), tiles.end());
-
-            CFRelease(rawData);
-            CGImageRelease(image);
-        }
-    }
-
-    void OnOK() override {
-        Napi::HandleScope scope(Env());
-        Napi::Object result = Napi::Object::New(Env());
-        result.Set("x", winX);
-        result.Set("y", winY);
-        result.Set("width", imgWidth);
-        result.Set("height", imgHeight);
-
-        Napi::Array tilesArr = Napi::Array::New(Env(), tiles.size());
-        for (size_t i = 0; i < tiles.size(); i++) {
-            Napi::Object t = Napi::Object::New(Env());
-            t.Set("xIndex", tiles[i].xIndex);
-            t.Set("yIndex", tiles[i].yIndex);
-            t.Set("width", tiles[i].width);
-            t.Set("height", tiles[i].height);
-            t.Set("image", Napi::Buffer<uint8_t>::Copy(
-                Env(), tiles[i].imageData.data(), tiles[i].imageData.size()));
-            t.Set("timestamp", tiles[i].timestamp);
-            tilesArr.Set(i, t);
-        }
-        result.Set("tiles", tilesArr);
-        Callback().Call({Env().Null(), result});
-    }
-
-private:
-    uint32_t windowId;
-    int tileSize;
-    double quality;
-    double sinceTimestamp;
-    int imgWidth = 0;
-    int imgHeight = 0;
-    double winX = 0;
-    double winY = 0;
-
-    struct TileResult {
-        int xIndex, yIndex, width, height;
-        std::vector<uint8_t> imageData;
-        double timestamp;
-    };
-    std::vector<TileResult> tiles;
-};
-
-static Napi::Value CaptureWindow(const Napi::CallbackInfo &info) {
-    Napi::Env env = info.Env();
-    if (info.Length() < 5) {
-        Napi::TypeError::New(env, "Expected (windowId, tileSize, quality, sinceTimestamp, callback)")
-            .ThrowAsJavaScriptException();
-        return env.Null();
-    }
-    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
-    int tileSize = info[1].As<Napi::Number>().Int32Value();
-    double quality = info[2].As<Napi::Number>().DoubleValue();
-    double sinceTimestamp = info[3].As<Napi::Number>().DoubleValue();
-    Napi::Function cb = info[4].As<Napi::Function>();
-
-    auto *worker = new CaptureWorker(cb, windowId, tileSize, quality, sinceTimestamp);
-    worker->Queue();
-    return env.Undefined();
 }
 
 // ──────────────────────────────────────────────
@@ -1271,14 +1304,25 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
 static Napi::Value HasScreenRecordingPermission(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
     @autoreleasepool {
-        // Try to capture a 1x1 region — if screen recording is denied this returns NULL
-        CGImageRef img = CGWindowListCreateImage(
-            CGRectMake(0, 0, 1, 1),
-            kCGWindowListOptionOnScreenOnly,
-            kCGNullWindowID,
-            kCGWindowImageDefault);
-        bool hasPermission = (img != NULL);
-        if (img) CGImageRelease(img);
+        // Check if we can read window names from CGWindowList.
+        // Without screen recording permission, kCGWindowName is nil for other apps.
+        CFArrayRef windowList = CGWindowListCopyWindowInfo(
+            kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+            kCGNullWindowID);
+        if (!windowList) return Napi::Boolean::New(env, false);
+        NSArray *wl = (__bridge NSArray *)windowList;
+        bool hasPermission = false;
+        for (NSDictionary *w in wl) {
+            // Skip our own process — we can always read our own window names
+            pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
+            if (wPid == [[NSProcessInfo processInfo] processIdentifier]) continue;
+            // If we can read any other app's window name, permission is granted
+            if (w[(__bridge NSString *)kCGWindowName] != nil) {
+                hasPermission = true;
+                break;
+            }
+        }
+        CFRelease(windowList);
         return Napi::Boolean::New(env, hasPermission);
     }
 }
@@ -1313,6 +1357,193 @@ static Napi::Value RequestAccessibilityPermission(const Napi::CallbackInfo &info
 }
 
 // ──────────────────────────────────────────────
+// 10. H.264 stream management
+// ──────────────────────────────────────────────
+
+// startH264Stream(windowId, callback): starts SCStream + VT H.264 encoding.
+// callback(err, { data: Buffer, isKeyframe, width, height, dpi, isFirst, timestamp })
+static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsFunction()) {
+        Napi::TypeError::New(env, "Expected (windowId, callback)").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
+    Napi::Function callback = info[1].As<Napi::Function>();
+
+#if HAS_SCREENCAPTUREKIT
+    if (@available(macOS 12.3, *)) {
+        // Stop any existing stream
+        {
+            std::lock_guard<std::mutex> lock(g_h264Mutex);
+            auto it = g_h264Streams.find(windowId);
+            if (it != g_h264Streams.end()) {
+                // Will be cleaned up below
+            }
+        }
+        stopH264Stream(windowId);
+
+        auto ctx = std::make_shared<H264StreamContext>();
+        ctx->windowId = windowId;
+        ctx->dpi = (int)[[NSScreen mainScreen] backingScaleFactor];
+
+        // Create thread-safe function for calling back to JS
+        ctx->tsfn = Napi::ThreadSafeFunction::New(env, callback, "H264StreamCB", 0, 1);
+
+        __block bool success = false;
+        __block int outWidth = 0, outHeight = 0;
+        dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+
+        [SCShareableContent getShareableContentWithCompletionHandler:
+            ^(SCShareableContent *content, NSError *error) {
+            if (error || !content) {
+                dispatch_semaphore_signal(sem);
+                return;
+            }
+            SCWindow *targetWindow = nil;
+            for (SCWindow *w in content.windows) {
+                if (w.windowID == windowId) {
+                    targetWindow = w;
+                    break;
+                }
+            }
+            if (!targetWindow || targetWindow.frame.size.width == 0 || targetWindow.frame.size.height == 0) {
+                dispatch_semaphore_signal(sem);
+                return;
+            }
+
+            int scaleFactor = ctx->dpi;
+            int w = (int)(targetWindow.frame.size.width * scaleFactor);
+            int h = (int)(targetWindow.frame.size.height * scaleFactor);
+            outWidth = w;
+            outHeight = h;
+
+            SCContentFilter *filter = [[SCContentFilter alloc]
+                initWithDesktopIndependentWindow:targetWindow];
+            SCStreamConfiguration *config = [[SCStreamConfiguration alloc] init];
+            config.width = (size_t)w;
+            config.height = (size_t)h;
+            config.scalesToFit = YES;
+            config.showsCursor = NO;
+            config.pixelFormat = kCVPixelFormatType_32BGRA;
+            config.minimumFrameInterval = CMTimeMake(1, ctx->targetFps);
+
+            WindowH264StreamHandler *handler = [[WindowH264StreamHandler alloc] initWithContext:ctx];
+            SCStream *scStream = [[SCStream alloc] initWithFilter:filter configuration:config delegate:handler];
+
+            NSError *addOutputErr = nil;
+            [scStream addStreamOutput:handler type:SCStreamOutputTypeScreen
+                sampleHandlerQueue:[handler frameQueue] error:&addOutputErr];
+            if (addOutputErr) {
+                dispatch_semaphore_signal(sem);
+                return;
+            }
+
+            ctx->stream = scStream;
+            ctx->streamHandler = handler;
+
+            [scStream startCaptureWithCompletionHandler:^(NSError *startErr) {
+                if (!startErr) {
+                    std::lock_guard<std::mutex> lock(g_h264Mutex);
+                    g_h264Streams[windowId] = ctx;
+                    success = true;
+                }
+                dispatch_semaphore_signal(sem);
+            }];
+        }];
+
+        dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+
+        if (success) {
+            Napi::Object result = Napi::Object::New(env);
+            result.Set("width", outWidth);
+            result.Set("height", outHeight);
+            result.Set("dpi", ctx->dpi);
+            return result;
+        }
+
+        // Failed — release TSFN
+        ctx->tsfn.Release();
+        return env.Null();
+    }
+#endif
+    Napi::Error::New(env, "H.264 streaming requires macOS 12.3+ with ScreenCaptureKit").ThrowAsJavaScriptException();
+    return env.Null();
+}
+
+static Napi::Value StopH264Stream(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        return env.Undefined();
+    }
+    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
+#if HAS_SCREENCAPTUREKIT
+    if (@available(macOS 12.3, *)) {
+        stopH264Stream(windowId);
+    }
+#endif
+    return env.Undefined();
+}
+
+static Napi::Value SetStreamFps(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) return env.Undefined();
+    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
+    int fps = info[1].As<Napi::Number>().Int32Value();
+    if (fps < 1 || fps > 120) return env.Undefined();
+
+    std::lock_guard<std::mutex> lock(g_h264Mutex);
+    auto it = g_h264Streams.find(windowId);
+    if (it == g_h264Streams.end()) return env.Undefined();
+    auto &ctx = it->second;
+
+    std::lock_guard<std::mutex> ctxLock(ctx->encodeMutex);
+    ctx->targetFps = fps;
+    if (ctx->vtSession) {
+        CFNumberRef fpsRef = CFNumberCreate(NULL, kCFNumberIntType, &fps);
+        VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_ExpectedFrameRate, fpsRef);
+        CFRelease(fpsRef);
+        int keyInterval = fps * 2;
+        CFNumberRef keyRef = CFNumberCreate(NULL, kCFNumberIntType, &keyInterval);
+        VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_MaxKeyFrameInterval, keyRef);
+        CFRelease(keyRef);
+    }
+    // Update SCStream frame interval
+#if HAS_SCREENCAPTUREKIT
+    if (@available(macOS 12.3, *)) {
+        if (ctx->stream) {
+            SCStreamConfiguration *config = [[SCStreamConfiguration alloc] init];
+            config.minimumFrameInterval = CMTimeMake(1, fps);
+            [(SCStream *)ctx->stream updateConfiguration:config completionHandler:nil];
+        }
+    }
+#endif
+    return env.Undefined();
+}
+
+static Napi::Value SetStreamBitrate(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) return env.Undefined();
+    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
+    int bitrate = info[1].As<Napi::Number>().Int32Value();
+    if (bitrate < 100000) return env.Undefined(); // min 100kbps
+
+    std::lock_guard<std::mutex> lock(g_h264Mutex);
+    auto it = g_h264Streams.find(windowId);
+    if (it == g_h264Streams.end()) return env.Undefined();
+    auto &ctx = it->second;
+
+    std::lock_guard<std::mutex> ctxLock(ctx->encodeMutex);
+    ctx->targetBitrate = bitrate;
+    if (ctx->vtSession) {
+        CFNumberRef brRef = CFNumberCreate(NULL, kCFNumberIntType, &bitrate);
+        VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_AverageBitRate, brRef);
+        CFRelease(brRef);
+    }
+    return env.Undefined();
+}
+
+// ──────────────────────────────────────────────
 // Module init
 // ──────────────────────────────────────────────
 
@@ -1324,12 +1555,15 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("quitApp", Napi::Function::New(env, QuitApp));
     exports.Set("getAppIcon", Napi::Function::New(env, GetAppIcon));
     exports.Set("getWindows", Napi::Function::New(env, GetWindows));
-    exports.Set("captureWindow", Napi::Function::New(env, CaptureWindow));
     exports.Set("performAction", Napi::Function::New(env, PerformAction));
     exports.Set("hasScreenRecordingPermission", Napi::Function::New(env, HasScreenRecordingPermission));
     exports.Set("hasAccessibilityPermission", Napi::Function::New(env, HasAccessibilityPermission));
     exports.Set("requestScreenRecordingPermission", Napi::Function::New(env, RequestScreenRecordingPermission));
     exports.Set("requestAccessibilityPermission", Napi::Function::New(env, RequestAccessibilityPermission));
+    exports.Set("startH264Stream", Napi::Function::New(env, StartH264Stream));
+    exports.Set("stopH264Stream", Napi::Function::New(env, StopH264Stream));
+    exports.Set("setStreamFps", Napi::Function::New(env, SetStreamFps));
+    exports.Set("setStreamBitrate", Napi::Function::New(env, SetStreamBitrate));
     return exports;
 }
 

@@ -3,20 +3,21 @@ import {
     RemoteAppInfo,
     RemoteAppWindow,
     RemoteAppState,
-    RemoteAppWindowUIState,
     RemoteAppWindowActionPayload,
+    StreamingSessionInfo,
 } from "shared/types";
+import { encodeMediaChunk } from "shared/mediaStream";
 import { serviceStartMethod, serviceStopMethod, exposed } from "shared/servicePrimatives";
 import * as macDriver from "./macDriver";
 import * as winDriver from "./winDriver";
 import { powerSaveBlocker } from "electron";
 
-const DEFAULT_TILE_SIZE = 64;
-const DEFAULT_QUALITY = 0.6;
-const POLL_INTERVAL = 5_000;       // 5 seconds
-const POLL_IDLE_TIMEOUT = 180_000; // 3 minutes
-const WINDOW_POLL_INTERVAL = 3_000; // 3 seconds
-const WINDOW_POLL_IDLE_TIMEOUT = 180_000; // 3 minutes
+const POLL_INTERVAL = 5_000;
+const POLL_IDLE_TIMEOUT = 180_000;
+const WINDOW_POLL_INTERVAL = 3_000;
+const WINDOW_POLL_IDLE_TIMEOUT = 180_000;
+const SESSION_HEARTBEAT_TIMEOUT = 8_000; // 8s — close stream if no heartbeat from client
+const DEFAULT_BITRATE = 15_000_000; // 15 Mbps — good for 2x Retina screen content
 
 const isMac = process.platform === "darwin";
 const isWin = process.platform === "win32";
@@ -27,6 +28,12 @@ function getDriver() {
     throw new Error("Apps service is not supported on this platform");
 }
 
+interface StreamSession {
+    windowId: string;
+    controller: ReadableStreamDefaultController<Uint8Array> | null;
+    lastHeartbeat: number;
+}
+
 export default class DesktopAppsService extends AppsService {
 
     private installedAppsCache: RemoteAppInfo[] | null = null;
@@ -34,18 +41,19 @@ export default class DesktopAppsService extends AppsService {
     private pollTimer: ReturnType<typeof setInterval> | null = null;
     private lastRunningAppsCall = 0;
 
-    // Per-app window tracking
     private windowWatchers = new Map<string, {
         timer: ReturnType<typeof setInterval>;
         windowIds: Set<string>;
         lastAccess: number;
     }>();
 
-    // Prevent display sleep/lock during active capture sessions
+    private windowSessions = new Map<string, StreamSession>();
+    private sessionCleanupTimer: ReturnType<typeof setInterval> | null = null;
+
     private powerBlockerId: number | null = null;
     private lastCaptureTime = 0;
     private powerBlockerTimer: ReturnType<typeof setInterval> | null = null;
-    private static readonly POWER_BLOCKER_TIMEOUT = 10_000; // Release after 10s of no captures
+    private static readonly POWER_BLOCKER_TIMEOUT = 10_000;
 
     @exposed
     public override async isAvailable(): Promise<boolean> {
@@ -66,11 +74,6 @@ export default class DesktopAppsService extends AppsService {
         return getDriver().getRunningApps();
     }
 
-    /**
-     * Start watching running apps changes.
-     * Polls every 5s and dispatches runningAppsChanged when apps open/close.
-     * Auto-stops after 3 min of inactivity.
-     */
     @exposed
     public async watchRunningApps(): Promise<void> {
         this.lastRunningAppsCall = Date.now();
@@ -115,8 +118,6 @@ export default class DesktopAppsService extends AppsService {
         return getDriver().getAppState(appId);
     }
 
-    // ── App lifecycle ──
-
     @exposed
     public async launchApp(appId: string): Promise<void> {
         getDriver().launchApp(appId);
@@ -136,18 +137,11 @@ export default class DesktopAppsService extends AppsService {
         }
     }
 
-    // ── Window enumeration ──
-
     @exposed
     public async getWindows(appId?: string): Promise<RemoteAppWindow[]> {
         return getDriver().getWindows(appId);
     }
 
-    /**
-     * Start watching window changes for a given app.
-     * Polls every 3s and dispatches windowsChanged when windows open/close.
-     * Auto-stops after 3 min of inactivity.
-     */
     @exposed
     public async watchWindows(appId: string): Promise<void> {
         const existing = this.windowWatchers.get(appId);
@@ -192,14 +186,140 @@ export default class DesktopAppsService extends AppsService {
         }
     }
 
-    // ── Window capture ──
+    // ── H.264 Window Streaming ──
+
+    @exposed
+    public async startStreamingSession(windowId: string): Promise<StreamingSessionInfo> {
+        const driver = getDriver();
+        if (isMac) {
+            if (!driver.hasScreenRecordingPermission()) {
+                throw new Error("Screen recording permission is required. Grant it in System Settings > Privacy & Security > Screen Recording.");
+            }
+            if (!driver.hasAccessibilityPermission()) {
+                throw new Error("Accessibility permission is required for remote control. Grant it in System Settings > Privacy & Security > Accessibility.");
+            }
+        }
+
+        const numId = isMac ? parseInt(windowId, 10) : Number(windowId);
+
+        // Stop any existing session for this window
+        await this.stopStreamingSession(windowId);
+
+        // Create a ReadableStream that will receive H.264 chunks
+        let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                streamController = controller;
+            },
+            cancel: () => {
+                this.stopStreamingSession(windowId).catch(() => {});
+            },
+        });
+
+        // Start native H.264 stream
+        const result = driver.startH264Stream(numId, (err, frame) => {
+            if (err || !frame) return;
+            const session = this.windowSessions.get(windowId);
+            if (!session || !session.controller) return;
+
+            session.lastHeartbeat = Date.now();
+            this.lastCaptureTime = Date.now();
+
+            // Encode as HCMediaStream chunk
+            const metadata: Record<string, string> = {
+                type: frame.isKeyframe ? 'keyframe' : 'delta',
+                ts: String(frame.timestamp),
+            };
+            // Send dimensions on every keyframe — handles resize, monitor change, DPI change
+            if (frame.isKeyframe) {
+                metadata.width = String(frame.width);
+                metadata.height = String(frame.height);
+                metadata.dpi = String(frame.dpi);
+            }
+
+            try {
+                const chunk = encodeMediaChunk(metadata, frame.data);
+                session.controller.enqueue(chunk);
+            } catch {
+                // Stream closed (client disconnected / cancelled) — stop the native encoder
+                this.stopStreamingSession(windowId).catch(() => {});
+            }
+        });
+
+        if (!result) {
+            throw new Error("Failed to start H.264 stream");
+        }
+
+        const session: StreamSession = {
+            windowId,
+            controller: streamController,
+            lastHeartbeat: Date.now(),
+        };
+        this.windowSessions.set(windowId, session);
+
+        this.startPowerBlocker();
+        this.ensureSessionCleanup();
+
+        return {
+            stream,
+            width: result.width,
+            height: result.height,
+            dpi: result.dpi,
+        };
+    }
+
+    @exposed
+    public async stopStreamingSession(windowId: string): Promise<void> {
+        const session = this.windowSessions.get(windowId);
+        if (!session) return;
+
+        this.windowSessions.delete(windowId);
+        const numId = isMac ? parseInt(windowId, 10) : Number(windowId);
+        try { getDriver().stopH264Stream(numId); } catch {}
+        try { session.controller?.close(); } catch {}
+    }
+
+    @exposed
+    public async streamControl(windowId: string, fps?: number, quality?: number): Promise<void> {
+        const session = this.windowSessions.get(windowId);
+        if (session) session.lastHeartbeat = Date.now();
+
+        const numId = isMac ? parseInt(windowId, 10) : Number(windowId);
+        const driver = getDriver();
+
+        if (fps != null && fps > 0) {
+            driver.setStreamFps(numId, fps);
+        }
+        if (quality != null && quality >= 0 && quality <= 1) {
+            const minBitrate = 2_000_000;   // 2 Mbps
+            const maxBitrate = 30_000_000;  // 30 Mbps
+            const bitrate = Math.round(minBitrate + quality * (maxBitrate - minBitrate));
+            driver.setStreamBitrate(numId, bitrate);
+        }
+    }
+
+    private ensureSessionCleanup(): void {
+        if (this.sessionCleanupTimer) return;
+        this.sessionCleanupTimer = setInterval(() => {
+            const now = Date.now();
+            for (const [windowId, session] of this.windowSessions) {
+                if (now - session.lastHeartbeat > SESSION_HEARTBEAT_TIMEOUT) {
+                    console.log(`No heartbeat for window ${windowId}, closing stream.`);
+                    this.stopStreamingSession(windowId);
+                }
+            }
+            if (this.windowSessions.size === 0) {
+                clearInterval(this.sessionCleanupTimer!);
+                this.sessionCleanupTimer = null;
+            }
+        }, 10_000);
+    }
+
+    // ── Power management ──
 
     private startPowerBlocker() {
         if (this.powerBlockerId !== null && powerSaveBlocker.isStarted(this.powerBlockerId)) return;
         this.powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-        console.log('PowerSaveBlocker started (prevent-display-sleep) id:', this.powerBlockerId);
-
-        // Start a timer to auto-release if captures stop
         if (!this.powerBlockerTimer) {
             this.powerBlockerTimer = setInterval(() => {
                 if (Date.now() - this.lastCaptureTime > DesktopAppsService.POWER_BLOCKER_TIMEOUT) {
@@ -216,30 +336,8 @@ export default class DesktopAppsService extends AppsService {
         }
         if (this.powerBlockerId !== null && powerSaveBlocker.isStarted(this.powerBlockerId)) {
             powerSaveBlocker.stop(this.powerBlockerId);
-            console.log('PowerSaveBlocker stopped, id:', this.powerBlockerId);
         }
         this.powerBlockerId = null;
-    }
-
-    @exposed
-    public async getWindowSnapshot(
-        windowId: string,
-        sinceTimestamp?: number,
-        tileSize?: number,
-        quality?: number,
-    ): Promise<RemoteAppWindowUIState> {
-        this.lastCaptureTime = Date.now();
-        this.startPowerBlocker();
-
-        const driver = getDriver();
-        // On Windows, windowId is a stringified HWND (uintptr_t), use parseInt for compat
-        const numId = isMac ? parseInt(windowId, 10) : Number(windowId);
-        return driver.captureWindow(
-            numId,
-            tileSize ?? DEFAULT_TILE_SIZE,
-            quality ?? DEFAULT_QUALITY,
-            sinceTimestamp ?? 0,
-        );
     }
 
     // ── Window control ──
@@ -253,20 +351,12 @@ export default class DesktopAppsService extends AppsService {
 
     @exposed
     public async hasScreenRecordingPermission(): Promise<boolean> {
-        try {
-            return getDriver().hasScreenRecordingPermission();
-        } catch {
-            return false;
-        }
+        try { return getDriver().hasScreenRecordingPermission(); } catch { return false; }
     }
 
     @exposed
     public async hasAccessibilityPermission(): Promise<boolean> {
-        try {
-            return getDriver().hasAccessibilityPermission();
-        } catch {
-            return false;
-        }
+        try { return getDriver().hasAccessibilityPermission(); } catch { return false; }
     }
 
     @exposed
@@ -290,6 +380,13 @@ export default class DesktopAppsService extends AppsService {
         this.stopPowerBlocker();
         for (const appId of this.windowWatchers.keys()) {
             this.stopWindowWatcher(appId);
+        }
+        for (const windowId of [...this.windowSessions.keys()]) {
+            this.stopStreamingSession(windowId);
+        }
+        if (this.sessionCleanupTimer) {
+            clearInterval(this.sessionCleanupTimer);
+            this.sessionCleanupTimer = null;
         }
         console.log("AppsService stopped.");
     }
