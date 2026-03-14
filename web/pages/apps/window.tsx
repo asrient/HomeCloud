@@ -148,13 +148,17 @@ const AppWindowPage: NextPageWithConfig = () => {
 
     const startStream = async () => {
       cleanup(); // Clean up any previous decoder/reader before (re)starting
+      console.log('[WindowStream] startStream called, windowId:', windowId, 'fingerprint:', fingerprintRef.current);
 
       try {
+        console.log('[WindowStream] getting service controller...');
         const sc = await getServiceController(fingerprintRef.current);
-        if (cancelled) return;
+        if (cancelled) { console.log('[WindowStream] cancelled after getServiceController'); return; }
 
+        console.log('[WindowStream] calling startStreamingSession...');
         const session = await sc.apps.startStreamingSession(windowId);
-        if (cancelled) return;
+        if (cancelled) { console.log('[WindowStream] cancelled after startStreamingSession'); return; }
+        console.log('[WindowStream] session started:', { width: session.width, height: session.height, dpi: session.dpi, hasStream: !!session.stream });
 
         let currentWidth = session.width;
         let currentHeight = session.height;
@@ -182,6 +186,7 @@ const AppWindowPage: NextPageWithConfig = () => {
         }, 3000);
 
         // Set up VideoDecoder
+        console.log('[WindowStream] setting up VideoDecoder...');
         const decoder = new VideoDecoder({
           output: (frame: VideoFrame) => {
             if (!isMountedRef.current) { frame.close(); return; }
@@ -201,23 +206,34 @@ const AppWindowPage: NextPageWithConfig = () => {
             setIsConnecting(false);
           },
           error: (e: DOMException) => {
-            console.error('VideoDecoder error:', e);
+            console.error('[WindowStream] VideoDecoder error:', e?.message || e);
           },
         });
         decoderRef.current = decoder;
+        console.log('[WindowStream] VideoDecoder created, state:', decoder.state);
 
         // Read the stream
         reader = session.stream.getReader();
         readerRef.current = reader;
+        console.log('[WindowStream] stream reader created, starting read loop...');
 
         let codecConfigured = false;
+        let frameCount = 0;
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done || cancelled || !isMountedRef.current) break;
+          if (done || cancelled || !isMountedRef.current) {
+            console.log('[WindowStream] read loop exit, done:', done, 'cancelled:', cancelled, 'mounted:', isMountedRef.current);
+            break;
+          }
 
+          frameCount++;
           const { metadata, payload } = decodeMediaChunk(value);
           const isKeyframe = metadata.type === 'keyframe';
+
+          if (frameCount <= 5 || frameCount % 60 === 0) {
+            console.log(`[WindowStream] frame #${frameCount}: type=${metadata.type} payload=${payload.byteLength}B decoder=${decoder.state}`, metadata.width ? `${metadata.width}x${metadata.height}` : '');
+          }
 
           if (metadata.dpi) dpiRef.current = Number(metadata.dpi);
           if (metadata.width && metadata.height) {
@@ -276,12 +292,13 @@ const AppWindowPage: NextPageWithConfig = () => {
 
         // Stream ended normally (done: true) — window may have closed
         if (!cancelled && isMountedRef.current) {
+          console.log('[WindowStream] stream ended normally after', frameCount, 'frames');
           setError('Window stream ended.');
         }
       } catch (e: any) {
         if (cancelled || !isMountedRef.current) return;
 
-        console.error('Stream error:', e);
+        console.error('[WindowStream] Stream error:', e?.message || e, e?.stack);
         cleanup();
 
         // Auto-reconnect with backoff

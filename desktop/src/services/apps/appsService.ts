@@ -214,11 +214,19 @@ export default class DesktopAppsService extends AppsService {
         });
 
         // Start native H.264 stream
+        let frameCount = 0;
         const result = driver.startH264Stream(numId, (err, frame) => {
-            if (err || !frame) return;
+            if (err || !frame) {
+                if (err) console.error(`[AppsService] H264 stream callback error:`, err);
+                return;
+            }
             const session = this.windowSessions.get(windowId);
-            if (!session || !session.controller) return;
+            if (!session || !session.controller) {
+                if (frameCount === 0) console.warn(`[AppsService] Frame arrived but no session/controller for ${windowId}`);
+                return;
+            }
 
+            frameCount++;
             this.lastCaptureTime = Date.now();
 
             // Encode as HCMediaStream chunk
@@ -239,11 +247,17 @@ export default class DesktopAppsService extends AppsService {
             try {
                 const chunk = encodeMediaChunk(metadata, frame.data);
                 session.controller.enqueue(chunk);
-            } catch {
+                if (frameCount <= 3 || frameCount % 100 === 0) {
+                    console.log(`[AppsService] frame #${frameCount}: ${frame.isKeyframe ? 'keyframe' : 'delta'} ${frame.data.byteLength}B ${frame.width}x${frame.height}`);
+                }
+            } catch (e) {
+                console.error(`[AppsService] enqueue failed after ${frameCount} frames:`, e);
                 // Stream closed (client disconnected / cancelled) — stop the native encoder
                 this.stopStreamingSession(windowId).catch(() => {});
             }
         });
+
+        console.log(`[AppsService] startH264Stream result:`, result ? { width: result.width, height: result.height, dpi: result.dpi } : 'null');
 
         if (!result) {
             throw new Error("Failed to start H.264 stream");
@@ -271,7 +285,7 @@ export default class DesktopAppsService extends AppsService {
     public async stopStreamingSession(windowId: string): Promise<void> {
         const session = this.windowSessions.get(windowId);
         if (!session) return;
-
+        console.log(`[AppsService] stopStreamingSession: ${windowId}`);
         this.windowSessions.delete(windowId);
         const numId = isMac ? parseInt(windowId, 10) : Number(windowId);
         try { getDriver().stopH264Stream(numId); } catch {}
