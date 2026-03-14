@@ -58,7 +58,9 @@
 #include <mfidl.h>
 #include <mfreadwrite.h>
 #include <mftransform.h>
+#include <mferror.h>
 #include <codecapi.h>
+#include <icodecapi.h>
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "windowsapp.lib")
