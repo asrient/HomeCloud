@@ -381,7 +381,7 @@ function WindowCanvas({
                 source={{ uri: frameState.frameUri }}
                 style={{ width: displayWidth, height: displayHeight }}
                 contentFit="contain"
-                cachePolicy="none"
+                cachePolicy="memory"
             />
 
             {/* Pointer cursor overlay in pointer mode */}

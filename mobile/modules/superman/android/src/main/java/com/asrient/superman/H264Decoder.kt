@@ -229,7 +229,9 @@ class H264Decoder {
 
     /**
      * Basic SPS dimension parsing. Returns (width, height).
-     * Falls back to 1920x1080 if parsing fails.
+     * Falls back to 1920x1080 which is used only for initial MediaCodec configuration.
+     * MediaCodec adapts to actual stream dimensions from the SPS/PPS data in csd-0/csd-1,
+     * so this fallback is safe — the decoder will produce correctly sized output regardless.
      */
     private fun parseSPSDimensions(sps: ByteArray): Pair<Int, Int> {
         try {

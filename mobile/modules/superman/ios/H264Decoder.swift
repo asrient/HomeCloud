@@ -149,21 +149,25 @@ class H264Decoder {
         lastPPS = pps
 
         // Create format description from SPS/PPS
+        // Use contiguous arrays to ensure pointer stability during the C API call
+        let spsBytes = [UInt8](sps)
+        let ppsBytes = [UInt8](pps)
         var formatDesc: CMVideoFormatDescription?
-        let parameterSets: [Data] = [sps, pps]
-        let parameterSetPointers: [UnsafePointer<UInt8>] = parameterSets.map {
-            $0.withUnsafeBytes { $0.baseAddress!.assumingMemoryBound(to: UInt8.self) }
-        }
-        let parameterSetSizes: [Int] = parameterSets.map { $0.count }
 
-        let status = CMVideoFormatDescriptionCreateFromH264ParameterSets(
-            allocator: kCFAllocatorDefault,
-            parameterSetCount: 2,
-            parameterSetPointers: parameterSetPointers,
-            parameterSetSizes: parameterSetSizes,
-            nalUnitHeaderLength: 4,
-            formatDescriptionOut: &formatDesc
-        )
+        let status = spsBytes.withUnsafeBufferPointer { spsBuf in
+            ppsBytes.withUnsafeBufferPointer { ppsBuf in
+                var pointers: [UnsafePointer<UInt8>] = [spsBuf.baseAddress!, ppsBuf.baseAddress!]
+                var sizes: [Int] = [spsBytes.count, ppsBytes.count]
+                return CMVideoFormatDescriptionCreateFromH264ParameterSets(
+                    allocator: kCFAllocatorDefault,
+                    parameterSetCount: 2,
+                    parameterSetPointers: &pointers,
+                    parameterSetSizes: &sizes,
+                    nalUnitHeaderLength: 4,
+                    formatDescriptionOut: &formatDesc
+                )
+            }
+        }
 
         guard status == noErr, let desc = formatDesc else {
             print("[H264Decoder] Failed to create format description: \(status)")
@@ -171,22 +175,12 @@ class H264Decoder {
         }
         formatDescription = desc
 
-        // Create decompression session
+        // Create decompression session with block-based output handler
         let decoderAttributes: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
         ]
 
         var decompressionSession: VTDecompressionSession?
-        let callback: VTDecompressionOutputHandler = { [weak self] status, infoFlags, imageBuffer, presentationTimeStamp, duration in
-            guard status == noErr, let pixelBuffer = imageBuffer else { return }
-            // Convert CVPixelBuffer to CGImage
-            var cgImage: CGImage?
-            VTCreateCGImageFromCVPixelBuffer(pixelBuffer, options: nil, imageOut: &cgImage)
-            if let img = cgImage {
-                self?.lastDecodedImage = img
-            }
-        }
-
         let sessionStatus = VTDecompressionSessionCreate(
             allocator: kCFAllocatorDefault,
             formatDescription: desc,
@@ -201,8 +195,15 @@ class H264Decoder {
             return
         }
 
-        // Set the block-based callback
-        VTDecompressionSessionSetOutputHandler(sess, queue: DispatchQueue.global(qos: .userInteractive), handler: callback)
+        // Use block-based handler for decoded frames
+        VTDecompressionSessionSetOutputHandler(sess, queue: DispatchQueue.global(qos: .userInteractive)) { [weak self] status, infoFlags, imageBuffer, presentationTimeStamp, duration in
+            guard status == noErr, let pixelBuffer = imageBuffer else { return }
+            var cgImage: CGImage?
+            VTCreateCGImageFromCVPixelBuffer(pixelBuffer, options: nil, imageOut: &cgImage)
+            if let img = cgImage {
+                self?.lastDecodedImage = img
+            }
+        }
         session = sess
     }
 
