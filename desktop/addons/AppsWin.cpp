@@ -309,8 +309,12 @@ struct H264WinStreamContext {
     winrt::com_ptr<ID3D11Device> d3dDevice;
     winrt::com_ptr<ID3D11DeviceContext> d3dContext;
 
-    // MF pipeline: Video Processor (BGRA→NV12 on GPU) → H.264 encoder
-    winrt::com_ptr<IMFTransform> videoProcessor;
+    // MF pipeline: D3D11 Video Processor (BGRA→NV12 on GPU) → H.264 encoder
+    winrt::com_ptr<ID3D11VideoDevice> videoDevice;
+    winrt::com_ptr<ID3D11VideoContext> videoCtx;
+    winrt::com_ptr<ID3D11VideoProcessorEnumerator> vpEnum;
+    winrt::com_ptr<ID3D11VideoProcessor> d3dVP;
+    winrt::com_ptr<ID3D11Texture2D> nv12Texture; // output texture for VP
     winrt::com_ptr<IMFTransform> encoder;
     winrt::com_ptr<IMFDXGIDeviceManager> dxgiManager;
     winrt::com_ptr<IMFMediaEventGenerator> encEventGen;
@@ -344,7 +348,27 @@ struct H264WinStreamContext {
             return false;
         }
 
-        videoProcessor = nullptr;
+        // Shut down previous encoder thread before releasing resources it uses.
+        // The thread accesses encoder/encEventGen via GetEvent(0) — we must join
+        // it before nullifying those COM pointers to avoid use-after-free.
+        if (encThread.joinable()) {
+            if (encoder) {
+                encoder->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+            }
+            {
+                std::lock_guard<std::mutex> qlock(encQueueMutex);
+                encQueue.clear();
+                encQueue.push_back(nullptr); // sentinel to exit thread
+            }
+            encQueueCv.notify_all();
+            encThread.join();
+        }
+
+        videoDevice = nullptr;
+        videoCtx = nullptr;
+        vpEnum = nullptr;
+        d3dVP = nullptr;
+        nv12Texture = nullptr;
         encoder = nullptr;
         encEventGen = nullptr;
         isEncoderAsync = false;
@@ -357,61 +381,58 @@ struct H264WinStreamContext {
         hr = dxgiManager->ResetDevice(d3dDevice.get(), dxgiResetToken);
         if (FAILED(hr)) { printf("[H264Win] initPipeline: ResetDevice failed 0x%08lX\n", hr); return false; }
 
-        // ── Video Processor MFT (BGRA → NV12, GPU) ──
-        hr = CoCreateInstance(CLSID_VideoProcessorMFT, nullptr, CLSCTX_INPROC_SERVER,
-            IID_PPV_ARGS(videoProcessor.put()));
-        if (FAILED(hr)) { printf("[H264Win] initPipeline: CoCreateInstance VP failed 0x%08lX\n", hr); return false; }
+        // ── D3D11 Video Processor (BGRA → NV12, GPU — like Chromium) ──
+        hr = d3dDevice->QueryInterface(IID_PPV_ARGS(videoDevice.put()));
+        if (FAILED(hr)) { printf("[H264Win] initPipeline: QueryInterface ID3D11VideoDevice failed 0x%08lX\n", hr); return false; }
+        hr = d3dContext->QueryInterface(IID_PPV_ARGS(videoCtx.put()));
+        if (FAILED(hr)) { printf("[H264Win] initPipeline: QueryInterface ID3D11VideoContext failed 0x%08lX\n", hr); return false; }
 
-        // Enable D3D11 on the video processor
-        videoProcessor->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER,
-            (ULONG_PTR)dxgiManager.get());
+        D3D11_VIDEO_PROCESSOR_CONTENT_DESC vpDesc = {};
+        vpDesc.InputFrameFormat = D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
+        vpDesc.InputFrameRate.Numerator = targetFps;
+        vpDesc.InputFrameRate.Denominator = 1;
+        vpDesc.InputWidth = rawW;
+        vpDesc.InputHeight = rawH;
+        vpDesc.OutputFrameRate.Numerator = targetFps;
+        vpDesc.OutputFrameRate.Denominator = 1;
+        vpDesc.OutputWidth = ew;
+        vpDesc.OutputHeight = eh;
+        vpDesc.Usage = D3D11_VIDEO_USAGE_PLAYBACK_NORMAL;
 
-        // VP input type: ARGB32 (BGRA) at raw capture dimensions
-        winrt::com_ptr<IMFMediaType> vpInType;
-        MFCreateMediaType(vpInType.put());
-        vpInType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-        vpInType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_ARGB32);
-        MFSetAttributeSize(vpInType.get(), MF_MT_FRAME_SIZE, rawW, rawH);
-        MFSetAttributeRatio(vpInType.get(), MF_MT_FRAME_RATE, targetFps, 1);
-        vpInType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
-        hr = videoProcessor->SetInputType(0, vpInType.get(), 0);
-        if (FAILED(hr)) { printf("[H264Win] initPipeline: VP SetInputType failed 0x%08lX\n", hr); videoProcessor = nullptr; return false; }
+        hr = videoDevice->CreateVideoProcessorEnumerator(&vpDesc, vpEnum.put());
+        if (FAILED(hr)) { printf("[H264Win] initPipeline: CreateVideoProcessorEnumerator failed 0x%08lX\n", hr); return false; }
+        hr = videoDevice->CreateVideoProcessor(vpEnum.get(), 0, d3dVP.put());
+        if (FAILED(hr)) { printf("[H264Win] initPipeline: CreateVideoProcessor failed 0x%08lX\n", hr); return false; }
 
-        // VP output type: NV12 at even encoder dimensions
-        winrt::com_ptr<IMFMediaType> vpOutType;
-        MFCreateMediaType(vpOutType.put());
-        vpOutType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-        vpOutType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
-        MFSetAttributeSize(vpOutType.get(), MF_MT_FRAME_SIZE, ew, eh);
-        MFSetAttributeRatio(vpOutType.get(), MF_MT_FRAME_RATE, targetFps, 1);
-        vpOutType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
-        hr = videoProcessor->SetOutputType(0, vpOutType.get(), 0);
-        if (FAILED(hr)) { printf("[H264Win] initPipeline: VP SetOutputType failed 0x%08lX\n", hr); videoProcessor = nullptr; return false; }
+        // Disable auto processing (per Chromium — saves power)
+        videoCtx->VideoProcessorSetStreamAutoProcessingMode(d3dVP.get(), 0, FALSE);
 
-        videoProcessor->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
+        // Create NV12 output texture at even encoder dimensions
+        D3D11_TEXTURE2D_DESC nv12Desc = {};
+        nv12Desc.Width = ew;
+        nv12Desc.Height = eh;
+        nv12Desc.MipLevels = 1;
+        nv12Desc.ArraySize = 1;
+        nv12Desc.Format = DXGI_FORMAT_NV12;
+        nv12Desc.SampleDesc.Count = 1;
+        nv12Desc.Usage = D3D11_USAGE_DEFAULT;
+        nv12Desc.BindFlags = D3D11_BIND_RENDER_TARGET;
+        hr = d3dDevice->CreateTexture2D(&nv12Desc, nullptr, nv12Texture.put());
+        if (FAILED(hr)) { printf("[H264Win] initPipeline: CreateTexture2D NV12 failed 0x%08lX\n", hr); return false; }
 
         // ── H.264 Encoder MFT ──
-        // Strategy: prefer sync encoders since we process frames synchronously
-        // in the WGC callback. Try hardware first, then software.
-        // If only async encoders are available, unlock and use event-driven model.
         MFT_REGISTER_TYPE_INFO encOutInfo = { MFMediaType_Video, MFVideoFormat_H264 };
         IMFActivate **ppActivate = nullptr;
         UINT32 count = 0;
 
-        // First try: hardware encoder (GPU-accelerated, most efficient)
+        // Hardware H.264 encoder (GPU-accelerated — available on all modern GPUs)
         hr = MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER,
             MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER,
             nullptr, &encOutInfo, &ppActivate, &count);
         if (FAILED(hr) || count == 0) {
-            // Second try: software sync encoder (inbox H.264 encoder)
+            // Fallback: any available encoder (async or sync)
             hr = MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER,
-                MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_SORTANDFILTER,
-                nullptr, &encOutInfo, &ppActivate, &count);
-        }
-        if (FAILED(hr) || count == 0) {
-            // Third try: any encoder
-            hr = MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER,
-                MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_ASYNCMFT | MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER,
+                MFT_ENUM_FLAG_ASYNCMFT | MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER,
                 nullptr, &encOutInfo, &ppActivate, &count);
         }
         if (FAILED(hr) || count == 0) { printf("[H264Win] initPipeline: MFTEnumEx failed hr=0x%08lX count=%u\n", hr, count); return false; }
@@ -514,6 +535,7 @@ struct H264WinStreamContext {
 
     // Encoder thread function for async encoder — blocks on GetEvent(0)
     void encoderThreadFunc() {
+        printf("[H264Win] encoder thread started\n");
         while (true) {
             // Wait for a sample in the queue
             winrt::com_ptr<IMFSample> sample;
@@ -528,10 +550,11 @@ struct H264WinStreamContext {
 
             // Wait for METransformNeedInput
             bool canInput = false;
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 16; i++) {
+                if (stopped) break;
                 winrt::com_ptr<IMFMediaEvent> event;
                 HRESULT ehr = encEventGen->GetEvent(0, event.put());
-                if (FAILED(ehr)) break;
+                if (FAILED(ehr)) { printf("[H264Win] encThread: GetEvent(NeedInput) failed 0x%08lX\n", ehr); break; }
                 MediaEventType met = MEUnknown;
                 event->GetType(&met);
                 if (met == METransformNeedInput) {
@@ -541,13 +564,15 @@ struct H264WinStreamContext {
                     drainEncoderOutput(lastTimestamp);
                 }
             }
-            if (!canInput || stopped) continue;
+            if (!canInput || stopped) { sample = nullptr; continue; }
 
             HRESULT hr = encoder->ProcessInput(encInputStreamId, sample.get(), 0);
-            if (FAILED(hr)) continue;
+            sample = nullptr; // Release NV12 sample immediately after feeding
+            if (FAILED(hr)) { printf("[H264Win] encThread: ProcessInput failed 0x%08lX\n", hr); continue; }
 
             // Wait for METransformHaveOutput
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 16; i++) {
+                if (stopped) break;
                 winrt::com_ptr<IMFMediaEvent> event;
                 HRESULT ehr = encEventGen->GetEvent(0, event.put());
                 if (FAILED(ehr)) break;
@@ -557,8 +582,14 @@ struct H264WinStreamContext {
                     drainEncoderOutput(lastTimestamp);
                     break;
                 }
+                // METransformNeedInput: encoder wants more input before producing output
+                // This is normal for encoders with pipeline delay — break and feed next frame
+                if (met == METransformNeedInput) {
+                    break;
+                }
             }
         }
+        printf("[H264Win] encoder thread exiting\n");
     }
 
     // Helper: try to collect one encoded output from the encoder and emit it.
@@ -642,6 +673,14 @@ struct H264WinStreamContext {
         std::lock_guard<std::mutex> lock(mutex);
         if (stopped) return;
 
+        static int wgcCount = 0;
+        static int vpOk = 0, vpFail = 0, queuedCount = 0, droppedCount = 0;
+        wgcCount++;
+        if (wgcCount <= 3 || wgcCount % 60 == 0) {
+            printf("[H264Win] onFrame #%d: vpOk=%d vpFail=%d queued=%d dropped=%d queueSz=%d\n",
+                wgcCount, vpOk, vpFail, queuedCount, droppedCount, (int)encQueue.size());
+        }
+
         auto surface = frame.Surface();
         if (!surface) return;
 
@@ -656,12 +695,8 @@ struct H264WinStreamContext {
         int h = (int)desc.Height;
 
         // Copy the captured texture so we can release the WGC frame immediately.
-        // Without this, the frame pool stalls (only 1 callback fires).
         D3D11_TEXTURE2D_DESC copyDesc = desc;
-        copyDesc.Usage = D3D11_USAGE_DEFAULT;
-        copyDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-        copyDesc.CPUAccessFlags = 0;
-        copyDesc.MiscFlags = 0;
+        copyDesc.MiscFlags = 0; // Remove SHARED flags that prevent our device from using it
         winrt::com_ptr<ID3D11Texture2D> texCopy;
         HRESULT hrc = d3dDevice->CreateTexture2D(&copyDesc, nullptr, texCopy.put());
         if (FAILED(hrc) || !texCopy) return;
@@ -669,8 +704,25 @@ struct H264WinStreamContext {
 
         // Release the WGC frame to unblock the frame pool
         frameTex = nullptr;
+
+        // Check ContentSize for frame pool recreation (per OBS approach)
+        auto contentSize = frame.ContentSize();
         frame.Close();
         frame = nullptr;
+
+        // Recreate frame pool if content size changed (like OBS does)
+        if (contentSize.Width != width || contentSize.Height != height) {
+            if (contentSize.Width > 0 && contentSize.Height > 0 && framePool && d3dDevice) {
+                auto dxgiDevice = d3dDevice.as<IDXGIDevice>();
+                winrt::com_ptr<IInspectable> insp;
+                if (SUCCEEDED(CreateDirect3D11DeviceFromDXGIDevice(dxgiDevice.get(), insp.put()))) {
+                    auto d3dDev = insp.as<winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice>();
+                    framePool.Recreate(d3dDev,
+                        winrt::Windows::Graphics::DirectX::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                        2, contentSize);
+                }
+            }
+        }
 
         // Create/recreate pipeline if dimensions changed
         if (w != width || h != height || !encoder) {
@@ -686,76 +738,57 @@ struct H264WinStreamContext {
         LONGLONG now = MFGetSystemTime();
         lastTimestamp = now;
 
-        // Create IMFSample wrapping the copied D3D11 texture
-        winrt::com_ptr<IMFMediaBuffer> texBuf;
-        MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), texCopy.get(), 0, FALSE, texBuf.put());
-        if (!texBuf) return;
+        // ── Step 1: D3D11 Video Processor (BGRA → NV12) ──
+        // Create input view from the captured BGRA texture
+        D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC inputViewDesc = {};
+        inputViewDesc.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
+        inputViewDesc.Texture2D.MipSlice = 0;
+        winrt::com_ptr<ID3D11VideoProcessorInputView> inputView;
+        HRESULT hr = videoDevice->CreateVideoProcessorInputView(
+            texCopy.get(), vpEnum.get(), &inputViewDesc, inputView.put());
+        if (FAILED(hr)) { vpFail++; if (vpFail <= 3) printf("[H264Win] CreateInputView failed: 0x%08lX\n", hr); return; }
 
-        winrt::com_ptr<IMFSample> inputSample;
-        MFCreateSample(inputSample.put());
-        inputSample->AddBuffer(texBuf.get());
-        inputSample->SetSampleTime(now);
-        inputSample->SetSampleDuration(10000000LL / targetFps);
+        // Create output view on the NV12 texture
+        D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC outputViewDesc = {};
+        outputViewDesc.ViewDimension = D3D11_VPOV_DIMENSION_TEXTURE2D;
+        winrt::com_ptr<ID3D11VideoProcessorOutputView> outputView;
+        hr = videoDevice->CreateVideoProcessorOutputView(
+            nv12Texture.get(), vpEnum.get(), &outputViewDesc, outputView.put());
+        if (FAILED(hr)) { vpFail++; if (vpFail <= 3) printf("[H264Win] CreateOutputView failed: 0x%08lX\n", hr); return; }
 
-        // ── Step 1: Video Processor (BGRA → NV12) ──
-        HRESULT hr = videoProcessor->ProcessInput(0, inputSample.get(), 0);
-        if (hr == MF_E_NOTACCEPTING) {
-            MFT_OUTPUT_DATA_BUFFER vpDrain = {};
-            vpDrain.dwStreamID = 0;
-            DWORD drainStatus = 0;
-            videoProcessor->ProcessOutput(0, 1, &vpDrain, &drainStatus);
-            if (vpDrain.pSample) vpDrain.pSample->Release();
-            if (vpDrain.pEvents) vpDrain.pEvents->Release();
-            hr = videoProcessor->ProcessInput(0, inputSample.get(), 0);
-        }
-        if (FAILED(hr)) return;
-
-        MFT_OUTPUT_DATA_BUFFER vpOutput = {};
-        vpOutput.dwStreamID = 0;
-
-        // Check if VP provides its own output samples (common with D3D11)
-        MFT_OUTPUT_STREAM_INFO vpStreamInfo = {};
-        videoProcessor->GetOutputStreamInfo(0, &vpStreamInfo);
-        bool vpAllocates = (vpStreamInfo.dwFlags &
-            (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES)) != 0;
-        winrt::com_ptr<IMFSample> vpOutSample;
-        if (!vpAllocates) {
-            MFCreateSample(vpOutSample.put());
-            winrt::com_ptr<IMFMediaBuffer> vpOutBuf;
-            DWORD vpBufSize = vpStreamInfo.cbSize > 0 ? vpStreamInfo.cbSize : (DWORD)(encWidth * encHeight * 3 / 2);
-            MFCreateMemoryBuffer(vpBufSize, vpOutBuf.put());
-            vpOutSample->AddBuffer(vpOutBuf.get());
-            vpOutput.pSample = vpOutSample.get();
-        }
-
-        DWORD vpStatus = 0;
-        hr = videoProcessor->ProcessOutput(0, 1, &vpOutput, &vpStatus);
-        if (FAILED(hr) || !vpOutput.pSample) {
-            if (vpOutput.pEvents) vpOutput.pEvents->Release();
-            return;
-        }
+        // Blit: BGRA → NV12
+        D3D11_VIDEO_PROCESSOR_STREAM stream = {};
+        stream.Enable = TRUE;
+        stream.pInputSurface = inputView.get();
+        hr = videoCtx->VideoProcessorBlt(d3dVP.get(), outputView.get(), 0, 1, &stream);
+        if (FAILED(hr)) { vpFail++; if (vpFail <= 3) printf("[H264Win] VideoProcessorBlt failed: 0x%08lX\n", hr); return; }
+        vpOk++;
 
         // ── Step 2: Feed encoder ──
-        // Wrap the VP output sample in a com_ptr for proper lifetime
+        // Wrap the NV12 output texture in an IMFSample
+        winrt::com_ptr<IMFMediaBuffer> nv12Buf;
+        MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), nv12Texture.get(), 0, FALSE, nv12Buf.put());
+        if (!nv12Buf) return;
+
         winrt::com_ptr<IMFSample> nv12Sample;
-        nv12Sample.copy_from(vpOutput.pSample);
-        if (vpAllocates && vpOutput.pSample) vpOutput.pSample->Release();
-        if (vpOutput.pEvents) vpOutput.pEvents->Release();
+        MFCreateSample(nv12Sample.put());
+        nv12Sample->AddBuffer(nv12Buf.get());
+        nv12Sample->SetSampleTime(now);
+        nv12Sample->SetSampleDuration(10000000LL / targetFps);
 
         if (isEncoderAsync) {
             // Async encoder: queue sample for dedicated encoder thread
             {
                 std::lock_guard<std::mutex> qlock(encQueueMutex);
-                // Limit queue to 2 to avoid unbounded memory growth; drop oldest
-                while (encQueue.size() >= 2) encQueue.erase(encQueue.begin());
+                while (encQueue.size() >= 2) { encQueue.erase(encQueue.begin()); droppedCount++; }
                 encQueue.push_back(nv12Sample);
+                queuedCount++;
             }
             encQueueCv.notify_one();
         } else {
-            // Sync encoder: process inline
+            // Sync encoder (unlikely with HW-first but handle gracefully)
             hr = encoder->ProcessInput(encInputStreamId, nv12Sample.get(), 0);
-            if (FAILED(hr)) return;
-            drainEncoderOutput(now);
+            if (SUCCEEDED(hr)) drainEncoderOutput(now);
         }
     }
 };
@@ -780,21 +813,24 @@ static void stopH264WinStream(HWND hwnd) {
     }
     // Wake encoder thread so it can exit
     ctx->encQueueCv.notify_all();
-    // Join encoder thread before releasing MF objects
-    if (ctx->encThread.joinable()) {
-        ctx->encThread.join();
-    }
+    // Revoke WGC callback first so no new frames arrive
     ctx->frameArrivedRevoker.revoke();
-    // Flush and release MF encoder
+    // Shut down the encoder — this unblocks any pending GetEvent(0) in the encoder thread
     if (ctx->encoder) {
         ctx->encoder->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
         ctx->encoder->ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0);
-        ctx->encEventGen = nullptr;
-        ctx->encoder = nullptr;
     }
-    if (ctx->videoProcessor) {
-        ctx->videoProcessor = nullptr;
+    // Now safe to join — GetEvent will return MF_E_SHUTDOWN
+    if (ctx->encThread.joinable()) {
+        ctx->encThread.join();
     }
+    ctx->encEventGen = nullptr;
+    ctx->encoder = nullptr;
+    ctx->d3dVP = nullptr;
+    ctx->vpEnum = nullptr;
+    ctx->videoCtx = nullptr;
+    ctx->videoDevice = nullptr;
+    ctx->nv12Texture = nullptr;
     if (ctx->session) ctx->session.Close();
     if (ctx->framePool) ctx->framePool.Close();
     ctx->item = nullptr;
