@@ -300,6 +300,8 @@ export type BatteryInfo = {
     isLowPowerMode?: boolean;
 }
 
+export type ScreenLockStatus = 'locked' | 'unlocked' | 'not-supported';
+
 export type ClipboardFile = {
     fingerprint?: string;
     path: string;
@@ -355,6 +357,13 @@ export type StreamingSessionInfo = {
     width: number;
     height: number;
     dpi: number;
+}
+
+export type TerminalSessionInfo = {
+    stream: ReadableStream<Uint8Array>;
+    sessionId: string;
+    cols: number;
+    rows: number;
 }
 
 export enum RemoteAppWindowAction {

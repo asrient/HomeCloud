@@ -11,7 +11,7 @@ export const useResource = ({
     deviceFingerprint: string | null;
     load: (serviceController: ServiceController, shouldAbort: () => boolean) => Promise<void>;
     clearSignals?: (serviceController: ServiceController) => void;
-    setupSignals?: (serviceController: ServiceController) => void;
+    setupSignals?: (serviceController: ServiceController) => Promise<void> | void;
     resourceKey?: string;
 }) => {
     const isLoadingRef = useRef(false);
@@ -106,7 +106,9 @@ export const useResource = ({
                 return;
             }
             serviceControllerRef.current = serviceController;
-            setupSignals && !hasSignalSetupRef.current && setupSignals(serviceController);
+            if (setupSignals && !hasSignalSetupRef.current) {
+                await setupSignals(serviceController);
+            }
             hasSignalSetupRef.current = true;
             await load(serviceController, shouldAbort);
         };
@@ -147,7 +149,7 @@ export const useResourceWithPolling = ({
     load: (serviceController: ServiceController, shouldAbort: () => boolean) => Promise<void>;
     interval: number;
     clearSignals?: (serviceController: ServiceController) => void;
-    setupSignals?: (serviceController: ServiceController) => void;
+    setupSignals?: (serviceController: ServiceController) => Promise<void> | void;
     poll?: () => void;
 }) => {
     const { isLoading, error, reload } = useResource({

@@ -26,6 +26,7 @@ import {
     RemoteAppWindowType,
 } from 'shared/types';
 import { isGlassEnabled, getServiceController } from '@/lib/utils';
+import { useAutoConnect } from '@/hooks/useAutoConnect';
 import { H264PlayerView } from '@/modules/h264-player';
 
 // ── Constants ──
@@ -615,7 +616,9 @@ export default function ScreenControlScreen() {
         appName?: string;
     }>();
     const insets = useSafeAreaInsets();
-    const deviceFingerprint = fingerprint === 'local' ? null : fingerprint;
+    const deviceFingerprint = fingerprint === 'local' || !fingerprint ? null : fingerprint;
+
+    useAutoConnect(deviceFingerprint, 'screen-control');
 
     const [controlMode, setControlMode] = useState<ControlMode>('touch');
     const [touchSubMode, setTouchSubMode] = useState<TouchSubMode>('scroll');

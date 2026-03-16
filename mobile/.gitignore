@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# Generated assets
+assets/terminal.html
+
 # Expo
 .expo/
 dist/

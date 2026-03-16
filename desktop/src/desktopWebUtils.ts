@@ -1,7 +1,7 @@
 import { BrowserWindow, Menu, MenuItem } from 'electron/main';
 import { hasFilePathsInClipboard } from './services/system/clipboard';
 import { checkForUpdates as _checkForUpdates, getUpdateStatus as _getUpdateStatus, triggerUpdateCheck as _triggerUpdateCheck, UpdateInfo, UpdateStatus } from './updateCheck';
-import { createRemoteWindow } from './remoteWindow';
+import { createRemoteWindow, createTerminalWindow } from './remoteWindow';
 
 export type ContextMenuItem = {
     label?: string;
@@ -61,6 +61,10 @@ export function openAppWindow(
     appId: string,
 ): void {
     createRemoteWindow(window, fingerprint, appId);
+}
+
+export function openTerminalWindow(fingerprint: string | null): void {
+    createTerminalWindow(fingerprint);
 }
 
 export function getWindowControls(win: BrowserWindow) {

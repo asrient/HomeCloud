@@ -85,6 +85,13 @@ export async function getServiceController(fingerprint: string | null) {
   return window.modules.getRemoteServiceController(fingerprint);
 }
 
+export function getLocalServiceController() {
+  if (typeof window === 'undefined') {
+    throw new Error('getLocalServiceController can only be called in browser environment');
+  }
+  return window.modules.getLocalServiceController();
+}
+
 /**
  * Get a service controller only if the device is already connected.
  * Fails fast without triggering a reconnection attempt.

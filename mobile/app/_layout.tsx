@@ -89,6 +89,15 @@ export default function RootLayout() {
           <Stack.Protected guard={isOnboarded}>
             <Stack.Screen name="index" options={{ title: 'Home' }} />
             <Stack.Screen name="device" options={{ headerShown: false }} />
+            <Stack.Screen name="terminal" options={{
+              headerShown: false,
+              presentation: 'fullScreenModal',
+              animation: 'slide_from_bottom',
+            }} />
+            <Stack.Screen name="screen-control" options={{
+              presentation: 'fullScreenModal',
+              animation: 'slide_from_bottom',
+            }} />
             <Stack.Screen name="device-sheet" options={{
               headerShown: false,
               presentation: 'formSheet',

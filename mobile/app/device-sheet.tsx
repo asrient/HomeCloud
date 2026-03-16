@@ -60,14 +60,12 @@ export default function DeviceSheetScreen() {
     return peers.find((p) => p.fingerprint === fingerprint) || null;
   }, [isLocal, fingerprint, peers]);
 
-  const routeFingerprint = fingerprint || 'local';
-
-  const handleNavigate = useCallback((subPath: string) => {
+  const handleNavigate = useCallback((path: string) => {
     router.back();
     setTimeout(() => {
-      router.push(`/device/${routeFingerprint}/${subPath}` as any);
+      router.push(path as any);
     }, 300);
-  }, [router, routeFingerprint]);
+  }, [router]);
 
   return (
     <ScrollView

@@ -16,7 +16,8 @@
     "prebuild": "expo prebuild --clean",
     "prebuild:android": "expo prebuild --clean --platform android",
     "prebuild:ios": "expo prebuild --clean --platform ios",
-    "release": "node scripts/release.js"
+    "release": "node scripts/release.js",
+    "postinstall": "node scripts/build-terminal-html.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -66,6 +67,7 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "^4.19.0",
     "react-native-volume-manager": "^2.0.8",
+    "react-native-webview": "^13.16.1",
     "react-native-worklets": "0.5.1",
     "react-native-zeroconf": "^0.14.0",
     "zustand": "^5.0.8"
@@ -77,6 +79,8 @@
     "@react-native-community/cli": "^20.0.2",
     "@types/react": "~19.1.10",
     "@types/react-native-zeroconf": "^0.13.1",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "babel-preset-expo": "~54.0.9",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",

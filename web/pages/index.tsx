@@ -11,10 +11,10 @@ import { useAppDispatch, useAppState } from '@/components/hooks/useAppState';
 import { usePeer, usePeerConnectionState } from '@/components/hooks/usePeerState';
 import { cn, getServiceController, isMacosTheme, isWin11Theme } from '@/lib/utils';
 import { DeviceIcon } from '@/components/DeviceIcon';
-import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard } from 'lucide-react';
+import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard, Lock, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionIcon } from '@/components/deviceSwitcher';
-import { useBatteryInfo, useMediaPlayback, useVolume } from '@/components/hooks/useSystemState';
+import { useBatteryInfo, useMediaPlayback, useScreenLock, useTerminalAvailable, useVolume } from '@/components/hooks/useSystemState';
 import { PauseIcon, PlayIcon, ForwardIcon, BackwardIcon } from '@heroicons/react/24/solid';
 import TextModal from '@/components/textModal';
 import ConfirmModal from '@/components/confirmModal';
@@ -78,6 +78,7 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
   const connection = usePeerConnectionState(isThisDevice ? null : peer.fingerprint);
   const { batteryInfo, isLoading: batteryInfoLoading } = useBatteryInfo(isThisDevice ? null : peer.fingerprint);
   const { mediaPlayback, play, pause, previous, next, canControl, isLoading: mediaPlaybackLoading } = useMediaPlayback(isThisDevice ? null : peer.fingerprint);
+  const { lockStatus } = useScreenLock(isThisDevice ? null : peer.fingerprint);
   return (
     <div className={cn("py-3 px-4 lg:px-6 xl:px-10 lg:min-h-[8rem] flex flex-col lg:flex-row items-center justify-around lg:justify-between relative")}>
       <div className='flex items-center space-x-4 w-fit px-5 py-2'>
@@ -97,6 +98,12 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
                   {batteryInfo && batteryInfo.isCharging ? ' - Charging' : ''}
                 </div>
               }
+              {lockStatus === 'locked' && (
+                <div className='flex items-center flex-row justify-center w-max gap-1'>
+                  <Lock size={14} />
+                  <span>Locked</span>
+                </div>
+              )}
               {
                 !isThisDevice && <div className='flex items-center flex-row justify-center w-max'>
                   <ConnectionIcon connection={connection} size={16} />
@@ -109,34 +116,36 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
       </div>
       {
         canControl &&
-        <div className={cn('px-6 py-3 text-sm w-full lg:w-[40%] min-w-[12rem] space-y-1 border-t lg:border-l lg:border-t-0 border-border/70 flex flex-col items-center lg:items-start justify-center min-h-[8rem] lg:min-h-[7rem]')}>
-          <div className='font-medium mb-1 text-xs text-foreground/80'>
+        <div className={cn('px-6 py-3 text-sm w-full lg:w-[40%] min-w-[12rem] space-y-1 border-t lg:border-l lg:border-t-0 border-border/70 flex flex-col items-center lg:items-start justify-center min-h-[4rem] lg:min-h-[7rem]')}>
+          <div className='font-medium mb-1 text-xs text-foreground/80 hidden lg:block'>
             <Airplay size={16} className="inline-block mr-2" />
             Now Playing
           </div>
 
-          <div className={'flex flex-col items-center lg:items-start gap-1'}>
-            <div className='font-semibold truncate max-w-xs'>{mediaPlayback ? mediaPlayback.trackName : 'Not playing'}</div>
-            <div className='text-xs text-foreground/80 truncate max-w-xs'>{mediaPlayback && mediaPlayback.artistName ? mediaPlayback.artistName : ''}</div>
-          </div>
-          <div className='flex flex-row space-x-4'>
-            <Button variant='ghost' size='icon' onClick={() => previous()} disabled={mediaPlaybackLoading || !mediaPlayback}>
-              <BackwardIcon className='w-5 h-5' />
-            </Button>
-            {
-              mediaPlayback && mediaPlayback.isPlaying ? (
-                <Button variant='ghost' size='icon' onClick={() => pause()} disabled={mediaPlaybackLoading}>
-                  <PauseIcon className='w-5 h-5' />
-                </Button>
-              ) : (
-                <Button variant='ghost' size='icon' onClick={() => play()} disabled={mediaPlaybackLoading || !mediaPlayback}>
-                  <PlayIcon className='w-5 h-5' />
-                </Button>
-              )
-            }
-            <Button variant='ghost' size='icon' onClick={() => next()} disabled={mediaPlaybackLoading || !mediaPlayback}>
-              <ForwardIcon className='w-5 h-5' />
-            </Button>
+          <div className='flex flex-row items-center justify-between max-w-[40rem] w-full mx-auto lg:mx-0 lg:flex-col lg:items-start lg:gap-1'>
+            <div className='flex flex-col items-start gap-1 min-w-0'>
+              <div className='font-semibold truncate max-w-xs'>{mediaPlayback ? mediaPlayback.trackName : 'Not playing'}</div>
+              <div className='text-xs text-foreground/80 truncate max-w-xs'>{mediaPlayback && mediaPlayback.artistName ? mediaPlayback.artistName : ''}</div>
+            </div>
+            <div className='flex flex-row space-x-4 shrink-0'>
+              <Button variant='ghost' size='icon' onClick={() => previous()} disabled={mediaPlaybackLoading || !mediaPlayback}>
+                <BackwardIcon className='w-5 h-5' />
+              </Button>
+              {
+                mediaPlayback && mediaPlayback.isPlaying ? (
+                  <Button variant='ghost' size='icon' onClick={() => pause()} disabled={mediaPlaybackLoading}>
+                    <PauseIcon className='w-5 h-5' />
+                  </Button>
+                ) : (
+                  <Button variant='ghost' size='icon' onClick={() => play()} disabled={mediaPlaybackLoading || !mediaPlayback}>
+                    <PlayIcon className='w-5 h-5' />
+                  </Button>
+                )
+              }
+              <Button variant='ghost' size='icon' onClick={() => next()} disabled={mediaPlaybackLoading || !mediaPlayback}>
+                <ForwardIcon className='w-5 h-5' />
+              </Button>
+            </div>
           </div>
 
         </div>
@@ -330,6 +339,15 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
     return peers.find(p => p.fingerprint === deviceFingerprint) || null;
   }, [deviceFingerprint, peers]);
 
+  const { lockStatus, lockScreen } = useScreenLock(deviceFingerprint);
+  const { available: terminalAvailable } = useTerminalAvailable(deviceFingerprint);
+
+  const openTerminal = useCallback(() => {
+    if (window.utils?.openTerminalWindow) {
+      window.utils.openTerminalWindow(deviceFingerprint);
+    }
+  }, [deviceFingerprint]);
+
   const onTextSend = useCallback(async (text: string) => {
     const sc = await getServiceController(deviceFingerprint);
     sc.app.receiveContent(null, text.trim(), 'text').catch((error) => {
@@ -358,6 +376,25 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
         </Button>
       </VolumeModal>
       <ClipboardButton deviceFingerprint={deviceFingerprint} />
+      {terminalAvailable && (
+        <Button variant='secondary' size='sm' onClick={openTerminal}>
+          <Terminal className='mr-2' size={16} />Terminal
+        </Button>
+      )}
+      {lockStatus !== 'not-supported' && (
+        <ConfirmModal
+          title='Lock Device'
+          description='Are you sure you want to lock this device?'
+          buttonText='Lock'
+          buttonVariant='destructive'
+          onConfirm={lockScreen}
+        >
+          <Button variant='secondary' size='sm' disabled={lockStatus !== 'unlocked'}>
+            <Lock className='mr-2' size={16} />
+            Lock
+          </Button>
+        </ConfirmModal>
+      )}
     </div>
   )
 }

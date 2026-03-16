@@ -11,6 +11,7 @@ import { MobilePhotosService } from "./services/photosService";
 import MobileAccountService from "./services/accountService";
 import { HttpClient_, WebSocket_ } from "./mobileCompat";
 import MobileWebcInterface from "./services/webcInterface";
+import { TerminalService } from "shared/terminalService";
 
 const TCP_PORT = 7736;
 
@@ -23,6 +24,7 @@ export default class MobileServiceController extends ServiceController {
     public override photos = MobilePhotosService.getInstance<MobilePhotosService>();
     public override account = MobileAccountService.getInstance<MobileAccountService>();
     public override apps = AppsService.getInstance<AppsService>();
+    public override terminal = TerminalService.getInstance<TerminalService>();
 
     async setup() {
         console.log("Setting up services...");
@@ -35,6 +37,7 @@ export default class MobileServiceController extends ServiceController {
         await this.files.init();
         await this.thumbnail.init();
         await this.photos.init();
+        await this.terminal.init();
         this.apps.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [

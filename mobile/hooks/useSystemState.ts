@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useResource, useResourceWithPolling } from "./useResource";
-import { AudioPlaybackInfo, BatteryInfo, ClipboardContent, Disk } from "shared/types";
+import { AudioPlaybackInfo, BatteryInfo, ClipboardContent, Disk, ScreenLockStatus } from "shared/types";
 import ServiceController from "shared/controller";
 import { getServiceController } from "shared/utils";
 import { SignalNodeRef } from "shared/signals";
@@ -46,6 +46,47 @@ export const useBatteryInfo = (deviceFingerprint: string | null) => {
     });
 
     return { isLoading, error, reload, batteryInfo };
+};
+
+export const useScreenLock = (deviceFingerprint: string | null) => {
+    const [lockStatus, setLockStatus] = useState<ScreenLockStatus>('not-supported');
+    const signalRef = useRef<SignalNodeRef<[ScreenLockStatus], string> | null>(null);
+
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        const status = await serviceController.system.getScreenLockStatus();
+        if (shouldAbort()) return;
+        setLockStatus(status);
+    }, []);
+
+    const clearSignals = useCallback((serviceController: ServiceController) => {
+        if (signalRef.current) {
+            serviceController.system.screenLockSignal.detach(signalRef.current);
+            signalRef.current = null;
+        }
+    }, []);
+
+    const setupSignals = useCallback((serviceController: ServiceController) => {
+        clearSignals(serviceController);
+        signalRef.current = serviceController.system.screenLockSignal.add((status) => {
+            setLockStatus(status);
+        });
+    }, [clearSignals]);
+
+    const { isLoading } = useResource({
+        deviceFingerprint,
+        load,
+        setupSignals,
+        clearSignals,
+    });
+
+    const lockScreen = useCallback(async () => {
+        if (!deviceFingerprint) return;
+        const sc = await getServiceController(deviceFingerprint);
+        await sc.system.lockScreen();
+        setLockStatus('locked');
+    }, [deviceFingerprint]);
+
+    return { lockStatus, isLoading, lockScreen };
 };
 
 export const useVolume = (deviceFingerprint: string | null) => {

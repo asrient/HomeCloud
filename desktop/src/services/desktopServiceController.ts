@@ -11,6 +11,7 @@ import { HttpClient_, WebSocket_ } from "../desktopCompat";
 import DesktopWebcInterface from "./webcInterface";
 import DesktopAppService from "./appService";
 import DesktopAppsService from "./apps/appsService";
+import DesktopTerminalService from "./terminal/terminalService";
 
 const TCP_PORT = 7736;
 
@@ -24,6 +25,7 @@ export default class DesktopServiceController extends ServiceController {
     public override files = DesktopFilesService.getInstance<DesktopFilesService>();
     public override photos = DesktopPhotosService.getInstance<DesktopPhotosService>();
     public override apps = DesktopAppsService.getInstance<DesktopAppsService>();
+    public override terminal = DesktopTerminalService.getInstance<DesktopTerminalService>();
 
     async setup() {
         console.log("Setting up services...");
@@ -37,6 +39,7 @@ export default class DesktopServiceController extends ServiceController {
         await this.thumbnail.init();
         await this.photos.init();
         await this.apps.init();
+        await this.terminal.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
                 [ConnectionType.LOCAL, new TCPInterface(TCP_PORT)],

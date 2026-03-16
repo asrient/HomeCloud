@@ -283,3 +283,46 @@ function onWindowsChanged(appId: string, fingerprint: string | null, windows: Re
         createRemoteWindow(w, fingerprint, appId, parentRemote);
     }
 }
+
+// ── Terminal Window ──
+
+const terminalWindows = new Map<string, BrowserWindow>();
+
+export function createTerminalWindow(fingerprint: string | null): BrowserWindow {
+    const key = `terminal-${fingerprint ?? 'local'}`;
+    const existing = terminalWindows.get(key);
+    if (existing && !existing.isDestroyed()) {
+        existing.focus();
+        return existing;
+    }
+
+    const params: Record<string, string> = {};
+    if (fingerprint) params.fingerprint = fingerprint;
+    const url = buildUrl('/terminal', params, false);
+
+    const win = new BrowserWindow({
+        width: 800,
+        height: 500,
+        minWidth: 400,
+        minHeight: 300,
+        frame: true,
+        title: `Terminal`,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            sandbox: false,
+            contextIsolation: false,
+            backgroundThrottling: false,
+        },
+    });
+
+    require('@electron/remote/main').enable(win.webContents);
+    win.loadURL(url);
+
+    terminalWindows.set(key, win);
+
+    win.on('closed', () => {
+        terminalWindows.delete(key);
+    });
+
+    return win;
+}

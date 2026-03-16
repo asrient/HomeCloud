@@ -9,6 +9,7 @@ import { generateServicesDoc } from "./doc";
 import { PhotosService } from "./photosService";
 import { AccountService } from "./accountService";
 import { AppsService } from "./appsService";
+import { TerminalService } from "./terminalService";
 
 export default class ServiceController extends RPCController {
     private static localInstance: RPCController | null = null;
@@ -20,6 +21,7 @@ export default class ServiceController extends RPCController {
     public photos: PhotosService;
     public account: AccountService;
     public apps: AppsService;
+    public terminal: TerminalService;
 
     public readyState: boolean = false;
     public readyStateSignal = new Signal<[boolean]>();

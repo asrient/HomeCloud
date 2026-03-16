@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useResource, useResourceWithPolling } from './useResource';
 import { RemoteAppInfo, RemoteAppWindow, RemoteAppWindowActionPayload } from 'shared/types';
 import { decodeMediaChunk } from 'shared/mediaStream';
@@ -113,18 +113,37 @@ export const useAppsAvailable = (deviceFingerprint: string | null) => {
     return { available, isLoading };
 };
 
+export const useTerminalAvailable = (deviceFingerprint: string | null) => {
+    const [available, setAvailable] = useState<boolean | null>(null);
+
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        const result = await serviceController.terminal.isAvailable();
+        if (shouldAbort()) return;
+        setAvailable(result);
+    }, []);
+
+    const { isLoading } = useResource({ deviceFingerprint, load });
+
+    return { available, isLoading };
+};
+
 // ── App Icon ──
 
 export const useAppIcon = (appId: string, deviceFingerprint: string | null) => {
     const [iconUri, setIconUri] = useState<string | null>(null);
 
-    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
-        const uri = await serviceController.apps.getAppIcon(appId);
-        if (shouldAbort()) return;
-        setIconUri(uri);
-    }, [appId]);
-
-    useResource({ deviceFingerprint, load, resourceKey: appId });
+    useEffect(() => {
+        let cancelled = false;
+        setIconUri(null);
+        getServiceController(deviceFingerprint).then(sc =>
+            sc.apps.getAppIcon(appId)
+        ).then(uri => {
+            if (!cancelled) setIconUri(uri);
+        }).catch(err => {
+            console.error('Error fetching app icon:', err);
+        });
+        return () => { cancelled = true; };
+    }, [appId, deviceFingerprint]);
 
     return iconUri;
 };

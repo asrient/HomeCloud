@@ -57,7 +57,7 @@ export function RunningAppsRow({
         return (
             <View style={{ flex: 1, width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
                 <UIText color="textSecondary" size="sm" font="light">
-                    No running apps
+                    No open apps
                 </UIText>
             </View>
         );
@@ -65,9 +65,6 @@ export function RunningAppsRow({
 
     return (
         <View style={{ flex: 1, width: '100%', height: '100%' }}>
-            <UIText style={{ paddingTop: 12, paddingLeft: 30 }} numberOfLines={1} size="md">
-                Running Apps
-            </UIText>
             <FlatList
                 data={runningApps}
                 horizontal

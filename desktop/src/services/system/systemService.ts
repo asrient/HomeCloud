@@ -1,7 +1,7 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType, ClipboardFile } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType, ClipboardFile, ScreenLockStatus } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
-import { dialog, BrowserWindow, shell, systemPreferences, clipboard, ShareMenu, SharingItem } from "electron";
+import { dialog, BrowserWindow, shell, systemPreferences, clipboard, ShareMenu, SharingItem, powerMonitor } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails, WinDriveType } from "../../types";
 import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
@@ -128,12 +128,75 @@ class DesktopSystemService extends SystemService {
         return getDriveDetails();
     }
 
+    @exposed
     public async openUrl(url: string): Promise<void> {
         await shell.openExternal(url);
     }
 
+    @exposed
     public async openFile(filePath: string): Promise<void> {
         await shell.openPath(filePath);
+    }
+
+    @exposed
+    public async lockScreen(): Promise<void> {
+        const { platform } = require('os');
+        const { execSync } = require('child_process');
+        const os = platform();
+        console.log('[lockScreen] platform:', os);
+        if (os === 'darwin') {
+            // macOS: use pmset to lock (activates lock screen immediately)
+            try {
+                const result = execSync('pmset displaysleepnow', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+                console.log('[lockScreen] pmset stdout:', result);
+            } catch (err: any) {
+                console.error('[lockScreen] pmset failed:', err.message);
+                console.error('[lockScreen] stderr:', err.stderr?.toString());
+                console.error('[lockScreen] status:', err.status);
+                throw err;
+            }
+        } else if (os === 'win32') {
+            // Windows: LockWorkStation via rundll32
+            execSync('rundll32.exe user32.dll,LockWorkStation');
+        } else {
+            // Linux: try common screen lockers
+            try { execSync('loginctl lock-session'); } catch {
+                try { execSync('xdg-screensaver lock'); } catch {
+                    throw new Error('Could not lock screen on this platform');
+                }
+            }
+        }
+    }
+
+    @exposed
+    public async getScreenLockStatus(): Promise<ScreenLockStatus> {
+        const { platform } = require('os');
+        const { execSync } = require('child_process');
+        const os = platform();
+        try {
+            if (os === 'darwin') {
+                // macOS: check if screen is locked via ioreg
+                const output = execSync('ioreg -n Root -d1 -a', { encoding: 'utf8' });
+                // If CGSSessionScreenIsLocked is true, screen is locked
+                if (output.includes('CGSSessionScreenIsLocked') && output.includes('<true/>')) {
+                    return 'locked';
+                }
+                return 'unlocked';
+            } else if (os === 'win32') {
+                // Windows: check if LogonUI.exe is running (indicates lock screen)
+                const output = execSync('tasklist /FI "IMAGENAME eq LogonUI.exe" /NH', { encoding: 'utf8' });
+                if (output.includes('LogonUI.exe')) {
+                    return 'locked';
+                }
+                return 'unlocked';
+            } else {
+                // Linux: try loginctl
+                const output = execSync('loginctl show-session $(loginctl | grep $(whoami) | awk \'{print $1}\') -p LockedHint --value', { encoding: 'utf8' });
+                return output.trim() === 'yes' ? 'locked' : 'unlocked';
+            }
+        } catch {
+            return 'not-supported';
+        }
     }
 
     public getAccentColorHex(): string {
@@ -444,6 +507,14 @@ class DesktopSystemService extends SystemService {
         // Battery info change listener
         onBatteryInfoChanged((info) => {
             this.batteryInfoSignal.dispatch(info);
+        });
+
+        // Screen lock/unlock listener
+        powerMonitor.on('lock-screen', () => {
+            this.screenLockSignal.dispatch('locked');
+        });
+        powerMonitor.on('unlock-screen', () => {
+            this.screenLockSignal.dispatch('unlocked');
         });
     }
 

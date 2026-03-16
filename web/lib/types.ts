@@ -91,6 +91,7 @@ export type NativeUtils = {
     getUpdateStatus: () => UpdateStatus;
     triggerUpdateCheck: () => void;
     openAppWindow?: (window: import('shared/types').RemoteAppWindow, fingerprint: string | null, appId: string) => void;
+    openTerminalWindow?: (fingerprint: string | null) => void;
     windowControls?: {
         close: () => void;
         minimize: () => void;
