@@ -31,6 +31,7 @@
 #include <psapi.h>
 #include <dwmapi.h>
 #include <gdiplus.h>
+#include <commoncontrols.h>
 
 #include <string>
 #include <vector>
@@ -1182,19 +1183,24 @@ static Napi::Value GetAppIcon(const Napi::CallbackInfo &info) {
     std::wstring appId = Utf8ToWide(info[0].As<Napi::String>().Utf8Value());
     EnsureGdiPlus();
 
+    const int outSize = 128;
     HICON hIcon = nullptr;
 
-    // Try SHGetImageList with SHIL_JUMBO (256x256) for highest quality
-    SHFILEINFOW sfi = {};
-    if (SHGetFileInfoW(appId.c_str(), 0, &sfi, sizeof(sfi), SHGFI_SYSICONINDEX)) {
-        IImageList *imgList = nullptr;
-        // SHIL_JUMBO = 4 (256x256), SHIL_EXTRALARGE = 2 (48x48)
-        if (SUCCEEDED(SHGetImageList(4 /*SHIL_JUMBO*/, IID_IImageList, (void **)&imgList)) && imgList) {
-            imgList->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon);
-            imgList->Release();
-        }
-        if (!hIcon) {
-            // Fallback to SHIL_EXTRALARGE (48x48)
+    // 1. PrivateExtractIconsW — extracts and properly scales from the exe's
+    //    icon resources. Avoids the SHIL_JUMBO "small icon in corner" problem
+    //    where apps with only 32/48px icons get placed unscaled in a 256x256 slot.
+    UINT iconId = 0;
+    UINT count = PrivateExtractIconsW(appId.c_str(), 0, outSize, outSize,
+                                       &hIcon, &iconId, 1, LR_DEFAULTCOLOR);
+    if (count == 0 || count == (UINT)-1 || !hIcon) {
+        hIcon = nullptr;
+    }
+
+    // 2. SHGetImageList SHIL_EXTRALARGE (48x48) — always fills the slot correctly
+    if (!hIcon) {
+        SHFILEINFOW sfi = {};
+        if (SHGetFileInfoW(appId.c_str(), 0, &sfi, sizeof(sfi), SHGFI_SYSICONINDEX)) {
+            IImageList *imgList = nullptr;
             if (SUCCEEDED(SHGetImageList(2 /*SHIL_EXTRALARGE*/, IID_IImageList, (void **)&imgList)) && imgList) {
                 imgList->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon);
                 imgList->Release();
@@ -1202,20 +1208,17 @@ static Napi::Value GetAppIcon(const Napi::CallbackInfo &info) {
         }
     }
 
+    // 3. ExtractIconEx large (32x32)
     if (!hIcon) {
-        // Final fallback: ExtractIconEx large (32x32)
         ExtractIconExW(appId.c_str(), 0, &hIcon, nullptr, 1);
     }
     if (!hIcon) return env.Null();
 
-    // Convert HICON to GDI+ Bitmap (preserves source resolution)
     Gdiplus::Bitmap iconBmp(hIcon);
     DestroyIcon(hIcon);
 
     int srcW = (int)iconBmp.GetWidth();
     int srcH = (int)iconBmp.GetHeight();
-
-    const int outSize = 128;
 
     Gdiplus::Bitmap target(outSize, outSize, PixelFormat32bppARGB);
     Gdiplus::Graphics g(&target);
