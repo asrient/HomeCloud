@@ -47,6 +47,7 @@ const TerminalPage: NextPageWithConfig = () => {
     setIsConnecting(true);
     setError(null);
     const currentFingerprint = fingerprint;
+    fingerprintRef.current = currentFingerprint;
 
     // Create xterm instance
     const term = new Terminal({
