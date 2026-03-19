@@ -2075,19 +2075,49 @@ static void CALLBACK PopupWinEventCallback(
     if (!g_windowWatchWin || !hwnd) return;
     auto &ctx = *g_windowWatchWin;
 
-    bool isShow = (event == EVENT_SYSTEM_MENUPOPUPSTART) ||
-                  (event == EVENT_OBJECT_SHOW && idObject == OBJID_WINDOW && idChild == CHILDID_SELF);
-    bool isHide = (event == EVENT_SYSTEM_MENUPOPUPEND) ||
-                  (event == EVENT_OBJECT_HIDE && idObject == OBJID_WINDOW && idChild == CHILDID_SELF);
+    bool isMenuShow = (event == EVENT_SYSTEM_MENUPOPUPSTART);
+    bool isMenuHide = (event == EVENT_SYSTEM_MENUPOPUPEND);
+    bool isObjShow = (event == EVENT_OBJECT_SHOW && idObject == OBJID_WINDOW && idChild == CHILDID_SELF);
+    bool isObjHide = (event == EVENT_OBJECT_HIDE && idObject == OBJID_WINDOW && idChild == CHILDID_SELF);
+    bool isShow = isMenuShow || isObjShow;
+    bool isHide = isMenuHide || isObjHide;
+
+    if (!isShow && !isHide) return;
 
     if (isShow) {
-        HWND owner = nullptr;
-        if (!IsValidPopupWindow(hwnd, &owner)) return;
+        // For menu popups, GetWindow(GW_OWNER) may be NULL — use PID matching instead
+        HWND owner = GetWindow(hwnd, GW_OWNER);
+
+        if (!IsWindowVisible(hwnd)) return;
+        BOOL cloaked = FALSE;
+        DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
+        if (cloaked) return;
+        RECT rect;
+        if (!GetWindowRect(hwnd, &rect)) return;
+        if (rect.right - rect.left < 2 || rect.bottom - rect.top < 2) return;
+
+        // If we have an owner, check it's tracked. If no owner (system menus),
+        // match by PID — if any tracked window belongs to the same process, accept it.
+        HWND resolvedOwner = nullptr;
         {
             std::lock_guard<std::mutex> lock(ctx.cacheMutex);
-            if (ctx.windowCache.find((uintptr_t)owner) == ctx.windowCache.end()) return;
+            if (owner && ctx.windowCache.count((uintptr_t)owner)) {
+                resolvedOwner = owner;
+            } else {
+                DWORD popupPid = GetWindowPID(hwnd);
+                if (popupPid == 0) return;
+                for (auto &[cachedHwnd, pair] : ctx.windowCache) {
+                    HWND cachedWnd = (HWND)cachedHwnd;
+                    if (GetWindowPID(cachedWnd) == popupPid) {
+                        resolvedOwner = cachedWnd;
+                        break;
+                    }
+                }
+            }
         }
-        trackAndFireCreated(ctx, hwnd, owner);
+        if (!resolvedOwner) return;
+
+        trackAndFireCreated(ctx, hwnd, resolvedOwner);
     } else if (isHide) {
         onWindowDestroyed(ctx, hwnd);
     }
