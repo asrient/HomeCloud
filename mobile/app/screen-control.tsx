@@ -28,6 +28,7 @@ import {
 import { isGlassEnabled, getServiceController } from '@/lib/utils';
 import { useAutoConnect } from '@/hooks/useAutoConnect';
 import { H264PlayerView } from '@/modules/h264-player';
+import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 
 // ── Constants ──
 
@@ -850,6 +851,10 @@ export default function ScreenControlScreen() {
                     headerTransparent: isGlassEnabled,
                     headerBackButtonDisplayMode: 'minimal',
                     gestureEnabled: controlMode !== 'pointer',
+                    headerLeft: () => (
+                        <UIHeaderButton name="xmark" onPress={() => router.back()} />
+                    ),
+                    headerBackVisible: false,
                 }}
             />
 
