@@ -141,7 +141,7 @@ export const useAppWindows = (appId: string | null, deviceFingerprint: string | 
         serviceController.apps.watchWindowsHeartbeat();
         createdRef.current = serviceController.apps.windowCreated.add((evt: WindowEvent) => {
             if (evt.app.id !== appId) return;
-            setWindows(prev => [...prev, evt.window]);
+            setWindows(prev => prev.some(w => w.id === evt.window.id) ? prev : [...prev, evt.window]);
         });
         destroyedRef.current = serviceController.apps.windowDestroyed.add((evt: WindowEvent) => {
             if (evt.app.id !== appId) return;
