@@ -234,37 +234,105 @@ static std::string DetectPopupWindowType(HWND hwnd) {
     return "popup";
 }
 
-// Build a Napi window-info object from an HWND.
-// For owned/popup windows pass the owner HWND; for top-level windows pass nullptr.
-static Napi::Object MakeWindowInfo(Napi::Env env, HWND hwnd, HWND foregroundHwnd,
-                                    HWND ownerHwnd = nullptr) {
+// ──────────────────────────────────────────────
+// Plain data structs for window/app info
+// ──────────────────────────────────────────────
+
+struct WindowInfoData {
+    std::string id;
+    std::string appId;
+    std::string title;
+    std::string type;
+    bool isFocused = false;
+    bool isHidden = false;
+    bool isMinimized = false;
+    bool isMaximized = false;
+    double x = 0, y = 0, width = 0, height = 0;
+    std::string parentWindowId;
+};
+
+struct AppInfoData {
+    std::string name;
+    std::string id;
+    std::string iconPath;
+};
+
+static WindowInfoData collectWindowInfo(HWND hwnd, HWND foregroundHwnd, HWND ownerHwnd = nullptr) {
+    WindowInfoData info;
+    info.id = std::to_string((uintptr_t)hwnd);
+
     WCHAR title[512] = {0};
     GetWindowTextW(hwnd, title, 512);
+    info.title = WideToUtf8(title);
 
-    Napi::Object obj = Napi::Object::New(env);
-    obj.Set("id", std::to_string((uintptr_t)hwnd));
-    obj.Set("title", WideToUtf8(title));
-    obj.Set("type", ownerHwnd ? DetectPopupWindowType(hwnd) : DetectWindowType(hwnd));
-    obj.Set("isFocused", hwnd == foregroundHwnd);
-    obj.Set("isHidden", ownerHwnd ? false : (bool)!IsWindowVisible(hwnd));
-    obj.Set("isMinimized", ownerHwnd ? false : (bool)IsIconic(hwnd));
-    obj.Set("isMaximized", ownerHwnd ? false : (bool)IsZoomed(hwnd));
-    RECT wndrect;
-    if (GetWindowRect(hwnd, &wndrect)) {
-        obj.Set("x", (double)wndrect.left);
-        obj.Set("y", (double)wndrect.top);
-        obj.Set("width", (double)(wndrect.right - wndrect.left));
-        obj.Set("height", (double)(wndrect.bottom - wndrect.top));
-    } else {
-        obj.Set("x", 0.0);
-        obj.Set("y", 0.0);
-        obj.Set("width", 0.0);
-        obj.Set("height", 0.0);
+    DWORD pid = GetWindowPID(hwnd);
+    std::wstring exePath = GetProcessExePath(pid);
+    info.appId = WideToUtf8(exePath);
+
+    info.type = ownerHwnd ? DetectPopupWindowType(hwnd) : DetectWindowType(hwnd);
+    info.isFocused = (hwnd == foregroundHwnd);
+    info.isHidden = ownerHwnd ? false : !IsWindowVisible(hwnd);
+    info.isMinimized = ownerHwnd ? false : (bool)IsIconic(hwnd);
+    info.isMaximized = ownerHwnd ? false : (bool)IsZoomed(hwnd);
+
+    RECT rect;
+    if (GetWindowRect(hwnd, &rect)) {
+        info.x = (double)rect.left;
+        info.y = (double)rect.top;
+        info.width = (double)(rect.right - rect.left);
+        info.height = (double)(rect.bottom - rect.top);
     }
+
     if (ownerHwnd) {
-        obj.Set("parentWindowId", std::to_string((uintptr_t)ownerHwnd));
+        info.parentWindowId = std::to_string((uintptr_t)ownerHwnd);
+    }
+    return info;
+}
+
+static Napi::Object windowInfoToNapi(Napi::Env env, const WindowInfoData &info) {
+    Napi::Object obj = Napi::Object::New(env);
+    obj.Set("id", info.id);
+    obj.Set("appId", info.appId);
+    obj.Set("title", info.title);
+    obj.Set("type", info.type);
+    obj.Set("isFocused", info.isFocused);
+    obj.Set("isHidden", info.isHidden);
+    obj.Set("isMinimized", info.isMinimized);
+    obj.Set("isMaximized", info.isMaximized);
+    obj.Set("x", info.x);
+    obj.Set("y", info.y);
+    obj.Set("width", info.width);
+    obj.Set("height", info.height);
+    if (!info.parentWindowId.empty()) {
+        obj.Set("parentWindowId", info.parentWindowId);
     }
     return obj;
+}
+
+static AppInfoData collectAppInfo(const std::wstring &exePath) {
+    AppInfoData info;
+    info.id = WideToUtf8(exePath);
+    info.iconPath = info.id;
+    auto slash = exePath.find_last_of(L'\\');
+    std::wstring name = (slash != std::wstring::npos) ? exePath.substr(slash + 1) : exePath;
+    auto dot = name.find_last_of(L'.');
+    if (dot != std::wstring::npos) name = name.substr(0, dot);
+    info.name = WideToUtf8(name);
+    return info;
+}
+
+static Napi::Object appInfoToNapi(Napi::Env env, const AppInfoData &info) {
+    Napi::Object obj = Napi::Object::New(env);
+    obj.Set("name", info.name);
+    obj.Set("id", info.id);
+    obj.Set("iconPath", info.iconPath);
+    return obj;
+}
+
+// Build a Napi window-info object from an HWND.
+static Napi::Object MakeWindowInfo(Napi::Env env, HWND hwnd, HWND foregroundHwnd,
+                                    HWND ownerHwnd = nullptr) {
+    return windowInfoToNapi(env, collectWindowInfo(hwnd, foregroundHwnd, ownerHwnd));
 }
 
 // ──────────────────────────────────────────────
@@ -1042,12 +1110,7 @@ static Napi::Value GetRunningApps(const Napi::CallbackInfo &info) {
     Napi::Array arr = Napi::Array::New(env);
     uint32_t idx = 0;
     for (auto &[pid, pInfo] : ctx.procs) {
-        Napi::Object obj = Napi::Object::New(env);
-        obj.Set("name", WideToUtf8(pInfo.name));
-        // Use exe path as the app ID on Windows
-        obj.Set("id", WideToUtf8(pInfo.exePath));
-        obj.Set("iconPath", WideToUtf8(pInfo.exePath));
-        arr.Set(idx++, obj);
+        arr.Set(idx++, appInfoToNapi(env, collectAppInfo(pInfo.exePath)));
     }
     return arr;
 }
@@ -1119,27 +1182,46 @@ static Napi::Value GetAppIcon(const Napi::CallbackInfo &info) {
     std::wstring appId = Utf8ToWide(info[0].As<Napi::String>().Utf8Value());
     EnsureGdiPlus();
 
-    // Extract large icon from the executable
-    HICON hIconLarge = nullptr;
-    ExtractIconExW(appId.c_str(), 0, &hIconLarge, nullptr, 1);
-    if (!hIconLarge) {
-        // Fallback: SHGetFileInfo
-        SHFILEINFOW sfi = {};
-        SHGetFileInfoW(appId.c_str(), 0, &sfi, sizeof(sfi), SHGFI_ICON | SHGFI_LARGEICON);
-        hIconLarge = sfi.hIcon;
+    HICON hIcon = nullptr;
+
+    // Try SHGetImageList with SHIL_JUMBO (256x256) for highest quality
+    SHFILEINFOW sfi = {};
+    if (SHGetFileInfoW(appId.c_str(), 0, &sfi, sizeof(sfi), SHGFI_SYSICONINDEX)) {
+        IImageList *imgList = nullptr;
+        // SHIL_JUMBO = 4 (256x256), SHIL_EXTRALARGE = 2 (48x48)
+        if (SUCCEEDED(SHGetImageList(4 /*SHIL_JUMBO*/, IID_IImageList, (void **)&imgList)) && imgList) {
+            imgList->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon);
+            imgList->Release();
+        }
+        if (!hIcon) {
+            // Fallback to SHIL_EXTRALARGE (48x48)
+            if (SUCCEEDED(SHGetImageList(2 /*SHIL_EXTRALARGE*/, IID_IImageList, (void **)&imgList)) && imgList) {
+                imgList->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon);
+                imgList->Release();
+            }
+        }
     }
-    if (!hIconLarge) return env.Null();
 
-    // Convert HICON to HBITMAP via GDI+
-    Gdiplus::Bitmap iconBmp(hIconLarge);
-    DestroyIcon(hIconLarge);
+    if (!hIcon) {
+        // Final fallback: ExtractIconEx large (32x32)
+        ExtractIconExW(appId.c_str(), 0, &hIcon, nullptr, 1);
+    }
+    if (!hIcon) return env.Null();
 
-    // Create a 64x64 target bitmap
-    Gdiplus::Bitmap target(64, 64, PixelFormat32bppARGB);
+    // Convert HICON to GDI+ Bitmap (preserves source resolution)
+    Gdiplus::Bitmap iconBmp(hIcon);
+    DestroyIcon(hIcon);
+
+    int srcW = (int)iconBmp.GetWidth();
+    int srcH = (int)iconBmp.GetHeight();
+
+    const int outSize = 128;
+
+    Gdiplus::Bitmap target(outSize, outSize, PixelFormat32bppARGB);
     Gdiplus::Graphics g(&target);
     g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
-    g.Clear(Gdiplus::Color(0, 0, 0, 0)); // transparent
-    g.DrawImage(&iconBmp, 0, 0, 64, 64);
+    g.Clear(Gdiplus::Color(0, 0, 0, 0));
+    g.DrawImage(&iconBmp, 0, 0, outSize, outSize);
 
     // Save to PNG stream
     CLSID pngClsid;
@@ -1892,6 +1974,164 @@ static Napi::Value SetStreamBitrate(const Napi::CallbackInfo &info) {
 }
 
 // ──────────────────────────────────────────────
+// Window watcher (Shell Hook — fires for all top-level window events)
+// App-level tracking (launch/quit) is derived in JS from window events.
+// ──────────────────────────────────────────────
+
+struct WindowWatchWinCtx {
+    Napi::ThreadSafeFunction onCreatedTsfn;
+    Napi::ThreadSafeFunction onDestroyedTsfn;
+    HWND msgWindow = nullptr;
+    UINT shellHookMsg = 0;
+
+    // Cache window→app/window info so destroy events can report accurate data
+    // after the HWND is already gone.
+    std::mutex cacheMutex;
+    std::unordered_map<uintptr_t, std::pair<AppInfoData, WindowInfoData>> windowCache;
+};
+
+static std::shared_ptr<WindowWatchWinCtx> g_windowWatchWin;
+
+static void onWindowCreated(WindowWatchWinCtx &ctx, HWND hwnd) {
+    if (!IsAppWindow(hwnd)) return;
+
+    DWORD pid = GetWindowPID(hwnd);
+    std::wstring exePath = GetProcessExePath(pid);
+    if (exePath.empty()) return;
+
+    auto winInfo = collectWindowInfo(hwnd, GetForegroundWindow());
+    auto appInfo = collectAppInfo(exePath);
+
+    // Cache for later destroy lookup
+    {
+        std::lock_guard<std::mutex> lock(ctx.cacheMutex);
+        ctx.windowCache[(uintptr_t)hwnd] = { appInfo, winInfo };
+    }
+
+    ctx.onCreatedTsfn.NonBlockingCall([winInfo, appInfo](Napi::Env env, Napi::Function cb) {
+        cb.Call({ appInfoToNapi(env, appInfo), windowInfoToNapi(env, winInfo) });
+    });
+}
+
+static void onWindowDestroyed(WindowWatchWinCtx &ctx, HWND hwnd) {
+    AppInfoData appInfo;
+    WindowInfoData winInfo;
+
+    {
+        std::lock_guard<std::mutex> lock(ctx.cacheMutex);
+        auto it = ctx.windowCache.find((uintptr_t)hwnd);
+        if (it == ctx.windowCache.end()) return; // not an app window we tracked
+        appInfo = it->second.first;
+        winInfo = it->second.second;
+        ctx.windowCache.erase(it);
+    }
+
+    ctx.onDestroyedTsfn.NonBlockingCall([winInfo, appInfo](Napi::Env env, Napi::Function cb) {
+        cb.Call({ appInfoToNapi(env, appInfo), windowInfoToNapi(env, winInfo) });
+    });
+}
+
+static LRESULT CALLBACK ShellHookWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (!g_windowWatchWin) return DefWindowProcW(hwnd, msg, wParam, lParam);
+    auto &ctx = *g_windowWatchWin;
+
+    if (msg == ctx.shellHookMsg) {
+        int shellEvent = (int)wParam;
+        HWND eventHwnd = (HWND)lParam;
+        if (eventHwnd) {
+            if (shellEvent == HSHELL_WINDOWCREATED) {
+                onWindowCreated(ctx, eventHwnd);
+            } else if (shellEvent == HSHELL_WINDOWDESTROYED) {
+                onWindowDestroyed(ctx, eventHwnd);
+            }
+        }
+    }
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+static void stopWindowWatchWin() {
+    if (!g_windowWatchWin) return;
+    auto ctx = g_windowWatchWin;
+    g_windowWatchWin = nullptr;
+    if (ctx->msgWindow) {
+        DeregisterShellHookWindow(ctx->msgWindow);
+        DestroyWindow(ctx->msgWindow);
+        ctx->msgWindow = nullptr;
+    }
+    {
+        std::lock_guard<std::mutex> lock(ctx->cacheMutex);
+        ctx->windowCache.clear();
+    }
+    ctx->onCreatedTsfn.Release();
+    ctx->onDestroyedTsfn.Release();
+}
+
+static Napi::Value StartWatchingWindows(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 2 || !info[0].IsFunction() || !info[1].IsFunction()) {
+        Napi::TypeError::New(env, "Expected (onCreated, onDestroyed) callbacks").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+    stopWindowWatchWin();
+
+    auto ctx = std::make_shared<WindowWatchWinCtx>();
+    ctx->onCreatedTsfn = Napi::ThreadSafeFunction::New(env, info[0].As<Napi::Function>(),
+                                                        "WinCreatedCB", 0, 1);
+    ctx->onDestroyedTsfn = Napi::ThreadSafeFunction::New(env, info[1].As<Napi::Function>(),
+                                                          "WinDestroyedCB", 0, 1);
+
+    static const wchar_t *className = L"HCShellHookWnd";
+    static bool classRegistered = false;
+    if (!classRegistered) {
+        WNDCLASSEXW wc = {};
+        wc.cbSize = sizeof(wc);
+        wc.lpfnWndProc = ShellHookWndProc;
+        wc.hInstance = GetModuleHandleW(nullptr);
+        wc.lpszClassName = className;
+        RegisterClassExW(&wc);
+        classRegistered = true;
+    }
+
+    ctx->msgWindow = CreateWindowExW(0, className, L"", 0, 0, 0, 0, 0,
+                                     HWND_MESSAGE, nullptr, GetModuleHandleW(nullptr), nullptr);
+    if (!ctx->msgWindow) {
+        ctx->onCreatedTsfn.Release();
+        ctx->onDestroyedTsfn.Release();
+        Napi::Error::New(env, "Failed to create shell hook window").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    ctx->shellHookMsg = RegisterWindowMessageW(L"SHELLHOOK");
+    RegisterShellHookWindow(ctx->msgWindow);
+
+    // Seed cache with currently visible app windows so destroy events work
+    // for windows that were already open before watching started.
+    {
+        HWND fg = GetForegroundWindow();
+        auto seedCb = [](HWND hwnd, LPARAM lParam) -> BOOL {
+            if (!IsAppWindow(hwnd)) return TRUE;
+            auto *seedCtx = reinterpret_cast<WindowWatchWinCtx *>(lParam);
+            DWORD pid = GetWindowPID(hwnd);
+            std::wstring exePath = GetProcessExePath(pid);
+            if (exePath.empty()) return TRUE;
+            auto winInfo = collectWindowInfo(hwnd, GetForegroundWindow());
+            auto appInfo = collectAppInfo(exePath);
+            seedCtx->windowCache[(uintptr_t)hwnd] = { appInfo, winInfo };
+            return TRUE;
+        };
+        EnumWindows(seedCb, (LPARAM)ctx.get());
+    }
+
+    g_windowWatchWin = ctx;
+    return env.Undefined();
+}
+
+static Napi::Value StopWatchingWindows(const Napi::CallbackInfo &info) {
+    stopWindowWatchWin();
+    return info.Env().Undefined();
+}
+
+// ──────────────────────────────────────────────
 // Module init
 // ──────────────────────────────────────────────
 
@@ -1912,6 +2152,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("stopH264Stream", Napi::Function::New(env, StopH264Stream));
     exports.Set("setStreamFps", Napi::Function::New(env, SetStreamFps));
     exports.Set("setStreamBitrate", Napi::Function::New(env, SetStreamBitrate));
+    exports.Set("startWatchingWindows", Napi::Function::New(env, StartWatchingWindows));
+    exports.Set("stopWatchingWindows", Napi::Function::New(env, StopWatchingWindows));
     return exports;
 }
 

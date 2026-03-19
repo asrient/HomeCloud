@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useResource, useResourceWithPolling } from './useResource';
-import { RemoteAppInfo, RemoteAppWindow, RemoteAppWindowActionPayload } from 'shared/types';
+import { RemoteAppInfo, RemoteAppWindow, RemoteAppWindowActionPayload, WindowEvent } from 'shared/types';
 import { decodeMediaChunk } from 'shared/mediaStream';
 import ServiceController from 'shared/controller';
 import { SignalNodeRef } from 'shared/signals';
@@ -16,56 +16,44 @@ export const useRunningApps = (
     onAppOpened?: (app: RemoteAppInfo) => void,
 ) => {
     const [runningApps, setRunningApps] = useState<RemoteAppInfo[]>([]);
-    const signalRef = useRef<SignalNodeRef<[RemoteAppInfo[]], string> | null>(null);
-    const scRef = useRef<ServiceController | null>(null);
-    const prevIdsRef = useRef<Set<string> | null>(null);
+    const launchRef = useRef<SignalNodeRef<[RemoteAppInfo], string> | null>(null);
+    const quitRef = useRef<SignalNodeRef<[RemoteAppInfo], string> | null>(null);
     const onAppOpenedRef = useRef(onAppOpened);
     onAppOpenedRef.current = onAppOpened;
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
         const running = await serviceController.apps.getRunningApps();
         if (shouldAbort()) return;
-        prevIdsRef.current = new Set(running.map(a => a.id));
         setRunningApps(running);
     }, []);
 
     const clearSignals = useCallback((serviceController: ServiceController) => {
-        if (signalRef.current) {
-            serviceController.apps.runningAppsChanged.detach(signalRef.current);
-            signalRef.current = null;
+        if (launchRef.current) {
+            serviceController.apps.appLaunched.detach(launchRef.current);
+            launchRef.current = null;
         }
-        serviceController.apps.unwatchRunningApps();
-        scRef.current = null;
+        if (quitRef.current) {
+            serviceController.apps.appQuit.detach(quitRef.current);
+            quitRef.current = null;
+        }
     }, []);
 
     const setupSignals = useCallback((serviceController: ServiceController) => {
         clearSignals(serviceController);
-        scRef.current = serviceController;
-        serviceController.apps.watchRunningApps();
-        signalRef.current = serviceController.apps.runningAppsChanged.add((apps: RemoteAppInfo[]) => {
-            if (prevIdsRef.current && onAppOpenedRef.current) {
-                for (const app of apps) {
-                    if (!prevIdsRef.current.has(app.id)) {
-                        onAppOpenedRef.current(app);
-                    }
-                }
-            }
-            prevIdsRef.current = new Set(apps.map(a => a.id));
-            setRunningApps(apps);
+        launchRef.current = serviceController.apps.appLaunched.add((app: RemoteAppInfo) => {
+            onAppOpenedRef.current?.(app);
+            setRunningApps(prev => [...prev, app]);
+        });
+        quitRef.current = serviceController.apps.appQuit.add((app: RemoteAppInfo) => {
+            setRunningApps(prev => prev.filter(a => a.id !== app.id));
         });
     }, [clearSignals]);
 
-    const poll = useCallback(() => {
-        scRef.current?.apps.watchRunningApps();
-    }, []);
-
-    const { isLoading, error, reload } = useResourceWithPolling({
+    const { isLoading, error, reload } = useResource({
         deviceFingerprint,
         load,
         setupSignals,
         clearSignals,
-        interval: WATCH_HEARTBEAT_MS,
-        poll,
     });
 
     return { runningApps, isLoading, error, reload };
@@ -152,8 +140,8 @@ export const useAppIcon = (appId: string, deviceFingerprint: string | null) => {
 
 export const useAppWindows = (appId: string | null, deviceFingerprint: string | null) => {
     const [windows, setWindows] = useState<RemoteAppWindow[]>([]);
-    const signalRef = useRef<SignalNodeRef<[string, RemoteAppWindow[]], string> | null>(null);
-    const scRef = useRef<ServiceController | null>(null);
+    const createdRef = useRef<SignalNodeRef<[WindowEvent], string> | null>(null);
+    const destroyedRef = useRef<SignalNodeRef<[WindowEvent], string> | null>(null);
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
         if (!appId) return;
@@ -163,28 +151,34 @@ export const useAppWindows = (appId: string | null, deviceFingerprint: string | 
     }, [appId]);
 
     const clearSignals = useCallback((serviceController: ServiceController) => {
-        if (signalRef.current) {
-            serviceController.apps.windowsChanged.detach(signalRef.current);
-            signalRef.current = null;
+        if (createdRef.current) {
+            serviceController.apps.windowCreated.detach(createdRef.current);
+            createdRef.current = null;
         }
-        if (appId) serviceController.apps.unwatchWindows(appId);
-        scRef.current = null;
-    }, [appId]);
+        if (destroyedRef.current) {
+            serviceController.apps.windowDestroyed.detach(destroyedRef.current);
+            destroyedRef.current = null;
+        }
+    }, []);
 
     const setupSignals = useCallback((serviceController: ServiceController) => {
         if (!appId) return;
         clearSignals(serviceController);
-        scRef.current = serviceController;
-        serviceController.apps.watchWindows(appId);
-        signalRef.current = serviceController.apps.windowsChanged.add((changedAppId: string, wins: RemoteAppWindow[]) => {
-            if (changedAppId !== appId) return;
-            setWindows(wins);
+        serviceController.apps.watchWindowsHeartbeat();
+        createdRef.current = serviceController.apps.windowCreated.add((evt: WindowEvent) => {
+            if (evt.app.id !== appId) return;
+            setWindows(prev => [...prev, evt.window]);
+        });
+        destroyedRef.current = serviceController.apps.windowDestroyed.add((evt: WindowEvent) => {
+            if (evt.app.id !== appId) return;
+            setWindows(prev => prev.filter(w => w.id !== evt.window.id));
         });
     }, [appId, clearSignals]);
 
-    const poll = useCallback(() => {
-        if (appId) scRef.current?.apps.watchWindows(appId);
-    }, [appId]);
+    const poll = useCallback(async () => {
+        const sc = await getServiceController(deviceFingerprint);
+        sc.apps.watchWindowsHeartbeat();
+    }, [deviceFingerprint]);
 
     const { isLoading, error, reload } = useResourceWithPolling({
         deviceFingerprint,

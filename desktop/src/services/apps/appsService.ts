@@ -7,24 +7,21 @@ import {
 } from "shared/types";
 import { encodeMediaChunk } from "shared/mediaStream";
 import { serviceStartMethod, serviceStopMethod, exposed } from "shared/servicePrimatives";
-import * as macDriver from "./macDriver";
-import * as winDriver from "./winDriver";
+import { AppsDriver } from "./driver";
+import { MacAppsDriver } from "./macDriver";
+import { WinAppsDriver } from "./winDriver";
 import { powerSaveBlocker } from "electron";
 
-const POLL_INTERVAL = 5_000;
-const POLL_IDLE_TIMEOUT = 180_000;
-const WINDOW_POLL_INTERVAL = 3_000;
-const WINDOW_POLL_IDLE_TIMEOUT = 180_000;
 const SESSION_HEARTBEAT_TIMEOUT = 8_000; // 8s — close stream if no heartbeat from client
-const DEFAULT_BITRATE = 15_000_000; // 15 Mbps — good for 2x Retina screen content
+const WINDOW_WATCH_IDLE_TIMEOUT = 3 * 60_000; // 3 min — stop watching if no heartbeat
 
-const isMac = process.platform === "darwin";
-const isWin = process.platform === "win32";
-
-function getDriver() {
-    if (isMac) return macDriver;
-    if (isWin) return winDriver;
-    throw new Error("Apps service is not supported on this platform");
+let _driver: AppsDriver | null = null;
+function getDriver(): AppsDriver {
+    if (_driver) return _driver;
+    if (process.platform === "darwin") _driver = new MacAppsDriver();
+    else if (process.platform === "win32") _driver = new WinAppsDriver();
+    else throw new Error("Apps service is not supported on this platform");
+    return _driver;
 }
 
 interface StreamSession {
@@ -39,15 +36,7 @@ interface StreamSession {
 export default class DesktopAppsService extends AppsService {
 
     private installedAppsCache: RemoteAppInfo[] | null = null;
-    private runningAppsIds: Set<string> | null = null;
-    private pollTimer: ReturnType<typeof setInterval> | null = null;
-    private lastRunningAppsCall = 0;
-
-    private windowWatchers = new Map<string, {
-        timer: ReturnType<typeof setInterval>;
-        windowIds: Set<string>;
-        lastAccess: number;
-    }>();
+    private runningAppsCache: RemoteAppInfo[] | null = null;
 
     private windowSessions = new Map<string, StreamSession>();
     private sessionCleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -56,6 +45,9 @@ export default class DesktopAppsService extends AppsService {
     private lastCaptureTime = 0;
     private powerBlockerTimer: ReturnType<typeof setInterval> | null = null;
     private static readonly POWER_BLOCKER_TIMEOUT = 10_000;
+
+    private windowWatchingActive = false;
+    private windowWatchTimer: ReturnType<typeof setTimeout> | null = null;
 
     @exposed
     public override async isAvailable(): Promise<boolean> {
@@ -73,46 +65,10 @@ export default class DesktopAppsService extends AppsService {
 
     @exposed
     public async getRunningApps(): Promise<RemoteAppInfo[]> {
-        return getDriver().getRunningApps();
-    }
-
-    @exposed
-    public async watchRunningApps(): Promise<void> {
-        this.lastRunningAppsCall = Date.now();
-        if (this.pollTimer) return;
-        this.runningAppsIds = new Set(getDriver().getRunningApps().map(a => a.id));
-        this.pollTimer = setInterval(() => this.pollRunningApps(), POLL_INTERVAL);
-    }
-
-    @exposed
-    public async unwatchRunningApps(): Promise<void> {
-        this.stopPolling();
-    }
-
-    private stopPolling() {
-        if (this.pollTimer) {
-            clearInterval(this.pollTimer);
-            this.pollTimer = null;
+        if (!this.runningAppsCache) {
+            this.runningAppsCache = getDriver().getRunningApps();
         }
-        this.runningAppsIds = null;
-    }
-
-    private pollRunningApps() {
-        if (Date.now() - this.lastRunningAppsCall > POLL_IDLE_TIMEOUT) {
-            this.stopPolling();
-            return;
-        }
-        const apps = getDriver().getRunningApps();
-        const currentIds = new Set(apps.map(a => a.id));
-        if (this.runningAppsIds) {
-            const changed =
-                currentIds.size !== this.runningAppsIds.size ||
-                [...currentIds].some(id => !this.runningAppsIds!.has(id));
-            if (changed) {
-                this.runningAppsChanged.dispatch(apps);
-            }
-        }
-        this.runningAppsIds = currentIds;
+        return this.runningAppsCache;
     }
 
     @exposed
@@ -140,47 +96,25 @@ export default class DesktopAppsService extends AppsService {
     }
 
     @exposed
-    public async watchWindows(appId: string): Promise<void> {
-        const existing = this.windowWatchers.get(appId);
-        if (existing) {
-            existing.lastAccess = Date.now();
-            return;
+    public async watchWindowsHeartbeat(): Promise<void> {
+        if (!this.windowWatchingActive) {
+            this.windowWatchingActive = true;
+            const driver = getDriver();
+            driver.startWindowWatching(
+                (app, win) => this.windowCreated.dispatch({ app, window: win }),
+                (app, win) => this.windowDestroyed.dispatch({ app, window: win }),
+            );
+            console.log("[AppsService] Window watching started (heartbeat).");
         }
-        const windows = getDriver().getWindows(appId);
-        const windowIds = new Set(windows.map(w => w.id));
-        const timer = setInterval(() => this.pollWindows(appId), WINDOW_POLL_INTERVAL);
-        this.windowWatchers.set(appId, { timer, windowIds, lastAccess: Date.now() });
+        this.rescheduleWindowWatchTimeout();
     }
 
-    @exposed
-    public async unwatchWindows(appId: string): Promise<void> {
-        this.stopWindowWatcher(appId);
-    }
-
-    private stopWindowWatcher(appId: string) {
-        const watcher = this.windowWatchers.get(appId);
-        if (watcher) {
-            clearInterval(watcher.timer);
-            this.windowWatchers.delete(appId);
-        }
-    }
-
-    private pollWindows(appId: string) {
-        const watcher = this.windowWatchers.get(appId);
-        if (!watcher) return;
-        if (Date.now() - watcher.lastAccess > WINDOW_POLL_IDLE_TIMEOUT) {
-            this.stopWindowWatcher(appId);
-            return;
-        }
-        const windows = getDriver().getWindows(appId);
-        const currentIds = new Set(windows.map(w => w.id));
-        const changed =
-            currentIds.size !== watcher.windowIds.size ||
-            [...currentIds].some(id => !watcher.windowIds.has(id));
-        if (changed) {
-            watcher.windowIds = currentIds;
-            this.windowsChanged.dispatch(appId, windows);
-        }
+    private rescheduleWindowWatchTimeout(): void {
+        if (this.windowWatchTimer) clearTimeout(this.windowWatchTimer);
+        this.windowWatchTimer = setTimeout(() => {
+            this.windowWatchTimer = null;
+            this.stopWindowWatching();
+        }, WINDOW_WATCH_IDLE_TIMEOUT);
     }
 
     // ── H.264 Window Streaming ──
@@ -188,16 +122,14 @@ export default class DesktopAppsService extends AppsService {
     @exposed
     public async startStreamingSession(windowId: string): Promise<StreamingSessionInfo> {
         const driver = getDriver();
-        if (isMac) {
-            if (!driver.hasScreenRecordingPermission()) {
-                throw new Error("Screen recording permission is required. Grant it in System Settings > Privacy & Security > Screen Recording.");
-            }
-            if (!driver.hasAccessibilityPermission()) {
-                throw new Error("Accessibility permission is required for remote control. Grant it in System Settings > Privacy & Security > Accessibility.");
-            }
+        if (!driver.hasScreenRecordingPermission()) {
+            throw new Error("Screen recording permission is required. Grant it in System Settings > Privacy & Security > Screen Recording.");
+        }
+        if (!driver.hasAccessibilityPermission()) {
+            throw new Error("Accessibility permission is required for remote control. Grant it in System Settings > Privacy & Security > Accessibility.");
         }
 
-        const numId = isMac ? parseInt(windowId, 10) : Number(windowId);
+        const numId = Number(windowId);
 
         // Stop any existing session for this window
         await this.stopStreamingSession(windowId);
@@ -287,7 +219,7 @@ export default class DesktopAppsService extends AppsService {
         if (!session) return;
         console.log(`[AppsService] stopStreamingSession: ${windowId}`);
         this.windowSessions.delete(windowId);
-        const numId = isMac ? parseInt(windowId, 10) : Number(windowId);
+        const numId = Number(windowId);
         try { getDriver().stopH264Stream(numId); } catch {}
         try { session.controller?.close(); } catch {}
     }
@@ -297,7 +229,7 @@ export default class DesktopAppsService extends AppsService {
         const session = this.windowSessions.get(windowId);
         if (session) session.lastHeartbeat = Date.now();
 
-        const numId = isMac ? parseInt(windowId, 10) : Number(windowId);
+        const numId = Number(windowId);
         const driver = getDriver();
 
         if (fps != null && fps > 0) {
@@ -355,6 +287,17 @@ export default class DesktopAppsService extends AppsService {
 
     // ── Window control ──
 
+    private stopWindowWatching(): void {
+        if (!this.windowWatchingActive) return;
+        this.windowWatchingActive = false;
+        getDriver().stopWindowWatching();
+        if (this.windowWatchTimer) {
+            clearTimeout(this.windowWatchTimer);
+            this.windowWatchTimer = null;
+        }
+        console.log("[AppsService] Window watching stopped (idle).");
+    }
+
     @exposed
     public async performWindowAction(payload: RemoteAppWindowActionPayload): Promise<void> {
         getDriver().performAction(payload);
@@ -384,16 +327,31 @@ export default class DesktopAppsService extends AppsService {
 
     @serviceStartMethod
     public async start() {
+        const driver = getDriver();
+        driver.watchRunningApps(
+            (app) => {
+                if (this.runningAppsCache) {
+                    this.runningAppsCache = [...this.runningAppsCache, app];
+                }
+                this.appLaunched.dispatch(app);
+            },
+            (app) => {
+                if (this.runningAppsCache) {
+                    this.runningAppsCache = this.runningAppsCache.filter(a => a.id !== app.id);
+                }
+                this.appQuit.dispatch(app);
+            },
+        );
+        // Window watching is started on-demand via watchWindowsHeartbeat()
         console.log("AppsService started.");
     }
 
     @serviceStopMethod
     public async stop() {
-        this.stopPolling();
+        const driver = getDriver();
+        this.stopWindowWatching();
+        driver.unwatchRunningApps();
         this.stopPowerBlocker();
-        for (const appId of this.windowWatchers.keys()) {
-            this.stopWindowWatcher(appId);
-        }
         for (const windowId of [...this.windowSessions.keys()]) {
             this.stopStreamingSession(windowId);
         }

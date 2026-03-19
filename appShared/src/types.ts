@@ -339,6 +339,7 @@ export enum RemoteAppWindowType {
 
 export type RemoteAppWindow = {
     id: string;
+    appId: string;
     title: string;
     type: RemoteAppWindowType;
     x: number;
@@ -350,6 +351,11 @@ export type RemoteAppWindow = {
     isMinimized: boolean;
     isMaximized: boolean;
     parentWindowId?: string;
+}
+
+export type WindowEvent = {
+    app: RemoteAppInfo;
+    window: RemoteAppWindow;
 }
 
 export type StreamingSessionInfo = {

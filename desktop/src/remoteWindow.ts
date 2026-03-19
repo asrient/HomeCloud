@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
 import path from 'node:path';
-import { RemoteAppWindow, RemoteAppWindowType, RemoteAppWindowAction } from 'shared/types';
+import { RemoteAppWindow, RemoteAppWindowType, RemoteAppWindowAction, RemoteAppInfo, WindowEvent } from 'shared/types';
 import { buildUrl } from './window';
 
 // ── Constants ──
@@ -40,7 +40,12 @@ const remoteWindows = new Map<string, BrowserWindow>();
 const WATCH_HEARTBEAT_MS = 60_000; // 1 minute
 
 /** Per-app signal watchers keyed by "fingerprint:appId" */
-const appWindowWatchers = new Map<string, { signalRef: any; sc: any; heartbeat: ReturnType<typeof setInterval> }>();
+const appWindowWatchers = new Map<string, {
+    createdRef: any;
+    destroyedRef: any;
+    sc: any;
+    heartbeat: ReturnType<typeof setInterval>;
+}>();
 
 // ── Helpers ──
 
@@ -100,7 +105,7 @@ function computeChildPosition(
  * - Positions child windows relative to their parent BrowserWindow.
  * - Configures resizable / alwaysOnTop / close-on-blur based on window type.
  * - Skips windows that are too small (< MIN_WINDOW_SIZE).
- * - Subscribes to the windowsChanged signal so new windows are auto-opened.
+ * - Subscribes to the windowCreated/windowDestroyed signals so new windows are auto-opened.
  */
 export function createRemoteWindow(
     w: RemoteAppWindow,
@@ -221,19 +226,24 @@ async function ensureAppWindowWatcher(appId: string, fingerprint: string | null)
             ? await modules.getRemoteServiceController(fingerprint)
             : modules.getLocalServiceController();
 
-        await sc.apps.watchWindows(appId);
+        await sc.apps.watchWindowsHeartbeat();
 
-        const signalRef = sc.apps.windowsChanged.add((changedAppId: string, windows: RemoteAppWindow[]) => {
-            if (changedAppId !== appId) return;
-            onWindowsChanged(appId, fingerprint, windows);
+        const createdRef = sc.apps.windowCreated.add((evt: WindowEvent) => {
+            if (evt.app.id !== appId) return;
+            onWindowCreated(appId, fingerprint, evt.window);
         });
 
-        // Periodically re-call watchWindows to keep the server-side watcher alive
+        const destroyedRef = sc.apps.windowDestroyed.add((evt: WindowEvent) => {
+            if (evt.app.id !== appId) return;
+            onWindowDestroyed(fingerprint, evt.window);
+        });
+
+        // Periodically re-call watchWindowsHeartbeat to keep the server-side watcher alive
         const heartbeat = setInterval(() => {
-            sc.apps.watchWindows(appId).catch(() => {});
+            sc.apps.watchWindowsHeartbeat().catch(() => {});
         }, WATCH_HEARTBEAT_MS);
 
-        appWindowWatchers.set(wKey, { signalRef, sc, heartbeat });
+        appWindowWatchers.set(wKey, { createdRef, destroyedRef, sc, heartbeat });
     } catch (e) {
         console.error(`Failed to watch windows for ${appId}:`, e);
     }
@@ -252,35 +262,25 @@ function cleanupAppWatcher(appId: string, fingerprint: string | null) {
     if (watcher) {
         clearInterval(watcher.heartbeat);
         try {
-            watcher.sc.apps.windowsChanged.detach(watcher.signalRef);
+            watcher.sc.apps.windowCreated.detach(watcher.createdRef);
+            watcher.sc.apps.windowDestroyed.detach(watcher.destroyedRef);
         } catch { }
-        watcher.sc.apps.unwatchWindows(appId).catch(() => { });
         appWindowWatchers.delete(wKey);
     }
 }
 
-function onWindowsChanged(appId: string, fingerprint: string | null, windows: RemoteAppWindow[]) {
-    const prefix = `${fingerprint ?? 'local'}:`;
-    const currentIds = new Set(windows.map(w => w.id));
+function onWindowCreated(appId: string, fingerprint: string | null, w: RemoteAppWindow) {
+    const key = windowKey(fingerprint, w.id);
+    if (remoteWindows.has(key)) return;
+    if (isTooSmall(w)) return;
+    createRemoteWindow(w, fingerprint, appId);
+}
 
-    // Close BrowserWindows for windows that no longer exist on the remote
-    for (const [key, bw] of remoteWindows) {
-        if (!key.startsWith(prefix)) continue;
-        const windowId = key.slice(prefix.length);
-        if (!currentIds.has(windowId) && !bw.isDestroyed()) {
-            bw.close();
-        }
-    }
-
-    // Open new windows
-    const windowMap = new Map(windows.map(w => [w.id, w]));
-    for (const w of windows) {
-        const key = windowKey(fingerprint, w.id);
-        if (remoteWindows.has(key)) continue;
-        if (isTooSmall(w)) continue;
-
-        const parentRemote = w.parentWindowId ? windowMap.get(w.parentWindowId) : undefined;
-        createRemoteWindow(w, fingerprint, appId, parentRemote);
+function onWindowDestroyed(fingerprint: string | null, w: RemoteAppWindow) {
+    const key = windowKey(fingerprint, w.id);
+    const bw = remoteWindows.get(key);
+    if (bw && !bw.isDestroyed()) {
+        bw.close();
     }
 }
 

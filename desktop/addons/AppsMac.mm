@@ -33,6 +33,7 @@
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <vector>
 #include <string>
@@ -86,7 +87,67 @@ static bool isNormalCGWindow(NSDictionary *w, int minSize = 50) {
     return layer == 0 && alpha >= 0.01 && width >= minSize && height >= minSize;
 }
 
+// ──────────────────────────────────────────────
+// Plain data structs for window/app info
+// ──────────────────────────────────────────────
 
+struct WindowInfoData {
+    std::string id;
+    std::string appId;
+    std::string title;
+    std::string type;
+    bool isFocused = false;
+    bool isHidden = false;
+    bool isMinimized = false;
+    bool isMaximized = false;
+    double x = 0, y = 0, width = 0, height = 0;
+};
+
+struct AppInfoData {
+    std::string name;
+    std::string id;
+    std::string iconPath;
+    bool hasIcon = false;
+};
+
+static Napi::Object windowInfoToNapi(Napi::Env env, const WindowInfoData &info) {
+    Napi::Object obj = Napi::Object::New(env);
+    obj.Set("id", info.id);
+    obj.Set("appId", info.appId);
+    obj.Set("title", info.title);
+    obj.Set("type", info.type);
+    obj.Set("isFocused", info.isFocused);
+    obj.Set("isHidden", info.isHidden);
+    obj.Set("isMinimized", info.isMinimized);
+    obj.Set("isMaximized", info.isMaximized);
+    obj.Set("x", info.x);
+    obj.Set("y", info.y);
+    obj.Set("width", info.width);
+    obj.Set("height", info.height);
+    return obj;
+}
+
+static AppInfoData collectAppInfoFromRunning(NSRunningApplication *app) {
+    AppInfoData info;
+    info.name = nsStringToStd(app.localizedName);
+    info.id = nsStringToStd(app.bundleIdentifier);
+    if (app.bundleURL) {
+        NSString *iconPath = iconPathForBundle([NSBundle bundleWithURL:app.bundleURL]);
+        if (iconPath) {
+            info.iconPath = nsStringToStd(iconPath);
+            info.hasIcon = true;
+        }
+    }
+    return info;
+}
+
+static Napi::Object appInfoToNapi(Napi::Env env, const AppInfoData &info) {
+    Napi::Object obj = Napi::Object::New(env);
+    obj.Set("name", info.name);
+    obj.Set("id", info.id);
+    obj.Set("iconPath", info.hasIcon ? Napi::Value(Napi::String::New(env, info.iconPath)) : env.Null());
+    return obj;
+}
 
 // ──────────────────────────────────────────────
 // H.264 streaming via SCStream + VideoToolbox
@@ -477,21 +538,8 @@ static Napi::Value GetRunningApps(const Napi::CallbackInfo &info) {
         Napi::Array arr = Napi::Array::New(env);
         uint32_t idx = 0;
         for (NSRunningApplication *app in apps) {
-            // Only regular (GUI) apps
             if (app.activationPolicy != NSApplicationActivationPolicyRegular) continue;
-            Napi::Object obj = Napi::Object::New(env);
-            obj.Set("name", nsStringToStd(app.localizedName));
-            obj.Set("id", nsStringToStd(app.bundleIdentifier));
-            NSString *iconPath = nil;
-            if (app.bundleURL) {
-                iconPath = iconPathForBundle([NSBundle bundleWithURL:app.bundleURL]);
-            }
-            if (iconPath) {
-                obj.Set("iconPath", nsStringToStd(iconPath));
-            } else {
-                obj.Set("iconPath", env.Null());
-            }
-            arr.Set(idx++, obj);
+            arr.Set(idx++, appInfoToNapi(env, collectAppInfoFromRunning(app)));
         }
         return arr;
     }
@@ -648,10 +696,6 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
         if (windowList) {
             NSArray *wl = (__bridge NSArray *)windowList;
 
-            // First pass: collect normal (layer 0) windows and build a PID→windowId map
-            // so popup windows can reference their parent.
-            std::unordered_map<pid_t, std::string> pidToParentWindowId;
-
             // Pre-fetch AX windows per PID for type detection (subrole/modal)
             std::unordered_map<pid_t, CFArrayRef> pidAXWindows;
             auto getAXWindows = [&](pid_t pid) -> CFArrayRef {
@@ -698,15 +742,6 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
                 return "regular";
             };
 
-            // Determine window type from CG layer for non-zero layer windows
-            auto typeFromLayer = [](int layer) -> std::string {
-                if (layer == 3) return "floating";
-                if (layer == 8) return "modal";
-                if (layer == 25 || (layer >= 24 && layer <= 26)) return "tooltip";
-                if (layer == 101) return "contextMenu";
-                return "popup";
-            };
-
             for (NSDictionary *w in wl) {
                 pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
                 if (filterPid != -1 && wPid != filterPid) continue;
@@ -723,70 +758,23 @@ static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
                     isHidden = appIt->second.isHidden;
                 }
 
-                std::string idStr = std::to_string(windowId);
-                std::string windowType = detectWindowType(windowId, wPid);
+                auto appIt2 = runningByPid.find(wPid);
+                std::string bundleId = (appIt2 != runningByPid.end() && appIt2->second.bundleIdentifier)
+                    ? nsStringToStd(appIt2->second.bundleIdentifier) : "";
 
-                // Remember the first normal window per PID as the parent for popups
-                if (pidToParentWindowId.find(wPid) == pidToParentWindowId.end()) {
-                    pidToParentWindowId[wPid] = idStr;
-                }
-
-                Napi::Object obj = Napi::Object::New(env);
-                obj.Set("id", idStr);
-                obj.Set("title", nsStringToStd(title));
-                obj.Set("type", windowType);
-                obj.Set("isFocused", isFocused);
-                obj.Set("isHidden", isHidden);
-                obj.Set("isMinimized", false);
-                obj.Set("isMaximized", false);
+                WindowInfoData winInfo;
+                winInfo.id = std::to_string(windowId);
+                winInfo.appId = bundleId;
+                winInfo.title = nsStringToStd(title);
+                winInfo.type = detectWindowType(windowId, wPid);
+                winInfo.isFocused = isFocused;
+                winInfo.isHidden = isHidden;
                 NSDictionary *wBounds = w[(__bridge NSString *)kCGWindowBounds];
-                obj.Set("x", [wBounds[@"X"] doubleValue]);
-                obj.Set("y", [wBounds[@"Y"] doubleValue]);
-                obj.Set("width", [wBounds[@"Width"] doubleValue]);
-                obj.Set("height", [wBounds[@"Height"] doubleValue]);
-                arr.Set(idx++, obj);
-            }
-
-            // Second pass: collect popup/menu windows (layer > 0) from the same process.
-            // On macOS 14.2+, SCStream's includeChildWindows (default true) already captures
-            // these in the stream, so skip to avoid duplication.
-            if (@available(macOS 14.2, *)) {
-                // Child windows included in stream — no separate enumeration needed
-            } else {
-                for (NSDictionary *w in wl) {
-                    pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-                    if (filterPid != -1 && wPid != filterPid) continue;
-
-                    // Only include if we have a parent normal window for this PID
-                    auto parentIt = pidToParentWindowId.find(wPid);
-                    if (parentIt == pidToParentWindowId.end()) continue;
-
-                    int layer = [w[(__bridge NSString *)kCGWindowLayer] intValue];
-                    float alpha = [w[(__bridge NSString *)kCGWindowAlpha] floatValue];
-                    NSDictionary *bounds = w[(__bridge NSString *)kCGWindowBounds];
-                    double width = [bounds[@"Width"] doubleValue];
-                    double height = [bounds[@"Height"] doubleValue];
-                    // Popup windows have layer > 0; skip tiny or invisible ones
-                    if (layer <= 0 || alpha < 0.01 || width < 2 || height < 2) continue;
-
-                    uint32_t windowId = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
-                    NSString *title = w[(__bridge NSString *)kCGWindowName];
-
-                    Napi::Object obj = Napi::Object::New(env);
-                    obj.Set("id", std::to_string(windowId));
-                    obj.Set("title", nsStringToStd(title));
-                    obj.Set("type", typeFromLayer(layer));
-                    obj.Set("isFocused", false);
-                    obj.Set("isHidden", false);
-                    obj.Set("isMinimized", false);
-                    obj.Set("isMaximized", false);
-                    obj.Set("x", [bounds[@"X"] doubleValue]);
-                    obj.Set("y", [bounds[@"Y"] doubleValue]);
-                    obj.Set("width", width);
-                    obj.Set("height", height);
-                    obj.Set("parentWindowId", parentIt->second);
-                    arr.Set(idx++, obj);
-                }
+                winInfo.x = [wBounds[@"X"] doubleValue];
+                winInfo.y = [wBounds[@"Y"] doubleValue];
+                winInfo.width = [wBounds[@"Width"] doubleValue];
+                winInfo.height = [wBounds[@"Height"] doubleValue];
+                arr.Set(idx++, windowInfoToNapi(env, winInfo));
             }
 
             // Clean up AX window arrays
@@ -1542,6 +1530,286 @@ static Napi::Value SetStreamBitrate(const Napi::CallbackInfo &info) {
 }
 
 // ──────────────────────────────────────────────
+// Running apps watcher (NSWorkspace notifications)
+// ──────────────────────────────────────────────
+struct RunningAppsWatchContext {
+    Napi::ThreadSafeFunction onLaunchTsfn;
+    Napi::ThreadSafeFunction onQuitTsfn;
+    id launchObserver = nil;
+    id terminateObserver = nil;
+};
+
+static std::mutex g_runningAppsWatchMutex;
+static std::shared_ptr<RunningAppsWatchContext> g_runningAppsWatch;
+
+static void stopRunningAppsWatch() {
+    std::lock_guard<std::mutex> lock(g_runningAppsWatchMutex);
+    if (!g_runningAppsWatch) return;
+    auto ctx = g_runningAppsWatch;
+    g_runningAppsWatch = nullptr;
+    NSNotificationCenter *nc = [[NSWorkspace sharedWorkspace] notificationCenter];
+    if (ctx->launchObserver) [nc removeObserver:ctx->launchObserver];
+    if (ctx->terminateObserver) [nc removeObserver:ctx->terminateObserver];
+    ctx->onLaunchTsfn.Release();
+    ctx->onQuitTsfn.Release();
+}
+
+static Napi::Value WatchRunningApps(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 2 || !info[0].IsFunction() || !info[1].IsFunction()) {
+        Napi::TypeError::New(env, "Expected (onLaunch, onQuit) callbacks").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+    stopRunningAppsWatch();
+
+    auto ctx = std::make_shared<RunningAppsWatchContext>();
+    ctx->onLaunchTsfn = Napi::ThreadSafeFunction::New(env, info[0].As<Napi::Function>(), "AppLaunchCB", 0, 1);
+    ctx->onQuitTsfn = Napi::ThreadSafeFunction::New(env, info[1].As<Napi::Function>(), "AppQuitCB", 0, 1);
+
+    NSNotificationCenter *nc = [[NSWorkspace sharedWorkspace] notificationCenter];
+    std::weak_ptr<RunningAppsWatchContext> weakCtx = ctx;
+
+    ctx->launchObserver = [nc addObserverForName:NSWorkspaceDidLaunchApplicationNotification
+                                          object:nil
+                                           queue:[NSOperationQueue mainQueue]
+                                      usingBlock:^(NSNotification *note) {
+        auto strong = weakCtx.lock();
+        if (!strong) return;
+        NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
+        if (!app || app.activationPolicy != NSApplicationActivationPolicyRegular) return;
+        auto info = collectAppInfoFromRunning(app);
+        strong->onLaunchTsfn.NonBlockingCall([info](Napi::Env env, Napi::Function cb) {
+            cb.Call({ appInfoToNapi(env, info) });
+        });
+    }];
+
+    ctx->terminateObserver = [nc addObserverForName:NSWorkspaceDidTerminateApplicationNotification
+                                             object:nil
+                                              queue:[NSOperationQueue mainQueue]
+                                         usingBlock:^(NSNotification *note) {
+        auto strong = weakCtx.lock();
+        if (!strong) return;
+        NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
+        if (!app || app.activationPolicy != NSApplicationActivationPolicyRegular) return;
+        auto info = collectAppInfoFromRunning(app);
+        strong->onQuitTsfn.NonBlockingCall([info](Napi::Env env, Napi::Function cb) {
+            cb.Call({ appInfoToNapi(env, info) });
+        });
+    }];
+
+    {
+        std::lock_guard<std::mutex> lock(g_runningAppsWatchMutex);
+        g_runningAppsWatch = ctx;
+    }
+    return env.Undefined();
+}
+
+// ──────────────────────────────────────────────
+// Per-app window watcher (AXObserver)
+// ──────────────────────────────────────────────
+
+struct AppWindowWatchCtx {
+    std::string bundleId;
+    pid_t pid;
+    AXObserverRef observer = NULL;
+    AXUIElementRef appElement = NULL;
+    Napi::ThreadSafeFunction onCreatedTsfn;
+    Napi::ThreadSafeFunction onDestroyedTsfn;
+    // Track known window IDs for diffing
+    std::unordered_set<uint32_t> knownWindowIds;
+    std::mutex mutex;
+};
+
+static std::mutex g_windowWatchMutex;
+static std::unordered_map<std::string, std::shared_ptr<AppWindowWatchCtx>> g_windowWatchers;
+
+// Build minimal window info for a CGWindowID, called from any thread
+static void callWindowCallback(Napi::ThreadSafeFunction &tsfn, uint32_t windowId, pid_t pid, const std::string &appId) {
+    @autoreleasepool {
+        WindowInfoData winInfo;
+        winInfo.id = std::to_string(windowId);
+        winInfo.appId = appId;
+        winInfo.type = "regular";
+
+        CFArrayRef windowList = CGWindowListCopyWindowInfo(
+            kCGWindowListOptionIncludingWindow, windowId);
+        if (windowList && CFArrayGetCount(windowList) > 0) {
+            NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
+            NSString *t = wInfo[(__bridge NSString *)kCGWindowName];
+            if (t) winInfo.title = nsStringToStd(t);
+            NSDictionary *bounds = wInfo[(__bridge NSString *)kCGWindowBounds];
+            winInfo.x = [bounds[@"X"] doubleValue];
+            winInfo.y = [bounds[@"Y"] doubleValue];
+            winInfo.width = [bounds[@"Width"] doubleValue];
+            winInfo.height = [bounds[@"Height"] doubleValue];
+        }
+        if (windowList) CFRelease(windowList);
+
+        tsfn.NonBlockingCall([winInfo](Napi::Env env, Napi::Function cb) {
+            cb.Call({ windowInfoToNapi(env, winInfo) });
+        });
+    }
+}
+
+// AXObserver callback — handles window created/destroyed notifications
+static void axWindowWatchCallback(AXObserverRef observer, AXUIElementRef element,
+                                   CFStringRef notification, void *refcon) {
+    auto *ctx = (AppWindowWatchCtx *)refcon;
+    if (!ctx) return;
+
+    // Diff-based: enumerate current windows and compare with known set
+    @autoreleasepool {
+        CFArrayRef windowList = CGWindowListCopyWindowInfo(
+            kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+            kCGNullWindowID);
+        if (!windowList) return;
+
+        std::unordered_set<uint32_t> currentIds;
+        NSArray *wl = (__bridge NSArray *)windowList;
+        for (NSDictionary *w in wl) {
+            pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
+            if (wPid != ctx->pid) continue;
+            if (!isNormalCGWindow(w)) continue;
+            uint32_t wid = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
+            currentIds.insert(wid);
+        }
+        CFRelease(windowList);
+
+        std::lock_guard<std::mutex> lock(ctx->mutex);
+
+        // New windows
+        for (uint32_t wid : currentIds) {
+            if (ctx->knownWindowIds.count(wid) == 0) {
+                callWindowCallback(ctx->onCreatedTsfn, wid, ctx->pid, ctx->bundleId);
+            }
+        }
+        // Destroyed windows
+        for (uint32_t wid : ctx->knownWindowIds) {
+            if (currentIds.count(wid) == 0) {
+                callWindowCallback(ctx->onDestroyedTsfn, wid, ctx->pid, ctx->bundleId);
+            }
+        }
+        ctx->knownWindowIds = currentIds;
+    }
+}
+
+static void stopWatchingAppWindowsImpl(const std::string &bundleId) {
+    std::lock_guard<std::mutex> lock(g_windowWatchMutex);
+    auto it = g_windowWatchers.find(bundleId);
+    if (it == g_windowWatchers.end()) return;
+    auto ctx = it->second;
+    g_windowWatchers.erase(it);
+
+    if (ctx->observer) {
+        CFRunLoopRemoveSource(CFRunLoopGetMain(),
+            AXObserverGetRunLoopSource(ctx->observer), kCFRunLoopDefaultMode);
+        CFRelease(ctx->observer);
+    }
+    if (ctx->appElement) CFRelease(ctx->appElement);
+    ctx->onCreatedTsfn.Release();
+    ctx->onDestroyedTsfn.Release();
+}
+
+static Napi::Value WatchAppWindows(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 3 || !info[0].IsString() || !info[1].IsFunction() || !info[2].IsFunction()) {
+        Napi::TypeError::New(env, "Expected (bundleId, onCreated, onDestroyed)")
+            .ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    std::string bundleId = info[0].As<Napi::String>().Utf8Value();
+
+    // Stop existing watcher for this bundle
+    stopWatchingAppWindowsImpl(bundleId);
+
+    // Find PID for bundleId
+    pid_t pid = -1;
+    @autoreleasepool {
+        NSArray<NSRunningApplication *> *apps =
+            [NSRunningApplication runningApplicationsWithBundleIdentifier:
+                [NSString stringWithUTF8String:bundleId.c_str()]];
+        if (apps.count > 0) pid = apps.firstObject.processIdentifier;
+    }
+    if (pid <= 0) {
+        // App not running — nothing to watch
+        return env.Undefined();
+    }
+
+    auto ctx = std::make_shared<AppWindowWatchCtx>();
+    ctx->bundleId = bundleId;
+    ctx->pid = pid;
+    ctx->onCreatedTsfn = Napi::ThreadSafeFunction::New(env, info[1].As<Napi::Function>(),
+                                                         "WinCreatedCB", 0, 1);
+    ctx->onDestroyedTsfn = Napi::ThreadSafeFunction::New(env, info[2].As<Napi::Function>(),
+                                                           "WinDestroyedCB", 0, 1);
+
+    // Snapshot current windows
+    @autoreleasepool {
+        CFArrayRef windowList = CGWindowListCopyWindowInfo(
+            kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+            kCGNullWindowID);
+        if (windowList) {
+            NSArray *wl = (__bridge NSArray *)windowList;
+            for (NSDictionary *w in wl) {
+                pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
+                if (wPid != pid) continue;
+                if (!isNormalCGWindow(w)) continue;
+                uint32_t wid = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
+                ctx->knownWindowIds.insert(wid);
+            }
+            CFRelease(windowList);
+        }
+    }
+
+    // Create AXObserver for the app's PID
+    AXObserverRef observer = NULL;
+    AXError err = AXObserverCreate(pid, axWindowWatchCallback, &observer);
+    if (err != kAXErrorSuccess || !observer) {
+        ctx->onCreatedTsfn.Release();
+        ctx->onDestroyedTsfn.Release();
+        return env.Undefined();
+    }
+    ctx->observer = observer;
+
+    // Get AXUIElement for the application
+    AXUIElementRef appElement = AXUIElementCreateApplication(pid);
+    ctx->appElement = appElement;
+
+    // Register for window created notification on the app element
+    AXObserverAddNotification(observer, appElement,
+        kAXWindowCreatedNotification, ctx.get());
+    // Also register for focused window changed as a catch-all
+    AXObserverAddNotification(observer, appElement,
+        CFSTR("AXUIElementDestroyed"), ctx.get());
+
+    CFRunLoopAddSource(CFRunLoopGetMain(),
+        AXObserverGetRunLoopSource(observer), kCFRunLoopDefaultMode);
+
+    {
+        std::lock_guard<std::mutex> lock(g_windowWatchMutex);
+        g_windowWatchers[bundleId] = ctx;
+    }
+    return env.Undefined();
+}
+
+static Napi::Value StopWatchingAppWindows(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected (bundleId)").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+    std::string bundleId = info[0].As<Napi::String>().Utf8Value();
+    stopWatchingAppWindowsImpl(bundleId);
+    return env.Undefined();
+}
+
+static Napi::Value UnwatchRunningApps(const Napi::CallbackInfo &info) {
+    stopRunningAppsWatch();
+    return info.Env().Undefined();
+}
+
+// ──────────────────────────────────────────────
 // Module init
 // ──────────────────────────────────────────────
 
@@ -1561,6 +1829,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("stopH264Stream", Napi::Function::New(env, StopH264Stream));
     exports.Set("setStreamFps", Napi::Function::New(env, SetStreamFps));
     exports.Set("setStreamBitrate", Napi::Function::New(env, SetStreamBitrate));
+    exports.Set("watchRunningApps", Napi::Function::New(env, WatchRunningApps));
+    exports.Set("unwatchRunningApps", Napi::Function::New(env, UnwatchRunningApps));
+    exports.Set("watchAppWindows", Napi::Function::New(env, WatchAppWindows));
+    exports.Set("stopWatchingAppWindows", Napi::Function::New(env, StopWatchingAppWindows));
     return exports;
 }
 

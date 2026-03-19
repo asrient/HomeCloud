@@ -6,6 +6,7 @@ import {
     RemoteAppWindowAction,
     RemoteAppWindowActionPayload,
     StreamingSessionInfo,
+    WindowEvent,
 } from './types';
 
 export class AppsService extends Service {
@@ -23,16 +24,28 @@ export class AppsService extends Service {
     }
 
     /**
-     * Fired when the set of running apps changes (app launched or quit).
-     * Payload is the updated list of running apps.
+     * Fired when an app is launched.
+     * Payload is the launched app info.
      */
-    public runningAppsChanged = new Signal<[RemoteAppInfo[]]>({ isExposed: true, isAllowAll: false });
+    public appLaunched = new Signal<[RemoteAppInfo]>({ isExposed: true, isAllowAll: false });
 
     /**
-     * Fired when the set of windows for a given app changes (window opened or closed).
-     * Payload is [appId, updatedWindowsList].
+     * Fired when an app quits.
+     * Payload is the quit app info.
      */
-    public windowsChanged = new Signal<[string, RemoteAppWindow[]]>({ isExposed: true, isAllowAll: false });
+    public appQuit = new Signal<[RemoteAppInfo]>({ isExposed: true, isAllowAll: false });
+
+    /**
+     * Fired when a window is created.
+     * Payload is { app, window }.
+     */
+    public windowCreated = new Signal<[WindowEvent]>({ isExposed: true, isAllowAll: false });
+
+    /**
+     * Fired when a window is destroyed.
+     * Payload is { app, window }.
+     */
+    public windowDestroyed = new Signal<[WindowEvent]>({ isExposed: true, isAllowAll: false });
 
     // ── App enumeration ──
 
@@ -89,33 +102,12 @@ export class AppsService extends Service {
     }
 
     /**
-     * Start watching running apps changes.
-     * The server will poll and dispatch runningAppsChanged signals.
+     * Heartbeat-based window watching. Client calls every ~1 min.
+     * Server starts delivering windowCreated/windowDestroyed signals.
+     * If no heartbeat received for 3 min, server stops watching.
      */
     @exposed
-    public async watchRunningApps(): Promise<void> {
-    }
-
-    /**
-     * Stop watching running apps changes.
-     */
-    @exposed
-    public async unwatchRunningApps(): Promise<void> {
-    }
-
-    /**
-     * Start watching window changes for a given app.
-     * The server will poll and dispatch windowsChanged signals.
-     */
-    @exposed
-    public async watchWindows(appId: string): Promise<void> {
-    }
-
-    /**
-     * Stop watching window changes for a given app.
-     */
-    @exposed
-    public async unwatchWindows(appId: string): Promise<void> {
+    public async watchWindowsHeartbeat(): Promise<void> {
     }
 
     // ── Window streaming ──

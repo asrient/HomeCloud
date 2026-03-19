@@ -5,7 +5,7 @@ import {
     RemoteAppWindow,
     RemoteAppWindowActionPayload,
 } from "shared/types";
-import type { H264FrameInfo, H264StreamResult } from "./macDriver";
+import { AppsDriver, H264FrameInfo, H264StreamResult } from "./driver";
 
 interface AppsWinModule {
     getInstalledApps(): RemoteAppInfo[];
@@ -14,6 +14,11 @@ interface AppsWinModule {
     quitApp(appId: string): void;
     getAppIcon(appId: string): string | null;
     getWindows(appId?: string): RemoteAppWindow[];
+    startWatchingWindows(
+        onCreated: (app: RemoteAppInfo, window: RemoteAppWindow) => void,
+        onDestroyed: (app: RemoteAppInfo, window: RemoteAppWindow) => void,
+    ): void;
+    stopWatchingWindows(): void;
     performAction(payload: RemoteAppWindowActionPayload): void;
     startH264Stream(
         windowId: number,
@@ -22,95 +27,101 @@ interface AppsWinModule {
     stopH264Stream(windowId: number): void;
     setStreamFps(windowId: number, fps: number): void;
     setStreamBitrate(windowId: number, bitrate: number): void;
-    hasScreenRecordingPermission(): boolean;
-    hasAccessibilityPermission(): boolean;
-    requestScreenRecordingPermission(): void;
-    requestAccessibilityPermission(): void;
 }
 
-let _module: AppsWinModule | null = null;
+export class WinAppsDriver extends AppsDriver {
+    private _module: AppsWinModule | null = null;
 
-function getModule(): AppsWinModule {
-    if (platform() !== "win32") {
-        throw new Error(`AppsWin module is not available on ${platform()}`);
+    // App tracking state — derives app launch/quit from window events
+    private knownAppIds = new Set<string>();
+    private appLaunchCb: ((app: RemoteAppInfo) => void) | null = null;
+    private appQuitCb: ((app: RemoteAppInfo) => void) | null = null;
+    private winCreatedCb: ((app: RemoteAppInfo, win: RemoteAppWindow) => void) | null = null;
+    private winDestroyedCb: ((app: RemoteAppInfo, win: RemoteAppWindow) => void) | null = null;
+
+    private get native(): AppsWinModule {
+        if (!this._module) {
+            if (platform() !== "win32") throw new Error(`AppsWin not available on ${platform()}`);
+            this._module = importModule("AppsWin") as AppsWinModule;
+        }
+        return this._module;
     }
-    if (!_module) {
-        _module = importModule("AppsWin") as AppsWinModule;
+
+    getInstalledApps(): RemoteAppInfo[] { return this.native.getInstalledApps(); }
+    getRunningApps(): RemoteAppInfo[] { return this.native.getRunningApps(); }
+    launchApp(appId: string): void { this.native.launchApp(appId); }
+    quitApp(appId: string): void { this.native.quitApp(appId); }
+    getAppIcon(appId: string): string | null { return this.native.getAppIcon(appId); }
+    getWindows(appId?: string): RemoteAppWindow[] { return this.native.getWindows(appId); }
+    performAction(payload: RemoteAppWindowActionPayload): void { this.native.performAction(payload); }
+
+    watchRunningApps(
+        onLaunch: (app: RemoteAppInfo) => void,
+        onQuit: (app: RemoteAppInfo) => void,
+    ): void {
+        this.appLaunchCb = onLaunch;
+        this.appQuitCb = onQuit;
+
+        // Snapshot current apps and their windows
+        const running = this.getRunningApps();
+        this.knownAppIds = new Set(running.map(a => a.id));
+
+        // Start shell hook — all app/window events derived from here
+        this.native.startWatchingWindows(
+            (app, win) => this.onNativeWindowCreated(app, win),
+            (app, win) => this.onNativeWindowDestroyed(app, win),
+        );
     }
-    return _module;
-}
 
-// ── App enumeration ──
+    unwatchRunningApps(): void {
+        this.native.stopWatchingWindows();
+        this.appLaunchCb = null;
+        this.appQuitCb = null;
+        this.winCreatedCb = null;
+        this.winDestroyedCb = null;
+        this.knownAppIds.clear();
+    }
 
-export function getInstalledApps(): RemoteAppInfo[] {
-    return getModule().getInstalledApps();
-}
+    startWindowWatching(
+        onCreated: (app: RemoteAppInfo, win: RemoteAppWindow) => void,
+        onDestroyed: (app: RemoteAppInfo, win: RemoteAppWindow) => void,
+    ): void {
+        this.winCreatedCb = onCreated;
+        this.winDestroyedCb = onDestroyed;
+    }
 
-export function getRunningApps(): RemoteAppInfo[] {
-    return getModule().getRunningApps();
-}
+    stopWindowWatching(): void {
+        this.winCreatedCb = null;
+        this.winDestroyedCb = null;
+    }
 
-// ── App lifecycle ──
+    private onNativeWindowCreated(app: RemoteAppInfo, win: RemoteAppWindow): void {
+        if (app.id) {
+            if (!this.knownAppIds.has(app.id)) {
+                this.knownAppIds.add(app.id);
+                this.appLaunchCb?.(app);
+            }
+        }
+        this.winCreatedCb?.(app, win);
+    }
 
-export function launchApp(appId: string): void {
-    getModule().launchApp(appId);
-}
+    private onNativeWindowDestroyed(app: RemoteAppInfo, win: RemoteAppWindow): void {
+        const appId = app.id || win.appId || '';
+        const resolvedApp = app.id ? app : { name: '', id: appId, iconPath: null };
+        this.winDestroyedCb?.(resolvedApp, win);
+        if (appId && this.knownAppIds.has(appId)) {
+            const remaining = this.getWindows(appId);
+            if (remaining.length === 0) {
+                this.knownAppIds.delete(appId);
+                this.appQuitCb?.(resolvedApp);
+            }
+        }
+    }
 
-export function quitApp(appId: string): void {
-    getModule().quitApp(appId);
-}
-
-export function getAppIcon(appId: string): string | null {
-    return getModule().getAppIcon(appId);
-}
-
-// ── Window enumeration ──
-
-export function getWindows(appId?: string): RemoteAppWindow[] {
-    return getModule().getWindows(appId);
-}
-
-// ── Actions ──
-
-export function performAction(payload: RemoteAppWindowActionPayload): void {
-    getModule().performAction(payload);
-}
-
-// ── H.264 streaming ──
-
-export function startH264Stream(
-    windowId: number,
-    callback: (err: Error | null, frame: H264FrameInfo) => void,
-): H264StreamResult | null {
-    return getModule().startH264Stream(windowId, callback);
-}
-
-export function stopH264Stream(windowId: number): void {
-    getModule().stopH264Stream(windowId);
-}
-
-export function setStreamFps(windowId: number, fps: number): void {
-    getModule().setStreamFps(windowId, fps);
-}
-
-export function setStreamBitrate(windowId: number, bitrate: number): void {
-    getModule().setStreamBitrate(windowId, bitrate);
-}
-
-// ── Permissions ──
-
-export function hasScreenRecordingPermission(): boolean {
-    return getModule().hasScreenRecordingPermission();
-}
-
-export function hasAccessibilityPermission(): boolean {
-    return getModule().hasAccessibilityPermission();
-}
-
-export function requestScreenRecordingPermission(): void {
-    getModule().requestScreenRecordingPermission();
-}
-
-export function requestAccessibilityPermission(): void {
-    getModule().requestAccessibilityPermission();
+    startH264Stream(windowId: number, callback: (err: Error | null, frame: H264FrameInfo) => void): H264StreamResult | null {
+        return this.native.startH264Stream(windowId, callback);
+    }
+    stopH264Stream(windowId: number): void { this.native.stopH264Stream(windowId); }
+    setStreamFps(windowId: number, fps: number): void { this.native.setStreamFps(windowId, fps); }
+    setStreamBitrate(windowId: number, bitrate: number): void { this.native.setStreamBitrate(windowId, bitrate); }
 }
