@@ -331,7 +331,9 @@ export default class DesktopAppsService extends AppsService {
         driver.watchRunningApps(
             (app) => {
                 if (this.runningAppsCache) {
-                    this.runningAppsCache = [...this.runningAppsCache, app];
+                    if (!this.runningAppsCache.some(a => a.id === app.id)) {
+                        this.runningAppsCache = [...this.runningAppsCache, app];
+                    }
                 }
                 this.appLaunched.dispatch(app);
             },

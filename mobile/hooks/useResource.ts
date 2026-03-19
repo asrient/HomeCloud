@@ -135,7 +135,10 @@ export const useResource = ({
             setIsLoading(false);
         });
         return () => {
-            clearSignals && serviceControllerRef.current && hasSignalSetupRef.current && clearSignals(serviceControllerRef.current);
+            if (clearSignals && serviceControllerRef.current && hasSignalSetupRef.current) {
+                clearSignals(serviceControllerRef.current);
+                hasSignalSetupRef.current = false;
+            }
         };
     }, [clearSignals, isConnected, deviceFingerprint, load, setupSignals, resourceKey]);
 

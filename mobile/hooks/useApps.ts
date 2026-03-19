@@ -24,7 +24,8 @@ export const useRunningApps = (
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
         const running = await serviceController.apps.getRunningApps();
         if (shouldAbort()) return;
-        setRunningApps(running);
+        const seen = new Set<string>();
+        setRunningApps(running.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; }));
     }, []);
 
     const clearSignals = useCallback((serviceController: ServiceController) => {
@@ -42,7 +43,7 @@ export const useRunningApps = (
         clearSignals(serviceController);
         launchRef.current = serviceController.apps.appLaunched.add((app: RemoteAppInfo) => {
             onAppOpenedRef.current?.(app);
-            setRunningApps(prev => [...prev, app]);
+            setRunningApps(prev => prev.some(a => a.id === app.id) ? prev : [...prev, app]);
         });
         quitRef.current = serviceController.apps.appQuit.add((app: RemoteAppInfo) => {
             setRunningApps(prev => prev.filter(a => a.id !== app.id));

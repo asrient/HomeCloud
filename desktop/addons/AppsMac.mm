@@ -537,8 +537,11 @@ static Napi::Value GetRunningApps(const Napi::CallbackInfo &info) {
         NSArray<NSRunningApplication *> *apps = [[NSWorkspace sharedWorkspace] runningApplications];
         Napi::Array arr = Napi::Array::New(env);
         uint32_t idx = 0;
+        NSMutableSet<NSString *> *seen = [NSMutableSet set];
         for (NSRunningApplication *app in apps) {
             if (app.activationPolicy != NSApplicationActivationPolicyRegular) continue;
+            if (!app.bundleIdentifier || [seen containsObject:app.bundleIdentifier]) continue;
+            [seen addObject:app.bundleIdentifier];
             arr.Set(idx++, appInfoToNapi(env, collectAppInfoFromRunning(app)));
         }
         return arr;
