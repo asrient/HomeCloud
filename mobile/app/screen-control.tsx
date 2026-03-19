@@ -6,7 +6,6 @@ import {
     Pressable,
     ScrollView,
     Dimensions,
-    Modal,
     TextInput,
     Platform,
     KeyboardAvoidingView,
@@ -497,69 +496,6 @@ function KeyboardInput({
     );
 }
 
-// ── Child Window Modal (for context menus, popups, modals) ──
-
-function ChildWindowModal({
-    window: childWindow,
-    deviceFingerprint,
-    onClose,
-}: {
-    window: RemoteAppWindow;
-    deviceFingerprint: string | null;
-    onClose: () => void;
-}) {
-    const { sessionId, frameState, isConnecting, error, startCapture, stopCapture } = useWindowCapture(
-        childWindow.id,
-        deviceFingerprint,
-    );
-    const { dispatchAction } = useWindowActions(childWindow.id, deviceFingerprint);
-    const screenWidth = Dimensions.get('window').width;
-    const screenHeight = Dimensions.get('window').height;
-
-    useEffect(() => {
-        startCapture();
-        return () => stopCapture();
-    }, [startCapture, stopCapture]);
-
-    // Close the modal if the child window disappears
-    useEffect(() => {
-        if (error) onClose();
-    }, [error, onClose]);
-
-    const maxWidth = screenWidth * 0.9;
-    const maxHeight = screenHeight * 0.7;
-
-    return (
-        <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-            <Pressable style={styles.modalOverlay} onPress={onClose}>
-                <Pressable
-                    style={styles.modalContent}
-                    onPress={(e) => e.stopPropagation()}
-                >
-                    {isConnecting && !frameState ? (
-                        <View style={styles.modalLoading}>
-                            <ActivityIndicator color="#fff" />
-                            <UIText color="textSecondary" size="sm">
-                                Loading...
-                            </UIText>
-                        </View>
-                    ) : frameState ? (
-                        <WindowCanvas
-                            frameState={frameState}
-                            sessionId={sessionId}
-                            controlMode="touch"
-                            touchSubMode="scroll"
-                            dispatchAction={dispatchAction}
-                            canvasWidth={maxWidth}
-                            canvasHeight={maxHeight}
-                        />
-                    ) : null}
-                </Pressable>
-            </Pressable>
-        </Modal>
-    );
-}
-
 // ── Window Tab Bar ──
 
 function WindowTabBar({
@@ -626,8 +562,8 @@ export default function ScreenControlScreen() {
     const [showKeyboard, setShowKeyboard] = useState(false);
     const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null);
 
-    // Fetch windows for this app
-    const { windows, isLoading: isLoadingWindows } = useAppWindows(appId || null, deviceFingerprint);
+    // Fetch windows for this app (also launches it if not running)
+    const { windows, isLoading: isLoadingWindows } = useAppWindows(appId || null, deviceFingerprint, true);
 
     // Compute ideal remote window size from mobile screen dimensions.
     // We target a 3:4 aspect (portrait-ish) with the width capped to
@@ -650,39 +586,36 @@ export default function ScreenControlScreen() {
         return { width: targetWidth, height: targetHeight, aspect };
     }, [screenWidth, canvasAreaHeight]);
 
-    // Separate main windows from child/overlay windows
-    const { mainWindows, childWindows } = useMemo(() => {
-        const main: RemoteAppWindow[] = [];
-        const children: RemoteAppWindow[] = [];
-        for (const w of windows) {
-            if (w.isHidden || w.isMinimized) continue;
-            const t = w.type as RemoteAppWindowType;
-            if (
-                t === RemoteAppWindowType.ContextMenu ||
-                t === RemoteAppWindowType.Tooltip ||
-                t === RemoteAppWindowType.Popup ||
-                (t === RemoteAppWindowType.Modal && w.parentWindowId)
-            ) {
-                children.push(w);
-            } else {
-                main.push(w);
-            }
-        }
-        // Sort children so focused window renders last (highest z-order)
-        children.sort((a, b) => {
-            if (a.isFocused && !b.isFocused) return 1;
-            if (!a.isFocused && b.isFocused) return -1;
-            return 0;
+    // Filter visible windows (skip hidden/tooltip)
+    const visibleWindows = useMemo(() => {
+        return windows.filter(w => {
+            if (w.isHidden) return false;
+            if ((w.type as RemoteAppWindowType) === RemoteAppWindowType.Tooltip) return false;
+            return true;
         });
-        return { mainWindows: main, childWindows: children };
     }, [windows]);
 
-    // Auto-select first window
+    // Auto-select first window, or switch to newly created window
+    const prevWindowIdsRef = useRef<Set<string>>(new Set());
     useEffect(() => {
-        if (mainWindows.length > 0 && !mainWindows.find((w) => w.id === selectedWindowId)) {
-            setSelectedWindowId(mainWindows[0].id);
+        const currentIds = new Set(visibleWindows.map(w => w.id));
+        const prevIds = prevWindowIdsRef.current;
+
+        // Find newly appeared window
+        for (const w of visibleWindows) {
+            if (!prevIds.has(w.id)) {
+                setSelectedWindowId(w.id);
+                prevWindowIdsRef.current = currentIds;
+                return;
+            }
         }
-    }, [mainWindows, selectedWindowId]);
+        prevWindowIdsRef.current = currentIds;
+
+        // If selected window disappeared, fall back to first
+        if (visibleWindows.length > 0 && !visibleWindows.find(w => w.id === selectedWindowId)) {
+            setSelectedWindowId(visibleWindows[0].id);
+        }
+    }, [visibleWindows, selectedWindowId]);
 
     // Capture + actions for selected window
     const { sessionId, frameState, isConnecting, error, startCapture, stopCapture, isReconnecting, retryAttempt, cancelReconnect } = useWindowCapture(
@@ -699,7 +632,7 @@ export default function ScreenControlScreen() {
 
     useEffect(() => {
         if (!selectedWindowId || !deviceFingerprint) return;
-        const win = mainWindows.find((w) => w.id === selectedWindowId);
+        const win = visibleWindows.find((w) => w.id === selectedWindowId);
         if (!win) return;
 
         // Only resize once per window per session
@@ -724,7 +657,7 @@ export default function ScreenControlScreen() {
                 console.error('Failed to resize window:', e);
             }
         })();
-    }, [selectedWindowId, mainWindows, idealSize, deviceFingerprint]);
+    }, [selectedWindowId, visibleWindows, idealSize, deviceFingerprint]);
 
     // Corrective resize: if the OS clamped width (app min width > our target),
     // increase height to maintain the phone's portrait aspect ratio.
@@ -792,21 +725,7 @@ export default function ScreenControlScreen() {
         };
     }, [deviceFingerprint]);
 
-    // Capture lifecycle is managed below after visibleChildren is computed
-
-    // Launch the app if not already running
-    useEffect(() => {
-        if (!appId || !deviceFingerprint) return;
-        // We try launching - if it's already running this is usually a no-op
-        (async () => {
-            try {
-                const sc = await getServiceController(deviceFingerprint);
-                await sc.apps.launchApp(appId);
-            } catch (e) {
-                console.error('Failed to launch app:', e);
-            }
-        })();
-    }, [appId, deviceFingerprint]);
+    // Capture lifecycle
 
     const toggleControlMode = useCallback(() => {
         setControlMode((prev) => (prev === 'pointer' ? 'touch' : 'pointer'));
@@ -818,30 +737,13 @@ export default function ScreenControlScreen() {
         }
     }, [selectedWindowId, dispatchAction]);
 
-    const [closedChildIds, setClosedChildIds] = useState<Set<string>>(new Set());
-
-    const handleCloseChild = useCallback((windowId: string) => {
-        setClosedChildIds((prev) => new Set(prev).add(windowId));
-    }, []);
-
-    // Reset closed children when windows list changes
+    // Start/stop capture
     useEffect(() => {
-        setClosedChildIds(new Set());
-    }, [windows]);
-
-    const visibleChildren = useMemo(() => {
-        return childWindows.filter((w) => !closedChildIds.has(w.id));
-    }, [childWindows, closedChildIds]);
-
-    const hasVisibleChildren = visibleChildren.length > 0;
-
-    // Start/stop capture — single consolidated effect avoids double-start race
-    useEffect(() => {
-        if (selectedWindowId && !hasVisibleChildren) {
+        if (selectedWindowId) {
             startCapture();
             return () => stopCapture();
         }
-    }, [selectedWindowId, hasVisibleChildren]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [selectedWindowId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <UIView themeColor="background" style={{ flex: 1 }}>
@@ -869,7 +771,7 @@ export default function ScreenControlScreen() {
                                 Loading windows...
                             </UIText>
                         </View>
-                    ) : mainWindows.length === 0 ? (
+                    ) : visibleWindows.length === 0 ? (
                         <View style={styles.centerContent}>
                             <UIIcon name="macwindow" size={36} themeColor="textSecondary" />
                             <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
@@ -936,7 +838,7 @@ export default function ScreenControlScreen() {
 
                 {/* Window tabs */}
                 <WindowTabBar
-                    windows={mainWindows}
+                    windows={visibleWindows}
                     selectedWindowId={selectedWindowId}
                     onSelectWindow={setSelectedWindowId}
                 />
@@ -979,16 +881,6 @@ export default function ScreenControlScreen() {
                 onClose={() => setShowKeyboard(false)}
                 dispatchAction={dispatchAction}
             />
-
-            {/* Child window modals */}
-            {visibleChildren.map((child) => (
-                <ChildWindowModal
-                    key={child.id}
-                    window={child}
-                    deviceFingerprint={deviceFingerprint}
-                    onClose={() => handleCloseChild(child.id)}
-                />
-            ))}
         </UIView>
     );
 }
@@ -1073,22 +965,6 @@ const styles = StyleSheet.create({
         height: 36,
         color: '#fff',
         fontSize: 14,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContent: {
-        borderRadius: 12,
-        overflow: 'hidden',
-        backgroundColor: '#1a1a1a',
-    },
-    modalLoading: {
-        padding: 40,
-        alignItems: 'center',
-        gap: 12,
     },
     reconnectOverlay: {
         ...StyleSheet.absoluteFillObject,

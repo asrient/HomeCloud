@@ -198,6 +198,21 @@ static bool IsAppWindow(HWND hwnd) {
     return true;
 }
 
+// Check if a window is a valid owned popup (visible, not cloaked, has owner, ≥2px)
+static bool IsValidPopupWindow(HWND hwnd, HWND *outOwner = nullptr) {
+    if (!IsWindowVisible(hwnd)) return false;
+    HWND owner = GetWindow(hwnd, GW_OWNER);
+    if (!owner) return false;
+    BOOL cloaked = FALSE;
+    DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
+    if (cloaked) return false;
+    RECT rect;
+    if (!GetWindowRect(hwnd, &rect)) return false;
+    if (rect.right - rect.left < 2 || rect.bottom - rect.top < 2) return false;
+    if (outOwner) *outOwner = owner;
+    return true;
+}
+
 // Detect window type string for normal app windows (first pass)
 static std::string DetectWindowType(HWND hwnd) {
     LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -1289,27 +1304,12 @@ static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
 
 // Second-pass callback: collect owned popup/menu windows
 static BOOL CALLBACK EnumPopupWindowsProc(HWND hwnd, LPARAM lParam) {
-    if (!IsWindowVisible(hwnd)) return TRUE;
-
-    HWND owner = GetWindow(hwnd, GW_OWNER);
-    if (owner == nullptr) return TRUE; // not an owned window
+    HWND owner = nullptr;
+    if (!IsValidPopupWindow(hwnd, &owner)) return TRUE;
 
     auto *ctx = reinterpret_cast<EnumWindowsCtx *>(lParam);
-
-    // Only include if owner is one of our collected app windows
     if (ctx->appHwnds.find(owner) == ctx->appHwnds.end()) return TRUE;
 
-    // Skip cloaked
-    BOOL cloaked = FALSE;
-    DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
-    if (cloaked) return TRUE;
-
-    // Skip tiny windows (< 2px)
-    RECT rect;
-    if (!GetWindowRect(hwnd, &rect)) return TRUE;
-    if (rect.right - rect.left < 2 || rect.bottom - rect.top < 2) return TRUE;
-
-    // Filter by exe path if needed
     DWORD pid = GetWindowPID(hwnd);
     if (pid == 0) return TRUE;
     if (!ctx->filterExePath.empty()) {
@@ -1987,6 +1987,10 @@ struct WindowWatchWinCtx {
     HWND msgWindow = nullptr;
     UINT shellHookMsg = 0;
 
+    // WinEvent hooks for popup/child windows (menus, tooltips, tool windows)
+    HWINEVENTHOOK winEventHookMenu = nullptr;
+    HWINEVENTHOOK winEventHookObj = nullptr;
+
     // Cache window→app/window info so destroy events can report accurate data
     // after the HWND is already gone.
     std::mutex cacheMutex;
@@ -1995,17 +1999,21 @@ struct WindowWatchWinCtx {
 
 static std::shared_ptr<WindowWatchWinCtx> g_windowWatchWin;
 
-static void onWindowCreated(WindowWatchWinCtx &ctx, HWND hwnd) {
-    if (!IsAppWindow(hwnd)) return;
+// Shared helper: collect info, cache, and fire the onCreated callback.
+// Used by both the shell hook (top-level windows) and WinEvent hook (popups).
+static void trackAndFireCreated(WindowWatchWinCtx &ctx, HWND hwnd, HWND ownerHwnd) {
+    {
+        std::lock_guard<std::mutex> lock(ctx.cacheMutex);
+        if (ctx.windowCache.count((uintptr_t)hwnd)) return; // already tracked
+    }
 
     DWORD pid = GetWindowPID(hwnd);
     std::wstring exePath = GetProcessExePath(pid);
     if (exePath.empty()) return;
 
-    auto winInfo = collectWindowInfo(hwnd, GetForegroundWindow());
+    auto winInfo = collectWindowInfo(hwnd, GetForegroundWindow(), ownerHwnd);
     auto appInfo = collectAppInfo(exePath);
 
-    // Cache for later destroy lookup
     {
         std::lock_guard<std::mutex> lock(ctx.cacheMutex);
         ctx.windowCache[(uintptr_t)hwnd] = { appInfo, winInfo };
@@ -2014,6 +2022,12 @@ static void onWindowCreated(WindowWatchWinCtx &ctx, HWND hwnd) {
     ctx.onCreatedTsfn.NonBlockingCall([winInfo, appInfo](Napi::Env env, Napi::Function cb) {
         cb.Call({ appInfoToNapi(env, appInfo), windowInfoToNapi(env, winInfo) });
     });
+}
+
+// Shell hook handler: top-level app windows only
+static void onWindowCreated(WindowWatchWinCtx &ctx, HWND hwnd) {
+    if (!IsAppWindow(hwnd)) return;
+    trackAndFireCreated(ctx, hwnd, nullptr);
 }
 
 static void onWindowDestroyed(WindowWatchWinCtx &ctx, HWND hwnd) {
@@ -2052,10 +2066,39 @@ static LRESULT CALLBACK ShellHookWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
+// WinEvent callback: catches popup/child windows (menus, tool windows, dialogs)
+// that the shell hook misses. Only fires for owned windows whose owner is tracked.
+static void CALLBACK PopupWinEventCallback(
+    HWINEVENTHOOK, DWORD event, HWND hwnd,
+    LONG idObject, LONG idChild, DWORD, DWORD)
+{
+    if (!g_windowWatchWin || !hwnd) return;
+    auto &ctx = *g_windowWatchWin;
+
+    bool isShow = (event == EVENT_SYSTEM_MENUPOPUPSTART) ||
+                  (event == EVENT_OBJECT_SHOW && idObject == OBJID_WINDOW && idChild == CHILDID_SELF);
+    bool isHide = (event == EVENT_SYSTEM_MENUPOPUPEND) ||
+                  (event == EVENT_OBJECT_HIDE && idObject == OBJID_WINDOW && idChild == CHILDID_SELF);
+
+    if (isShow) {
+        HWND owner = nullptr;
+        if (!IsValidPopupWindow(hwnd, &owner)) return;
+        {
+            std::lock_guard<std::mutex> lock(ctx.cacheMutex);
+            if (ctx.windowCache.find((uintptr_t)owner) == ctx.windowCache.end()) return;
+        }
+        trackAndFireCreated(ctx, hwnd, owner);
+    } else if (isHide) {
+        onWindowDestroyed(ctx, hwnd);
+    }
+}
+
 static void stopWindowWatchWin() {
     if (!g_windowWatchWin) return;
     auto ctx = g_windowWatchWin;
     g_windowWatchWin = nullptr;
+    if (ctx->winEventHookMenu) { UnhookWinEvent(ctx->winEventHookMenu); ctx->winEventHookMenu = nullptr; }
+    if (ctx->winEventHookObj) { UnhookWinEvent(ctx->winEventHookObj); ctx->winEventHookObj = nullptr; }
     if (ctx->msgWindow) {
         DeregisterShellHookWindow(ctx->msgWindow);
         DestroyWindow(ctx->msgWindow);
@@ -2126,6 +2169,16 @@ static Napi::Value StartWatchingWindows(const Napi::CallbackInfo &info) {
     }
 
     g_windowWatchWin = ctx;
+
+    // Install WinEvent hooks for popup/child windows (context menus, tool windows, etc.)
+    // These fire for owned windows that the shell hook never reports.
+    ctx->winEventHookMenu = SetWinEventHook(
+        EVENT_SYSTEM_MENUPOPUPSTART, EVENT_SYSTEM_MENUPOPUPEND,
+        nullptr, PopupWinEventCallback, 0, 0, WINEVENT_OUTOFCONTEXT);
+    ctx->winEventHookObj = SetWinEventHook(
+        EVENT_OBJECT_SHOW, EVENT_OBJECT_HIDE,
+        nullptr, PopupWinEventCallback, 0, 0, WINEVENT_OUTOFCONTEXT);
+
     return env.Undefined();
 }
 

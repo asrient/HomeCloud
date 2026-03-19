@@ -298,7 +298,7 @@ const AppWindowPage: NextPageWithConfig = () => {
         // Stream ended normally (done: true) — window may have closed
         if (!cancelled && isMountedRef.current) {
           console.log('[WindowStream] stream ended normally after', frameCount, 'frames');
-          setError('Window stream ended.');
+          window.utils?.windowControls?.close();
         }
       } catch (e: any) {
         if (cancelled || !isMountedRef.current) return;

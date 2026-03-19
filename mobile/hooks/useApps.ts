@@ -139,17 +139,23 @@ export const useAppIcon = (appId: string, deviceFingerprint: string | null) => {
 
 // ── App Windows ──
 
-export const useAppWindows = (appId: string | null, deviceFingerprint: string | null) => {
+export const useAppWindows = (appId: string | null, deviceFingerprint: string | null, launchFirst?: boolean) => {
     const [windows, setWindows] = useState<RemoteAppWindow[]>([]);
     const createdRef = useRef<SignalNodeRef<[WindowEvent], string> | null>(null);
     const destroyedRef = useRef<SignalNodeRef<[WindowEvent], string> | null>(null);
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
         if (!appId) return;
+        // Launch the app first so windows exist by the time we query.
+        // For already-running apps this is a no-op (just activates).
+        if (launchFirst) {
+            try { await serviceController.apps.launchApp(appId); } catch {}
+            if (shouldAbort()) return;
+        }
         const wins = await serviceController.apps.getWindows(appId);
         if (shouldAbort()) return;
         setWindows(wins);
-    }, [appId]);
+    }, [appId, launchFirst]);
 
     const clearSignals = useCallback((serviceController: ServiceController) => {
         if (createdRef.current) {
