@@ -46,6 +46,7 @@ function WindowCanvas({
     dispatchAction,
     canvasWidth,
     canvasHeight,
+    rotated,
 }: {
     frameState: { width: number; height: number; dpi: number };
     sessionId: string | null;
@@ -54,6 +55,7 @@ function WindowCanvas({
     dispatchAction: (payload: any) => void;
     canvasWidth: number;
     canvasHeight: number;
+    rotated: boolean;
 }) {
     // Use logical (point) dimensions for layout and input mapping
     const dpi = frameState.dpi || 1;
@@ -90,16 +92,24 @@ function WindowCanvas({
     const lastScrollPosRef = useRef<{ x: number; y: number } | null>(null);
 
     // Convert touch position on the view to remote window coordinates
+    // When the parent is rotated 90° CW, screen coords map differently:
+    //   screen X → view local Y (inverted), screen Y → view local X
     const touchToWindowCoords = useCallback(
         (pageX: number, pageY: number, viewLayout: { x: number; y: number }) => {
             const relX = pageX - viewLayout.x;
             const relY = pageY - viewLayout.y;
+            if (rotated) {
+                return {
+                    x: Math.round(relY / scale),
+                    y: Math.round((displayHeight - relX) / scale),
+                };
+            }
             return {
                 x: Math.round(relX / scale),
                 y: Math.round(relY / scale),
             };
         },
-        [scale],
+        [scale, rotated, displayHeight],
     );
 
     const viewLayoutRef = useRef<{ x: number; y: number; width: number; height: number }>({
@@ -185,8 +195,10 @@ function WindowCanvas({
                     return;
                 }
                 if (lastScrollPosRef.current) {
-                    const sdx = Math.round((pageX - lastScrollPosRef.current.x) / 3);
-                    const sdy = Math.round((pageY - lastScrollPosRef.current.y) / 3);
+                    const rawDx = pageX - lastScrollPosRef.current.x;
+                    const rawDy = pageY - lastScrollPosRef.current.y;
+                    const sdx = Math.round((rotated ? rawDy : rawDx) / 3);
+                    const sdy = Math.round((rotated ? -rawDx : rawDy) / 3);
                     if (sdx !== 0 || sdy !== 0) {
                         const pos = controlMode === 'pointer' ? pointerPos.current
                             : touchToWindowCoords(pageX, pageY, viewLayoutRef.current);
@@ -206,8 +218,11 @@ function WindowCanvas({
             if (controlMode === 'pointer') {
                 // Trackpad mode: move pointer relative to finger movement
                 if (touchStartRef.current) {
-                    const dx = (pageX - touchStartRef.current.x) * POINTER_MOVE_SENSITIVITY;
-                    const dy = (pageY - touchStartRef.current.y) * POINTER_MOVE_SENSITIVITY;
+                    const rawDx = pageX - touchStartRef.current.x;
+                    const rawDy = pageY - touchStartRef.current.y;
+                    // When rotated 90° CW: screen X → local -Y, screen Y → local +X
+                    const dx = (rotated ? rawDy : rawDx) * POINTER_MOVE_SENSITIVITY;
+                    const dy = (rotated ? -rawDx : rawDy) * POINTER_MOVE_SENSITIVITY;
 
                     if (!isDraggingRef.current && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
                         isDraggingRef.current = true;
@@ -262,8 +277,10 @@ function WindowCanvas({
                     isScrollingRef.current = true;
                     lastScrollPosRef.current = { x: pageX, y: pageY };
                 } else if (lastScrollPosRef.current) {
-                    const sdx = Math.round((pageX - lastScrollPosRef.current.x) / 3);
-                    const sdy = Math.round((pageY - lastScrollPosRef.current.y) / 3);
+                    const rawDx2 = pageX - lastScrollPosRef.current.x;
+                    const rawDy2 = pageY - lastScrollPosRef.current.y;
+                    const sdx = Math.round((rotated ? rawDy2 : rawDx2) / 3);
+                    const sdy = Math.round((rotated ? -rawDx2 : rawDy2) / 3);
                     if (sdx !== 0 || sdy !== 0) {
                         const coords = touchToWindowCoords(pageX, pageY, viewLayoutRef.current);
                         dispatchAction({
@@ -278,7 +295,7 @@ function WindowCanvas({
                 }
             }
         },
-        [controlMode, touchSubMode, dispatchAction, touchToWindowCoords, logicalWidth, logicalHeight],
+        [controlMode, touchSubMode, dispatchAction, touchToWindowCoords, logicalWidth, logicalHeight, rotated],
     );
 
     const handleTouchEnd = useCallback(
@@ -511,10 +528,15 @@ export default function ScreenControlScreen() {
     const [controlMode, setControlMode] = useState<ControlMode>('touch');
     const [touchSubMode, setTouchSubMode] = useState<TouchSubMode>('scroll');
     const [showKeyboard, setShowKeyboard] = useState(false);
+    const [rotated, setRotated] = useState(false);
 
     const screenWidth = Dimensions.get('window').width;
     const screenHeight = Dimensions.get('window').height;
     const canvasAreaHeight = screenHeight - insets.top - insets.bottom - 120;
+
+    // When rotated, the canvas container is rotated 90° so swap width/height for layout
+    const effectiveCanvasWidth = rotated ? canvasAreaHeight - 16 : screenWidth - 16;
+    const effectiveCanvasHeight = rotated ? screenWidth - 16 : canvasAreaHeight - 16;
 
     // Full-screen capture
     const { sessionId, frameState, isConnecting, error, startCapture, stopCapture, isReconnecting, retryAttempt, cancelReconnect } = useScreenCapture(
@@ -575,15 +597,23 @@ export default function ScreenControlScreen() {
                             />
                         </View>
                     ) : frameState ? (
-                        <View style={styles.canvasWrapper}>
+                        <View style={[
+                            styles.canvasWrapper,
+                            rotated && {
+                                transform: [{ rotate: '90deg' }],
+                                width: canvasAreaHeight,
+                                height: screenWidth,
+                            },
+                        ]}>
                             <WindowCanvas
                                 frameState={frameState}
                                 sessionId={sessionId}
                                 controlMode={controlMode}
                                 touchSubMode={touchSubMode}
                                 dispatchAction={dispatchAction}
-                                canvasWidth={screenWidth - 16}
-                                canvasHeight={canvasAreaHeight - 16}
+                                canvasWidth={effectiveCanvasWidth}
+                                canvasHeight={effectiveCanvasHeight}
+                                rotated={rotated}
                             />
                             {isReconnecting && (
                                 <View style={styles.reconnectOverlay}>
@@ -626,6 +656,12 @@ export default function ScreenControlScreen() {
                         type={showKeyboard ? 'primary' : 'secondary'}
                         size="sm"
                         onPress={() => setShowKeyboard((v) => !v)}
+                    />
+                    <UIButton
+                        icon="rotate.right"
+                        type={rotated ? 'primary' : 'secondary'}
+                        size="sm"
+                        onPress={() => setRotated((r) => !r)}
                     />
                 </View>
             </View>

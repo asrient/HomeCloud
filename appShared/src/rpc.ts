@@ -499,7 +499,7 @@ export class RPCPeer {
         }
 
         const decoded = result !== undefined ? this.parseJson(result) : undefined;
-        console.debug(`[RPC] handleResponse callId=${callId}, registered streams:`, [...this.streamControllers.keys()]);
+        // console.debug(`[RPC] handleResponse callId=${callId}, registered streams:`, [...this.streamControllers.keys()]);
 
         entry.resolve(decoded);
         this.pending.delete(callId);

@@ -81,7 +81,7 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
   const { mediaPlayback, play, pause, previous, next, canControl, isLoading: mediaPlaybackLoading } = useMediaPlayback(isThisDevice ? null : peer.fingerprint);
   const { lockStatus } = useScreenLock(isThisDevice ? null : peer.fingerprint);
   return (
-    <div className={cn("py-3 px-4 lg:px-6 xl:px-10 lg:min-h-[8rem] flex flex-col lg:flex-row items-center justify-around lg:justify-between relative")}>
+    <div className={cn("py-3 px-4 lg:px-6 xl:px-10 lg:min-h-[8rem] flex flex-col lg:flex-row items-start lg:items-center justify-around lg:justify-between relative")}>
       <div className='flex items-center space-x-4 w-fit px-5 py-2'>
         <DeviceIcon iconKey={peer.iconKey} size={120} alt="Peer icon" />
         <div className="flex flex-col text-base">
@@ -366,7 +366,7 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
   }, [deviceFingerprint]);
 
   return (
-    <div className='p-1 mx-2 flex flex-row items-center justify-center lg:justify-start space-x-2'>
+    <div className='p-1 mx-2 flex flex-row flex-wrap items-center justify-start gap-2'>
       <FilesSendAction deviceFingerprint={deviceFingerprint} />
       <TextModal onDone={onTextSend}
         title='Send Text'
