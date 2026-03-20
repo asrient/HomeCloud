@@ -332,9 +332,9 @@ API_AVAILABLE(macos(12.3))
 
         if (elapsed >= 0.5 && !ctx->pendingReconfig) {
             ctx->lastBoundsCheckTime = now;
-            CGRect bounds = getWindowBounds(ctx->windowId);
-            int newW = (int)(bounds.size.width * ctx->dpi);
-            int newH = (int)(bounds.size.height * ctx->dpi);
+            CGDirectDisplayID mainDisplay = CGMainDisplayID();
+            int newW = (int)(CGDisplayPixelsWide(mainDisplay) * ctx->dpi);
+            int newH = (int)(CGDisplayPixelsHigh(mainDisplay) * ctx->dpi);
             if (newW > 0 && newH > 0 && (newW != ctx->configuredWidth || newH != ctx->configuredHeight)) {
                 ctx->pendingReconfig = true;
                 SCStreamConfiguration *newConfig = [[SCStreamConfiguration alloc] init];
@@ -1149,7 +1149,9 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
     }
     uint32_t windowId = 0;
     if (!windowIdStr.empty()) {
-        try { windowId = (uint32_t)std::stoul(windowIdStr); } catch (...) { windowId = 0; }
+        char *end = nullptr;
+        unsigned long parsed = strtoul(windowIdStr.c_str(), &end, 10);
+        windowId = (end && *end == '\0') ? (uint32_t)parsed : 0;
     }
     bool isScreenLevel = (windowId == 0);
 
