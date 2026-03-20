@@ -271,8 +271,8 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
 
     const handleLockScreen = useCallback(() => {
         Alert.alert(
-            'Lock Device',
-            'Are you sure you want to lock this device?',
+            'Lock Screen',
+            'Once locked you won\'t be able to unlock the screen remotely.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -304,7 +304,7 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                 <UIIcon name={batteryIcon} size={14} themeColor="text" />
                 <UIText size="sm" color="text">{batteryLabel}</UIText>
                 {lockStatus === 'locked' && (
-                    <UIIcon name="lock.fill" size={14} themeColor="textSecondary" />
+                    <UIIcon name="lock.fill" size={14} themeColor="text" />
                 )}
             </View>
         </View>
@@ -390,7 +390,7 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                     {
                         type: 'half',
                         icon: 'display',
-                        title: 'Screen Control',
+                        title: 'Screen',
                         subtitle: 'Remote desktop',
                         disabled: !appsAvailable,
                         onPress: () => onNavigate(`/screen-control?fingerprint=${routeFingerprint}`),
@@ -422,7 +422,6 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                         type: 'half',
                         icon: 'lock.fill',
                         title: 'Lock Screen',
-                        subtitle: 'Lock the device',
                         disabled: lockStatus !== 'unlocked',
                         onPress: handleLockScreen,
                     },

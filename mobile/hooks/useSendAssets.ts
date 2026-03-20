@@ -34,17 +34,30 @@ export function useSendAssets() {
 
         return withLoading(async (isCancelled, setTitle) => {
             const sc = await getServiceController(destFingerprint);
-            for (let i = 0; i < items.length; i++) {
+
+            // Group items by source fingerprint for batched downloads
+            const grouped = new Map<string, { paths: string[]; items: T[] }>();
+            for (const item of items) {
+                const fp = getSourceFingerprint?.(item) ?? modules.config.FINGERPRINT;
+                const key = fp ?? '__local__';
+                if (!grouped.has(key)) grouped.set(key, { paths: [], items: [] });
+                const group = grouped.get(key)!;
+                group.paths.push(getPath(item));
+                group.items.push(item);
+            }
+
+            for (const [key, { paths, items: groupItems }] of grouped) {
                 if (isCancelled()) break;
-                setTitle(`Sending ${i + 1}/${items.length} ${label}...`);
-                const item = items[i];
-                const sourceFingerprint = getSourceFingerprint?.(item) ?? modules.config.FINGERPRINT;
-                const path = getPath(item);
-                await sc.files.download(sourceFingerprint, path);
+                const fp = key === '__local__' ? null : key;
+                setTitle(`Sending ${paths.length} ${label}...`);
+                await sc.files.download(fp, paths);
                 if (deleteAfter) {
-                    const file = new File(path);
-                    if (file.exists) {
-                        file.delete();
+                    for (const item of groupItems) {
+                        const filePath = getPath(item);
+                        const file = new File(filePath);
+                        if (file.exists) {
+                            file.delete();
+                        }
                     }
                 }
             }

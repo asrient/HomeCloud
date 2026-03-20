@@ -42,6 +42,7 @@ export function Section({ title, footer, children }: SectionProps) {
             )}
             <UIView
                 themeColor={isIos ? 'backgroundTertiary' : undefined}
+                lightColor={isIos ? 'white' : undefined}
                 borderRadius="lg"
                 style={[
                     styles.sectionContent,

@@ -1,10 +1,10 @@
 import { UIView } from '@/components/ui/UIView';
 import { useAppState } from '@/hooks/useAppState';
 import { useNavigation, useLocalSearchParams } from 'expo-router';
-import { View } from 'react-native';
+import { View, Alert } from 'react-native';
 import { FileQuickActionType, FilesGrid, FileSortBy } from '@/components/filesGrid';
 import { ParamListBase, RouteProp, useRoute } from '@react-navigation/native';
-import { extractFolderParamsFromRoute, extractNameFromPath, FolderRouteParams, getKind } from '@/lib/fileUtils';
+import { extractFolderParamsFromRoute, extractNameFromPath, FolderRouteParams, getKind, formatFileSize } from '@/lib/fileUtils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { FileRemoteItem } from '@/lib/types';
@@ -191,10 +191,12 @@ export default function FolderScreen() {
     setItemsToMove(null);
     const filePaths = items.map(i => i.path);
     await withLoading(async () => {
-      // Use the source device's service controller so this.fs resolves source paths
       const sourceFingerprint = fingerprint;
       const serviceController = await getServiceController(sourceFingerprint);
-      await serviceController.files.move(destFingerprint, destPath, filePaths, deleteSource);
+      // If dest is the local device (null), pass our fingerprint so the remote
+      // source device knows to send files to us rather than treating it as same-device.
+      const resolvedDestFingerprint = destFingerprint === null ? modules.config.FINGERPRINT : destFingerprint;
+      await serviceController.files.move(resolvedDestFingerprint, destPath, filePaths, deleteSource);
       if (deleteSource) {
         setRemoteItems((prevItems) =>
           prevItems.filter((item) => !items.some((i) => i.path === item.path))
@@ -306,7 +308,14 @@ export default function FolderScreen() {
         renameItem(action.item);
         break;
       case 'info':
-        showAlert('File Info', `Path: ${action.item.path}\nSize: ${action.item.size} bytes`);
+        showAlert('File Info', [
+          `Name: ${action.item.name}`,
+          `Type: ${action.item.type}`,
+          action.item.size ? `Size: ${formatFileSize(action.item.size)}` : null,
+          action.item.mimeType ? `MIME: ${action.item.mimeType}` : null,
+          action.item.lastModified ? `Modified: ${new Date(action.item.lastModified).toLocaleString()}` : null,
+          `Path: ${action.item.path}`,
+        ].filter(Boolean).join('\n'));
         break;
       case 'openInDevice':
         if (action.targetDeviceFingerprint !== undefined) {
@@ -361,7 +370,23 @@ export default function FolderScreen() {
             setItemsToMove(null);
             return;
           }
-          await moveItems(items[0].deviceFingerprint, items[0].path, true);
+          const dest = items[0];
+          const choice = await new Promise<'move' | 'copy' | null>((resolve) => {
+            Alert.alert(
+              'Move or Copy?',
+              `${itemsToMove?.length === 1 ? '1 item' : `${itemsToMove?.length} items`} to "${dest.name || 'selected folder'}"`,
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+                { text: 'Copy', onPress: () => resolve('copy') },
+                { text: 'Move', style: 'destructive', onPress: () => resolve('move') },
+              ]
+            );
+          });
+          if (!choice) {
+            setItemsToMove(null);
+            return;
+          }
+          await moveItems(dest.deviceFingerprint, dest.path, choice === 'move');
         }}
       />
     </UIView>

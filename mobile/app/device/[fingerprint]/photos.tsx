@@ -139,6 +139,13 @@ export default function DevicePhotosScreen() {
         deletePhotos([action.photo]);
         break;
       case 'info':
+        showAlert('Photo Info', [
+          `Type: ${action.photo.mimeType}`,
+          `Size: ${action.photo.width} × ${action.photo.height}`,
+          action.photo.duration ? `Duration: ${action.photo.duration.toFixed(1)}s` : null,
+          `Captured: ${new Date(action.photo.capturedOn).toLocaleString()}`,
+          `File: ${action.photo.fileId}`,
+        ].filter(Boolean).join('\n'));
         break;
       default:
         console.warn('Unknown action type:', action.type);

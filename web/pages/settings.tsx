@@ -108,7 +108,9 @@ function Page() {
       const result = await localSc.files.openFilePicker(false, true, undefined, 'Select Library Folder', 'Select');
       if (result && result.length > 0) {
         const selectedPath = result[0].path;
-        const folderName = selectedPath.split(/[/\\]/).pop() || 'Library';
+        const rawName = selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Library';
+        let folderName: string;
+        try { folderName = decodeURIComponent(rawName); } catch { folderName = rawName; }
         await localSc.photos.addLocation(folderName, selectedPath);
         await fetchPhotoLibraries();
       }

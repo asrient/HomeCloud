@@ -92,24 +92,24 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
               <span>{peer.deviceInfo.os || 'Unknown OS'}</span>
               <span className='ml-1'>{peer.deviceInfo.osFlavour || 'Unknown platform'}</span>
             </div>
-            <div className='text-xs justify-start flex-row flex w-full gap-6'>
+            <div className='text-xs justify-start flex-row flex w-full gap-3'>
+              {lockStatus === 'locked' && (
+                <div title='Device is locked'
+                  className='flex items-center flex-row justify-center px-1'>
+                  <Lock size={14} />
+                </div>
+              )}
               {
                 !(batteryInfoLoading) && <div className='flex flex-row justify-center items-center w-max gap-1'>
-                  <BatteryIcon size={22} level={batteryInfo ? batteryInfo.level * 100 : 0} isCharging={batteryInfo ? batteryInfo.isCharging : false} />
+                  <BatteryIcon size={16} level={batteryInfo ? batteryInfo.level * 100 : 0} isCharging={batteryInfo ? batteryInfo.isCharging : false} />
                   {batteryInfo ? `${Math.round(batteryInfo.level * 100)}%` : ''}
                   {batteryInfo && batteryInfo.isCharging ? ' - Charging' : ''}
                 </div>
               }
-              {lockStatus === 'locked' && (
-                <div className='flex items-center flex-row justify-center w-max gap-1'>
-                  <Lock size={14} />
-                  <span>Locked</span>
-                </div>
-              )}
               {
-                !isThisDevice && <div className='flex items-center flex-row justify-center w-max'>
-                  <ConnectionIcon connection={connection} size={16} />
-                  <span className='ml-1'>{!!connection ? (connection.connectionType === ConnectionType.LOCAL ? 'Local Network' : 'Web Connect') : 'Offline'}</span>
+                !isThisDevice && <div className='flex items-center flex-row justify-center w-max gap-1'>
+                  <ConnectionIcon connection={connection} size={14} />
+                  <span>{!!connection ? (connection.connectionType === ConnectionType.LOCAL ? 'Local Network' : 'Web Connect') : 'Offline'}</span>
                 </div>
               }
             </div>
@@ -225,9 +225,7 @@ function FilesSendAction({ deviceFingerprint }: { deviceFingerprint: string | nu
     console.log('Uploading files to device:', deviceFingerprint, files);
     try {
       const sc = await getServiceController(deviceFingerprint);
-      for (const asset of files) {
-        await sc.files.download(window.modules.config.FINGERPRINT, asset.path);
-      }
+      await sc.files.download(window.modules.config.FINGERPRINT, files.map(f => f.path));
     } catch (e) {
       console.error('Error sending files to device:', e);
       const localSc = window.modules.getLocalServiceController();
@@ -432,9 +430,7 @@ export default function Home() {
     const isMultiple = filePaths.length > 1;
     try {
       const sc = await getServiceController(fprint);
-      for (const filePath of filePaths) {
-        await sc.files.download(window.modules.config.FINGERPRINT, filePath);
-      }
+      await sc.files.download(window.modules.config.FINGERPRINT, filePaths);
       localSc.system.alert(
         'Files sent',
         `${filePaths.length} ${isMultiple ? 'files have' : 'file has'} been sent to the device.`

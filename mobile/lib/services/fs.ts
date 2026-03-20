@@ -218,7 +218,8 @@ export default class MobileFsDriver extends FsDriver {
       }
       if (!filename) {
         const urlParts = uri.split('/');
-        filename = urlParts[urlParts.length - 1];
+        const raw = urlParts.filter(Boolean).pop() || 'file';
+        try { filename = decodeURIComponent(raw); } catch { filename = raw; }
       }
     }
 
@@ -277,6 +278,10 @@ export default class MobileFsDriver extends FsDriver {
 
   @exposed
   public override async getStat(id: string): Promise<RemoteItem> {
+    if (id.startsWith('ph://')) {
+      const resolved = await resolveFileUri(id);
+      return this.toRemoteItem({ item: resolved.fileUri, name: resolved.filename, mimeType: resolved.mimeType || undefined, loadStat: true });
+    }
     id = pathToUri(id);
     return this.toRemoteItem({ item: id, loadStat: true });
   }

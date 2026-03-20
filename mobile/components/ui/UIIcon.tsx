@@ -90,6 +90,8 @@ const MAPPING = {
   'arrow.uturn.backward': 'undo',
   'scroll': 'swap-vert',
   'hand.draw.fill': 'gesture',
+  'pointer.arrow.ipad': 'mouse',
+  'selection.pin.in.out': 'select-all',
 } as IconMapping;
 
 /**

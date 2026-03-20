@@ -71,6 +71,7 @@ function ThumbnailPhoto({ item, isSelected, className, maintainAspectRatio, onCl
         <div className={cn("relative h-full w-full")}>
             <LazyImage
                 fetchSrc={fetchThumbnailSrc}
+                itemKey={item.fileId + '|' + item.deviceFingerprint}
                 src={dafaultSrc}
                 alt={item.id.toString()}
                 onClick={handleOnClick}
@@ -482,7 +483,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const sendToDevice = useCallback(async (file: PhotoView, fingerprint: string) => {
         try {
             const serviceController = await getServiceController(fingerprint);
-            await serviceController.files.download(window.modules.config.FINGERPRINT, file.fileId);
+            await serviceController.files.download(window.modules.config.FINGERPRINT, [file.fileId]);
         } catch (e: any) {
             console.error(e);
         }
@@ -495,7 +496,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const download = useCallback(async (item: PhotoView) => {
         const localSc = window.modules.getLocalServiceController();
-        await localSc.files.download(fetchOptions.deviceFingerprint, item.fileId);
+        await localSc.files.download(fetchOptions.deviceFingerprint, [item.fileId]);
     }, [fetchOptions.deviceFingerprint]);
 
     const share = useCallback(async () => {
@@ -537,6 +538,20 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 break;
             case 'download':
                 if (clickedItem) download(clickedItem);
+                break;
+            case 'getInfo':
+                if (clickedItem) {
+                    const info = [
+                        `ID: ${clickedItem.id}`,
+                        `Type: ${clickedItem.mimeType}`,
+                        `Size: ${clickedItem.width} × ${clickedItem.height}`,
+                        clickedItem.duration ? `Duration: ${clickedItem.duration.toFixed(1)}s` : null,
+                        `Captured: ${new Date(clickedItem.capturedOn).toLocaleString()}`,
+                        `File: ${clickedItem.fileId}`,
+                    ].filter(Boolean).join('\n');
+                    const localSc = window.modules.getLocalServiceController();
+                    localSc.system.alert('Photo Info', info);
+                }
                 break;
             case 'share':
                 share();
@@ -587,6 +602,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 })
             });
             items.push({ id: 'download', label: 'Download' });
+            items.push({ id: 'getInfo', label: 'Get Info' });
         }
         items.push({ id: 'copy', label: 'Copy' });
         isMacos() && items.push({ id: 'share', label: 'Export' });

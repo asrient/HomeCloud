@@ -47,7 +47,7 @@ export default class MobileFilesService extends FilesService {
   private remoteFileCache = new FileCache('FilePreviews', { maxItems: 10 });
 
   @exposed
-  async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
+  async download(remoteFingerprint: string | null, remotePaths: string[]): Promise<void> {
     const serviceController = await getServiceController(remoteFingerprint);
     const localSc = modules.getLocalServiceController();
     const defaultDirs = await localSc.system.getDefaultDirectories();
@@ -55,15 +55,33 @@ export default class MobileFilesService extends FilesService {
     if (!downloadDir) {
       throw new Error("Download directory not found.");
     }
-    const fileContent = await serviceController.files.fs.readFile(remotePath);
-    const { name: fileName, stream } = fileContent;
-    let file = new File(Paths.join(downloadDir, fileName));
-    file.create({
-      intermediates: true,
-      overwrite: true
-    });
-    await writeStreamToFile(stream, file, true);
-    localSc.system.openFile(file.uri);
+
+    for (const remotePath of remotePaths) {
+      await this.downloadSingle(serviceController, remotePath, downloadDir);
+    }
+
+    if (remotePaths.length === 1) {
+      const stat = await serviceController.files.fs.getStat(remotePaths[0]);
+      localSc.system.openFile(Paths.join(downloadDir, stat.name));
+    }
+  }
+
+  private async downloadSingle(serviceController: any, remotePath: string, localDir: string): Promise<void> {
+    const stat = await serviceController.files.fs.getStat(remotePath);
+    if (stat.type === 'directory') {
+      const dirPath = Paths.join(localDir, stat.name);
+      const dir = new Directory(dirPath);
+      dir.create({ intermediates: true, idempotent: true });
+      const children = await serviceController.files.fs.readDir(remotePath);
+      for (const child of children) {
+        await this.downloadSingle(serviceController, child.path, dirPath);
+      }
+    } else {
+      const { name: fileName, stream } = await serviceController.files.fs.readFile(remotePath);
+      const file = new File(Paths.join(localDir, fileName));
+      file.create({ intermediates: true, overwrite: true });
+      await writeStreamToFile(stream, file, true);
+    }
   }
 
   @exposed

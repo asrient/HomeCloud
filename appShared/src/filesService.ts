@@ -24,19 +24,28 @@ export abstract class FilesService extends Service {
     public separator = "/";
 
     protected async _moveSingle(remoteFingerprint: string | null, remoteFolderId: string, localFilePath: string, deleteSource: boolean): Promise<RemoteItem[]> {
-        // walk through the file path if a directory
         const fileStat = await this.fs.getStat(localFilePath);
+
+        // Same-device move: use efficient filesystem-level move/copy
+        if (remoteFingerprint === null) {
+            if (fileStat.type === "directory") {
+                const result = await this.fs.moveDir(localFilePath, remoteFolderId, fileStat.name, deleteSource);
+                return [result];
+            } else {
+                const result = await this.fs.moveFile(localFilePath, remoteFolderId, fileStat.name, deleteSource);
+                return [result];
+            }
+        }
+
+        // Cross-device move: read from local fs, write to remote device
         if (fileStat.type === "directory") {
-            // Recreate the directory on remote side
-            const remoteDirName = localFilePath.split(this.separator).pop() || 'folder';
+            const remoteDirName = localFilePath.split(this.separator).filter(Boolean).pop() || 'folder';
             const serviceController = await getServiceController(remoteFingerprint);
             const remoteDir = await serviceController.files.fs.mkDir(remoteDirName, remoteFolderId);
             const remoteDirPath = remoteDir.path;
-            // Read the directory contents
             const files = await this.fs.readDir(localFilePath);
             const promises = files.map(async (file, ind) => {
                 const filePath = file.path;
-                // delay the next call to avoid too many concurrent requests.
                 if (ind > 0) {
                     await new Promise((resolve) => setTimeout(resolve, ind * 100));
                 }
@@ -49,8 +58,8 @@ export abstract class FilesService extends Service {
                 } catch (e) {
                     console.error("Failed to delete source directory:", e);
                 }
-                return [remoteDir];
             }
+            return [remoteDir];
         } else {
             const serviceController = await getServiceController(remoteFingerprint);
             const fileContent = await this.fs.readFile(localFilePath);
@@ -81,23 +90,27 @@ export abstract class FilesService extends Service {
                 throw new Error(`Device "${remoteFingerprint}" is not paired.`);
             }
         }
-        const promises = Promise.allSettled(localFilePaths.map(async (localFilePath) => {
+        const results = await Promise.allSettled(localFilePaths.map(async (localFilePath) => {
             return this._moveSingle(remoteFingerprint, remoteFolderId, localFilePath, deleteSource);
         }));
-        const items = [];
-        const results = await promises;
+        const items: RemoteItem[] = [];
+        const errors: string[] = [];
         results.forEach(result => {
             if (result.status === "fulfilled") {
                 items.push(...result.value);
             } else {
                 console.error("Failed to move file:", result.reason);
+                errors.push(result.reason?.message || String(result.reason));
             }
         });
+        if (items.length === 0 && errors.length > 0) {
+            throw new Error(`Move failed: ${errors[0]}`);
+        }
         return items;
     }
 
     @exposed
-    public async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
+    public async download(remoteFingerprint: string | null, remotePaths: string[]): Promise<void> {
         throw new Error("Method not implemented.");
     }
 
@@ -191,7 +204,8 @@ export abstract class FilesService extends Service {
             throw new Error(`Pinned folder with path "${path}" already exists.`);
         }
         if (!name) {
-            name = path.split(this.separator).pop() || 'Pinned Folder';
+            const segment = path.split(this.separator).filter(Boolean).pop() || 'Pinned Folder';
+            try { name = decodeURIComponent(segment); } catch { name = segment; }
         }
         const newPinnedFolder: PinnedFolder = { path, name };
         pinnedFolders.push(newPinnedFolder);

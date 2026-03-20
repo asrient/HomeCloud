@@ -3,8 +3,6 @@ import {
     View,
     StyleSheet,
     ActivityIndicator,
-    Pressable,
-    ScrollView,
     Dimensions,
     TextInput,
     Platform,
@@ -19,10 +17,11 @@ import { UIView } from '@/components/ui/UIView';
 import { UIIcon } from '@/components/ui/UIIcon';
 import { useScreenCapture, useScreenActions } from '@/hooks/useApps';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useAppState } from '@/hooks/useAppState';
 import {
     RemoteAppWindowAction,
 } from 'shared/types';
-import { isGlassEnabled, getServiceController } from '@/lib/utils';
+import { isGlassEnabled } from '@/lib/utils';
 import { useAutoConnect } from '@/hooks/useAutoConnect';
 import { H264PlayerView } from '@/modules/h264-player';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
@@ -418,7 +417,11 @@ function WindowCanvas({
                         },
                     ]}
                 >
-                    <UIIcon name="cursorarrow" size={16} color="#fff" />
+                    <UIIcon
+                        name="pointer.arrow.ipad"
+                        size={14}
+                        color='#fff'
+                    />
                 </View>
             )}
         </View>
@@ -525,6 +528,13 @@ export default function ScreenControlScreen() {
 
     useAutoConnect(deviceFingerprint, 'screen-control');
 
+    const { peers } = useAppState();
+    const deviceName = useMemo(() => {
+        if (!deviceFingerprint) return 'Screen Control';
+        const peer = peers.find(p => p.fingerprint === deviceFingerprint);
+        return peer?.deviceName || 'Screen Control';
+    }, [deviceFingerprint, peers]);
+
     const [controlMode, setControlMode] = useState<ControlMode>('touch');
     const [touchSubMode, setTouchSubMode] = useState<TouchSubMode>('scroll');
     const [showKeyboard, setShowKeyboard] = useState(false);
@@ -560,12 +570,19 @@ export default function ScreenControlScreen() {
         <UIView themeColor="background" style={{ flex: 1 }}>
             <Stack.Screen
                 options={{
-                    title: 'Screen Control',
+                    title: deviceName,
                     headerTransparent: isGlassEnabled,
                     headerBackButtonDisplayMode: 'minimal',
                     gestureEnabled: controlMode !== 'pointer',
                     headerLeft: () => (
                         <UIHeaderButton name="xmark" onPress={() => router.back()} />
+                    ),
+                    headerRight: () => (
+                        <UIHeaderButton
+                            name="rotate.right"
+                            onPress={() => setRotated((r) => !r)}
+                            isHighlight={rotated}
+                        />
                     ),
                     headerBackVisible: false,
                 }}
@@ -637,31 +654,20 @@ export default function ScreenControlScreen() {
                 {/* Toolbar */}
                 <View style={[styles.toolbar, { paddingBottom: insets.bottom + 8 }]}>
                     <UIButton
-                        icon={controlMode === 'pointer' ? 'cursorarrow' : 'hand.tap.fill'}
-                        type="secondary"
-                        size="sm"
+                        icon={'pointer.arrow.ipad'}
+                        type={controlMode === 'pointer' ? 'primary' : 'secondary'}
                         onPress={toggleControlMode}
-                        title={controlMode === 'pointer' ? 'Pointer' : 'Touch'}
                     />
-                    {controlMode === 'touch' && (
-                        <UIButton
-                            type={touchSubMode === 'select' ? 'primary' : 'secondary'}
-                            size="sm"
-                            onPress={() => setTouchSubMode((m) => m === 'scroll' ? 'select' : 'scroll')}
-                            title="Select"
-                        />
-                    )}
+                    <UIButton
+                        disabled={controlMode !== 'touch'}
+                        icon='selection.pin.in.out'
+                        type={touchSubMode === 'select' ? 'primary' : 'secondary'}
+                        onPress={() => setTouchSubMode((m) => m === 'scroll' ? 'select' : 'scroll')}
+                    />
                     <UIButton
                         icon="keyboard.fill"
-                        type={showKeyboard ? 'primary' : 'secondary'}
-                        size="sm"
+                        type={'secondary'}
                         onPress={() => setShowKeyboard((v) => !v)}
-                    />
-                    <UIButton
-                        icon="rotate.right"
-                        type={rotated ? 'primary' : 'secondary'}
-                        size="sm"
-                        onPress={() => setRotated((r) => !r)}
                     />
                 </View>
             </View>
