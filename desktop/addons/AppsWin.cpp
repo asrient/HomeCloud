@@ -2247,13 +2247,13 @@ static Napi::Value StopWatchingWindows(const Napi::CallbackInfo &info) {
 // Screenshot a window by HWND → base64 PNG data URI
 // ──────────────────────────────────────────────
 
-static std::string EncodeBitmapToPngBase64(HBITMAP hBitmap) {
+static std::string EncodeBitmapToJpegBase64(HBITMAP hBitmap) {
     if (!hBitmap) return "";
 
     Gdiplus::Bitmap bmp(hBitmap, nullptr);
     if (bmp.GetLastStatus() != Gdiplus::Ok) return "";
 
-    // Find PNG encoder CLSID
+    // Find JPEG encoder CLSID
     CLSID clsid;
     {
         UINT num = 0, sz = 0;
@@ -2264,7 +2264,7 @@ static std::string EncodeBitmapToPngBase64(HBITMAP hBitmap) {
         Gdiplus::GetImageEncoders(num, sz, encoders);
         bool found = false;
         for (UINT i = 0; i < num; i++) {
-            if (wcscmp(encoders[i].MimeType, L"image/png") == 0) {
+            if (wcscmp(encoders[i].MimeType, L"image/jpeg") == 0) {
                 clsid = encoders[i].Clsid;
                 found = true;
                 break;
@@ -2298,7 +2298,7 @@ static std::string EncodeBitmapToPngBase64(HBITMAP hBitmap) {
     CryptBinaryToStringA(data.get(), read, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, &b64[0], &b64Len);
     b64.resize(b64Len);
 
-    return "data:image/png;base64," + b64;
+    return "data:image/jpeg;base64," + b64;
 }
 
 static Napi::Value ScreenshotWindow(const Napi::CallbackInfo &info) {
@@ -2331,7 +2331,7 @@ static Napi::Value ScreenshotWindow(const Napi::CallbackInfo &info) {
     DeleteDC(hdcMem);
     ReleaseDC(hwnd, hdcWindow);
 
-    std::string dataUri = EncodeBitmapToPngBase64(hBitmap);
+    std::string dataUri = EncodeBitmapToJpegBase64(hBitmap);
     DeleteObject(hBitmap);
 
     if (dataUri.empty()) return env.Null();

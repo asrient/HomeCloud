@@ -1854,14 +1854,14 @@ static Napi::Value ScreenshotWindow(const Napi::CallbackInfo &info) {
         CGImageRelease(cgImage);
         if (!bitmapRep) return env.Null();
 
-        NSData *pngData = [bitmapRep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
-        if (!pngData || pngData.length == 0) return env.Null();
+        NSData *jpegData = [bitmapRep representationUsingType:NSBitmapImageFileTypeJPEG properties:@{NSImageCompressionFactor: @0.85}];
+        if (!jpegData || jpegData.length == 0) return env.Null();
 
-        NSData *base64Data = [pngData base64EncodedDataWithOptions:0];
+        NSData *base64Data = [jpegData base64EncodedDataWithOptions:0];
         NSString *base64Str = [[NSString alloc] initWithData:base64Data encoding:NSUTF8StringEncoding];
         if (!base64Str) return env.Null();
 
-        std::string dataUri = "data:image/png;base64," + std::string([base64Str UTF8String]);
+        std::string dataUri = "data:image/jpeg;base64," + std::string([base64Str UTF8String]);
         return Napi::String::New(env, dataUri);
     }
 }

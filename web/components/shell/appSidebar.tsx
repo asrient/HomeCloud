@@ -225,7 +225,6 @@ export function AppSidebar() {
             <PhotosSection fingerprint={selectedFingerprint} />
             <FilesSection fingerprint={selectedFingerprint} />
             {isDev && <DevSection />}
-            <SettingsSection />
         </SidebarView>
     )
 }

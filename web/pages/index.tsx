@@ -1,5 +1,5 @@
 import Head from 'next/head'
-import { PageBar, PageContent } from "@/components/pagePrimatives";
+import { PageBar, PageContent, MenuButton, MenuGroup } from "@/components/pagePrimatives";
 import { ConnectionType, ThemedIconName } from '@/lib/enums'
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SortBy, Group } from '@/components/filesView';
@@ -11,7 +11,7 @@ import { useAppDispatch, useAppState } from '@/components/hooks/useAppState';
 import { usePeer, usePeerConnectionState } from '@/components/hooks/usePeerState';
 import { cn, getServiceController, isMacosTheme, isWin11Theme } from '@/lib/utils';
 import { DeviceIcon } from '@/components/DeviceIcon';
-import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard, Lock, Terminal, Monitor } from 'lucide-react';
+import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard, Lock, Terminal, Monitor, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionIcon } from '@/components/deviceSwitcher';
 import { useBatteryInfo, useMediaPlayback, useScreenLock, useTerminalAvailable, useVolume } from '@/components/hooks/useSystemState';
@@ -25,6 +25,7 @@ import { DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DisksGrid } from '@/components/DisksGrid';
 import { getAppName } from '@/lib/utils';
+import { settingsUrl } from '@/lib/urls';
 import { useRouter } from 'next/router';
 import { ActionTypes } from '@/lib/state';
 import { PeerQuickSelect } from '@/components/peerQuickSelect';
@@ -416,7 +417,8 @@ export default function Home() {
   const { selectedFingerprint } = useAppState();
   const dispatch = useAppDispatch();
   const peer = usePeer(selectedFingerprint);
-  const { query } = useRouter()
+  const router = useRouter();
+  const { query } = router;
 
   useEffect(() => {
     console.log('Query params changed:', query);
@@ -482,6 +484,11 @@ export default function Home() {
       </Head>
 
       <PageBar icon={ThemedIconName.Home} title={getAppName()}>
+        {isMacosTheme() && <MenuGroup>
+          <MenuButton title='Settings' onClick={() => router.push(settingsUrl())}>
+            <Settings size={16} />
+          </MenuButton>
+        </MenuGroup>}
       </PageBar>
       <PageContent onDrop={onDrop}>
         <PeerQuickSelect />

@@ -21,10 +21,7 @@ export function appsUrl(fingerprint: string | null) {
 }
 
 export function settingsUrl() {
-    if (isMobile()) {
-        return buildNextUrl('/settings');
-    }
-    return buildNextUrl('/settings/general');
+    return buildNextUrl('/settings');
 }
 
 export function deviceSettingsUrl(fingerprint: string) {
