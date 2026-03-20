@@ -157,7 +157,6 @@ static Napi::Object appInfoToNapi(Napi::Env env, const AppInfoData &info) {
 // Thread-safe N-API callback helper: calls a JS function from any thread.
 // Uses napi_threadsafe_function to marshal calls to the main JS thread.
 struct H264StreamContext {
-    uint32_t windowId;
     int width = 0;
     int height = 0;
     int dpi = 1;
@@ -187,7 +186,7 @@ struct H264StreamContext {
 };
 
 static std::mutex g_h264Mutex;
-static std::unordered_map<uint32_t, std::shared_ptr<H264StreamContext>> g_h264Streams;
+static std::shared_ptr<H264StreamContext> g_h264Stream;
 
 // Forward declaration — defined later in the file
 static CGRect getWindowBounds(uint32_t windowId);
@@ -434,15 +433,14 @@ API_AVAILABLE(macos(12.3))
 
 @end
 
-static void stopH264Stream(uint32_t windowId) API_AVAILABLE(macos(12.3)) {
+static void stopH264Stream() API_AVAILABLE(macos(12.3)) {
     std::shared_ptr<H264StreamContext> ctx;
     {
         std::lock_guard<std::mutex> lock(g_h264Mutex);
-        auto it = g_h264Streams.find(windowId);
-        if (it == g_h264Streams.end()) return;
-        ctx = it->second;
-        g_h264Streams.erase(it);
+        ctx = g_h264Stream;
+        g_h264Stream = nullptr;
     }
+    if (!ctx) return;
 
     {
         std::lock_guard<std::mutex> lock(ctx->encodeMutex);
@@ -1143,52 +1141,80 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
 
     Napi::Object payload = info[0].As<Napi::Object>();
     std::string action = payload.Get("action").As<Napi::String>().Utf8Value();
-    std::string windowIdStr = payload.Get("windowId").As<Napi::String>().Utf8Value();
-    uint32_t windowId = (uint32_t)std::stoul(windowIdStr);
+
+    // windowId is now optional — if missing or "0", actions are screen-level
+    std::string windowIdStr;
+    if (payload.Has("windowId") && payload.Get("windowId").IsString()) {
+        windowIdStr = payload.Get("windowId").As<Napi::String>().Utf8Value();
+    }
+    uint32_t windowId = 0;
+    if (!windowIdStr.empty()) {
+        try { windowId = (uint32_t)std::stoul(windowIdStr); } catch (...) { windowId = 0; }
+    }
+    bool isScreenLevel = (windowId == 0);
+
+    // Helper: get screen point — if windowId provided, offset from window; otherwise direct screen coords
+    auto getScreenPt = [&]() -> CGPoint {
+        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
+        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
+        if (isScreenLevel) {
+            return CGPointMake(x, y);
+        }
+        CGRect bounds = getWindowBounds(windowId);
+        return CGPointMake(bounds.origin.x + x, bounds.origin.y + y);
+    };
 
     if (action == "focus") {
-        ensureWindowReady(windowId);
+        if (!isScreenLevel) ensureWindowReady(windowId);
     }
     else if (action == "minimize") {
-        withAXWindow(windowId, ^(AXUIElementRef win) {
-            AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanTrue);
-        });
+        if (!isScreenLevel) {
+            withAXWindow(windowId, ^(AXUIElementRef win) {
+                AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanTrue);
+            });
+        }
     }
     else if (action == "maximize") {
-        withAXWindow(windowId, ^(AXUIElementRef win) {
-            NSScreen *mainScreen = [NSScreen mainScreen];
-            NSRect screenFrame = mainScreen.visibleFrame;
-            CGPoint origin = CGPointMake(screenFrame.origin.x, screenFrame.origin.y);
-            CGSize size = CGSizeMake(screenFrame.size.width, screenFrame.size.height);
-            AXValueRef posVal = AXValueCreate((AXValueType)kAXValueCGPointType, &origin);
-            AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
-            AXUIElementSetAttributeValue(win, kAXPositionAttribute, posVal);
-            AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
-            CFRelease(posVal);
-            CFRelease(sizeVal);
-        });
+        if (!isScreenLevel) {
+            withAXWindow(windowId, ^(AXUIElementRef win) {
+                NSScreen *mainScreen = [NSScreen mainScreen];
+                NSRect screenFrame = mainScreen.visibleFrame;
+                CGPoint origin = CGPointMake(screenFrame.origin.x, screenFrame.origin.y);
+                CGSize size = CGSizeMake(screenFrame.size.width, screenFrame.size.height);
+                AXValueRef posVal = AXValueCreate((AXValueType)kAXValueCGPointType, &origin);
+                AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
+                AXUIElementSetAttributeValue(win, kAXPositionAttribute, posVal);
+                AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
+                CFRelease(posVal);
+                CFRelease(sizeVal);
+            });
+        }
     }
     else if (action == "restore") {
-        withAXWindow(windowId, ^(AXUIElementRef win) {
-            AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanFalse);
-        });
+        if (!isScreenLevel) {
+            withAXWindow(windowId, ^(AXUIElementRef win) {
+                AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanFalse);
+            });
+        }
     }
     else if (action == "close") {
-        withAXWindow(windowId, ^(AXUIElementRef win) {
-            AXUIElementRef closeButton = NULL;
-            AXUIElementCopyAttributeValue(win, kAXCloseButtonAttribute, (CFTypeRef *)&closeButton);
-            if (closeButton) {
-                AXUIElementPerformAction(closeButton, kAXPressAction);
-                CFRelease(closeButton);
-            }
-        });
+        if (!isScreenLevel) {
+            withAXWindow(windowId, ^(AXUIElementRef win) {
+                AXUIElementRef closeButton = NULL;
+                AXUIElementCopyAttributeValue(win, kAXCloseButtonAttribute, (CFTypeRef *)&closeButton);
+                if (closeButton) {
+                    AXUIElementPerformAction(closeButton, kAXPressAction);
+                    CFRelease(closeButton);
+                }
+            });
+        }
     }
     else if (action == "click" || action == "rightClick") {
-        if (!ensureWindowReady(windowId)) {
+        if (!isScreenLevel && !ensureWindowReady(windowId)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
-        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        CGPoint screenPoint = getScreenPt();
         CGEventFlags modifiers = parseModifiers(payload);
         CGWarpMouseCursorPosition(screenPoint);
         CGAssociateMouseAndMouseCursorPosition(true);
@@ -1196,45 +1222,45 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         postMouseClick(screenPoint, isRight ? kCGMouseButtonRight : kCGMouseButtonLeft, isRight, modifiers);
     }
     else if (action == "doubleClick") {
-        if (!ensureWindowReady(windowId)) {
+        if (!isScreenLevel && !ensureWindowReady(windowId)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
-        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        CGPoint screenPoint = getScreenPt();
         CGEventFlags modifiers = parseModifiers(payload);
         CGWarpMouseCursorPosition(screenPoint);
         CGAssociateMouseAndMouseCursorPosition(true);
         postMouseDoubleClick(screenPoint, kCGMouseButtonLeft, false, modifiers);
     }
     else if (action == "dragStart") {
-        if (!ensureWindowReady(windowId)) {
+        if (!isScreenLevel && !ensureWindowReady(windowId)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
-        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        CGPoint screenPoint = getScreenPt();
         CGEventFlags modifiers = parseModifiers(payload);
         CGWarpMouseCursorPosition(screenPoint);
         CGAssociateMouseAndMouseCursorPosition(true);
         postMouseDown(screenPoint, kCGMouseButtonLeft, false, modifiers);
     }
     else if (action == "dragMove") {
-        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        CGPoint screenPoint = getScreenPt();
         CGWarpMouseCursorPosition(screenPoint);
         postMouseDrag(screenPoint, false);
     }
     else if (action == "dragEnd") {
-        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        CGPoint screenPoint = getScreenPt();
         CGEventFlags modifiers = parseModifiers(payload);
         postMouseUp(screenPoint, kCGMouseButtonLeft, false, modifiers);
     }
     else if (action == "hover") {
-        if (!ensureWindowReady(windowId)) return env.Undefined();
-        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        if (!isScreenLevel && !ensureWindowReady(windowId)) return env.Undefined();
+        CGPoint screenPoint = getScreenPt();
         CGWarpMouseCursorPosition(screenPoint);
         postMouseMove(screenPoint);
     }
     else if (action == "textInput") {
-        if (!ensureWindowReady(windowId)) {
+        if (!isScreenLevel && !ensureWindowReady(windowId)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
@@ -1242,7 +1268,7 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         postTextInput(text);
     }
     else if (action == "keyInput") {
-        if (!ensureWindowReady(windowId)) {
+        if (!isScreenLevel && !ensureWindowReady(windowId)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
@@ -1250,26 +1276,28 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         postKeyInput(key);
     }
     else if (action == "scroll") {
-        if (!ensureWindowReady(windowId)) return env.Undefined();
-        CGPoint screenPoint = screenPointFromPayload(windowId, payload);
+        if (!isScreenLevel && !ensureWindowReady(windowId)) return env.Undefined();
+        CGPoint screenPoint = getScreenPt();
         int32_t deltaX = payload.Has("scrollDeltaX") ? payload.Get("scrollDeltaX").As<Napi::Number>().Int32Value() : 0;
         int32_t deltaY = payload.Has("scrollDeltaY") ? payload.Get("scrollDeltaY").As<Napi::Number>().Int32Value() : 0;
         CGWarpMouseCursorPosition(screenPoint);
         postScroll(deltaX, deltaY);
     }
     else if (action == "resize") {
-        double newWidth = payload.Has("newWidth") ? payload.Get("newWidth").As<Napi::Number>().DoubleValue() : 0;
-        double newHeight = payload.Has("newHeight") ? payload.Get("newHeight").As<Napi::Number>().DoubleValue() : 0;
-        if (newWidth <= 0 || newHeight <= 0) {
-            Napi::Error::New(env, "resize requires positive newWidth and newHeight").ThrowAsJavaScriptException();
-            return env.Null();
+        if (!isScreenLevel) {
+            double newWidth = payload.Has("newWidth") ? payload.Get("newWidth").As<Napi::Number>().DoubleValue() : 0;
+            double newHeight = payload.Has("newHeight") ? payload.Get("newHeight").As<Napi::Number>().DoubleValue() : 0;
+            if (newWidth <= 0 || newHeight <= 0) {
+                Napi::Error::New(env, "resize requires positive newWidth and newHeight").ThrowAsJavaScriptException();
+                return env.Null();
+            }
+            withAXWindow(windowId, ^(AXUIElementRef win) {
+                CGSize size = CGSizeMake(newWidth, newHeight);
+                AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
+                AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
+                CFRelease(sizeVal);
+            });
         }
-        withAXWindow(windowId, ^(AXUIElementRef win) {
-            CGSize size = CGSizeMake(newWidth, newHeight);
-            AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
-            AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
-            CFRelease(sizeVal);
-        });
     }
     else {
         Napi::Error::New(env, "Unknown action: " + action).ThrowAsJavaScriptException();
@@ -1342,35 +1370,21 @@ static Napi::Value RequestAccessibilityPermission(const Napi::CallbackInfo &info
 // 10. H.264 stream management
 // ──────────────────────────────────────────────
 
-// startH264Stream(windowId, callback): starts SCStream + VT H.264 encoding.
+// startH264Stream(callback): starts SCStream + VT H.264 encoding for the main display.
 // callback(err, { data: Buffer, isKeyframe, width, height, dpi, isFirst, timestamp })
 static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
-    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsFunction()) {
-        Napi::TypeError::New(env, "Expected (windowId, callback)").ThrowAsJavaScriptException();
+    if (info.Length() < 1 || !info[0].IsFunction()) {
+        Napi::TypeError::New(env, "Expected (callback)").ThrowAsJavaScriptException();
         return env.Null();
     }
-    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
-    Napi::Function callback = info[1].As<Napi::Function>();
-
-    // Bring the window to front / un-minimize before streaming so SCStream
-    // captures real content instead of blank frames.
-    ensureWindowReady(windowId);
+    Napi::Function callback = info[0].As<Napi::Function>();
 
 #if HAS_SCREENCAPTUREKIT
     if (@available(macOS 12.3, *)) {
-        // Stop any existing stream
-        {
-            std::lock_guard<std::mutex> lock(g_h264Mutex);
-            auto it = g_h264Streams.find(windowId);
-            if (it != g_h264Streams.end()) {
-                // Will be cleaned up below
-            }
-        }
-        stopH264Stream(windowId);
+        stopH264Stream();
 
         auto ctx = std::make_shared<H264StreamContext>();
-        ctx->windowId = windowId;
         ctx->dpi = (int)[[NSScreen mainScreen] backingScaleFactor];
 
         // Create thread-safe function for calling back to JS
@@ -1386,29 +1400,41 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
                 dispatch_semaphore_signal(sem);
                 return;
             }
-            SCWindow *targetWindow = nil;
-            for (SCWindow *w in content.windows) {
-                if (w.windowID == windowId) {
-                    targetWindow = w;
+
+            SCContentFilter *filter = nil;
+            int scaleFactor = ctx->dpi;
+            int w = 0, h = 0;
+
+            // Full-screen capture: use the main display
+            SCDisplay *targetDisplay = nil;
+            for (SCDisplay *d in content.displays) {
+                if (d.displayID == CGMainDisplayID()) {
+                    targetDisplay = d;
                     break;
                 }
             }
-            if (!targetWindow || targetWindow.frame.size.width == 0 || targetWindow.frame.size.height == 0) {
+            if (!targetDisplay && content.displays.count > 0) {
+                targetDisplay = content.displays[0];
+            }
+            if (!targetDisplay) {
                 dispatch_semaphore_signal(sem);
                 return;
             }
-
-            int scaleFactor = ctx->dpi;
-            int w = (int)(targetWindow.frame.size.width * scaleFactor);
-            int h = (int)(targetWindow.frame.size.height * scaleFactor);
+            w = (int)(targetDisplay.width * scaleFactor);
+            h = (int)(targetDisplay.height * scaleFactor);
+            filter = [[SCContentFilter alloc]
+                initWithDisplay:targetDisplay excludingWindows:@[]];
             outWidth = w;
             outHeight = h;
             ctx->configuredWidth = w;
             ctx->configuredHeight = h;
             ctx->lastBoundsCheckTime = CACurrentMediaTime();
 
-            SCContentFilter *filter = [[SCContentFilter alloc]
-                initWithDesktopIndependentWindow:targetWindow];
+            if (!filter) {
+                dispatch_semaphore_signal(sem);
+                return;
+            }
+
             SCStreamConfiguration *config = [[SCStreamConfiguration alloc] init];
             config.width = (size_t)w;
             config.height = (size_t)h;
@@ -1434,7 +1460,7 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
             [scStream startCaptureWithCompletionHandler:^(NSError *startErr) {
                 if (!startErr) {
                     std::lock_guard<std::mutex> lock(g_h264Mutex);
-                    g_h264Streams[windowId] = ctx;
+                    g_h264Stream = ctx;
                     success = true;
                 }
                 dispatch_semaphore_signal(sem);
@@ -1462,13 +1488,9 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
 
 static Napi::Value StopH264Stream(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
-    if (info.Length() < 1 || !info[0].IsNumber()) {
-        return env.Undefined();
-    }
-    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
 #if HAS_SCREENCAPTUREKIT
     if (@available(macOS 12.3, *)) {
-        stopH264Stream(windowId);
+        stopH264Stream();
     }
 #endif
     return env.Undefined();
@@ -1476,15 +1498,13 @@ static Napi::Value StopH264Stream(const Napi::CallbackInfo &info) {
 
 static Napi::Value SetStreamFps(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
-    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) return env.Undefined();
-    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
-    int fps = info[1].As<Napi::Number>().Int32Value();
+    if (info.Length() < 1 || !info[0].IsNumber()) return env.Undefined();
+    int fps = info[0].As<Napi::Number>().Int32Value();
     if (fps < 1 || fps > 120) return env.Undefined();
 
     std::lock_guard<std::mutex> lock(g_h264Mutex);
-    auto it = g_h264Streams.find(windowId);
-    if (it == g_h264Streams.end()) return env.Undefined();
-    auto &ctx = it->second;
+    if (!g_h264Stream) return env.Undefined();
+    auto &ctx = g_h264Stream;
 
     std::lock_guard<std::mutex> ctxLock(ctx->encodeMutex);
     ctx->targetFps = fps;
@@ -1497,7 +1517,6 @@ static Napi::Value SetStreamFps(const Napi::CallbackInfo &info) {
         VTSessionSetProperty(ctx->vtSession, kVTCompressionPropertyKey_MaxKeyFrameInterval, keyRef);
         CFRelease(keyRef);
     }
-    // Update SCStream frame interval
 #if HAS_SCREENCAPTUREKIT
     if (@available(macOS 12.3, *)) {
         if (ctx->stream) {
@@ -1512,15 +1531,13 @@ static Napi::Value SetStreamFps(const Napi::CallbackInfo &info) {
 
 static Napi::Value SetStreamBitrate(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
-    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) return env.Undefined();
-    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
-    int bitrate = info[1].As<Napi::Number>().Int32Value();
-    if (bitrate < 100000) return env.Undefined(); // min 100kbps
+    if (info.Length() < 1 || !info[0].IsNumber()) return env.Undefined();
+    int bitrate = info[0].As<Napi::Number>().Int32Value();
+    if (bitrate < 100000) return env.Undefined();
 
     std::lock_guard<std::mutex> lock(g_h264Mutex);
-    auto it = g_h264Streams.find(windowId);
-    if (it == g_h264Streams.end()) return env.Undefined();
-    auto &ctx = it->second;
+    if (!g_h264Stream) return env.Undefined();
+    auto &ctx = g_h264Stream;
 
     std::lock_guard<std::mutex> ctxLock(ctx->encodeMutex);
     ctx->targetBitrate = bitrate;
@@ -1813,6 +1830,41 @@ static Napi::Value UnwatchRunningApps(const Napi::CallbackInfo &info) {
 }
 
 // ──────────────────────────────────────────────
+// Screenshot a window by CGWindowID → base64 PNG data URI
+// ──────────────────────────────────────────────
+
+static Napi::Value ScreenshotWindow(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsNumber()) return env.Null();
+
+    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
+    if (windowId == 0) return env.Null();
+
+    @autoreleasepool {
+        CGImageRef cgImage = CGWindowListCreateImage(
+            CGRectNull,
+            kCGWindowListOptionIncludingWindow,
+            windowId,
+            kCGWindowImageBoundsIgnoreFraming | kCGWindowImageNominalResolution);
+        if (!cgImage) return env.Null();
+
+        NSBitmapImageRep *bitmapRep = [[NSBitmapImageRep alloc] initWithCGImage:cgImage];
+        CGImageRelease(cgImage);
+        if (!bitmapRep) return env.Null();
+
+        NSData *pngData = [bitmapRep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+        if (!pngData || pngData.length == 0) return env.Null();
+
+        NSData *base64Data = [pngData base64EncodedDataWithOptions:0];
+        NSString *base64Str = [[NSString alloc] initWithData:base64Data encoding:NSUTF8StringEncoding];
+        if (!base64Str) return env.Null();
+
+        std::string dataUri = "data:image/png;base64," + std::string([base64Str UTF8String]);
+        return Napi::String::New(env, dataUri);
+    }
+}
+
+// ──────────────────────────────────────────────
 // Module init
 // ──────────────────────────────────────────────
 
@@ -1836,6 +1888,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("unwatchRunningApps", Napi::Function::New(env, UnwatchRunningApps));
     exports.Set("watchAppWindows", Napi::Function::New(env, WatchAppWindows));
     exports.Set("stopWatchingAppWindows", Napi::Function::New(env, StopWatchingAppWindows));
+    exports.Set("screenshotWindow", Napi::Function::New(env, ScreenshotWindow));
     return exports;
 }
 

@@ -11,10 +11,11 @@ import { useAppDispatch, useAppState } from '@/components/hooks/useAppState';
 import { usePeer, usePeerConnectionState } from '@/components/hooks/usePeerState';
 import { cn, getServiceController, isMacosTheme, isWin11Theme } from '@/lib/utils';
 import { DeviceIcon } from '@/components/DeviceIcon';
-import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard, Lock, Terminal } from 'lucide-react';
+import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard, Lock, Terminal, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionIcon } from '@/components/deviceSwitcher';
 import { useBatteryInfo, useMediaPlayback, useScreenLock, useTerminalAvailable, useVolume } from '@/components/hooks/useSystemState';
+import { useAppsAvailable } from '@/components/hooks/useApps';
 import { PauseIcon, PlayIcon, ForwardIcon, BackwardIcon } from '@heroicons/react/24/solid';
 import TextModal from '@/components/textModal';
 import ConfirmModal from '@/components/confirmModal';
@@ -341,6 +342,13 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
 
   const { lockStatus, lockScreen } = useScreenLock(deviceFingerprint);
   const { available: terminalAvailable } = useTerminalAvailable(deviceFingerprint);
+  const { available: appsAvailable } = useAppsAvailable(deviceFingerprint);
+
+  const openScreen = useCallback(() => {
+    if (window.utils?.openScreenWindow) {
+      window.utils.openScreenWindow(deviceFingerprint, peerInfo?.deviceName);
+    }
+  }, [deviceFingerprint, peerInfo]);
 
   const openTerminal = useCallback(() => {
     if (window.utils?.openTerminalWindow) {
@@ -376,6 +384,11 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
         </Button>
       </VolumeModal>
       <ClipboardButton deviceFingerprint={deviceFingerprint} />
+      {appsAvailable && (
+        <Button variant='secondary' size='sm' onClick={openScreen}>
+          <Monitor className='mr-2' size={16} />Screen
+        </Button>
+      )}
       {terminalAvailable && (
         <Button variant='secondary' size='sm' onClick={openTerminal}>
           <Terminal className='mr-2' size={16} />Terminal

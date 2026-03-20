@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useResource, useResourceWithPolling } from './useResource';
-import { RemoteAppInfo, RemoteAppWindow, RemoteAppWindowActionPayload, WindowEvent } from 'shared/types';
+import { useResource } from './useResource';
+import { RemoteAppInfo, RemoteAppWindowActionPayload } from 'shared/types';
 import { decodeMediaChunk } from 'shared/mediaStream';
 import ServiceController from 'shared/controller';
 import { SignalNodeRef } from 'shared/signals';
 import { getServiceController } from '@/lib/utils';
 import H264Player from '@/modules/h264-player';
-
-const WATCH_HEARTBEAT_MS = 60_000;
 
 // ── Running Apps ──
 
@@ -137,81 +135,19 @@ export const useAppIcon = (appId: string, deviceFingerprint: string | null) => {
     return iconUri;
 };
 
-// ── App Windows ──
-
-export const useAppWindows = (appId: string | null, deviceFingerprint: string | null, launchFirst?: boolean) => {
-    const [windows, setWindows] = useState<RemoteAppWindow[]>([]);
-    const createdRef = useRef<SignalNodeRef<[WindowEvent], string> | null>(null);
-    const destroyedRef = useRef<SignalNodeRef<[WindowEvent], string> | null>(null);
-
-    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
-        if (!appId) return;
-        // Launch the app first so windows exist by the time we query.
-        // For already-running apps this is a no-op (just activates).
-        if (launchFirst) {
-            try { await serviceController.apps.launchApp(appId); } catch {}
-            if (shouldAbort()) return;
-        }
-        const wins = await serviceController.apps.getWindows(appId);
-        if (shouldAbort()) return;
-        setWindows(wins);
-    }, [appId, launchFirst]);
-
-    const clearSignals = useCallback((serviceController: ServiceController) => {
-        if (createdRef.current) {
-            serviceController.apps.windowCreated.detach(createdRef.current);
-            createdRef.current = null;
-        }
-        if (destroyedRef.current) {
-            serviceController.apps.windowDestroyed.detach(destroyedRef.current);
-            destroyedRef.current = null;
-        }
-    }, []);
-
-    const setupSignals = useCallback((serviceController: ServiceController) => {
-        if (!appId) return;
-        clearSignals(serviceController);
-        serviceController.apps.watchWindowsHeartbeat();
-        createdRef.current = serviceController.apps.windowCreated.add((evt: WindowEvent) => {
-            if (evt.app.id !== appId) return;
-            setWindows(prev => prev.some(w => w.id === evt.window.id) ? prev : [...prev, evt.window]);
-        });
-        destroyedRef.current = serviceController.apps.windowDestroyed.add((evt: WindowEvent) => {
-            if (evt.app.id !== appId) return;
-            setWindows(prev => prev.filter(w => w.id !== evt.window.id));
-        });
-    }, [appId, clearSignals]);
-
-    const poll = useCallback(async () => {
-        const sc = await getServiceController(deviceFingerprint);
-        sc.apps.watchWindowsHeartbeat();
-    }, [deviceFingerprint]);
-
-    const { isLoading, error, reload } = useResourceWithPolling({
-        deviceFingerprint,
-        load,
-        setupSignals,
-        clearSignals,
-        interval: WATCH_HEARTBEAT_MS,
-        poll,
-    });
-
-    return { windows, isLoading, error, reload };
-};
-
-// ── Window Capture (H.264 stream) ──
+// ── Full-screen Capture (H.264 stream) ──
 
 const MAX_RETRIES = 5;
 const HEARTBEAT_INTERVAL_MS = 3000;
 
-export type WindowFrameState = {
+export type ScreenFrameState = {
     width: number;
     height: number;
     dpi: number;
 };
 
-export const useWindowCapture = (windowId: string | null, deviceFingerprint: string | null) => {
-    const [frameState, setFrameState] = useState<WindowFrameState | null>(null);
+export const useScreenCapture = (deviceFingerprint: string | null) => {
+    const [frameState, setFrameState] = useState<ScreenFrameState | null>(null);
     const [isConnecting, setIsConnecting] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isReconnecting, setIsReconnecting] = useState(false);
@@ -219,14 +155,12 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
     const [sessionId, setSessionId] = useState<string | null>(null);
 
     const isMountedRef = useRef(true);
-    const windowIdRef = useRef<string | null>(null);
     const fingerprintRef = useRef<string | null>(null);
     const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
     const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const sessionIdRef = useRef<string | null>(null);
     const captureIdRef = useRef(0);
 
-    windowIdRef.current = windowId;
     fingerprintRef.current = deviceFingerprint;
 
     const cleanup = useCallback(() => {
@@ -246,7 +180,6 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
     }, []);
 
     const startCapture = useCallback(() => {
-        if (!windowId) return;
         isMountedRef.current = true;
         setFrameState(null);
         setIsConnecting(true);
@@ -259,14 +192,14 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
 
         const startStream = async () => {
             cleanup();
-            console.log('[H264Capture] startStream called, windowId:', windowIdRef.current);
+            console.log('[H264Capture] startStream called, fingerprint:', fingerprintRef.current);
 
             try {
                 const sc = await getServiceController(fingerprintRef.current);
                 if (!isMountedRef.current || captureId !== captureIdRef.current) return;
 
                 console.log('[H264Capture] calling startStreamingSession...');
-                const session = await sc.apps.startStreamingSession(windowIdRef.current!);
+                const session = await sc.apps.startStreamingSession();
                 if (!isMountedRef.current || captureId !== captureIdRef.current) return;
 
                 let currentWidth = session.width;
@@ -288,7 +221,7 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
                 // Start heartbeat
                 heartbeatTimerRef.current = setInterval(() => {
                     getServiceController(fingerprintRef.current)
-                        .then(sc => sc.apps.streamControl(windowIdRef.current!))
+                        .then(sc => sc.apps.streamControl())
                         .catch(() => {});
                 }, HEARTBEAT_INTERVAL_MS);
 
@@ -378,19 +311,16 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
         };
 
         startStream();
-    }, [windowId, cleanup]);
+    }, [cleanup]);
 
     const stopCapture = useCallback(() => {
         isMountedRef.current = false;
         captureIdRef.current++;
         cleanup();
         // Best-effort stop session on server
-        const wId = windowIdRef.current;
-        if (wId) {
-            getServiceController(fingerprintRef.current)
-                .then(sc => sc.apps.stopStreamingSession(wId))
-                .catch(() => {});
-        }
+        getServiceController(fingerprintRef.current)
+            .then(sc => sc.apps.stopStreamingSession())
+            .catch(() => {});
     }, [cleanup]);
 
     const cancelReconnect = useCallback(() => {
@@ -412,21 +342,17 @@ export const useWindowCapture = (windowId: string | null, deviceFingerprint: str
     };
 };
 
-// ── Window Action Dispatch ──
+// ── Screen Action Dispatch ──
 
-export const useWindowActions = (windowId: string | null, deviceFingerprint: string | null) => {
-    const windowIdRef = useRef<string | null>(null);
+export const useScreenActions = (deviceFingerprint: string | null) => {
     const fingerprintRef = useRef<string | null>(null);
-    windowIdRef.current = windowId;
     fingerprintRef.current = deviceFingerprint;
 
     const dispatchAction = useCallback(
         async (payload: Omit<RemoteAppWindowActionPayload, 'windowId'>) => {
-            const wId = windowIdRef.current;
-            if (!wId) return;
             try {
                 const sc = await getServiceController(fingerprintRef.current);
-                await sc.apps.performWindowAction({ ...payload, windowId: wId } as RemoteAppWindowActionPayload);
+                await sc.apps.performWindowAction(payload as RemoteAppWindowActionPayload);
             } catch (e: any) {
                 console.error('Action failed:', e);
             }

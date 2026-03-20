@@ -17,12 +17,10 @@ import { UIText } from '@/components/ui/UIText';
 import { UIButton } from '@/components/ui/UIButton';
 import { UIView } from '@/components/ui/UIView';
 import { UIIcon } from '@/components/ui/UIIcon';
-import { useAppWindows, useWindowCapture, useWindowActions, WindowFrameState } from '@/hooks/useApps';
+import { useScreenCapture, useScreenActions } from '@/hooks/useApps';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import {
-    RemoteAppWindow,
     RemoteAppWindowAction,
-    RemoteAppWindowType,
 } from 'shared/types';
 import { isGlassEnabled, getServiceController } from '@/lib/utils';
 import { useAutoConnect } from '@/hooks/useAutoConnect';
@@ -49,7 +47,7 @@ function WindowCanvas({
     canvasWidth,
     canvasHeight,
 }: {
-    frameState: WindowFrameState;
+    frameState: { width: number; height: number; dpi: number };
     sessionId: string | null;
     controlMode: ControlMode;
     touchSubMode: TouchSubMode;
@@ -496,61 +494,14 @@ function KeyboardInput({
     );
 }
 
-// ── Window Tab Bar ──
-
-function WindowTabBar({
-    windows,
-    selectedWindowId,
-    onSelectWindow,
-}: {
-    windows: RemoteAppWindow[];
-    selectedWindowId: string | null;
-    onSelectWindow: (id: string) => void;
-}) {
-    const highlightColor = useThemeColor({}, 'highlight');
-
-    if (windows.length <= 1) return null;
-
-    return (
-        <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabBarContent}
-            style={styles.tabBar}
-        >
-            {windows.map((w) => {
-                const isSelected = w.id === selectedWindowId;
-                return (
-                    <Pressable
-                        key={w.id}
-                        style={[
-                            styles.tabItem,
-                            isSelected && { borderBottomColor: highlightColor, borderBottomWidth: 2 },
-                        ]}
-                        onPress={() => onSelectWindow(w.id)}
-                    >
-                        <UIText
-                            numberOfLines={1}
-                            size="sm"
-                            color={isSelected ? 'highlight' : 'textSecondary'}
-                        >
-                            {w.title || 'Window'}
-                        </UIText>
-                    </Pressable>
-                );
-            })}
-        </ScrollView>
-    );
-}
+// ── Window Tab Bar — REMOVED (now streaming full screen) ──
 
 // ── Main Screen Control Page ──
 
 export default function ScreenControlScreen() {
     const router = useRouter();
-    const { fingerprint, appId, appName } = useLocalSearchParams<{
+    const { fingerprint } = useLocalSearchParams<{
         fingerprint: string;
-        appId: string;
-        appName?: string;
     }>();
     const insets = useSafeAreaInsets();
     const deviceFingerprint = fingerprint === 'local' || !fingerprint ? null : fingerprint;
@@ -560,196 +511,34 @@ export default function ScreenControlScreen() {
     const [controlMode, setControlMode] = useState<ControlMode>('touch');
     const [touchSubMode, setTouchSubMode] = useState<TouchSubMode>('scroll');
     const [showKeyboard, setShowKeyboard] = useState(false);
-    const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null);
 
-    // Fetch windows for this app (also launches it if not running)
-    const { windows, isLoading: isLoadingWindows } = useAppWindows(appId || null, deviceFingerprint, true);
-
-    // Compute ideal remote window size from mobile screen dimensions.
-    // We target a 3:4 aspect (portrait-ish) with the width capped to
-    // a reasonable desktop value so content stays usable.
     const screenWidth = Dimensions.get('window').width;
     const screenHeight = Dimensions.get('window').height;
-    const canvasAreaHeight = screenHeight - insets.top - insets.bottom - 120; // toolbar + tabs
+    const canvasAreaHeight = screenHeight - insets.top - insets.bottom - 120;
 
-    const idealSize = useMemo(() => {
-        // Match the mobile canvas aspect ratio so the remote window fills
-        // the phone screen without letterboxing.
-        const canvasW = screenWidth - 16;
-        const canvasH = canvasAreaHeight - 16;
-        const aspect = canvasW / canvasH; // < 1 in portrait
-
-        // Be aggressive: target a narrow width (480px) and derive height.
-        // Many apps (Terminal, editors) can go quite narrow.
-        const targetWidth = 480;
-        const targetHeight = Math.round(targetWidth / aspect);
-        return { width: targetWidth, height: targetHeight, aspect };
-    }, [screenWidth, canvasAreaHeight]);
-
-    // Filter visible windows (skip hidden/tooltip)
-    const visibleWindows = useMemo(() => {
-        return windows.filter(w => {
-            if (w.isHidden) return false;
-            if ((w.type as RemoteAppWindowType) === RemoteAppWindowType.Tooltip) return false;
-            return true;
-        });
-    }, [windows]);
-
-    // Auto-select first window, or switch to newly created window
-    const prevWindowIdsRef = useRef<Set<string>>(new Set());
-    useEffect(() => {
-        const currentIds = new Set(visibleWindows.map(w => w.id));
-        const prevIds = prevWindowIdsRef.current;
-
-        // Find newly appeared window
-        for (const w of visibleWindows) {
-            if (!prevIds.has(w.id)) {
-                setSelectedWindowId(w.id);
-                prevWindowIdsRef.current = currentIds;
-                return;
-            }
-        }
-        prevWindowIdsRef.current = currentIds;
-
-        // If selected window disappeared, fall back to first
-        if (visibleWindows.length > 0 && !visibleWindows.find(w => w.id === selectedWindowId)) {
-            setSelectedWindowId(visibleWindows[0].id);
-        }
-    }, [visibleWindows, selectedWindowId]);
-
-    // Capture + actions for selected window
-    const { sessionId, frameState, isConnecting, error, startCapture, stopCapture, isReconnecting, retryAttempt, cancelReconnect } = useWindowCapture(
-        selectedWindowId,
+    // Full-screen capture
+    const { sessionId, frameState, isConnecting, error, startCapture, stopCapture, isReconnecting, retryAttempt, cancelReconnect } = useScreenCapture(
         deviceFingerprint,
     );
-    const { dispatchAction } = useWindowActions(selectedWindowId, deviceFingerprint);
-
-    // Resize remote window to fit mobile portrait screen, restore on leave
-    const originalSizesRef = useRef<Map<string, { width: number; height: number }>>(new Map());
-    const hasResizedRef = useRef<Set<string>>(new Set());
-    const hasCorrectedRef = useRef<Set<string>>(new Set());
-    const resizeTimestampRef = useRef<number>(0);
-
-    useEffect(() => {
-        if (!selectedWindowId || !deviceFingerprint) return;
-        const win = visibleWindows.find((w) => w.id === selectedWindowId);
-        if (!win) return;
-
-        // Only resize once per window per session
-        if (hasResizedRef.current.has(selectedWindowId)) return;
-        hasResizedRef.current.add(selectedWindowId);
-
-        // Store original size for restoration on unmount
-        originalSizesRef.current.set(selectedWindowId, { width: win.width, height: win.height });
-
-        // Always attempt resize to our ideal portrait dimensions
-        resizeTimestampRef.current = Date.now();
-        (async () => {
-            try {
-                const sc = await getServiceController(deviceFingerprint);
-                await sc.apps.performWindowAction({
-                    action: RemoteAppWindowAction.Resize,
-                    windowId: selectedWindowId,
-                    newWidth: idealSize.width,
-                    newHeight: idealSize.height,
-                });
-            } catch (e) {
-                console.error('Failed to resize window:', e);
-            }
-        })();
-    }, [selectedWindowId, visibleWindows, idealSize, deviceFingerprint]);
-
-    // Corrective resize: if the OS clamped width (app min width > our target),
-    // increase height to maintain the phone's portrait aspect ratio.
-    useEffect(() => {
-        if (!selectedWindowId || !deviceFingerprint || !frameState) return;
-        if (hasCorrectedRef.current.has(selectedWindowId)) return;
-
-        // Only correct after initial resize has been attempted and
-        // enough time has passed for the OS to process it
-        if (!hasResizedRef.current.has(selectedWindowId)) return;
-        if (Date.now() - resizeTimestampRef.current < 2000) return;
-
-        const dpi = frameState.dpi || 1;
-        const actualWidth = frameState.width / dpi;
-        const actualHeight = frameState.height / dpi;
-
-        // If the width was clamped wider than requested, compensate with more height
-        if (actualWidth > idealSize.width * 1.05) {
-            hasCorrectedRef.current.add(selectedWindowId);
-            const correctedHeight = Math.round(actualWidth / idealSize.aspect);
-
-            // Only resize if the height needs to increase significantly
-            if (correctedHeight > actualHeight * 1.1) {
-                (async () => {
-                    try {
-                        const sc = await getServiceController(deviceFingerprint);
-                        await sc.apps.performWindowAction({
-                            action: RemoteAppWindowAction.Resize,
-                            windowId: selectedWindowId,
-                            newWidth: actualWidth,
-                            newHeight: correctedHeight,
-                        });
-                    } catch (e) {
-                        console.error('Failed corrective resize:', e);
-                    }
-                })();
-            }
-        } else {
-            // Width matched our request, no correction needed
-            hasCorrectedRef.current.add(selectedWindowId);
-        }
-    }, [selectedWindowId, deviceFingerprint, frameState, idealSize]);
-
-    // Restore original sizes on unmount
-    useEffect(() => {
-        const originals = originalSizesRef.current;
-        const fp = deviceFingerprint;
-        return () => {
-            if (!fp || originals.size === 0) return;
-            (async () => {
-                try {
-                    const sc = await getServiceController(fp);
-                    for (const [windowId, size] of originals) {
-                        await sc.apps.performWindowAction({
-                            action: RemoteAppWindowAction.Resize,
-                            windowId,
-                            newWidth: size.width,
-                            newHeight: size.height,
-                        });
-                    }
-                } catch (e) {
-                    console.error('Failed to restore window sizes:', e);
-                }
-            })();
-        };
-    }, [deviceFingerprint]);
-
-    // Capture lifecycle
+    const { dispatchAction } = useScreenActions(deviceFingerprint);
 
     const toggleControlMode = useCallback(() => {
         setControlMode((prev) => (prev === 'pointer' ? 'touch' : 'pointer'));
     }, []);
 
-    const handleCloseWindow = useCallback(() => {
-        if (selectedWindowId) {
-            dispatchAction({ action: RemoteAppWindowAction.Close });
-        }
-    }, [selectedWindowId, dispatchAction]);
-
     // Start/stop capture
     useEffect(() => {
-        if (selectedWindowId) {
+        if (deviceFingerprint !== undefined) {
             startCapture();
             return () => stopCapture();
         }
-    }, [selectedWindowId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [deviceFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <UIView themeColor="background" style={{ flex: 1 }}>
             <Stack.Screen
                 options={{
-                    title: appName || 'Screen Control',
+                    title: 'Screen Control',
                     headerTransparent: isGlassEnabled,
                     headerBackButtonDisplayMode: 'minimal',
                     gestureEnabled: controlMode !== 'pointer',
@@ -764,32 +553,11 @@ export default function ScreenControlScreen() {
             <View style={[styles.content, { paddingTop: isGlassEnabled ? insets.top + 44 : 0 }]}>
                 {/* Canvas area */}
                 <View style={[styles.canvasArea, { height: canvasAreaHeight }]}>
-                    {isLoadingWindows && windows.length === 0 ? (
+                    {isConnecting && !frameState ? (
                         <View style={styles.centerContent}>
                             <ActivityIndicator />
                             <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
-                                Loading windows...
-                            </UIText>
-                        </View>
-                    ) : visibleWindows.length === 0 ? (
-                        <View style={styles.centerContent}>
-                            <UIIcon name="macwindow" size={36} themeColor="textSecondary" />
-                            <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
-                                No windows available
-                            </UIText>
-                            <UIButton
-                                title="Go Back"
-                                type="secondary"
-                                size="sm"
-                                style={{ marginTop: 16 }}
-                                onPress={() => router.back()}
-                            />
-                        </View>
-                    ) : isConnecting && !frameState ? (
-                        <View style={styles.centerContent}>
-                            <ActivityIndicator />
-                            <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
-                                Connecting to window...
+                                Connecting to screen...
                             </UIText>
                         </View>
                     ) : error ? (
@@ -836,13 +604,6 @@ export default function ScreenControlScreen() {
                     ) : null}
                 </View>
 
-                {/* Window tabs */}
-                <WindowTabBar
-                    windows={visibleWindows}
-                    selectedWindowId={selectedWindowId}
-                    onSelectWindow={setSelectedWindowId}
-                />
-
                 {/* Toolbar */}
                 <View style={[styles.toolbar, { paddingBottom: insets.bottom + 8 }]}>
                     <UIButton
@@ -866,11 +627,78 @@ export default function ScreenControlScreen() {
                         size="sm"
                         onPress={() => setShowKeyboard((v) => !v)}
                     />
+                </View>
+            </View>
+
+            {/* Keyboard */}
+            <KeyboardInput
+                visible={showKeyboard}
+                onClose={() => setShowKeyboard(false)}
+                dispatchAction={dispatchAction}
+            />
+        </UIView>
+    );
+}
+                            <UIButton
+                                title="Go Back"
+                                type="secondary"
+                                size="sm"
+                                style={{ marginTop: 16 }}
+                                onPress={() => router.back()}
+                            />
+                        </View>
+                    ) : frameState ? (
+                        <View style={styles.canvasWrapper}>
+                            <WindowCanvas
+                                frameState={frameState}
+                                sessionId={sessionId}
+                                controlMode={controlMode}
+                                touchSubMode={touchSubMode}
+                                dispatchAction={dispatchAction}
+                                canvasWidth={screenWidth - 16}
+                                canvasHeight={canvasAreaHeight - 16}
+                            />
+                            {isReconnecting && (
+                                <View style={styles.reconnectOverlay}>
+                                    <ActivityIndicator color="#fff" />
+                                    <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
+                                        Reconnecting (attempt {retryAttempt})...
+                                    </UIText>
+                                    <UIButton
+                                        title="Cancel"
+                                        type="secondary"
+                                        size="sm"
+                                        style={{ marginTop: 12 }}
+                                        onPress={cancelReconnect}
+                                    />
+                                </View>
+                            )}
+                        </View>
+                    ) : null}
+                </View>
+
+                {/* Toolbar */}
+                <View style={[styles.toolbar, { paddingBottom: insets.bottom + 8 }]}>
                     <UIButton
-                        icon="xmark"
+                        icon={controlMode === 'pointer' ? 'cursorarrow' : 'hand.tap.fill'}
                         type="secondary"
                         size="sm"
-                        onPress={handleCloseWindow}
+                        onPress={toggleControlMode}
+                        title={controlMode === 'pointer' ? 'Pointer' : 'Touch'}
+                    />
+                    {controlMode === 'touch' && (
+                        <UIButton
+                            type={touchSubMode === 'select' ? 'primary' : 'secondary'}
+                            size="sm"
+                            onPress={() => setTouchSubMode((m) => m === 'scroll' ? 'select' : 'scroll')}
+                            title="Select"
+                        />
+                    )}
+                    <UIButton
+                        icon="keyboard.fill"
+                        type={showKeyboard ? 'primary' : 'secondary'}
+                        size="sm"
+                        onPress={() => setShowKeyboard((v) => !v)}
                     />
                 </View>
             </View>
@@ -926,20 +754,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingTop: 8,
-    },
-    tabBar: {
-        maxHeight: 40,
-    },
-    tabBarContent: {
-        paddingHorizontal: 16,
-        gap: 4,
-        alignItems: 'center',
-    },
-    tabItem: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
     },
     keyboardContainer: {
         position: 'absolute',

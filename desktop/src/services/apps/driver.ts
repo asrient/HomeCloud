@@ -42,27 +42,22 @@ export abstract class AppsDriver {
     ): void;
     abstract unwatchRunningApps(): void;
 
-    // ── Window watching ──
-
-    abstract startWindowWatching(
-        onCreated: (app: RemoteAppInfo, win: RemoteAppWindow) => void,
-        onDestroyed: (app: RemoteAppInfo, win: RemoteAppWindow) => void,
-    ): void;
-    abstract stopWindowWatching(): void;
-
-    // ── Window actions ──
+    // ── Screen / window actions ──
 
     abstract performAction(payload: RemoteAppWindowActionPayload): void;
 
-    // ── H.264 streaming ──
+    // ── Full-screen H.264 streaming ──
 
-    abstract startH264Stream(
-        windowId: number,
+    abstract startH264ScreenStream(
         callback: (err: Error | null, frame: H264FrameInfo) => void,
     ): H264StreamResult | null;
-    abstract stopH264Stream(windowId: number): void;
-    abstract setStreamFps(windowId: number, fps: number): void;
-    abstract setStreamBitrate(windowId: number, bitrate: number): void;
+    abstract stopH264ScreenStream(): void;
+    abstract setScreenStreamFps(fps: number): void;
+    abstract setScreenStreamBitrate(bitrate: number): void;
+
+    // ── Screenshot ──
+
+    abstract screenshotWindow(windowId: number): string | null;
 
     // ── Permissions (defaults: always granted) ──
 

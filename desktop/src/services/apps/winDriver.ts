@@ -21,12 +21,12 @@ interface AppsWinModule {
     stopWatchingWindows(): void;
     performAction(payload: RemoteAppWindowActionPayload): void;
     startH264Stream(
-        windowId: number,
         callback: (err: Error | null, frame: H264FrameInfo) => void,
     ): H264StreamResult | null;
-    stopH264Stream(windowId: number): void;
-    setStreamFps(windowId: number, fps: number): void;
-    setStreamBitrate(windowId: number, bitrate: number): void;
+    stopH264Stream(): void;
+    setStreamFps(fps: number): void;
+    setStreamBitrate(bitrate: number): void;
+    screenshotWindow(windowId: number): string | null;
 }
 
 export class WinAppsDriver extends AppsDriver {
@@ -36,8 +36,6 @@ export class WinAppsDriver extends AppsDriver {
     private knownAppIds = new Set<string>();
     private appLaunchCb: ((app: RemoteAppInfo) => void) | null = null;
     private appQuitCb: ((app: RemoteAppInfo) => void) | null = null;
-    private winCreatedCb: ((app: RemoteAppInfo, win: RemoteAppWindow) => void) | null = null;
-    private winDestroyedCb: ((app: RemoteAppInfo, win: RemoteAppWindow) => void) | null = null;
 
     private get native(): AppsWinModule {
         if (!this._module) {
@@ -77,38 +75,21 @@ export class WinAppsDriver extends AppsDriver {
         this.native.stopWatchingWindows();
         this.appLaunchCb = null;
         this.appQuitCb = null;
-        this.winCreatedCb = null;
-        this.winDestroyedCb = null;
         this.knownAppIds.clear();
     }
 
-    startWindowWatching(
-        onCreated: (app: RemoteAppInfo, win: RemoteAppWindow) => void,
-        onDestroyed: (app: RemoteAppInfo, win: RemoteAppWindow) => void,
-    ): void {
-        this.winCreatedCb = onCreated;
-        this.winDestroyedCb = onDestroyed;
-    }
-
-    stopWindowWatching(): void {
-        this.winCreatedCb = null;
-        this.winDestroyedCb = null;
-    }
-
-    private onNativeWindowCreated(app: RemoteAppInfo, win: RemoteAppWindow): void {
+    private onNativeWindowCreated(app: RemoteAppInfo, _win: RemoteAppWindow): void {
         if (app.id) {
             if (!this.knownAppIds.has(app.id)) {
                 this.knownAppIds.add(app.id);
                 this.appLaunchCb?.(app);
             }
         }
-        this.winCreatedCb?.(app, win);
     }
 
     private onNativeWindowDestroyed(app: RemoteAppInfo, win: RemoteAppWindow): void {
         const appId = app.id || win.appId || '';
         const resolvedApp = app.id ? app : { name: '', id: appId, iconPath: null };
-        this.winDestroyedCb?.(resolvedApp, win);
         if (appId && this.knownAppIds.has(appId)) {
             const remaining = this.getWindows(appId);
             if (remaining.length === 0) {
@@ -118,10 +99,13 @@ export class WinAppsDriver extends AppsDriver {
         }
     }
 
-    startH264Stream(windowId: number, callback: (err: Error | null, frame: H264FrameInfo) => void): H264StreamResult | null {
-        return this.native.startH264Stream(windowId, callback);
+    // Full-screen streaming
+    startH264ScreenStream(callback: (err: Error | null, frame: H264FrameInfo) => void): H264StreamResult | null {
+        return this.native.startH264Stream(callback);
     }
-    stopH264Stream(windowId: number): void { this.native.stopH264Stream(windowId); }
-    setStreamFps(windowId: number, fps: number): void { this.native.setStreamFps(windowId, fps); }
-    setStreamBitrate(windowId: number, bitrate: number): void { this.native.setStreamBitrate(windowId, bitrate); }
+    stopH264ScreenStream(): void { this.native.stopH264Stream(); }
+    setScreenStreamFps(fps: number): void { this.native.setStreamFps(fps); }
+    setScreenStreamBitrate(bitrate: number): void { this.native.setStreamBitrate(bitrate); }
+
+    screenshotWindow(windowId: number): string | null { return this.native.screenshotWindow(windowId); }
 }

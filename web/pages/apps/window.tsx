@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { getServiceController, buildPageConfig, cn } from '@/lib/utils';
+import { getServiceController, buildPageConfig } from '@/lib/utils';
 import { NextPageWithConfig } from '@/pages/_app';
 import { RemoteAppWindowAction } from '@/lib/enums';
 import { RemoteAppWindowActionPayload } from 'shared/types';
@@ -23,8 +23,8 @@ function decodeMediaChunk(chunk: Uint8Array): { metadata: Record<string, string>
   return { metadata, payload };
 }
 
-/** Convert a mouse event on the (possibly CSS-scaled) canvas to native window coordinates. */
-function canvasToWindowCoords(
+/** Convert a mouse event on the (possibly CSS-scaled) canvas to screen-relative coordinates. */
+function canvasToScreenCoords(
   e: React.MouseEvent<HTMLCanvasElement> | MouseEvent,
   canvas: HTMLCanvasElement,
   dpi: number,
@@ -49,10 +49,9 @@ function getModifiers(e: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean;
   return mods.length > 0 ? mods : undefined;
 }
 
-const AppWindowPage: NextPageWithConfig = () => {
+const ScreenViewerPage: NextPageWithConfig = () => {
   const router = useRouter();
-  const { windowId, fingerprint: fingerprintStr, title } = router.query as {
-    windowId?: string;
+  const { fingerprint: fingerprintStr, title } = router.query as {
     fingerprint?: string;
     title?: string;
   };
@@ -61,11 +60,8 @@ const AppWindowPage: NextPageWithConfig = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const decoderRef = useRef<VideoDecoder | null>(null);
   const isMountedRef = useRef(true);
-  const windowIdRef = useRef<string | undefined>(undefined);
   const fingerprintRef = useRef<string | null>(null);
   const dpiRef = useRef<number>(1);
-  const resizingFromRemoteRef = useRef(false);
-  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDraggingRef = useRef(false);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
@@ -75,7 +71,6 @@ const AppWindowPage: NextPageWithConfig = () => {
   const [hasFrame, setHasFrame] = useState(false);
   const hasFrameRef = useRef(false);
 
-  windowIdRef.current = windowId;
   fingerprintRef.current = fingerprint;
 
   useEffect(() => {
@@ -89,14 +84,12 @@ const AppWindowPage: NextPageWithConfig = () => {
     };
   }, []);
 
-  // ── Action dispatch ──
+  // ── Action dispatch (screen-relative, no windowId) ──
   const dispatchAction = useCallback(
     async (payload: Omit<RemoteAppWindowActionPayload, 'windowId'>) => {
-      const wId = windowIdRef.current;
-      if (!wId) return;
       try {
         const sc = await getServiceController(fingerprintRef.current);
-        await sc.apps.performWindowAction({ ...payload, windowId: wId } as RemoteAppWindowActionPayload);
+        await sc.apps.performWindowAction(payload as RemoteAppWindowActionPayload);
       } catch (e: any) {
         console.error('Action failed:', e);
       }
@@ -104,29 +97,9 @@ const AppWindowPage: NextPageWithConfig = () => {
     [],
   );
 
-  // ── Resize sync ──
+  // ── H.264 full-screen stream consumer ──
   useEffect(() => {
-    const onResize = () => {
-      if (resizingFromRemoteRef.current) return;
-      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
-      resizeTimerRef.current = setTimeout(() => {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        if (w > 0 && h > 0) {
-          dispatchAction({ action: RemoteAppWindowAction.Resize, newWidth: w, newHeight: h });
-        }
-      }, 150);
-    };
-    window.addEventListener('resize', onResize);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
-    };
-  }, [dispatchAction]);
-
-  // ── H.264 stream consumer ──
-  useEffect(() => {
-    if (!windowId) return;
+    if (!fingerprint && fingerprint !== null) return;
     setIsConnecting(true);
     setError(null);
     setHasFrame(false);
@@ -149,29 +122,20 @@ const AppWindowPage: NextPageWithConfig = () => {
     };
 
     const startStream = async () => {
-      cleanup(); // Clean up any previous decoder/reader before (re)starting
-      console.log('[WindowStream] startStream called, windowId:', windowId, 'fingerprint:', fingerprintRef.current);
+      cleanup();
+      console.log('[ScreenStream] startStream called, fingerprint:', fingerprintRef.current);
 
       try {
-        console.log('[WindowStream] getting service controller...');
         const sc = await getServiceController(fingerprintRef.current);
-        if (cancelled) { console.log('[WindowStream] cancelled after getServiceController'); return; }
+        if (cancelled) return;
 
-        console.log('[WindowStream] calling startStreamingSession...');
-        const session = await sc.apps.startStreamingSession(windowId);
-        if (cancelled) { console.log('[WindowStream] cancelled after startStreamingSession'); return; }
-        console.log('[WindowStream] session started:', { width: session.width, height: session.height, dpi: session.dpi, hasStream: !!session.stream });
+        const session = await sc.apps.startStreamingSession();
+        if (cancelled) return;
+        console.log('[ScreenStream] session started:', { width: session.width, height: session.height, dpi: session.dpi });
 
         let currentWidth = session.width;
         let currentHeight = session.height;
         dpiRef.current = session.dpi || 1;
-
-        // Resize BrowserWindow to logical size
-        const logicalW = Math.round(session.width / dpiRef.current);
-        const logicalH = Math.round(session.height / dpiRef.current);
-        resizingFromRemoteRef.current = true;
-        window.utils?.windowControls?.resize(logicalW, logicalH);
-        setTimeout(() => { resizingFromRemoteRef.current = false; }, 200);
 
         // Set up canvas
         const canvas = canvasRef.current;
@@ -180,15 +144,14 @@ const AppWindowPage: NextPageWithConfig = () => {
           canvas.height = session.height;
         }
 
-        // Start heartbeat — keeps the server-side session alive
+        // Start heartbeat
         heartbeatTimer = setInterval(() => {
           getServiceController(fingerprintRef.current)
-            .then(sc => sc.apps.streamControl(windowId))
+            .then(sc => sc.apps.streamControl())
             .catch(() => {});
         }, 3000);
 
         // Set up VideoDecoder
-        console.log('[WindowStream] setting up VideoDecoder...');
         const decoder = new VideoDecoder({
           output: (frame: VideoFrame) => {
             if (!isMountedRef.current) { frame.close(); return; }
@@ -211,52 +174,35 @@ const AppWindowPage: NextPageWithConfig = () => {
             setIsConnecting(false);
           },
           error: (e: DOMException) => {
-            console.error('[WindowStream] VideoDecoder error:', e?.message || e);
+            console.error('[ScreenStream] VideoDecoder error:', e?.message || e);
           },
         });
         decoderRef.current = decoder;
-        console.log('[WindowStream] VideoDecoder created, state:', decoder.state);
 
         // Read the stream
         reader = session.stream.getReader();
         readerRef.current = reader;
-        console.log('[WindowStream] stream reader created, starting read loop...');
 
         let codecConfigured = false;
         let frameCount = 0;
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done || cancelled || !isMountedRef.current) {
-            console.log('[WindowStream] read loop exit, done:', done, 'cancelled:', cancelled, 'mounted:', isMountedRef.current);
-            break;
-          }
+          if (done || cancelled || !isMountedRef.current) break;
 
           frameCount++;
           const { metadata, payload } = decodeMediaChunk(value);
           const isKeyframe = metadata.type === 'keyframe';
-
-          if (frameCount <= 5 || frameCount % 60 === 0) {
-            console.log(`[WindowStream] frame #${frameCount}: type=${metadata.type} payload=${payload.byteLength}B decoder=${decoder.state}`, metadata.width ? `${metadata.width}x${metadata.height}` : '');
-          }
 
           if (metadata.dpi) dpiRef.current = Number(metadata.dpi);
           if (metadata.width && metadata.height) {
             const newW = Number(metadata.width);
             const newH = Number(metadata.height);
 
-            // Only resize BrowserWindow + reconfigure decoder if dimensions actually changed
             if (newW !== currentWidth || newH !== currentHeight) {
-              const logW = Math.round(newW / dpiRef.current);
-              const logH = Math.round(newH / dpiRef.current);
-              resizingFromRemoteRef.current = true;
-              window.utils?.windowControls?.resize(logW, logH);
-              setTimeout(() => { resizingFromRemoteRef.current = false; }, 200);
-
               currentWidth = newW;
               currentHeight = newH;
 
-              // Reconfigure decoder for new dimensions
               if (isKeyframe) {
                 decoder.configure({
                   codec: 'avc1.4D0032',
@@ -291,22 +237,18 @@ const AppWindowPage: NextPageWithConfig = () => {
             decoder.decode(chunk);
           }
 
-          // Reset retry counter on successful frame
           retryCount = 0;
         }
 
-        // Stream ended normally (done: true) — window may have closed
         if (!cancelled && isMountedRef.current) {
-          console.log('[WindowStream] stream ended normally after', frameCount, 'frames');
-          window.utils?.windowControls?.close();
+          console.log('[ScreenStream] stream ended normally after', frameCount, 'frames');
         }
       } catch (e: any) {
         if (cancelled || !isMountedRef.current) return;
 
-        console.error('[WindowStream] Stream error:', e?.message || e, e?.stack);
+        console.error('[ScreenStream] Stream error:', e?.message || e);
         cleanup();
 
-        // Auto-reconnect with backoff
         if (retryCount < MAX_RETRIES) {
           retryCount++;
           const delay = 1000 + retryCount * 500;
@@ -327,18 +269,17 @@ const AppWindowPage: NextPageWithConfig = () => {
     return () => {
       cancelled = true;
       cleanup();
-      // Best-effort stop session on server
       getServiceController(fingerprintRef.current)
-        .then(sc => sc.apps.stopStreamingSession(windowId!))
+        .then(sc => sc.apps.stopStreamingSession())
         .catch(() => {});
     };
-  }, [windowId, dispatchAction]);
+  }, [fingerprint]);
 
-  // ── Mouse handlers ──
+  // ── Mouse handlers (screen-relative coordinates) ──
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canvasRef.current || isDraggingRef.current) return;
-      const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
+      const { x, y } = canvasToScreenCoords(e, canvasRef.current, dpiRef.current);
       dispatchAction({ action: RemoteAppWindowAction.Click, x, y, modifiers: getModifiers(e) });
     },
     [dispatchAction],
@@ -348,7 +289,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canvasRef.current) return;
       e.preventDefault();
-      const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
+      const { x, y } = canvasToScreenCoords(e, canvasRef.current, dpiRef.current);
       dispatchAction({ action: RemoteAppWindowAction.DoubleClick, x, y, modifiers: getModifiers(e) });
     },
     [dispatchAction],
@@ -358,7 +299,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canvasRef.current) return;
       e.preventDefault();
-      const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
+      const { x, y } = canvasToScreenCoords(e, canvasRef.current, dpiRef.current);
       dispatchAction({ action: RemoteAppWindowAction.RightClick, x, y, modifiers: getModifiers(e) });
     },
     [dispatchAction],
@@ -374,7 +315,7 @@ const AppWindowPage: NextPageWithConfig = () => {
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canvasRef.current) return;
-      const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
+      const { x, y } = canvasToScreenCoords(e, canvasRef.current, dpiRef.current);
 
       if (e.buttons === 1) {
         if (!isDraggingRef.current) {
@@ -400,7 +341,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!canvasRef.current) return;
       if (isDraggingRef.current) {
-        const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
+        const { x, y } = canvasToScreenCoords(e, canvasRef.current, dpiRef.current);
         dispatchAction({ action: RemoteAppWindowAction.DragEnd, x, y, modifiers: getModifiers(e) });
         setTimeout(() => { isDraggingRef.current = false; }, 0);
       }
@@ -416,7 +357,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     (e: WheelEvent) => {
       if (!canvasRef.current) return;
       e.preventDefault();
-      const { x, y } = canvasToWindowCoords(e, canvasRef.current, dpiRef.current);
+      const { x, y } = canvasToScreenCoords(e, canvasRef.current, dpiRef.current);
       const deltaX = Math.round(e.deltaX / 3);
       const deltaY = Math.round(e.deltaY / 3);
       if (deltaX === 0 && deltaY === 0) return;
@@ -463,7 +404,7 @@ const AppWindowPage: NextPageWithConfig = () => {
     window.utils?.windowControls?.close();
   }, []);
 
-  const windowTitle = title || 'Remote Window';
+  const windowTitle = title || 'Remote Screen';
 
   return (
     <>
@@ -471,12 +412,11 @@ const AppWindowPage: NextPageWithConfig = () => {
         <title>{windowTitle}</title>
       </Head>
       <div
-        className='flex flex-col w-screen h-screen bg-transparent overflow-hidden'
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        className='flex flex-col w-screen h-screen bg-black overflow-hidden'
       >
         <div className='relative flex-1 flex items-center justify-center min-h-0'>
           {isConnecting && !hasFrame && (
-            <div className='absolute inset-0 flex items-center justify-center bg-black/70 rounded-lg z-10'>
+            <div className='absolute inset-0 flex items-center justify-center bg-black/70 z-10'>
               <div className='flex flex-col items-center gap-2 text-white/80 text-sm'>
                 <div className='h-6 w-6 border-2 border-white/30 border-t-white/80 rounded-full animate-spin' />
                 Connecting...
@@ -495,14 +435,12 @@ const AppWindowPage: NextPageWithConfig = () => {
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseLeave}
             onKeyDown={handleKeyDown}
-            className='w-full h-full outline-none'
-            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            className='max-w-full max-h-full outline-none object-contain'
           />
 
           {error && (
             <div
               className='absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 backdrop-blur-sm z-10'
-              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor" className="h-8 w-8 text-red-400">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
@@ -524,5 +462,5 @@ const AppWindowPage: NextPageWithConfig = () => {
   );
 };
 
-AppWindowPage.config = buildPageConfig(true);
-export default AppWindowPage;
+ScreenViewerPage.config = buildPageConfig(true);
+export default ScreenViewerPage;

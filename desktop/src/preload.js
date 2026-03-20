@@ -18,7 +18,7 @@ window.utils = {
     checkForUpdates: desktopWebUtils.checkForUpdates,
     getUpdateStatus: desktopWebUtils.getUpdateStatus,
     triggerUpdateCheck: desktopWebUtils.triggerUpdateCheck,
-    openAppWindow: desktopWebUtils.openAppWindow,
+    openScreenWindow: desktopWebUtils.openScreenWindow,
     openTerminalWindow: desktopWebUtils.openTerminalWindow,
     windowControls: desktopWebUtils.getWindowControls(remote.getCurrentWindow()),
 }

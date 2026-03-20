@@ -353,11 +353,6 @@ export type RemoteAppWindow = {
     parentWindowId?: string;
 }
 
-export type WindowEvent = {
-    app: RemoteAppInfo;
-    window: RemoteAppWindow;
-}
-
 export type StreamingSessionInfo = {
     stream: ReadableStream<Uint8Array>;
     width: number;
@@ -393,7 +388,7 @@ export enum RemoteAppWindowAction {
 
 export type RemoteAppWindowActionPayload = {
     action: RemoteAppWindowAction;
-    windowId: string;
+    windowId?: string;
     x?: number;
     y?: number;
     text?: string;

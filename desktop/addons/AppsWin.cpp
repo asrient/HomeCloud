@@ -53,6 +53,7 @@
 #include <d3d11.h>
 #include <d3d11_4.h>
 #include <dxgi.h>
+#include <wincrypt.h>
 
 // Media Foundation H.264 encoding
 #include <mfapi.h>
@@ -69,6 +70,7 @@
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mfuuid.lib")
 #pragma comment(lib, "mfreadwrite.lib")
+#pragma comment(lib, "crypt32.lib")
 
 // PW_RENDERFULLCONTENT was added in Windows 8.1 but may be missing from older SDK headers
 #ifndef PW_RENDERFULLCONTENT
@@ -878,19 +880,18 @@ struct H264WinStreamContext {
 };
 
 static std::mutex g_h264WinMutex;
-static std::unordered_map<uintptr_t, std::shared_ptr<H264WinStreamContext>> g_h264WinStreams;
+static std::shared_ptr<H264WinStreamContext> g_h264WinStream;
 static int g_mfRefCount = 0;  // reference count for MFStartup/MFShutdown
 
-static void stopH264WinStream(HWND hwnd) {
+static void stopH264WinStream() {
     std::shared_ptr<H264WinStreamContext> ctx;
     {
         std::lock_guard<std::mutex> lock(g_h264WinMutex);
-        auto it = g_h264WinStreams.find((uintptr_t)hwnd);
-        if (it == g_h264WinStreams.end()) return;
-        ctx = it->second;
-        g_h264WinStreams.erase(it);
+        ctx = g_h264WinStream;
+        g_h264WinStream = nullptr;
     }
-    printf("[H264Win] stopH264WinStream: hwnd=%p\n", (void*)hwnd);
+    if (!ctx) return;
+    printf("[H264Win] stopH264WinStream\n");
     {
         std::lock_guard<std::mutex> lock(ctx->mutex);
         ctx->stopped = true;
@@ -1666,80 +1667,102 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
 
     Napi::Object payload = info[0].As<Napi::Object>();
     std::string action = payload.Get("action").As<Napi::String>().Utf8Value();
-    std::string windowIdStr = payload.Get("windowId").As<Napi::String>().Utf8Value();
+
+    // windowId is now optional — if missing or "0", actions are screen-level
+    std::string windowIdStr;
+    if (payload.Has("windowId") && payload.Get("windowId").IsString()) {
+        windowIdStr = payload.Get("windowId").As<Napi::String>().Utf8Value();
+    }
 
     uintptr_t hwndVal = 0;
-    try {
-        hwndVal = (uintptr_t)std::stoull(windowIdStr);
-    } catch (const std::exception &) {
-        Napi::Error::New(env, "Invalid windowId: " + windowIdStr).ThrowAsJavaScriptException();
-        return env.Null();
+    if (!windowIdStr.empty()) {
+        try {
+            hwndVal = (uintptr_t)std::stoull(windowIdStr);
+        } catch (const std::exception &) {
+            // Invalid windowId — treat as screen-level
+            hwndVal = 0;
+        }
     }
     HWND hwnd = (HWND)hwndVal;
+    bool isScreenLevel = (hwndVal == 0);
 
-    if (!IsWindow(hwnd)) {
+    // Helper: get screen point — if windowId is provided, offset from window;
+    // if screen-level, x/y are already screen coordinates.
+    auto getScreenPt = [&]() -> POINT {
+        double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
+        double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
+        if (isScreenLevel) {
+            return {(LONG)x, (LONG)y};
+        }
+        RECT rect;
+        GetWindowRect(hwnd, &rect);
+        return {rect.left + (LONG)x, rect.top + (LONG)y};
+    };
+
+    // For window-specific actions, validate the window exists
+    if (!isScreenLevel && !IsWindow(hwnd)) {
         Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
         return env.Null();
     }
 
-    bool skipEnsure = IsTransientWindow(hwnd);
+    bool skipEnsure = isScreenLevel || IsTransientWindow(hwnd);
 
     if (action == "focus") {
-        if (!skipEnsure) EnsureWindowReady(hwnd);
+        if (!isScreenLevel && !skipEnsure) EnsureWindowReady(hwnd);
     }
     else if (action == "minimize") {
-        ShowWindow(hwnd, SW_MINIMIZE);
+        if (!isScreenLevel) ShowWindow(hwnd, SW_MINIMIZE);
     }
     else if (action == "maximize") {
-        ShowWindow(hwnd, SW_MAXIMIZE);
+        if (!isScreenLevel) ShowWindow(hwnd, SW_MAXIMIZE);
     }
     else if (action == "restore") {
-        ShowWindow(hwnd, SW_RESTORE);
+        if (!isScreenLevel) ShowWindow(hwnd, SW_RESTORE);
     }
     else if (action == "close") {
-        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+        if (!isScreenLevel) PostMessageW(hwnd, WM_CLOSE, 0, 0);
     }
     else if (action == "click" || action == "rightClick") {
-        if (!skipEnsure && !EnsureWindowReady(hwnd)) {
+        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
-        POINT screenPt = ScreenPointFromPayload(hwnd, payload);
+        POINT screenPt = getScreenPt();
         SendModifiers(payload, false);
         PostMouseClick(screenPt, action == "rightClick");
         SendModifiers(payload, true);
     }
     else if (action == "doubleClick") {
-        if (!skipEnsure && !EnsureWindowReady(hwnd)) {
+        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
-        POINT screenPt = ScreenPointFromPayload(hwnd, payload);
+        POINT screenPt = getScreenPt();
         SendModifiers(payload, false);
         PostMouseDoubleClick(screenPt);
         SendModifiers(payload, true);
     }
     else if (action == "dragStart") {
-        if (!skipEnsure && !EnsureWindowReady(hwnd)) {
+        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
         SendModifiers(payload, false);
-        PostMouseDown(ScreenPointFromPayload(hwnd, payload), false);
+        PostMouseDown(getScreenPt(), false);
     }
     else if (action == "dragMove") {
-        PostMouseMove(ScreenPointFromPayload(hwnd, payload));
+        PostMouseMove(getScreenPt());
     }
     else if (action == "dragEnd") {
-        PostMouseUp(ScreenPointFromPayload(hwnd, payload), false);
+        PostMouseUp(getScreenPt(), false);
         SendModifiers(payload, true);
     }
     else if (action == "hover") {
-        if (!skipEnsure && !EnsureWindowReady(hwnd)) return env.Undefined();
-        PostMouseMove(ScreenPointFromPayload(hwnd, payload));
+        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) return env.Undefined();
+        PostMouseMove(getScreenPt());
     }
     else if (action == "textInput") {
-        if (!skipEnsure && !EnsureWindowReady(hwnd)) {
+        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
@@ -1748,7 +1771,7 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         PostTextInput(text);
     }
     else if (action == "keyInput") {
-        if (!skipEnsure && !EnsureWindowReady(hwnd)) {
+        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) {
             Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
             return env.Null();
         }
@@ -1757,8 +1780,8 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         PostKeyInput(key);
     }
     else if (action == "scroll") {
-        if (!skipEnsure && !EnsureWindowReady(hwnd)) return env.Undefined();
-        POINT screenPt = ScreenPointFromPayload(hwnd, payload);
+        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) return env.Undefined();
+        POINT screenPt = getScreenPt();
         int deltaX = payload.Has("scrollDeltaX")
             ? payload.Get("scrollDeltaX").As<Napi::Number>().Int32Value() : 0;
         int deltaY = payload.Has("scrollDeltaY")
@@ -1767,22 +1790,24 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         PostScroll(deltaX, deltaY);
     }
     else if (action == "resize") {
-        double newWidth = payload.Has("newWidth")
-            ? payload.Get("newWidth").As<Napi::Number>().DoubleValue() : 0;
-        double newHeight = payload.Has("newHeight")
-            ? payload.Get("newHeight").As<Napi::Number>().DoubleValue() : 0;
+        if (!isScreenLevel) {
+            double newWidth = payload.Has("newWidth")
+                ? payload.Get("newWidth").As<Napi::Number>().DoubleValue() : 0;
+            double newHeight = payload.Has("newHeight")
+                ? payload.Get("newHeight").As<Napi::Number>().DoubleValue() : 0;
 
-        if (newWidth <= 0 || newHeight <= 0) {
-            Napi::Error::New(env, "resize requires positive newWidth and newHeight")
-                .ThrowAsJavaScriptException();
-            return env.Null();
+            if (newWidth <= 0 || newHeight <= 0) {
+                Napi::Error::New(env, "resize requires positive newWidth and newHeight")
+                    .ThrowAsJavaScriptException();
+                return env.Null();
+            }
+
+            RECT rect;
+            GetWindowRect(hwnd, &rect);
+            SetWindowPos(hwnd, nullptr, rect.left, rect.top,
+                         (int)newWidth, (int)newHeight,
+                         SWP_NOZORDER | SWP_NOACTIVATE);
         }
-
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-        SetWindowPos(hwnd, nullptr, rect.left, rect.top,
-                     (int)newWidth, (int)newHeight,
-                     SWP_NOZORDER | SWP_NOACTIVATE);
     }
     else {
         Napi::Error::New(env, "Unknown action: " + action).ThrowAsJavaScriptException();
@@ -1816,27 +1841,22 @@ static Napi::Value RequestAccessibilityPermission(const Napi::CallbackInfo &info
 
 static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
-    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsFunction()) {
-        Napi::TypeError::New(env, "Expected (windowId, callback)").ThrowAsJavaScriptException();
+    if (info.Length() < 1 || !info[0].IsFunction()) {
+        Napi::TypeError::New(env, "Expected (callback)").ThrowAsJavaScriptException();
         return env.Null();
     }
-    uintptr_t hwndVal = (uintptr_t)info[0].As<Napi::Number>().Int64Value();
-    HWND hwnd = (HWND)hwndVal;
-    Napi::Function callback = info[1].As<Napi::Function>();
+    Napi::Function callback = info[0].As<Napi::Function>();
 
-    // Bring the window to front / restore if minimized before streaming
-    // EnsureWindowReady(hwnd);
-
-    if (!IsWGCAvailable() || !IsWindow(hwnd)) {
-        Napi::Error::New(env, "WGC not available or invalid window").ThrowAsJavaScriptException();
+    if (!IsWGCAvailable()) {
+        Napi::Error::New(env, "WGC not available").ThrowAsJavaScriptException();
         return env.Null();
     }
 
     try {
-        stopH264WinStream(hwnd);
-        printf("[H264Win] StartH264Stream: hwnd=%p\\n", (void*)hwnd);
+        stopH264WinStream();
+        printf("[H264Win] StartH264Stream (screen capture)\n");
         auto ctx = std::make_shared<H264WinStreamContext>();
-        ctx->hwnd = hwnd;
+        ctx->hwnd = NULL;
         ctx->dpi = 1;
         ctx->tsfn = Napi::ThreadSafeFunction::New(env, callback, "H264WinStreamCB", 0, 1);
 
@@ -1859,8 +1879,22 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
             winrt::Windows::Graphics::Capture::GraphicsCaptureItem,
             IGraphicsCaptureItemInterop>();
         winrt::Windows::Graphics::Capture::GraphicsCaptureItem item{nullptr};
-        hr = interop->CreateForWindow(hwnd, winrt::guid_of<winrt::Windows::Graphics::Capture::GraphicsCaptureItem>(),
+
+        // Full-screen capture: use primary monitor
+        HMONITOR hmon = MonitorFromPoint({0, 0}, MONITOR_DEFAULTTOPRIMARY);
+        hr = interop->CreateForMonitor(hmon, winrt::guid_of<winrt::Windows::Graphics::Capture::GraphicsCaptureItem>(),
             winrt::put_abi(item));
+        if (SUCCEEDED(hr) && item) {
+            // Get DPI scaling for the monitor
+            UINT dpiX = 96;
+            HDC hdc = GetDC(nullptr);
+            if (hdc) {
+                dpiX = GetDeviceCaps(hdc, LOGPIXELSX);
+                ReleaseDC(nullptr, hdc);
+            }
+            ctx->dpi = (int)((dpiX + 48) / 96); // round to nearest integer scale factor
+            if (ctx->dpi < 1) ctx->dpi = 1;
+        }
         if (FAILED(hr) || !item) { ctx->tsfn.Release(); return env.Null(); }
         ctx->item = item;
 
@@ -1883,14 +1917,14 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
                 if (auto c = ctxWeak.lock()) c->onFrameArrived(sender, args);
             });
 
-        // Detect window close via GraphicsCaptureItem.Closed
+        // Detect capture item closed
         item.Closed([ctxWeak = std::weak_ptr<H264WinStreamContext>(ctx)](
             auto const&, auto const&) {
             auto c = ctxWeak.lock();
             if (!c || c->stopped) return;
             c->stopped = true;
             c->tsfn.NonBlockingCall([](Napi::Env env, Napi::Function cb) {
-                cb.Call({Napi::String::New(env, "Window closed"), env.Null()});
+                cb.Call({Napi::String::New(env, "Capture ended"), env.Null()});
             });
         });
 
@@ -1904,7 +1938,7 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
 
         {
             std::lock_guard<std::mutex> lock(g_h264WinMutex);
-            g_h264WinStreams[(uintptr_t)hwnd] = ctx;
+            g_h264WinStream = ctx;
         }
 
         Napi::Object result = Napi::Object::New(env);
@@ -1922,26 +1956,21 @@ static Napi::Value StartH264Stream(const Napi::CallbackInfo &info) {
 }
 
 static Napi::Value StopH264Stream(const Napi::CallbackInfo &info) {
-    Napi::Env env = info.Env();
-    if (info.Length() < 1 || !info[0].IsNumber()) return env.Undefined();
-    stopH264WinStream((HWND)(uintptr_t)info[0].As<Napi::Number>().Int64Value());
-    return env.Undefined();
+    stopH264WinStream();
+    return info.Env().Undefined();
 }
 
 static Napi::Value SetStreamFps(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
-    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) return env.Undefined();
-    uintptr_t hwndVal = (uintptr_t)info[0].As<Napi::Number>().Int64Value();
-    int fps = info[1].As<Napi::Number>().Int32Value();
+    if (info.Length() < 1 || !info[0].IsNumber()) return env.Undefined();
+    int fps = info[0].As<Napi::Number>().Int32Value();
     if (fps < 1 || fps > 120) return env.Undefined();
 
     std::lock_guard<std::mutex> lock(g_h264WinMutex);
-    auto it = g_h264WinStreams.find(hwndVal);
-    if (it == g_h264WinStreams.end()) return env.Undefined();
-    auto &ctx = it->second;
+    if (!g_h264WinStream) return env.Undefined();
+    auto &ctx = g_h264WinStream;
     std::lock_guard<std::mutex> ctxLock(ctx->mutex);
     ctx->targetFps = fps;
-    // Update MF encoder GOP size
     auto codecApi = ctx->encoder.try_as<ICodecAPI>();
     if (codecApi) {
         VARIANT v;
@@ -1954,18 +1983,15 @@ static Napi::Value SetStreamFps(const Napi::CallbackInfo &info) {
 
 static Napi::Value SetStreamBitrate(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
-    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) return env.Undefined();
-    uintptr_t hwndVal = (uintptr_t)info[0].As<Napi::Number>().Int64Value();
-    int bitrate = info[1].As<Napi::Number>().Int32Value();
+    if (info.Length() < 1 || !info[0].IsNumber()) return env.Undefined();
+    int bitrate = info[0].As<Napi::Number>().Int32Value();
     if (bitrate < 100000) return env.Undefined();
 
     std::lock_guard<std::mutex> lock(g_h264WinMutex);
-    auto it = g_h264WinStreams.find(hwndVal);
-    if (it == g_h264WinStreams.end()) return env.Undefined();
-    auto &ctx = it->second;
+    if (!g_h264WinStream) return env.Undefined();
+    auto &ctx = g_h264WinStream;
     std::lock_guard<std::mutex> ctxLock(ctx->mutex);
     ctx->targetBitrate = bitrate;
-    // Update MF encoder bitrate
     auto codecApi = ctx->encoder.try_as<ICodecAPI>();
     if (codecApi) {
         VARIANT v;
@@ -2218,6 +2244,101 @@ static Napi::Value StopWatchingWindows(const Napi::CallbackInfo &info) {
 }
 
 // ──────────────────────────────────────────────
+// Screenshot a window by HWND → base64 PNG data URI
+// ──────────────────────────────────────────────
+
+static std::string EncodeBitmapToPngBase64(HBITMAP hBitmap) {
+    if (!hBitmap) return "";
+
+    Gdiplus::Bitmap bmp(hBitmap, nullptr);
+    if (bmp.GetLastStatus() != Gdiplus::Ok) return "";
+
+    // Find PNG encoder CLSID
+    CLSID clsid;
+    {
+        UINT num = 0, sz = 0;
+        Gdiplus::GetImageEncodersSize(&num, &sz);
+        if (sz == 0) return "";
+        auto buf = std::make_unique<uint8_t[]>(sz);
+        auto encoders = reinterpret_cast<Gdiplus::ImageCodecInfo*>(buf.get());
+        Gdiplus::GetImageEncoders(num, sz, encoders);
+        bool found = false;
+        for (UINT i = 0; i < num; i++) {
+            if (wcscmp(encoders[i].MimeType, L"image/png") == 0) {
+                clsid = encoders[i].Clsid;
+                found = true;
+                break;
+            }
+        }
+        if (!found) return "";
+    }
+
+    // Encode to in-memory stream
+    IStream* pStream = nullptr;
+    if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &pStream))) return "";
+    if (bmp.Save(pStream, &clsid, nullptr) != Gdiplus::Ok) { pStream->Release(); return "";
+
+    }
+
+    // Read bytes
+    STATSTG stat;
+    pStream->Stat(&stat, STATFLAG_NONAME);
+    ULONG dataSize = (ULONG)stat.cbSize.QuadPart;
+    LARGE_INTEGER zero = {};
+    pStream->Seek(zero, STREAM_SEEK_SET, nullptr);
+    auto data = std::make_unique<BYTE[]>(dataSize);
+    ULONG read = 0;
+    pStream->Read(data.get(), dataSize, &read);
+    pStream->Release();
+
+    // Base64 encode
+    DWORD b64Len = 0;
+    CryptBinaryToStringA(data.get(), read, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, nullptr, &b64Len);
+    std::string b64(b64Len, '\0');
+    CryptBinaryToStringA(data.get(), read, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, &b64[0], &b64Len);
+    b64.resize(b64Len);
+
+    return "data:image/png;base64," + b64;
+}
+
+static Napi::Value ScreenshotWindow(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsNumber()) return env.Null();
+
+    uintptr_t hwndVal = (uintptr_t)info[0].As<Napi::Number>().Int64Value();
+    HWND hwnd = (HWND)hwndVal;
+    if (!IsWindow(hwnd)) return env.Null();
+
+    RECT rect;
+    GetWindowRect(hwnd, &rect);
+    int w = rect.right - rect.left;
+    int h = rect.bottom - rect.top;
+    if (w <= 0 || h <= 0) return env.Null();
+
+    HDC hdcWindow = GetDC(hwnd);
+    if (!hdcWindow) return env.Null();
+    HDC hdcMem = CreateCompatibleDC(hdcWindow);
+    HBITMAP hBitmap = CreateCompatibleBitmap(hdcWindow, w, h);
+    HGDIOBJ hOld = SelectObject(hdcMem, hBitmap);
+
+    // Use PrintWindow for accurate capture (works with DWM composition)
+    if (!PrintWindow(hwnd, hdcMem, PW_RENDERFULLCONTENT)) {
+        // Fallback to BitBlt
+        BitBlt(hdcMem, 0, 0, w, h, hdcWindow, 0, 0, SRCCOPY);
+    }
+
+    SelectObject(hdcMem, hOld);
+    DeleteDC(hdcMem);
+    ReleaseDC(hwnd, hdcWindow);
+
+    std::string dataUri = EncodeBitmapToPngBase64(hBitmap);
+    DeleteObject(hBitmap);
+
+    if (dataUri.empty()) return env.Null();
+    return Napi::String::New(env, dataUri);
+}
+
+// ──────────────────────────────────────────────
 // Module init
 // ──────────────────────────────────────────────
 
@@ -2240,6 +2361,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("setStreamBitrate", Napi::Function::New(env, SetStreamBitrate));
     exports.Set("startWatchingWindows", Napi::Function::New(env, StartWatchingWindows));
     exports.Set("stopWatchingWindows", Napi::Function::New(env, StopWatchingWindows));
+    exports.Set("screenshotWindow", Napi::Function::New(env, ScreenshotWindow));
     return exports;
 }
 

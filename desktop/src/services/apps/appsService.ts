@@ -13,7 +13,6 @@ import { WinAppsDriver } from "./winDriver";
 import { powerSaveBlocker } from "electron";
 
 const SESSION_HEARTBEAT_TIMEOUT = 8_000; // 8s — close stream if no heartbeat from client
-const WINDOW_WATCH_IDLE_TIMEOUT = 3 * 60_000; // 3 min — stop watching if no heartbeat
 
 let _driver: AppsDriver | null = null;
 function getDriver(): AppsDriver {
@@ -24,8 +23,7 @@ function getDriver(): AppsDriver {
     return _driver;
 }
 
-interface StreamSession {
-    windowId: string;
+interface ScreenSession {
     controller: ReadableStreamDefaultController<Uint8Array> | null;
     lastHeartbeat: number;
     lastWidth?: number;
@@ -38,16 +36,13 @@ export default class DesktopAppsService extends AppsService {
     private installedAppsCache: RemoteAppInfo[] | null = null;
     private runningAppsCache: RemoteAppInfo[] | null = null;
 
-    private windowSessions = new Map<string, StreamSession>();
+    private screenSession: ScreenSession | null = null;
     private sessionCleanupTimer: ReturnType<typeof setInterval> | null = null;
 
     private powerBlockerId: number | null = null;
     private lastCaptureTime = 0;
     private powerBlockerTimer: ReturnType<typeof setInterval> | null = null;
     private static readonly POWER_BLOCKER_TIMEOUT = 10_000;
-
-    private windowWatchingActive = false;
-    private windowWatchTimer: ReturnType<typeof setTimeout> | null = null;
 
     @exposed
     public override async isAvailable(): Promise<boolean> {
@@ -95,32 +90,10 @@ export default class DesktopAppsService extends AppsService {
         return getDriver().getWindows(appId);
     }
 
-    @exposed
-    public async watchWindowsHeartbeat(): Promise<void> {
-        if (!this.windowWatchingActive) {
-            this.windowWatchingActive = true;
-            const driver = getDriver();
-            driver.startWindowWatching(
-                (app, win) => this.windowCreated.dispatch({ app, window: win }),
-                (app, win) => this.windowDestroyed.dispatch({ app, window: win }),
-            );
-            console.log("[AppsService] Window watching started (heartbeat).");
-        }
-        this.rescheduleWindowWatchTimeout();
-    }
-
-    private rescheduleWindowWatchTimeout(): void {
-        if (this.windowWatchTimer) clearTimeout(this.windowWatchTimer);
-        this.windowWatchTimer = setTimeout(() => {
-            this.windowWatchTimer = null;
-            this.stopWindowWatching();
-        }, WINDOW_WATCH_IDLE_TIMEOUT);
-    }
-
-    // ── H.264 Window Streaming ──
+    // ── Full-screen H.264 Streaming ──
 
     @exposed
-    public async startStreamingSession(windowId: string): Promise<StreamingSessionInfo> {
+    public async startStreamingSession(): Promise<StreamingSessionInfo> {
         const driver = getDriver();
         if (!driver.hasScreenRecordingPermission()) {
             throw new Error("Screen recording permission is required. Grant it in System Settings > Privacy & Security > Screen Recording.");
@@ -129,10 +102,8 @@ export default class DesktopAppsService extends AppsService {
             throw new Error("Accessibility permission is required for remote control. Grant it in System Settings > Privacy & Security > Accessibility.");
         }
 
-        const numId = Number(windowId);
-
-        // Stop any existing session for this window
-        await this.stopStreamingSession(windowId);
+        // Stop any existing session
+        await this.stopStreamingSession();
 
         // Create a ReadableStream that will receive H.264 chunks
         let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
@@ -141,20 +112,20 @@ export default class DesktopAppsService extends AppsService {
                 streamController = controller;
             },
             cancel: () => {
-                this.stopStreamingSession(windowId).catch(() => {});
+                this.stopStreamingSession().catch(() => {});
             },
         });
 
-        // Start native H.264 stream
+        // Start native H.264 screen stream
         let frameCount = 0;
-        const result = driver.startH264Stream(numId, (err, frame) => {
+        const result = driver.startH264ScreenStream((err, frame) => {
             if (err || !frame) {
-                if (err) console.error(`[AppsService] H264 stream callback error:`, err);
+                if (err) console.error(`[AppsService] H264 screen stream callback error:`, err);
                 return;
             }
-            const session = this.windowSessions.get(windowId);
+            const session = this.screenSession;
             if (!session || !session.controller) {
-                if (frameCount === 0) console.warn(`[AppsService] Frame arrived but no session/controller for ${windowId}`);
+                if (frameCount === 0) console.warn(`[AppsService] Frame arrived but no screen session/controller`);
                 return;
             }
 
@@ -166,7 +137,7 @@ export default class DesktopAppsService extends AppsService {
                 type: frame.isKeyframe ? 'keyframe' : 'delta',
                 ts: String(frame.timestamp),
             };
-            // Send dimensions only when they change (first frame always has them since last* starts undefined)
+            // Send dimensions only when they change
             if (frame.width !== session.lastWidth || frame.height !== session.lastHeight || frame.dpi !== session.lastDpi) {
                 metadata.width = String(frame.width);
                 metadata.height = String(frame.height);
@@ -180,27 +151,24 @@ export default class DesktopAppsService extends AppsService {
                 const chunk = encodeMediaChunk(metadata, frame.data);
                 session.controller.enqueue(chunk);
                 if (frameCount <= 3 || frameCount % 100 === 0) {
-                    console.log(`[AppsService] frame #${frameCount}: ${frame.isKeyframe ? 'keyframe' : 'delta'} ${frame.data.byteLength}B ${frame.width}x${frame.height}`);
+                    console.log(`[AppsService] screen frame #${frameCount}: ${frame.isKeyframe ? 'keyframe' : 'delta'} ${frame.data.byteLength}B ${frame.width}x${frame.height}`);
                 }
             } catch (e) {
                 console.error(`[AppsService] enqueue failed after ${frameCount} frames:`, e);
-                // Stream closed (client disconnected / cancelled) — stop the native encoder
-                this.stopStreamingSession(windowId).catch(() => {});
+                this.stopStreamingSession().catch(() => {});
             }
         });
 
-        console.log(`[AppsService] startH264Stream result:`, result ? { width: result.width, height: result.height, dpi: result.dpi } : 'null');
+        console.log(`[AppsService] startH264ScreenStream result:`, result ? { width: result.width, height: result.height, dpi: result.dpi } : 'null');
 
         if (!result) {
-            throw new Error("Failed to start H.264 stream");
+            throw new Error("Failed to start H.264 screen stream");
         }
 
-        const session: StreamSession = {
-            windowId,
+        this.screenSession = {
             controller: streamController,
             lastHeartbeat: Date.now(),
         };
-        this.windowSessions.set(windowId, session);
 
         this.startPowerBlocker();
         this.ensureSessionCleanup();
@@ -214,32 +182,29 @@ export default class DesktopAppsService extends AppsService {
     }
 
     @exposed
-    public async stopStreamingSession(windowId: string): Promise<void> {
-        const session = this.windowSessions.get(windowId);
+    public async stopStreamingSession(): Promise<void> {
+        const session = this.screenSession;
         if (!session) return;
-        console.log(`[AppsService] stopStreamingSession: ${windowId}`);
-        this.windowSessions.delete(windowId);
-        const numId = Number(windowId);
-        try { getDriver().stopH264Stream(numId); } catch {}
+        console.log(`[AppsService] stopStreamingSession (screen)`);
+        this.screenSession = null;
+        try { getDriver().stopH264ScreenStream(); } catch {}
         try { session.controller?.close(); } catch {}
     }
 
     @exposed
-    public async streamControl(windowId: string, fps?: number, quality?: number): Promise<void> {
-        const session = this.windowSessions.get(windowId);
-        if (session) session.lastHeartbeat = Date.now();
+    public async streamControl(fps?: number, quality?: number): Promise<void> {
+        if (this.screenSession) this.screenSession.lastHeartbeat = Date.now();
 
-        const numId = Number(windowId);
         const driver = getDriver();
 
         if (fps != null && fps > 0) {
-            driver.setStreamFps(numId, fps);
+            driver.setScreenStreamFps(fps);
         }
         if (quality != null && quality >= 0 && quality <= 1) {
             const minBitrate = 2_000_000;   // 2 Mbps
             const maxBitrate = 30_000_000;  // 30 Mbps
             const bitrate = Math.round(minBitrate + quality * (maxBitrate - minBitrate));
-            driver.setStreamBitrate(numId, bitrate);
+            driver.setScreenStreamBitrate(bitrate);
         }
     }
 
@@ -247,13 +212,11 @@ export default class DesktopAppsService extends AppsService {
         if (this.sessionCleanupTimer) return;
         this.sessionCleanupTimer = setInterval(() => {
             const now = Date.now();
-            for (const [windowId, session] of this.windowSessions) {
-                if (now - session.lastHeartbeat > SESSION_HEARTBEAT_TIMEOUT) {
-                    console.log(`No heartbeat for window ${windowId}, closing stream.`);
-                    this.stopStreamingSession(windowId);
-                }
+            if (this.screenSession && now - this.screenSession.lastHeartbeat > SESSION_HEARTBEAT_TIMEOUT) {
+                console.log(`No heartbeat for screen session, closing stream.`);
+                this.stopStreamingSession();
             }
-            if (this.windowSessions.size === 0) {
+            if (!this.screenSession) {
                 clearInterval(this.sessionCleanupTimer!);
                 this.sessionCleanupTimer = null;
             }
@@ -287,20 +250,21 @@ export default class DesktopAppsService extends AppsService {
 
     // ── Window control ──
 
-    private stopWindowWatching(): void {
-        if (!this.windowWatchingActive) return;
-        this.windowWatchingActive = false;
-        getDriver().stopWindowWatching();
-        if (this.windowWatchTimer) {
-            clearTimeout(this.windowWatchTimer);
-            this.windowWatchTimer = null;
-        }
-        console.log("[AppsService] Window watching stopped (idle).");
-    }
-
     @exposed
     public async performWindowAction(payload: RemoteAppWindowActionPayload): Promise<void> {
         getDriver().performAction(payload);
+    }
+
+    // ── Screenshot ──
+
+    @exposed
+    public async screenshotWindow(windowId: string): Promise<string | null> {
+        try {
+            const numId = Number(windowId);
+            return getDriver().screenshotWindow(numId);
+        } catch {
+            return null;
+        }
     }
 
     // ── Permissions ──
@@ -344,19 +308,15 @@ export default class DesktopAppsService extends AppsService {
                 this.appQuit.dispatch(app);
             },
         );
-        // Window watching is started on-demand via watchWindowsHeartbeat()
         console.log("AppsService started.");
     }
 
     @serviceStopMethod
     public async stop() {
         const driver = getDriver();
-        this.stopWindowWatching();
         driver.unwatchRunningApps();
         this.stopPowerBlocker();
-        for (const windowId of [...this.windowSessions.keys()]) {
-            this.stopStreamingSession(windowId);
-        }
+        this.stopStreamingSession();
         if (this.sessionCleanupTimer) {
             clearInterval(this.sessionCleanupTimer);
             this.sessionCleanupTimer = null;

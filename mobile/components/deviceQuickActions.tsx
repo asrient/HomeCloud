@@ -1,4 +1,4 @@
-import { PeerInfo, RemoteAppInfo } from "shared/types";
+import { PeerInfo } from "shared/types";
 import { Bento, BentoGroup } from "./bento";
 import { UIText } from "./ui/UIText";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -11,7 +11,6 @@ import { UIView } from "./ui/UIView";
 import { UITextInput } from "./ui/UITextInput";
 import Slider from '@react-native-community/slider';
 import { DisksGrid } from "./disksGrid";
-import { RunningAppsRow, AppsGrid } from "./appsGrid";
 import { useAppsAvailable, useTerminalAvailable } from "@/hooks/useApps";
 import { getLocalServiceController, getServiceController } from "@/lib/utils";
 
@@ -270,11 +269,6 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
         });
     }, [deviceFingerprint, sendAssets]);
 
-    const handleSelectApp = useCallback((app: RemoteAppInfo) => {
-        if (!deviceFingerprint) return;
-        onNavigate(`/screen-control?fingerprint=${routeFingerprint}&appId=${encodeURIComponent(app.id)}&appName=${encodeURIComponent(app.name)}`);
-    }, [deviceFingerprint, routeFingerprint, onNavigate]);
-
     const handleLockScreen = useCallback(() => {
         Alert.alert(
             'Lock Device',
@@ -394,24 +388,12 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                 flow: 'row',
                 boxes: [
                     {
-                        type: 'full',
-                        content: <RunningAppsRow fingerprint={deviceFingerprint} onSelectApp={handleSelectApp} />,
-                        contentHeight: 100,
-                    },
-                ]
-            }] as BentoGroup[] : []),
-            ...((appsAvailable || terminalAvailable) ? [{
-                flow: 'row',
-                boxes: [
-                    {
                         type: 'half',
-                        icon: 'macwindow.on.rectangle',
-                        title: 'Applications',
-                        subtitle: 'Screen control',
+                        icon: 'display',
+                        title: 'Screen Control',
+                        subtitle: 'Remote desktop',
                         disabled: !appsAvailable,
-                        canExpand: !!appsAvailable,
-                        expandedContent: (dismiss: () => void) => <AppsGrid fingerprint={deviceFingerprint} onSelectApp={handleSelectApp} dismiss={dismiss} />,
-                        expandedContentHeight: 400,
+                        onPress: () => onNavigate(`/screen-control?fingerprint=${routeFingerprint}`),
                     },
                     ...(terminalAvailable ? [{
                         type: 'half' as const,

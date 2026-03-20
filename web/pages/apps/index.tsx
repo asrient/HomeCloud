@@ -11,8 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildNextUrl } from '@/lib/urls';
 import { useRunningApps, useInstalledApps, useAppIcon, useAppsAvailable } from '@/components/hooks/useApps';
 
-const MIN_WINDOW_SIZE = 10;
-
 function AppItem({ app, fingerprint, onClick }: { app: RemoteAppInfo; fingerprint: string | null; onClick: () => void }) {
     const iconUri = useAppIcon(app.id, fingerprint);
 
@@ -81,24 +79,9 @@ const Page: NextPageWithConfig = () => {
     const error = actionError || runningError || installedError;
 
     const openAppWindows = useCallback(async (app: RemoteAppInfo) => {
-        try {
-            const sc = await getServiceController(fingerprint);
-            const allWindows = await sc.apps.getWindows(app.id);
-            const appWindows = allWindows.filter(w => w.width >= MIN_WINDOW_SIZE && w.height >= MIN_WINDOW_SIZE);
-            if (appWindows.length === 0) {
-                setActionError(`No windows found for ${app.name}`);
-                return;
-            }
-            // Desktop (Electron): open each window in its own BrowserWindow
-            for (const w of appWindows) {
-                if (window.utils?.openAppWindow) {
-                    window.utils.openAppWindow(w, fingerprint, app.id);
-                }
-            }
-
-        } catch (e: any) {
-            console.error('Failed to open app windows:', e);
-            setActionError(`Failed to open ${app.name}`);
+        // Open the full-screen viewer for this device
+        if (window.utils?.openScreenWindow) {
+            window.utils.openScreenWindow(fingerprint);
         }
     }, [fingerprint]);
 
@@ -108,12 +91,11 @@ const Page: NextPageWithConfig = () => {
             return;
         }
 
-        // Launch app, then open windows
+        // Launch app, then open screen viewer
         setLaunchingAppId(app.id);
         try {
             const sc = await getServiceController(fingerprint);
             await sc.apps.launchApp(app.id);
-            // Wait briefly for the app to start
             await new Promise((resolve) => setTimeout(resolve, 1500));
             openAppWindows(app);
         } catch (e: any) {

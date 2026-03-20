@@ -16,20 +16,14 @@ interface AppsMacModule {
     quitApp(bundleId: string): void;
     getAppIcon(bundleId: string): string | null;
     getWindows(bundleId?: string): RemoteAppWindow[];
-    watchAppWindows(
-        bundleId: string,
-        onCreated: (window: RemoteAppWindow) => void,
-        onDestroyed: (window: RemoteAppWindow) => void,
-    ): void;
-    stopWatchingAppWindows(bundleId: string): void;
     performAction(payload: RemoteAppWindowActionPayload): void;
     startH264Stream(
-        windowId: number,
         callback: (err: Error | null, frame: H264FrameInfo) => void,
     ): H264StreamResult | null;
-    stopH264Stream(windowId: number): void;
-    setStreamFps(windowId: number, fps: number): void;
-    setStreamBitrate(windowId: number, bitrate: number): void;
+    stopH264Stream(): void;
+    setStreamFps(fps: number): void;
+    setStreamBitrate(bitrate: number): void;
+    screenshotWindow(windowId: number): string | null;
     hasScreenRecordingPermission(): boolean;
     hasAccessibilityPermission(): boolean;
     requestScreenRecordingPermission(): void;
@@ -38,9 +32,6 @@ interface AppsMacModule {
 
 export class MacAppsDriver extends AppsDriver {
     private _module: AppsMacModule | null = null;
-    private windowWatchActive = false;
-    private windowCreatedCb: ((app: RemoteAppInfo, win: RemoteAppWindow) => void) | null = null;
-    private windowDestroyedCb: ((app: RemoteAppInfo, win: RemoteAppWindow) => void) | null = null;
 
     private get native(): AppsMacModule {
         if (!this._module) {
@@ -62,56 +53,20 @@ export class MacAppsDriver extends AppsDriver {
         onLaunch: (app: RemoteAppInfo) => void,
         onQuit: (app: RemoteAppInfo) => void,
     ): void {
-        this.native.watchRunningApps(
-            (app) => {
-                onLaunch(app);
-                if (this.windowWatchActive) this.watchSingleApp(app);
-            },
-            (app) => {
-                onQuit(app);
-                if (this.windowWatchActive) this.native.stopWatchingAppWindows(app.id);
-            },
-        );
+        this.native.watchRunningApps(onLaunch, onQuit);
     }
 
     unwatchRunningApps(): void { this.native.unwatchRunningApps(); }
 
-    startWindowWatching(
-        onCreated: (app: RemoteAppInfo, win: RemoteAppWindow) => void,
-        onDestroyed: (app: RemoteAppInfo, win: RemoteAppWindow) => void,
-    ): void {
-        this.windowCreatedCb = onCreated;
-        this.windowDestroyedCb = onDestroyed;
-        this.windowWatchActive = true;
-        for (const app of this.native.getRunningApps()) {
-            this.watchSingleApp(app);
-        }
+    // Full-screen streaming
+    startH264ScreenStream(callback: (err: Error | null, frame: H264FrameInfo) => void): H264StreamResult | null {
+        return this.native.startH264Stream(callback);
     }
+    stopH264ScreenStream(): void { this.native.stopH264Stream(); }
+    setScreenStreamFps(fps: number): void { this.native.setStreamFps(fps); }
+    setScreenStreamBitrate(bitrate: number): void { this.native.setStreamBitrate(bitrate); }
 
-    stopWindowWatching(): void {
-        if (!this.windowWatchActive) return;
-        this.windowWatchActive = false;
-        for (const app of this.native.getRunningApps()) {
-            this.native.stopWatchingAppWindows(app.id);
-        }
-        this.windowCreatedCb = null;
-        this.windowDestroyedCb = null;
-    }
-
-    private watchSingleApp(app: RemoteAppInfo): void {
-        this.native.watchAppWindows(
-            app.id,
-            (win) => this.windowCreatedCb?.(app, win),
-            (win) => this.windowDestroyedCb?.(app, win),
-        );
-    }
-
-    startH264Stream(windowId: number, callback: (err: Error | null, frame: H264FrameInfo) => void): H264StreamResult | null {
-        return this.native.startH264Stream(windowId, callback);
-    }
-    stopH264Stream(windowId: number): void { this.native.stopH264Stream(windowId); }
-    setStreamFps(windowId: number, fps: number): void { this.native.setStreamFps(windowId, fps); }
-    setStreamBitrate(windowId: number, bitrate: number): void { this.native.setStreamBitrate(windowId, bitrate); }
+    screenshotWindow(windowId: number): string | null { return this.native.screenshotWindow(windowId); }
 
     hasScreenRecordingPermission(): boolean { return this.native.hasScreenRecordingPermission(); }
     hasAccessibilityPermission(): boolean { return this.native.hasAccessibilityPermission(); }

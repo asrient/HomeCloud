@@ -6,7 +6,6 @@ import {
     RemoteAppWindowAction,
     RemoteAppWindowActionPayload,
     StreamingSessionInfo,
-    WindowEvent,
 } from './types';
 
 export class AppsService extends Service {
@@ -34,18 +33,6 @@ export class AppsService extends Service {
      * Payload is the quit app info.
      */
     public appQuit = new Signal<[RemoteAppInfo]>({ isExposed: true, isAllowAll: false });
-
-    /**
-     * Fired when a window is created.
-     * Payload is { app, window }.
-     */
-    public windowCreated = new Signal<[WindowEvent]>({ isExposed: true, isAllowAll: false });
-
-    /**
-     * Fired when a window is destroyed.
-     * Payload is { app, window }.
-     */
-    public windowDestroyed = new Signal<[WindowEvent]>({ isExposed: true, isAllowAll: false });
 
     // ── App enumeration ──
 
@@ -101,57 +88,60 @@ export class AppsService extends Service {
         return [];
     }
 
-    /**
-     * Heartbeat-based window watching. Client calls every ~1 min.
-     * Server starts delivering windowCreated/windowDestroyed signals.
-     * If no heartbeat received for 3 min, server stops watching.
-     */
-    @exposed
-    public async watchWindowsHeartbeat(): Promise<void> {
-    }
-
-    // ── Window streaming ──
+    // ── Full-screen streaming ──
 
     /**
-     * Start an H.264 video stream for a window. Returns a ReadableStream of
+     * Start an H.264 video stream of the entire screen. Returns a ReadableStream of
      * HCMediaStream chunks (binary: metadata + H.264 NAL units) along with
-     * initial frame dimensions and pixel density. Only one session per window
-     * is allowed — starting a new session invalidates the previous one.
-     * @param windowId The window to stream.
+     * initial screen dimensions and pixel density. Only one session is allowed at
+     * a time — starting a new session invalidates the previous one.
      */
     @exposed
-    public async startStreamingSession(windowId: string): Promise<StreamingSessionInfo> {
+    public async startStreamingSession(): Promise<StreamingSessionInfo> {
         throw new Error('Streaming is not supported on this device');
     }
 
     /**
-     * Stop a streaming session for a window.
+     * Stop the active streaming session.
      * May not always be called (e.g. client disconnect); the session is
      * automatically cleaned up on inactivity or when a new session starts.
      */
     @exposed
-    public async stopStreamingSession(windowId: string): Promise<void> {
+    public async stopStreamingSession(): Promise<void> {
     }
 
     /**
      * Stream control + heartbeat. Call every ~3s to keep the stream alive.
      * Optionally pass fps/quality to adjust the stream on the fly.
      * If not received for ~8s the server closes the stream.
-     * @param windowId The window being streamed.
      * @param fps Optional target frames per second.
      * @param quality Optional 0.0-1.0 quality (maps to bitrate).
      */
     @exposed
-    public async streamControl(windowId: string, fps?: number, quality?: number): Promise<void> {
+    public async streamControl(fps?: number, quality?: number): Promise<void> {
     }
 
-    // ── Window control ──
+    // ── Screen / window control ──
 
     /**
-     * Perform an action on a window (focus, minimize, maximize, close, click, etc.).
+     * Perform an action on a window or the screen. Coordinates are screen-relative.
+     * If windowId is provided, the action targets that specific window.
+     * If windowId is omitted, the action targets the screen (e.g. click at screen coords).
      */
     @exposed
     public async performWindowAction(payload: RemoteAppWindowActionPayload): Promise<void> {
+    }
+
+    // ── Screenshot ──
+
+    /**
+     * Take a screenshot of a specific window by its window ID.
+     * @param windowId The ID of the window to screenshot.
+     * @returns A base64-encoded PNG data URI string, or null if unavailable.
+     */
+    @exposed
+    public async screenshotWindow(windowId: string): Promise<string | null> {
+        return null;
     }
 
     // ── Permissions ──
