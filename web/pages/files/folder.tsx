@@ -507,7 +507,7 @@ const Page: NextPageWithConfig = () => {
     </>
   )
 
-  const peerName = peer ? peer.deviceName : 'Unknown device'
+  const peerName = peer ? peer.deviceName : window.modules?.config?.DEVICE_NAME || 'Unknown Device';
   const selectedCount = selectedItems.length;
   const isFolderSelected = selectedCount === 1 && selectedItems[0].type === 'directory';
 
@@ -584,7 +584,7 @@ const Page: NextPageWithConfig = () => {
         {
           selectedCount > 0 && <ConfirmModal isOpen={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}
             title={selectedCount > 1 ? `Delete ${selectedCount} items?` : `Delete "${selectedItems[0].name}"?`}
-            description='You may or may not be able to recover them depending on your storage type.'
+            description="You won't be able to recover them later."
             buttonText='Delete'
             buttonVariant='destructive'
             onConfirm={onDelete}>

@@ -1,5 +1,6 @@
 import { cn, isMacosTheme, isWin11Theme } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { TruncatedText } from "@/components/ui/truncatedText"
 import Link from "next/link";
 import { SidebarItem, SidebarList, SidebarSection } from "@/lib/types";
 import { useCallback } from "react";
@@ -37,10 +38,10 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick, isParent, isRef
                 isMatch && "bg-foreground/10",
                 isMatch && isWin11Theme() ? 'win11-selected' : 'border-none',
                 !isMacosTheme() && !isParent && 'pl-7',
-                "rounded-md sidebarItem w-full justify-start text-left text-ellipsis truncate h-8")}
+                "rounded-md sidebarItem w-full justify-start text-left overflow-hidden h-8")}
         >
-            {item.icon && <ThemedIcon name={item.icon} size={20} className={cn("mr-2")} type={isMacosTheme() ? "symbol" : "image"} />}
-            {item.title}
+            {item.icon && <ThemedIcon name={item.icon} size={20} className={cn("mr-2 shrink-0")} type={isMacosTheme() ? "symbol" : "image"} />}
+            <TruncatedText className='max-w-[120px] lg:max-w-[140px]'>{item.title}</TruncatedText>
         </Button>
     </Link>)
 }

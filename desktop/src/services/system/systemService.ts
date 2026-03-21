@@ -8,9 +8,12 @@ import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePr
 import volumeDriver from "./volumeControl";
 import * as mediaControlWin from "./mediaControl/win32";
 import { getBatteryInfo, onBatteryInfoChanged } from "./batteryLevel";
-// Need to use require for this module as it does not have proper ES module support
-const nodeDiskInfo = require('node-disk-info');
 import path from "path";
+import { execSync, execFile } from "child_process";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
+
 import { MacOSPlaybackWatcher } from "./mediaControl/mac";
 import { LinuxPlaybackWatcher } from "./mediaControl/linux";
 import { writeFilePathsToClipboard, readFilePathsFromClipboard } from "./clipboard";
@@ -140,9 +143,7 @@ class DesktopSystemService extends SystemService {
 
     @exposed
     public async lockScreen(): Promise<void> {
-        const { platform } = require('os');
-        const { execSync } = require('child_process');
-        const os = platform();
+        const os = process.platform;
         console.log('[lockScreen] platform:', os);
         if (os === 'darwin') {
             // macOS: use pmset to lock (activates lock screen immediately)
@@ -170,9 +171,7 @@ class DesktopSystemService extends SystemService {
 
     @exposed
     public async getScreenLockStatus(): Promise<ScreenLockStatus> {
-        const { platform } = require('os');
-        const { execSync } = require('child_process');
-        const os = platform();
+        const os = process.platform;
         try {
             if (os === 'darwin') {
                 // macOS: check if screen is locked via ioreg
@@ -404,50 +403,47 @@ class DesktopSystemService extends SystemService {
         else if (process.platform === 'linux' || process.platform === 'darwin') {
             const disks: Disk[] = [];
 
-            const diskInfos = await nodeDiskInfo.getDiskInfo();
+            // Use df -Pk for POSIX output with 1024-byte blocks
+            const { stdout } = await execFileAsync('df', ['-Pk'], { encoding: 'utf8' });
+            const lines = stdout.split('\n').slice(1); // skip header
             const linuxPermitedDriveLocations = ['/media/', '/mnt/', '/run/media/'];
-            for (const info of diskInfos) {
-                let isExternal = false;
-                let location = info.mounted;
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                const tokens = line.replace(/ +/g, ' ').split(' ');
+                if (tokens.length < 6) continue;
+
+                const filesystem = tokens[0];
+                const blocks = parseInt(tokens[1], 10) || 0;
+                const available = parseInt(tokens[3], 10) || 0;
+                const location = tokens.slice(5).join(' ');
                 let name = path.basename(location);
+                let isExternal = false;
+
                 // Filter out irrelevant file systems
-                if (info.filesystem.startsWith('dev') || info.filesystem === 'tmpfs' || info.filesystem === 'overlay') {
+                if (filesystem.startsWith('dev') || filesystem === 'tmpfs' || filesystem === 'overlay') {
                     continue;
                 }
                 if (process.platform === 'linux') {
-                    // Check if the mount point is under permitted locations
-                    let permitted = false;
-                    for (const permitedLocation of linuxPermitedDriveLocations) {
-                        if (location.startsWith(permitedLocation)) {
-                            permitted = true;
-                            break;
-                        }
-                    }
-                    if (!permitted && location !== '/') {
-                        continue; // Skip non-permitted locations except root
-                    }
+                    const permitted = linuxPermitedDriveLocations.some(p => location.startsWith(p));
+                    if (!permitted && location !== '/') continue;
                 }
-                if (process.platform === 'darwin' && (info.mounted.startsWith('/System/') || !info.mounted.startsWith('/'))) {
-                    continue; // Skip System volumes and non-root volumes on macOS
+                if (process.platform === 'darwin') {
+                    if (location !== '/' && !location.startsWith('/Volumes/')) continue;
                 }
                 if (name === '') {
-                    if (process.platform === 'linux') {
-                        name = 'Hard Disk';
-                    } else {
-                        name = 'Macintosh HD';
-                    }
+                    name = process.platform === 'linux' ? 'Hard Disk' : 'Macintosh HD';
                 }
                 if (location !== '/') {
                     isExternal = true;
                 }
-                const disk: Disk = {
+                disks.push({
                     type: isExternal ? 'external' : 'internal',
                     name,
                     path: location,
-                    size: info.blocks * 1024,
-                    free: info.available * 1024,
-                };
-                disks.push(disk);
+                    size: blocks * 1024,
+                    free: available * 1024,
+                });
             }
             return disks;
         }

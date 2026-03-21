@@ -191,13 +191,8 @@ export const useMediaPlayback = (deviceFingerprint: string | null) => {
         } else if (type === 'previous') {
             await serviceController.system.previousAudioTrack();
         }
-        if (fingerprint !== deviceFingerprint) {
-            return;
-        }
-        // Update playback info
-        console.log("Reloading media playback info after action:", type);
-        reload();
-    }, [deviceFingerprint, reload]);
+        // State update arrives via audioPlaybackSignal (optimistic + poll)
+    }, [deviceFingerprint]);
 
     const play = useCallback(async () => {
         await action('play');

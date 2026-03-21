@@ -13,9 +13,11 @@ import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { useAccountState } from "@/components/hooks/useAccountState";
 import { useAppState } from "@/components/hooks/useAppState";
 import { getAppName } from '@/lib/utils';
-import { Folder, Plus, X } from 'lucide-react';
+import { Folder, Plus, X, MoreHorizontal, ExternalLink, Trash2 } from 'lucide-react';
 import { DeviceIcon } from '@/components/DeviceIcon';
 import { UserPreferences } from "@/lib/types";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { useNavigation } from '@/components/hooks/useNavigation';
 
 function Page() {
   const [photoLibraries, setPhotoLibraries] = useState<PhotoLibraryLocation[]>([]);
@@ -131,6 +133,7 @@ function Page() {
 
   const { isLinked, accountEmail } = useAccountState();
   const { peers, deviceInfo } = useAppState();
+  const { openDevicePage } = useNavigation();
 
   const showPreferences = useMemo(() => {
     return autoStartEnabled !== null
@@ -294,20 +297,32 @@ function Page() {
                     </div>
                   </div>
                 }>
-                  <ConfirmModal
-                    title='Remove Device'
-                    description={`Are you sure you want to remove "${peer.deviceName}" from your account?`}
-                    onConfirm={async () => {
-                      const localSc = window.modules.getLocalServiceController();
-                      await localSc.account.removePeer(peer.fingerprint);
-                    }}
-                    buttonVariant='destructive'
-                    buttonText='Remove'
-                  >
-                    <Button variant='ghost' className='text-red-500' size='icon'>
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </ConfirmModal>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant='ghost' size='icon'>
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      <DropdownMenuItem onClick={() => openDevicePage(peer.fingerprint)}>
+                        Open device
+                      </DropdownMenuItem>
+                      <ConfirmModal
+                        title='Remove Device'
+                        description={`Are you sure you want to remove "${peer.deviceName}" from your account?`}
+                        onConfirm={async () => {
+                          const localSc = window.modules.getLocalServiceController();
+                          await localSc.account.removePeer(peer.fingerprint);
+                        }}
+                        buttonVariant='destructive'
+                        buttonText='Remove'
+                      >
+                        <DropdownMenuItem className='text-red-500' onSelect={(e) => e.preventDefault()}>
+                          Remove
+                        </DropdownMenuItem>
+                      </ConfirmModal>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </Line>
               ))}
             </Section>

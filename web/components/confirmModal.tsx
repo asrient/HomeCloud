@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import LoadingIcon from "./ui/loadingIcon";
 import {
     Dialog,
@@ -9,7 +9,8 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
-import { cn, isMacosTheme, isWin11Theme } from "@/lib/utils";
+import { cn, isMacosTheme, isWin11Theme, truncateMiddle } from "@/lib/utils";
+import { useUIFlag } from "./hooks/useUIFlag";
 
 export default function ConfirmModal({ title, buttonText, children, onConfirm, description, isOpen, onOpenChange, buttonVariant }: {
     title: string,
@@ -24,6 +25,8 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
     const [isLoading, setIsLoading] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(isOpen || false);
     const [error, setError] = useState<string | null>(null);
+
+    const { supportLiquidGlass } = useUIFlag();
 
     useEffect(() => {
         if (isOpen === undefined) return;
@@ -66,6 +69,8 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
 
     const buttonVariant_ = buttonVariant || "default";
 
+    const displayTitle = useMemo(() => truncateMiddle(title, isWin11Theme() ? 40 : 30), [title]);
+
     return (
         <Dialog open={dialogOpen} onOpenChange={handleOpenChange} >
             <DialogTrigger asChild>
@@ -77,15 +82,12 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
                 isWin11Theme() ? 'sm:max-w-[26rem] ' : 'sm:max-w-[20rem]'
             )}>
                 <DialogHeader>
-                    <DialogTitle className={cn(
-                        "overflow-ellipsis truncate",
-                        isWin11Theme() ? 'max-w-[22rem]' : 'max-w-[16rem]'
-                    )}>
-                        {title}
+                    <DialogTitle>
+                        {displayTitle}
                     </DialogTitle>
                     {
                         (description || error)
-                        && <DialogDescription className='break-all'>
+                        && <DialogDescription className='break-words [word-break:break-word]'>
                             {error ? <span className='text-red-500'>{error}</span> : description}
                         </DialogDescription>
                     }
@@ -97,10 +99,14 @@ export default function ConfirmModal({ title, buttonText, children, onConfirm, d
                     </div>}
 
                     <div className='space-x-2 flex justify-center items-center'>
-                        <Button variant='secondary' size='platform' stretch onClick={() => handleOpenChange(false)}>
+                        <Button
+                            useGlass={false}
+                            variant='secondary' size='platform' stretch onClick={() => handleOpenChange(false)}>
                             Cancel
                         </Button>
-                        <Button type='submit' size='platform' variant={buttonVariant_} disabled={isLoading} onClick={handleSubmit} stretch>
+                        <Button type='submit'
+                            useGlass={false}
+                            size='platform' variant={buttonVariant_} disabled={isLoading} onClick={handleSubmit} stretch>
                             {buttonText || 'Confirm'}
                         </Button>
                     </div>

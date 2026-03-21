@@ -6,6 +6,7 @@ import { NextPageWithConfig } from '@/pages/_app';
 import { RemoteAppWindowAction } from '@/lib/enums';
 import { RemoteAppWindowActionPayload } from 'shared/types';
 import WindowFab from '@/components/windowFab';
+import LoadingIcon from '@/components/ui/loadingIcon';
 
 /** Decode an HCMediaStream binary chunk into metadata + payload. */
 function decodeMediaChunk(chunk: Uint8Array): { metadata: Record<string, string>; payload: Uint8Array } {
@@ -418,7 +419,7 @@ const ScreenViewerPage: NextPageWithConfig = () => {
           {isConnecting && !hasFrame && (
             <div className='absolute inset-0 flex items-center justify-center bg-black/70 z-10'>
               <div className='flex flex-col items-center gap-2 text-white/80 text-sm'>
-                <div className='h-6 w-6 border-2 border-white/30 border-t-white/80 rounded-full animate-spin' />
+                <LoadingIcon className='text-white/80' />
                 Connecting...
               </div>
             </div>

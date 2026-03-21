@@ -42,7 +42,7 @@ export function useUIFlag() {
         return !isNaN(majorVersion) && majorVersion >= 26;
     }, [deviceInfo]);
 
-    return { supportLiquidGlass, deviceInfo };
+    return { supportLiquidGlass };
 }
 
 export function DEV_OverrideLiquidGlass(value: boolean | null) {

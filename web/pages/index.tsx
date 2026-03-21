@@ -11,7 +11,7 @@ import { useAppDispatch, useAppState } from '@/components/hooks/useAppState';
 import { usePeer, usePeerConnectionState } from '@/components/hooks/usePeerState';
 import { cn, getServiceController, isMacosTheme, isWin11Theme } from '@/lib/utils';
 import { DeviceIcon } from '@/components/DeviceIcon';
-import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard, Lock, Terminal, Monitor, Settings } from 'lucide-react';
+import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard, Lock, Terminal, Monitor, Settings, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionIcon } from '@/components/deviceSwitcher';
 import { useBatteryInfo, useMediaPlayback, useScreenLock, useTerminalAvailable, useVolume } from '@/components/hooks/useSystemState';
@@ -19,10 +19,12 @@ import { useAppsAvailable } from '@/components/hooks/useApps';
 import { PauseIcon, PlayIcon, ForwardIcon, BackwardIcon } from '@heroicons/react/24/solid';
 import TextModal from '@/components/textModal';
 import ConfirmModal from '@/components/confirmModal';
+import { TruncatedText } from '@/components/ui/truncatedText';
 import LoadingIcon from '@/components/ui/loadingIcon';
 import { Slider } from "@/components/ui/slider"
 import { DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { DisksGrid } from '@/components/DisksGrid';
 import { getAppName } from '@/lib/utils';
 import { settingsUrl } from '@/lib/urls';
@@ -118,16 +120,16 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
       </div>
       {
         canControl &&
-        <div className={cn('px-6 py-3 text-sm w-full lg:w-[40%] min-w-[12rem] space-y-1 border-t lg:border-l lg:border-t-0 border-border/70 flex flex-col items-center lg:items-start justify-center min-h-[4rem] lg:min-h-[7rem]')}>
+        <div className={cn('px-6 py-3 text-sm w-full lg:w-[40%] min-w-[12rem] space-y-1 border-t lg:border-l lg:border-t-0 border-border/70 flex flex-col items-center lg:items-start justify-center min-h-[4rem] lg:min-h-[7rem] overflow-hidden')}>
           <div className='font-medium mb-1 text-xs text-foreground/80 hidden lg:block'>
             <Airplay size={16} className="inline-block mr-2" />
             Now Playing
           </div>
 
-          <div className='flex flex-row items-center justify-between max-w-[40rem] w-full mx-auto lg:mx-0 lg:flex-col lg:items-start lg:gap-1'>
-            <div className='flex flex-col items-start gap-1 min-w-0'>
-              <div className='font-semibold truncate max-w-xs'>{mediaPlayback ? mediaPlayback.trackName : 'Not playing'}</div>
-              <div className='text-xs text-foreground/80 truncate max-w-xs'>{mediaPlayback && mediaPlayback.artistName ? mediaPlayback.artistName : ''}</div>
+          <div className='flex flex-row items-center justify-between w-full lg:flex-col lg:items-start lg:gap-1 min-w-0'>
+            <div className='flex flex-col items-start gap-1 min-w-0 overflow-hidden'>
+              <TruncatedText maxWidth='100%' className='font-semibold'>{mediaPlayback ? mediaPlayback.trackName : 'Not playing'}</TruncatedText>
+              <TruncatedText maxWidth='100%' className='text-xs text-foreground/80'>{mediaPlayback && mediaPlayback.artistName ? mediaPlayback.artistName : ''}</TruncatedText>
             </div>
             <div className='flex flex-row space-x-4 shrink-0'>
               <Button variant='ghost' size='icon' onClick={() => previous()} disabled={mediaPlaybackLoading || !mediaPlayback}>
@@ -364,8 +366,12 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
     });
   }, [deviceFingerprint]);
 
+  const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
+
+  const hasOverflowItems = terminalAvailable || lockStatus !== 'not-supported';
+
   return (
-    <div className='p-1 mx-2 flex flex-row flex-wrap items-center justify-start gap-2'>
+    <div className='p-1 mx-2 flex flex-row items-center justify-start gap-2'>
       <FilesSendAction deviceFingerprint={deviceFingerprint} />
       <TextModal onDone={onTextSend}
         title='Send Text'
@@ -388,8 +394,9 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
           <Monitor className='mr-2' size={16} />Screen
         </Button>
       )}
+      {/* Show Terminal & Lock inline on wide screens */}
       {terminalAvailable && (
-        <Button variant='secondary' size='sm' onClick={openTerminal}>
+        <Button variant='secondary' size='sm' onClick={openTerminal} className='hidden lg:inline-flex'>
           <Terminal className='mr-2' size={16} />Terminal
         </Button>
       )}
@@ -400,12 +407,41 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
           buttonText='Lock'
           buttonVariant='destructive'
           onConfirm={lockScreen}
+          isOpen={lockConfirmOpen}
+          onOpenChange={setLockConfirmOpen}
         >
-          <Button variant='secondary' size='sm' disabled={lockStatus !== 'unlocked'}>
+          <Button variant='secondary' size='sm' disabled={lockStatus !== 'unlocked'} className='hidden lg:inline-flex'>
             <Lock className='mr-2' size={16} />
             Lock
           </Button>
         </ConfirmModal>
+      )}
+      {/* More dropdown on small screens for Terminal & Lock */}
+      {hasOverflowItems && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant='secondary' size='sm' className='lg:hidden shrink-0'>
+              <MoreHorizontal size={16} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            {terminalAvailable && (
+              <DropdownMenuItem onClick={openTerminal}>
+                <Terminal className='w-4 h-4 mr-2' />
+                Terminal
+              </DropdownMenuItem>
+            )}
+            {lockStatus !== 'not-supported' && (
+              <DropdownMenuItem
+                disabled={lockStatus !== 'unlocked'}
+                onClick={() => setLockConfirmOpen(true)}
+              >
+                <Lock className='w-4 h-4 mr-2' />
+                Lock
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </div>
   )

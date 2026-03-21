@@ -13,6 +13,13 @@ export function nameToInitials(name: string) {
   return parts.map((part) => part[0]).join("").toUpperCase();
 }
 
+export function truncateMiddle(text: string, maxLength: number, endChars = 6): string {
+  if (text.length <= maxLength) return text;
+  const startLen = maxLength - endChars - 1;
+  if (startLen < 1) return text.slice(0, maxLength - 1) + '…';
+  return text.slice(0, startLen) + '…' + text.slice(-endChars);
+}
+
 export function openExternalLink(url: string) {
   window.open(url, "_blank")
 }
