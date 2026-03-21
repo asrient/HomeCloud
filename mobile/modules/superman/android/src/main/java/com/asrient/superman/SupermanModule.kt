@@ -3,8 +3,10 @@ package com.asrient.superman
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.ThumbnailUtils
 import android.net.Uri
+import android.provider.MediaStore
 import android.util.Size
 import android.webkit.MimeTypeMap
 import java.io.ByteArrayOutputStream
@@ -277,12 +279,30 @@ class SupermanModule : Module(), LifecycleEventObserver {
         val uri = Uri.parse(fileUri)
         val file = File(uri.path ?: throw IllegalArgumentException("Invalid file path"))
         if (!file.exists()) throw IllegalArgumentException("File does not exist: ${file.absolutePath}")
-        val thumbnailSize = Size(256, 256)
         val mimeType = getMimeType(file.absolutePath)
-        val thumbnail: Bitmap = when {
-          mimeType?.startsWith("image/") == true -> ThumbnailUtils.createImageThumbnail(file, thumbnailSize, null)
-          mimeType?.startsWith("video/") == true -> ThumbnailUtils.createVideoThumbnail(file, thumbnailSize, null)
-          else -> throw IllegalArgumentException("Unsupported file type: $mimeType")
+        val thumbnail: Bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+          val thumbnailSize = Size(256, 256)
+          when {
+            mimeType?.startsWith("image/") == true -> ThumbnailUtils.createImageThumbnail(file, thumbnailSize, null)
+            mimeType?.startsWith("video/") == true -> ThumbnailUtils.createVideoThumbnail(file, thumbnailSize, null)
+            else -> throw IllegalArgumentException("Unsupported file type: $mimeType")
+          }
+        } else {
+          @Suppress("DEPRECATION")
+          when {
+            mimeType?.startsWith("image/") == true -> {
+              val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+              BitmapFactory.decodeFile(file.absolutePath, opts)
+              val scale = maxOf(1, minOf(opts.outWidth / 256, opts.outHeight / 256))
+              val decodeOpts = BitmapFactory.Options().apply { inSampleSize = scale }
+              val decoded = BitmapFactory.decodeFile(file.absolutePath, decodeOpts)
+                  ?: throw IllegalArgumentException("Could not decode image")
+              ThumbnailUtils.extractThumbnail(decoded, 256, 256, ThumbnailUtils.OPTIONS_RECYCLE_INPUT)
+            }
+            mimeType?.startsWith("video/") == true -> ThumbnailUtils.createVideoThumbnail(file.absolutePath, MediaStore.Video.Thumbnails.MINI_KIND)
+                ?: throw IllegalArgumentException("Could not generate video thumbnail")
+            else -> throw IllegalArgumentException("Unsupported file type: $mimeType")
+          }
         }
         val outputStream = ByteArrayOutputStream()
         thumbnail.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
