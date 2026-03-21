@@ -21,7 +21,9 @@ const buttonVariants = cva(
         outline:
           "border border-secondary-foreground/40 bg-transparent hover:bg-secondary text-foreground",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          isWin11Theme()
+            ? "bg-white text-secondary-foreground shadow-sm border border-border/60 hover:bg-neutral-50 dark:bg-secondary dark:shadow-none dark:hover:bg-secondary/80"
+            : "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },

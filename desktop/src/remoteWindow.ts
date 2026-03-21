@@ -76,14 +76,12 @@ export function createScreenWindow(
 
 // ── Terminal Window ──
 
-const terminalWindows = new Map<string, BrowserWindow>();
+const terminalWindows = new Set<BrowserWindow>();
 
 export function createTerminalWindow(fingerprint: string | null): BrowserWindow {
-    const key = `terminal-${fingerprint ?? 'local'}`;
-    const existing = terminalWindows.get(key);
-    if (existing && !existing.isDestroyed()) {
-        existing.focus();
-        return existing;
+    // Bring all existing terminal windows for this fingerprint to front
+    for (const win of terminalWindows) {
+        if (!win.isDestroyed()) win.show();
     }
 
     const params: Record<string, string> = {};
@@ -108,10 +106,10 @@ export function createTerminalWindow(fingerprint: string | null): BrowserWindow 
     require('@electron/remote/main').enable(win.webContents);
     win.loadURL(url);
 
-    terminalWindows.set(key, win);
+    terminalWindows.add(win);
 
     win.on('closed', () => {
-        terminalWindows.delete(key);
+        terminalWindows.delete(win);
     });
 
     return win;
