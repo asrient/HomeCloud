@@ -10,8 +10,6 @@ import { AppsDriver, H264FrameInfo, H264StreamResult } from "./driver";
 interface AppsMacModule {
     getInstalledApps(): RemoteAppInfo[];
     getRunningApps(): RemoteAppInfo[];
-    watchRunningApps(onLaunch: (app: RemoteAppInfo) => void, onQuit: (app: RemoteAppInfo) => void): void;
-    unwatchRunningApps(): void;
     launchApp(bundleId: string): void;
     quitApp(bundleId: string): void;
     getAppIcon(bundleId: string): string | null;
@@ -48,15 +46,6 @@ export class MacAppsDriver extends AppsDriver {
     getAppIcon(appId: string): string | null { return this.native.getAppIcon(appId); }
     getWindows(appId?: string): RemoteAppWindow[] { return this.native.getWindows(appId); }
     performAction(payload: RemoteAppWindowActionPayload): void { this.native.performAction(payload); }
-
-    watchRunningApps(
-        onLaunch: (app: RemoteAppInfo) => void,
-        onQuit: (app: RemoteAppInfo) => void,
-    ): void {
-        this.native.watchRunningApps(onLaunch, onQuit);
-    }
-
-    unwatchRunningApps(): void { this.native.unwatchRunningApps(); }
 
     // Full-screen streaming
     startH264ScreenStream(callback: (err: Error | null, frame: H264FrameInfo) => void): H264StreamResult | null {

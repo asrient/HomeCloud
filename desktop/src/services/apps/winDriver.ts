@@ -14,11 +14,6 @@ interface AppsWinModule {
     quitApp(appId: string): void;
     getAppIcon(appId: string): string | null;
     getWindows(appId?: string): RemoteAppWindow[];
-    startWatchingWindows(
-        onCreated: (app: RemoteAppInfo, window: RemoteAppWindow) => void,
-        onDestroyed: (app: RemoteAppInfo, window: RemoteAppWindow) => void,
-    ): void;
-    stopWatchingWindows(): void;
     performAction(payload: RemoteAppWindowActionPayload): void;
     startH264Stream(
         callback: (err: Error | null, frame: H264FrameInfo) => void,
@@ -31,11 +26,6 @@ interface AppsWinModule {
 
 export class WinAppsDriver extends AppsDriver {
     private _module: AppsWinModule | null = null;
-
-    // App tracking state — derives app launch/quit from window events
-    private knownAppIds = new Set<string>();
-    private appLaunchCb: ((app: RemoteAppInfo) => void) | null = null;
-    private appQuitCb: ((app: RemoteAppInfo) => void) | null = null;
 
     private get native(): AppsWinModule {
         if (!this._module) {
@@ -52,52 +42,6 @@ export class WinAppsDriver extends AppsDriver {
     getAppIcon(appId: string): string | null { return this.native.getAppIcon(appId); }
     getWindows(appId?: string): RemoteAppWindow[] { return this.native.getWindows(appId); }
     performAction(payload: RemoteAppWindowActionPayload): void { this.native.performAction(payload); }
-
-    watchRunningApps(
-        onLaunch: (app: RemoteAppInfo) => void,
-        onQuit: (app: RemoteAppInfo) => void,
-    ): void {
-        this.appLaunchCb = onLaunch;
-        this.appQuitCb = onQuit;
-
-        // Snapshot current apps and their windows
-        const running = this.getRunningApps();
-        this.knownAppIds = new Set(running.map(a => a.id));
-
-        // Start shell hook — all app/window events derived from here
-        this.native.startWatchingWindows(
-            (app, win) => this.onNativeWindowCreated(app, win),
-            (app, win) => this.onNativeWindowDestroyed(app, win),
-        );
-    }
-
-    unwatchRunningApps(): void {
-        this.native.stopWatchingWindows();
-        this.appLaunchCb = null;
-        this.appQuitCb = null;
-        this.knownAppIds.clear();
-    }
-
-    private onNativeWindowCreated(app: RemoteAppInfo, _win: RemoteAppWindow): void {
-        if (app.id) {
-            if (!this.knownAppIds.has(app.id)) {
-                this.knownAppIds.add(app.id);
-                this.appLaunchCb?.(app);
-            }
-        }
-    }
-
-    private onNativeWindowDestroyed(app: RemoteAppInfo, win: RemoteAppWindow): void {
-        const appId = app.id || win.appId || '';
-        const resolvedApp = app.id ? app : { name: '', id: appId, iconPath: null };
-        if (appId && this.knownAppIds.has(appId)) {
-            const remaining = this.getWindows(appId);
-            if (remaining.length === 0) {
-                this.knownAppIds.delete(appId);
-                this.appQuitCb?.(resolvedApp);
-            }
-        }
-    }
 
     // Full-screen streaming
     startH264ScreenStream(callback: (err: Error | null, frame: H264FrameInfo) => void): H264StreamResult | null {

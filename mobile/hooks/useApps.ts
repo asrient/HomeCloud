@@ -3,7 +3,6 @@ import { useResource } from './useResource';
 import { RemoteAppInfo, RemoteAppWindowActionPayload } from 'shared/types';
 import { decodeMediaChunk } from 'shared/mediaStream';
 import ServiceController from 'shared/controller';
-import { SignalNodeRef } from 'shared/signals';
 import { getServiceController } from '@/lib/utils';
 import H264Player from '@/modules/h264-player';
 
@@ -11,13 +10,8 @@ import H264Player from '@/modules/h264-player';
 
 export const useRunningApps = (
     deviceFingerprint: string | null,
-    onAppOpened?: (app: RemoteAppInfo) => void,
 ) => {
     const [runningApps, setRunningApps] = useState<RemoteAppInfo[]>([]);
-    const launchRef = useRef<SignalNodeRef<[RemoteAppInfo], string> | null>(null);
-    const quitRef = useRef<SignalNodeRef<[RemoteAppInfo], string> | null>(null);
-    const onAppOpenedRef = useRef(onAppOpened);
-    onAppOpenedRef.current = onAppOpened;
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
         const running = await serviceController.apps.getRunningApps();
@@ -26,33 +20,9 @@ export const useRunningApps = (
         setRunningApps(running.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; }));
     }, []);
 
-    const clearSignals = useCallback((serviceController: ServiceController) => {
-        if (launchRef.current) {
-            serviceController.apps.appLaunched.detach(launchRef.current);
-            launchRef.current = null;
-        }
-        if (quitRef.current) {
-            serviceController.apps.appQuit.detach(quitRef.current);
-            quitRef.current = null;
-        }
-    }, []);
-
-    const setupSignals = useCallback((serviceController: ServiceController) => {
-        clearSignals(serviceController);
-        launchRef.current = serviceController.apps.appLaunched.add((app: RemoteAppInfo) => {
-            onAppOpenedRef.current?.(app);
-            setRunningApps(prev => prev.some(a => a.id === app.id) ? prev : [...prev, app]);
-        });
-        quitRef.current = serviceController.apps.appQuit.add((app: RemoteAppInfo) => {
-            setRunningApps(prev => prev.filter(a => a.id !== app.id));
-        });
-    }, [clearSignals]);
-
     const { isLoading, error, reload } = useResource({
         deviceFingerprint,
         load,
-        setupSignals,
-        clearSignals,
     });
 
     return { runningApps, isLoading, error, reload };

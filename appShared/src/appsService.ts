@@ -1,9 +1,7 @@
 import { Service, exposed, serviceStartMethod, serviceStopMethod } from './servicePrimatives';
-import Signal from './signals';
 import {
     RemoteAppInfo,
     RemoteAppWindow,
-    RemoteAppWindowAction,
     RemoteAppWindowActionPayload,
     StreamingSessionInfo,
 } from './types';
@@ -21,18 +19,6 @@ export class AppsService extends Service {
     public async isAvailable(): Promise<boolean> {
         return false;
     }
-
-    /**
-     * Fired when an app is launched.
-     * Payload is the launched app info.
-     */
-    public appLaunched = new Signal<[RemoteAppInfo]>({ isExposed: true, isAllowAll: false });
-
-    /**
-     * Fired when an app quits.
-     * Payload is the quit app info.
-     */
-    public appQuit = new Signal<[RemoteAppInfo]>({ isExposed: true, isAllowAll: false });
 
     // ── App enumeration ──
 

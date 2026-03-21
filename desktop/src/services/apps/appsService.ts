@@ -34,7 +34,6 @@ interface ScreenSession {
 export default class DesktopAppsService extends AppsService {
 
     private installedAppsCache: RemoteAppInfo[] | null = null;
-    private runningAppsCache: RemoteAppInfo[] | null = null;
 
     private screenSession: ScreenSession | null = null;
     private sessionCleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -60,10 +59,7 @@ export default class DesktopAppsService extends AppsService {
 
     @exposed
     public async getRunningApps(): Promise<RemoteAppInfo[]> {
-        if (!this.runningAppsCache) {
-            this.runningAppsCache = getDriver().getRunningApps();
-        }
-        return this.runningAppsCache;
+        return getDriver().getRunningApps();
     }
 
     @exposed
@@ -291,30 +287,11 @@ export default class DesktopAppsService extends AppsService {
 
     @serviceStartMethod
     public async start() {
-        const driver = getDriver();
-        driver.watchRunningApps(
-            (app) => {
-                if (this.runningAppsCache) {
-                    if (!this.runningAppsCache.some(a => a.id === app.id)) {
-                        this.runningAppsCache = [...this.runningAppsCache, app];
-                    }
-                }
-                this.appLaunched.dispatch(app);
-            },
-            (app) => {
-                if (this.runningAppsCache) {
-                    this.runningAppsCache = this.runningAppsCache.filter(a => a.id !== app.id);
-                }
-                this.appQuit.dispatch(app);
-            },
-        );
         console.log("AppsService started.");
     }
 
     @serviceStopMethod
     public async stop() {
-        const driver = getDriver();
-        driver.unwatchRunningApps();
         this.stopPowerBlocker();
         this.stopStreamingSession();
         if (this.sessionCleanupTimer) {

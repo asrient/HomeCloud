@@ -34,14 +34,6 @@ export abstract class AppsDriver {
 
     abstract getWindows(appId?: string): RemoteAppWindow[];
 
-    // ── App watching ──
-
-    abstract watchRunningApps(
-        onLaunch: (app: RemoteAppInfo) => void,
-        onQuit: (app: RemoteAppInfo) => void,
-    ): void;
-    abstract unwatchRunningApps(): void;
-
     // ── Screen / window actions ──
 
     abstract performAction(payload: RemoteAppWindowActionPayload): void;
