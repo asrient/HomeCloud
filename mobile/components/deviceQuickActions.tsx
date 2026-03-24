@@ -12,7 +12,7 @@ import { UITextInput } from "./ui/UITextInput";
 import Slider from '@react-native-community/slider';
 import { DisksGrid } from "./disksGrid";
 import { useAppsAvailable, useTerminalAvailable } from "@/hooks/useApps";
-import { getLocalServiceController, getServiceController } from "@/lib/utils";
+import { getLocalServiceController, getServiceController, isIos } from "@/lib/utils";
 
 import { UIIcon } from "./ui/UIIcon";
 import { useSendAssets } from "@/hooks/useSendAssets";
@@ -125,7 +125,7 @@ function ClipboardCard({ deviceFingerprint, dismiss }: { deviceFingerprint: stri
                 disabled={isLoading || !!error || !content}
                 onPress={copyToClipboard}
                 title="Copy"
-                type="primary"
+                type={isIos ? "secondary" : "primary"}
                 stretch
             />
         </View>

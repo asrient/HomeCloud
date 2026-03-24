@@ -389,7 +389,7 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
         </Button>
       </VolumeModal>
       <ClipboardButton deviceFingerprint={deviceFingerprint} />
-      {appsAvailable && (
+      {appsAvailable && deviceFingerprint !== null && (
         <Button variant='secondary' size='sm' onClick={openScreen}>
           <Monitor className='mr-2' size={16} />Screen
         </Button>

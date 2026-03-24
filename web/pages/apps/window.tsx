@@ -5,8 +5,10 @@ import { getServiceController, buildPageConfig } from '@/lib/utils';
 import { NextPageWithConfig } from '@/pages/_app';
 import { RemoteAppWindowAction } from '@/lib/enums';
 import { RemoteAppWindowActionPayload } from 'shared/types';
-import WindowFab from '@/components/windowFab';
+import { useAppState } from '@/components/hooks/useAppState';
+import WindowFab, { StreamStats } from '@/components/windowFab';
 import LoadingIcon from '@/components/ui/loadingIcon';
+import { Button } from '@/components/ui/button';
 
 /** Decode an HCMediaStream binary chunk into metadata + payload. */
 function decodeMediaChunk(chunk: Uint8Array): { metadata: Record<string, string>; payload: Uint8Array } {
@@ -57,6 +59,11 @@ const ScreenViewerPage: NextPageWithConfig = () => {
     title?: string;
   };
   const fingerprint = useMemo(() => fingerprintStr || null, [fingerprintStr]);
+  const { connections } = useAppState();
+  const connectionInfo = useMemo(
+    () => fingerprint ? connections.find(c => c.fingerprint === fingerprint) ?? null : null,
+    [fingerprint, connections],
+  );
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const decoderRef = useRef<VideoDecoder | null>(null);
@@ -66,11 +73,17 @@ const ScreenViewerPage: NextPageWithConfig = () => {
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDraggingRef = useRef(false);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const statsRef = useRef({ bytes: 0, frames: 0, lastTime: 0, lastBytes: 0, lastFrames: 0 });
+  const targetFpsRef = useRef(30);
+  const qualityRef = useRef(0.6);
 
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasFrame, setHasFrame] = useState(false);
   const hasFrameRef = useRef(false);
+  const [streamStats, setStreamStats] = useState<StreamStats>({ fps: 0, bitrate: 0, resolution: '–', framesReceived: 0 });
+  const [targetFps, setTargetFps] = useState(30);
+  const [quality, setQuality] = useState(0.6);
 
   fingerprintRef.current = fingerprint;
 
@@ -145,12 +158,29 @@ const ScreenViewerPage: NextPageWithConfig = () => {
           canvas.height = session.height;
         }
 
-        // Start heartbeat
+        // Start heartbeat + stats sampling
+        statsRef.current = { bytes: 0, frames: 0, lastTime: performance.now(), lastBytes: 0, lastFrames: 0 };
         heartbeatTimer = setInterval(() => {
+          // Send heartbeat with current settings
           getServiceController(fingerprintRef.current)
-            .then(sc => sc.apps.streamControl())
+            .then(sc => sc.apps.streamControl(targetFpsRef.current, qualityRef.current))
             .catch(() => {});
-        }, 3000);
+
+          // Compute stats over the interval
+          const now = performance.now();
+          const s = statsRef.current;
+          const elapsed = (now - s.lastTime) / 1000;
+          if (elapsed > 0) {
+            const fps = Math.round((s.frames - s.lastFrames) / elapsed);
+            const bytesPerSec = Math.round((s.bytes - s.lastBytes) / elapsed);
+            const c = canvasRef.current;
+            const resolution = c ? `${c.width}×${c.height}` : '–';
+            setStreamStats({ fps, bitrate: bytesPerSec, resolution, framesReceived: s.frames });
+            s.lastTime = now;
+            s.lastBytes = s.bytes;
+            s.lastFrames = s.frames;
+          }
+        }, 2000);
 
         // Set up VideoDecoder
         const decoder = new VideoDecoder({
@@ -192,6 +222,8 @@ const ScreenViewerPage: NextPageWithConfig = () => {
           if (done || cancelled || !isMountedRef.current) break;
 
           frameCount++;
+          statsRef.current.frames++;
+          statsRef.current.bytes += value.byteLength;
           const { metadata, payload } = decodeMediaChunk(value);
           const isKeyframe = metadata.type === 'keyframe';
 
@@ -405,7 +437,7 @@ const ScreenViewerPage: NextPageWithConfig = () => {
     window.utils?.windowControls?.close();
   }, []);
 
-  const windowTitle = title || 'Remote Screen';
+  const windowTitle = title || connectionInfo?.deviceName || 'Remote Screen';
 
   return (
     <>
@@ -447,16 +479,27 @@ const ScreenViewerPage: NextPageWithConfig = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
               </svg>
               <span className='text-sm text-red-400'>{error}</span>
-              <button
+              <Button
                 onClick={closeWindow}
-                className='mt-1 px-4 py-1.5 text-xs text-white bg-white/15 hover:bg-white/25 rounded-md transition-colors'
-              >
-                Close Window
-              </button>
+                variant='secondary'
+                size='sm'>
+                Close
+              </Button>
             </div>
           )}
 
-          {!error && hasFrame && <WindowFab onDispatchAction={dispatchAction} />}
+          {!error && hasFrame && (
+            <WindowFab
+              onDispatchAction={dispatchAction}
+              streamStats={streamStats}
+              targetFps={targetFps}
+              quality={quality}
+              onTargetFpsChange={(fps) => { setTargetFps(fps); targetFpsRef.current = fps; }}
+              onQualityChange={(q) => { setQuality(q); qualityRef.current = q; }}
+              deviceName={connectionInfo?.deviceName ?? title ?? null}
+              connectionType={connectionInfo?.connectionType ?? null}
+            />
+          )}
         </div>
       </div>
     </>

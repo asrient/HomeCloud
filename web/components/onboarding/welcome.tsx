@@ -52,8 +52,8 @@ export function WelcomePage() {
             <div className="flex flex-col gap-1 py-4 px-4 max-w-md mx-auto">
                 <Bulletin
                     icon="/icons/devices.png"
-                    title="Control all your devices"
-                    description="Transfer files, access clipboard, browse photos and edit documents from any device."
+                    title="Work across your devices"
+                    description="Transfer files, access clipboard, browse photos or edit documents from any device."
                 />
                 <Bulletin
                     icon="/icons/internet.png"
