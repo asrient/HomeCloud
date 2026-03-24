@@ -1,7 +1,5 @@
 import { DatagramCompat } from "./compat";
-import { isLocalIp } from "./utils";
-
-const DEBUG_BENCHMARKS = true;
+import { isLocalIp, isDebug } from "./utils";
 
 const HEADER_SIZE = 5; // 1 byte type + 4 bytes seq
 const MAX_PACKET_SIZE = 1300;
@@ -153,7 +151,7 @@ export class ReDatagram {
         this.sendHello();
         this.startPingLoop();
         this.startRetransmitLoop();
-        if (DEBUG_BENCHMARKS) this.startStatsLoop();
+        if (isDebug()) this.startStatsLoop();
     }
 
     private startRetransmitLoop() {

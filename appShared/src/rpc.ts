@@ -1,7 +1,6 @@
 import { DataChannelParser } from './DataChannelParser';
 import { ProxyHandlers, GenericDataChannel } from './types';
-
-const DEBUG_BENCHMARKS = true;
+import { isDebug } from './utils';
 
 // ----- Message Types -----
 export enum MessageType {
@@ -602,7 +601,7 @@ export class RPCPeer {
         }
 
         if (type === MessageType.STREAM_CHUNK) {
-            if (DEBUG_BENCHMARKS) {
+            if (isDebug()) {
                 let stats = this.streamRecvStats.get(streamId);
                 if (!stats) {
                     stats = { bytes: 0, start: Date.now() };
@@ -612,7 +611,7 @@ export class RPCPeer {
             }
             ctrl.enqueue(chunk);
         } else if (type === MessageType.STREAM_END) {
-            if (DEBUG_BENCHMARKS) {
+            if (isDebug()) {
                 const stats = this.streamRecvStats.get(streamId);
                 if (stats && stats.bytes > 1024) {
                     const elapsed = (Date.now() - stats.start) / 1000;
@@ -658,7 +657,7 @@ export class RPCPeer {
                     const { done, value } = await nextRead;
                     const t1 = Date.now();
                     if (done) break;
-                    if (DEBUG_BENCHMARKS) totalBytes += value.byteLength;
+                    if (isDebug()) totalBytes += value.byteLength;
                     chunkCount++;
 
                     // Start the next read immediately — overlaps I/O with send
@@ -684,7 +683,7 @@ export class RPCPeer {
                     }
 
                     // Log pipeline timing every 5 seconds
-                    if (DEBUG_BENCHMARKS && now - lastLogTime >= 5000) {
+                    if (isDebug() && now - lastLogTime >= 5000) {
                         const dtSec = (now - lastLogTime) / 1000;
                         const throughput = ((totalBytes / 1024) / ((now - startTime) / 1000)).toFixed(1);
                         console.log(`[RPC Stream] stream=${streamId} | ${chunkCount} chunks, ${throughput} KB/s avg | readWait: ${totalReadMs}ms sendWait: ${totalSendMs}ms (last ${dtSec.toFixed(1)}s)`);
@@ -695,7 +694,7 @@ export class RPCPeer {
                 }
 
                 const elapsed = (Date.now() - startTime) / 1000;
-                if (DEBUG_BENCHMARKS && totalBytes > 1024) {
+                if (isDebug() && totalBytes > 1024) {
                     const sizeMB = (totalBytes / (1024 * 1024)).toFixed(2);
                     const speedKBs = (totalBytes / 1024 / elapsed).toFixed(1);
                     console.log(`[RPC Stream] Sent ${sizeMB} MB in ${elapsed.toFixed(1)}s (${speedKBs} KB/s) stream=${streamId} | total readWait: ${totalReadMs}ms sendWait: ${totalSendMs}ms`);

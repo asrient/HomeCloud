@@ -116,7 +116,7 @@ export function useAppState() {
         });
 
         connectionSignalRef.current = localSc.net.connectionSignal.add((event: SignalEvent, connection: ConnectionInfo) => {
-            console.log("Connection signal received:", event, connection);
+            // console.log("Connection signal received:", event, connection);
             if (event === SignalEvent.ADD) {
                 addConnection(connection);
             } else if (event === SignalEvent.REMOVE) {

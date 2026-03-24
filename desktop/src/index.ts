@@ -63,12 +63,12 @@ const cryptoModule = new CryptoImpl();
 function createOrGetSecretKey(dataDir: string) {
   const secretKeyPath = path.join(dataDir, "secret.key");
   if (!fs.existsSync(secretKeyPath)) {
-    console.log("😼 Secret key not found. Creating a new one..");
+    console.log("Secret key not found. Creating a new one..");
     const secretKey = cryptoModule.generateRandomKey();
     const encrypted = safeStorage.encryptString(secretKey);
     fs.mkdirSync(path.dirname(secretKeyPath), { recursive: true });
     fs.writeFileSync(secretKeyPath, encrypted);
-    console.log("✅ Secret key written to file:", secretKeyPath);
+    console.log("Secret key written to file:", secretKeyPath);
     return secretKey;
   }
   const text = fs.readFileSync(secretKeyPath);
@@ -80,13 +80,13 @@ async function getOrGenerateKeys(dataDir: string) {
   const privateKeyPath = path.join(dataDir, "private.pem.key");
   const publicKeyPath = path.join(dataDir, "public.pem.key");
   if (!fs.existsSync(privateKeyPath) || !fs.existsSync(publicKeyPath)) {
-    console.log("🔑 Key pair not found. Generating a new one..");
+    console.log("Key pair not found. Generating a new one..");
     const { privateKey, publicKey } = await cryptoModule.generateKeyPair();
     const privateKeyEncrypted = safeStorage.encryptString(privateKey);
     const publicKeyEncrypted = safeStorage.encryptString(publicKey);
     fs.writeFileSync(privateKeyPath, privateKeyEncrypted);
     fs.writeFileSync(publicKeyPath, publicKeyEncrypted);
-    console.log("✅ Key pair written to files:", privateKeyPath, publicKeyPath);
+    console.log("Key pair written to files:", privateKeyPath, publicKeyPath);
     return { privateKeyPem: privateKey, publicKeyPem: publicKey };
   }
   const privateKeyText = fs.readFileSync(privateKeyPath);

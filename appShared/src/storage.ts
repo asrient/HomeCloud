@@ -1,5 +1,3 @@
-const CONFIG_VERSION = 1;
-
 export default class ConfigStorage {
     protected data: any;
     private isLoaded: boolean = false;
@@ -72,25 +70,24 @@ export default class ConfigStorage {
         if (this.locked)
             return
         this.locked = true;
-        const config = { ...this.data };
-        config.version = CONFIG_VERSION;
-        await this.saveToDisk(config);
-        this.locked = false;
+        try {
+            await this.saveToDisk(this.data);
+        } finally {
+            this.locked = false;
+        }
     }
 
     public async load() {
         if (this.locked)
             return;
         this.locked = true;
-        const config = (await this.loadFromDisk()) || {};
-        this.locked = false;
-        this.isLoaded = true;
-        if (config.version !== CONFIG_VERSION) {
-            console.warn(`Config version mismatch: expected ${CONFIG_VERSION}, got ${config.version}`);
-            return this.data;
+        try {
+            const config = (await this.loadFromDisk()) || {};
+            this.isLoaded = true;
+            this.data = config;
+        } finally {
+            this.locked = false;
         }
-        this.data = config;
-        delete this.data.version;
     }
 
     protected async loadFromDisk(): Promise<any> {

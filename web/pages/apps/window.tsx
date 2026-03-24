@@ -161,6 +161,8 @@ const ScreenViewerPage: NextPageWithConfig = () => {
         // Start heartbeat + stats sampling
         statsRef.current = { bytes: 0, frames: 0, lastTime: performance.now(), lastBytes: 0, lastFrames: 0 };
         heartbeatTimer = setInterval(() => {
+          if (cancelled || !isMountedRef.current) return;
+
           // Send heartbeat with current settings
           getServiceController(fingerprintRef.current)
             .then(sc => sc.apps.streamControl(targetFpsRef.current, qualityRef.current))
@@ -302,9 +304,12 @@ const ScreenViewerPage: NextPageWithConfig = () => {
     return () => {
       cancelled = true;
       cleanup();
-      getServiceController(fingerprintRef.current)
-        .then(sc => sc.apps.stopStreamingSession())
-        .catch(() => {});
+      // Stop streaming — must be guarded since the renderer may already be tearing down
+      try {
+        getServiceController(fingerprintRef.current)
+          .then(sc => sc.apps.stopStreamingSession())
+          .catch(() => {});
+      } catch {}
     };
   }, [fingerprint]);
 

@@ -22,7 +22,7 @@ export default class Discovery extends DiscoveryBase {
             console.error('[Discovery] Zeroconf error:', err);
         });
         this.zeroconf.on('resolved', (service) => {
-            console.log('[Discovery] Found service:', service);
+            // console.log('[Discovery] Found service:', service);
             if (this.onFoundCallback) {
                 const pc = this.serviceToPeerCandidate(service);
                 if (pc) {

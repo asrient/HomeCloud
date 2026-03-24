@@ -93,7 +93,6 @@ export const useResource = ({
         }
 
         const init = async () => {
-            console.log('Initializing resource for device:', _fingerprint);
             // Use getExistingServiceController when we already have a cached
             // service controller (reconnection after disconnect) to avoid
             // if the existing sc is no longer valid it will throw here.

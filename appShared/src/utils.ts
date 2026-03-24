@@ -132,3 +132,7 @@ export function sleep(ms: number): Promise<void> {
 export function filterValidBonjourIps(addresses: string[]): string[] {
   return addresses.filter(addr => isLocalIp(addr) && !isLoopbackIp(addr));
 }
+
+export function isDebug(): boolean {
+  return modules.config.IS_DEV;
+}

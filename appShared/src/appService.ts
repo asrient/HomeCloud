@@ -175,6 +175,15 @@ export class AppService extends Service {
         await this.store.save();
     }
 
+    private hasPeerChanged(existing: PeerInfo, incoming: PeerInfo): boolean {
+        return existing.deviceName !== incoming.deviceName
+            || existing.version !== incoming.version
+            || existing.iconKey !== incoming.iconKey
+            || existing.deviceInfo?.os !== incoming.deviceInfo?.os
+            || existing.deviceInfo?.osFlavour !== incoming.deviceInfo?.osFlavour
+            || existing.deviceInfo?.formFactor !== incoming.deviceInfo?.formFactor;
+    }
+
     protected async addPeerToStore(peer: PeerInfo) {
         // skip self in production
         if (peer.fingerprint === modules.config.FINGERPRINT && !modules.config.IS_DEV) {
@@ -184,7 +193,7 @@ export class AppService extends Service {
         const peers = this.getPeers();
         const existingPeer = peers.find((p) => p.fingerprint === peer.fingerprint);
         if (existingPeer) {
-            // console.log(`[AppService] Peer ${peer.fingerprint} already exists. Updating existing peer.`);
+            if (!this.hasPeerChanged(existingPeer, peer)) return existingPeer;
             Object.assign(existingPeer, peer);
         }
         else {

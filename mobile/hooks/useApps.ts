@@ -199,7 +199,6 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
                 await new Promise(r => setTimeout(r, 0));
                 const reader = session.stream.getReader();
                 readerRef.current = reader;
-                let frameCount = 0;
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -210,11 +209,6 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
 
                     const { metadata, payload } = decodeMediaChunk(value);
                     const isKeyframe = metadata.type === 'keyframe';
-                    frameCount++;
-
-                    if (frameCount <= 5 || frameCount % 30 === 0) {
-                        console.log(`[H264Capture] frame #${frameCount}: type=${metadata.type} payload=${payload.byteLength}B`, metadata.width ? `${metadata.width}x${metadata.height}` : '');
-                    }
 
                     // Update dimensions if changed
                     if (metadata.width && metadata.height) {
@@ -242,11 +236,8 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
                     if (sessionIdRef.current) {
                         try {
                             await H264Player.feedFrame(sessionIdRef.current, payload, isKeyframe);
-                            if (frameCount <= 3) {
-                                console.log(`[H264Capture] feedFrame #${frameCount} completed`);
-                            }
                         } catch (feedErr: any) {
-                            console.error(`[H264Capture] feedFrame #${frameCount} error:`, feedErr?.message || feedErr);
+                            console.error(`[H264Capture] feedFrame error:`, feedErr?.message || feedErr);
                         }
                     }
 
