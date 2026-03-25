@@ -1,7 +1,6 @@
 import { Pressable, View, StyleSheet } from 'react-native';
 import DeviceIcon from './deviceIcon';
 import { UIText } from './ui/UIText';
-import { UIIcon } from './ui/UIIcon';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 export type DeviceTileProps = {
@@ -25,7 +24,7 @@ export function DeviceTile({ iconKey, title, subtitle, onPress, showDivider = tr
             <UIText size="sm" color="textSecondary" numberOfLines={1}>{subtitle}</UIText>
           ) : null}
         </View>
-        <UIIcon name="chevron.right" size={16} themeColor="textSecondary" />
+        {/* <UIIcon name="chevron.right" size={16} themeColor="textSecondary" /> */}
       </View>
       {showDivider && <View style={[styles.divider, { backgroundColor: dividerColor }]} />}
     </Pressable>
