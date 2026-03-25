@@ -224,10 +224,15 @@ export default function TerminalScreen() {
                 );
             }
 
+            sessionIdRef.current = null;
+            readerRef.current = null;
+
             if (isMountedRef.current) {
                 setError('Terminal session ended.');
             }
         } catch (e: any) {
+            sessionIdRef.current = null;
+            readerRef.current = null;
             if (!isMountedRef.current) return;
             console.error('Terminal error:', e);
             setError(e?.message || 'Failed to connect.');
