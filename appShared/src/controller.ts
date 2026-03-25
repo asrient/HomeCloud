@@ -8,7 +8,7 @@ import Signal from "./signals";
 import { generateServicesDoc } from "./doc";
 import { PhotosService } from "./photosService";
 import { AccountService } from "./accountService";
-import { AppsService } from "./appsService";
+import { ScreenService } from "./screenService";
 import { TerminalService } from "./terminalService";
 
 export default class ServiceController extends RPCController {
@@ -20,7 +20,7 @@ export default class ServiceController extends RPCController {
     public files: FilesService;
     public photos: PhotosService;
     public account: AccountService;
-    public apps: AppsService;
+    public screen: ScreenService;
     public terminal: TerminalService;
 
     public readyState: boolean = false;

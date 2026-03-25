@@ -66,7 +66,7 @@ export function createScreenWindow(
                 const sc = fingerprint
                     ? await modules.getRemoteServiceController(fingerprint)
                     : modules.getLocalServiceController();
-                await sc.apps.stopStreamingSession();
+                await sc.screen.stopStreamingSession();
             } catch { }
         })();
     });

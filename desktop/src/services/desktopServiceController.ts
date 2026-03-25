@@ -10,7 +10,7 @@ import { AccountService } from "shared/accountService";
 import { HttpClient_, WebSocket_ } from "../desktopCompat";
 import DesktopWebcInterface from "./webcInterface";
 import DesktopAppService from "./appService";
-import DesktopAppsService from "./apps/appsService";
+import DesktopScreenService from "./apps/screenService";
 import DesktopTerminalService from "./terminal/terminalService";
 
 const TCP_PORT = 7736;
@@ -24,7 +24,7 @@ export default class DesktopServiceController extends ServiceController {
     public override thumbnail = DesktopThumbService.getInstance<DesktopThumbService>();
     public override files = DesktopFilesService.getInstance<DesktopFilesService>();
     public override photos = DesktopPhotosService.getInstance<DesktopPhotosService>();
-    public override apps = DesktopAppsService.getInstance<DesktopAppsService>();
+    public override screen = DesktopScreenService.getInstance<DesktopScreenService>();
     public override terminal = DesktopTerminalService.getInstance<DesktopTerminalService>();
 
     async setup() {
@@ -38,7 +38,7 @@ export default class DesktopServiceController extends ServiceController {
         await this.files.init();
         await this.thumbnail.init();
         await this.photos.init();
-        await this.apps.init();
+        await this.screen.init();
         await this.terminal.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
@@ -63,7 +63,7 @@ export default class DesktopServiceController extends ServiceController {
         await this.files.start();
         await this.thumbnail.start();
         await this.photos.start();
-        await this.apps.start();
+        await this.screen.start();
         console.log("All services started.");
     }
 }

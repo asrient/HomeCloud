@@ -1,4 +1,4 @@
-import { AppsService } from "shared/appsService";
+import { ScreenService } from "shared/screenService";
 import {
     RemoteAppInfo,
     RemoteAppWindow,
@@ -31,7 +31,7 @@ interface ScreenSession {
     lastDpi?: number;
 }
 
-export default class DesktopAppsService extends AppsService {
+export default class DesktopScreenService extends ScreenService {
 
     private installedAppsCache: RemoteAppInfo[] | null = null;
 
@@ -116,12 +116,12 @@ export default class DesktopAppsService extends AppsService {
         let frameCount = 0;
         const result = driver.startH264ScreenStream((err, frame) => {
             if (err || !frame) {
-                if (err) console.error(`[AppsService] H264 screen stream callback error:`, err);
+                if (err) console.error(`[ScreenService] H264 screen stream callback error:`, err);
                 return;
             }
             const session = this.screenSession;
             if (!session || !session.controller) {
-                if (frameCount === 0) console.warn(`[AppsService] Frame arrived but no screen session/controller`);
+                if (frameCount === 0) console.warn(`[ScreenService] Frame arrived but no screen session/controller`);
                 return;
             }
 
@@ -147,15 +147,15 @@ export default class DesktopAppsService extends AppsService {
                 const chunk = encodeMediaChunk(metadata, frame.data);
                 session.controller.enqueue(chunk);
                 if (frameCount <= 3 || frameCount % 100 === 0) {
-                    console.log(`[AppsService] screen frame #${frameCount}: ${frame.isKeyframe ? 'keyframe' : 'delta'} ${frame.data.byteLength}B ${frame.width}x${frame.height}`);
+                    console.log(`[ScreenService] screen frame #${frameCount}: ${frame.isKeyframe ? 'keyframe' : 'delta'} ${frame.data.byteLength}B ${frame.width}x${frame.height}`);
                 }
             } catch (e) {
-                console.error(`[AppsService] enqueue failed after ${frameCount} frames:`, e);
+                console.error(`[ScreenService] enqueue failed after ${frameCount} frames:`, e);
                 this.stopStreamingSession().catch(() => {});
             }
         });
 
-        console.log(`[AppsService] startH264ScreenStream result:`, result ? { width: result.width, height: result.height, dpi: result.dpi } : 'null');
+        console.log(`[ScreenService] startH264ScreenStream result:`, result ? { width: result.width, height: result.height, dpi: result.dpi } : 'null');
 
         if (!result) {
             throw new Error("Failed to start H.264 screen stream");
@@ -181,7 +181,7 @@ export default class DesktopAppsService extends AppsService {
     public async stopStreamingSession(): Promise<void> {
         const session = this.screenSession;
         if (!session) return;
-        console.log(`[AppsService] stopStreamingSession (screen)`);
+        console.log(`[ScreenService] stopStreamingSession (screen)`);
         this.screenSession = null;
         try { getDriver().stopH264ScreenStream(); } catch {}
         try { session.controller?.close(); } catch {}
@@ -226,7 +226,7 @@ export default class DesktopAppsService extends AppsService {
         this.powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
         if (!this.powerBlockerTimer) {
             this.powerBlockerTimer = setInterval(() => {
-                if (Date.now() - this.lastCaptureTime > DesktopAppsService.POWER_BLOCKER_TIMEOUT) {
+                if (Date.now() - this.lastCaptureTime > DesktopScreenService.POWER_BLOCKER_TIMEOUT) {
                     this.stopPowerBlocker();
                 }
             }, 10_000);
@@ -287,7 +287,7 @@ export default class DesktopAppsService extends AppsService {
 
     @serviceStartMethod
     public async start() {
-        console.log("AppsService started.");
+        console.log("ScreenService started.");
     }
 
     @serviceStopMethod
@@ -298,6 +298,6 @@ export default class DesktopAppsService extends AppsService {
             clearInterval(this.sessionCleanupTimer);
             this.sessionCleanupTimer = null;
         }
-        console.log("AppsService stopped.");
+        console.log("ScreenService stopped.");
     }
 }

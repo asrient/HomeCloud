@@ -103,7 +103,7 @@ const ScreenViewerPage: NextPageWithConfig = () => {
     async (payload: Omit<RemoteAppWindowActionPayload, 'windowId'>) => {
       try {
         const sc = await getServiceController(fingerprintRef.current);
-        await sc.apps.performWindowAction(payload as RemoteAppWindowActionPayload);
+        await sc.screen.performWindowAction(payload as RemoteAppWindowActionPayload);
       } catch (e: any) {
         console.error('Action failed:', e);
       }
@@ -143,7 +143,7 @@ const ScreenViewerPage: NextPageWithConfig = () => {
         const sc = await getServiceController(fingerprintRef.current);
         if (cancelled) return;
 
-        const session = await sc.apps.startStreamingSession();
+        const session = await sc.screen.startStreamingSession();
         if (cancelled) return;
         console.log('[ScreenStream] session started:', { width: session.width, height: session.height, dpi: session.dpi });
 
@@ -165,7 +165,7 @@ const ScreenViewerPage: NextPageWithConfig = () => {
 
           // Send heartbeat with current settings
           getServiceController(fingerprintRef.current)
-            .then(sc => sc.apps.streamControl(targetFpsRef.current, qualityRef.current))
+            .then(sc => sc.screen.streamControl(targetFpsRef.current, qualityRef.current))
             .catch(() => {});
 
           // Compute stats over the interval
@@ -307,7 +307,7 @@ const ScreenViewerPage: NextPageWithConfig = () => {
       // Stop streaming — must be guarded since the renderer may already be tearing down
       try {
         getServiceController(fingerprintRef.current)
-          .then(sc => sc.apps.stopStreamingSession())
+          .then(sc => sc.screen.stopStreamingSession())
           .catch(() => {});
       } catch {}
     };

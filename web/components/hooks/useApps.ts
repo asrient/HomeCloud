@@ -10,7 +10,7 @@ export const useRunningApps = (
     const [runningApps, setRunningApps] = useState<RemoteAppInfo[]>([]);
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
-        const running = await serviceController.apps.getRunningApps();
+        const running = await serviceController.screen.getRunningApps();
         if (shouldAbort()) return;
         // Dedup by app id — native may return multiple processes with the same bundle ID
         const seen = new Set<string>();
@@ -30,7 +30,7 @@ export const useInstalledApps = (deviceFingerprint: string | null) => {
     const forceRef = useRef(false);
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
-        const installed = await serviceController.apps.getInstalledApps(forceRef.current);
+        const installed = await serviceController.screen.getInstalledApps(forceRef.current);
         forceRef.current = false;
         if (shouldAbort()) return;
         setInstalledApps(installed);
@@ -53,7 +53,7 @@ export const useAppsAvailable = (deviceFingerprint: string | null) => {
     const [available, setAvailable] = useState<boolean | null>(null);
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
-        const result = await serviceController.apps.isAvailable();
+        const result = await serviceController.screen.isAvailable();
         if (shouldAbort()) return;
         setAvailable(result);
     }, []);
@@ -70,7 +70,7 @@ export const useAppIcon = (appId: string, deviceFingerprint: string | null) => {
         let cancelled = false;
         setIconUri(null);
         getServiceController(deviceFingerprint).then(sc =>
-            sc.apps.getAppIcon(appId)
+            sc.screen.getAppIcon(appId)
         ).then(uri => {
             if (!cancelled) setIconUri(uri);
         }).catch(err => {

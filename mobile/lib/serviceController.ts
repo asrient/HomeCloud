@@ -1,7 +1,7 @@
 import ServiceController from "shared/controller";
 import { ConnectionInterface, NetService } from "shared/netService";
 import { AppService } from "shared/appService";
-import { AppsService } from "shared/appsService";
+import { ScreenService } from "shared/screenService";
 import TCPInterface from "./services/tcpInterface";
 import { ConnectionType } from "shared/types";
 import MobileSystemService from "./services/systemService";
@@ -23,7 +23,7 @@ export default class MobileServiceController extends ServiceController {
     public override files = MobileFilesService.getInstance<MobileFilesService>();
     public override photos = MobilePhotosService.getInstance<MobilePhotosService>();
     public override account = MobileAccountService.getInstance<MobileAccountService>();
-    public override apps = AppsService.getInstance<AppsService>();
+    public override screen = ScreenService.getInstance<ScreenService>();
     public override terminal = TerminalService.getInstance<TerminalService>();
 
     async setup() {
@@ -38,7 +38,7 @@ export default class MobileServiceController extends ServiceController {
         await this.thumbnail.init();
         await this.photos.init();
         await this.terminal.init();
-        this.apps.init();
+        this.screen.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
                 [ConnectionType.LOCAL, new TCPInterface(TCP_PORT)],

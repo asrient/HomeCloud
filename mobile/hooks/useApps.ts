@@ -14,7 +14,7 @@ export const useRunningApps = (
     const [runningApps, setRunningApps] = useState<RemoteAppInfo[]>([]);
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
-        const running = await serviceController.apps.getRunningApps();
+        const running = await serviceController.screen.getRunningApps();
         if (shouldAbort()) return;
         const seen = new Set<string>();
         setRunningApps(running.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; }));
@@ -35,7 +35,7 @@ export const useInstalledApps = (deviceFingerprint: string | null) => {
     const forceRef = useRef(false);
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
-        const installed = await serviceController.apps.getInstalledApps(forceRef.current);
+        const installed = await serviceController.screen.getInstalledApps(forceRef.current);
         forceRef.current = false;
         if (shouldAbort()) return;
         setInstalledApps(installed);
@@ -60,7 +60,7 @@ export const useAppsAvailable = (deviceFingerprint: string | null) => {
     const [available, setAvailable] = useState<boolean | null>(null);
 
     const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
-        const result = await serviceController.apps.isAvailable();
+        const result = await serviceController.screen.isAvailable();
         if (shouldAbort()) return;
         setAvailable(result);
     }, []);
@@ -93,7 +93,7 @@ export const useAppIcon = (appId: string, deviceFingerprint: string | null) => {
         let cancelled = false;
         setIconUri(null);
         getServiceController(deviceFingerprint).then(sc =>
-            sc.apps.getAppIcon(appId)
+            sc.screen.getAppIcon(appId)
         ).then(uri => {
             if (!cancelled) setIconUri(uri);
         }).catch(err => {
@@ -169,7 +169,7 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
                 if (!isMountedRef.current || captureId !== captureIdRef.current) return;
 
                 console.log('[H264Capture] calling startStreamingSession...');
-                const session = await sc.apps.startStreamingSession();
+                const session = await sc.screen.startStreamingSession();
                 if (!isMountedRef.current || captureId !== captureIdRef.current) return;
 
                 let currentWidth = session.width;
@@ -191,7 +191,7 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
                 // Start heartbeat
                 heartbeatTimerRef.current = setInterval(() => {
                     getServiceController(fingerprintRef.current)
-                        .then(sc => sc.apps.streamControl())
+                        .then(sc => sc.screen.streamControl())
                         .catch(() => {});
                 }, HEARTBEAT_INTERVAL_MS);
 
@@ -280,7 +280,7 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
         cleanup();
         // Best-effort stop session on server
         getServiceController(fingerprintRef.current)
-            .then(sc => sc.apps.stopStreamingSession())
+            .then(sc => sc.screen.stopStreamingSession())
             .catch(() => {});
     }, [cleanup]);
 
@@ -313,7 +313,7 @@ export const useScreenActions = (deviceFingerprint: string | null) => {
         async (payload: Omit<RemoteAppWindowActionPayload, 'windowId'>) => {
             try {
                 const sc = await getServiceController(fingerprintRef.current);
-                await sc.apps.performWindowAction(payload as RemoteAppWindowActionPayload);
+                await sc.screen.performWindowAction(payload as RemoteAppWindowActionPayload);
             } catch (e: any) {
                 console.error('Action failed:', e);
             }

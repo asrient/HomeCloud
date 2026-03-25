@@ -6,7 +6,7 @@ import {
     StreamingSessionInfo,
 } from './types';
 
-export class AppsService extends Service {
+export class ScreenService extends Service {
     public init() {
         this._init();
     }
