@@ -272,6 +272,7 @@ const DEFAULT_SERVER_PORT = 9669;
 
 export abstract class WebcInterface extends ConnectionInterface {
     isSecure = false;
+    priority = 2;
     private onIncomingConnectionCallback: ((dataChannel: GenericDataChannel) => void) | null = null;
     private onCandidateAvailableCallback: ((candidate: PeerCandidate) => void) | null = null;
 

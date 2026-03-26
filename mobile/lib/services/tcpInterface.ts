@@ -22,6 +22,7 @@ interface TCPConnection {
  */
 export default class TCPInterface extends ConnectionInterface {
     isSecure = false;
+    priority = 1;
     discovery: Discovery;
     private connections: Map<string, TCPConnection> = new Map();
     private port: number;

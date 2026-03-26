@@ -21,6 +21,8 @@ export abstract class ConnectionInterface {
     abstract onCandidateAvailable(callback: (candidate: PeerCandidate) => void): void;
 
     isSecure: boolean;
+    /** Lower number = higher priority. Local=1, Web=2. */
+    priority: number = 2;
 
     abstract start(): Promise<void>;
     abstract stop(): Promise<void>;
@@ -157,11 +159,22 @@ export class NetService extends Service {
 
         // Check if auto-connect is needed
         if (fingerprint && this.autoConnectFingerprints.has(fingerprint)) {
+            // Skip if already connected on a same or higher-priority interface
+            if (this.connections.has(fingerprint)) {
+                const existingConnection = this.connections.get(fingerprint);
+                const existingIface = this.connectionInterfaces.get(existingConnection.type);
+                const candidateIface = this.connectionInterfaces.get(type);
+                if (existingIface && candidateIface && existingIface.priority <= candidateIface.priority) {
+                    console.log(`[NetService] Auto-connect to ${fp(fingerprint)} on ${type} skipped because existing connection on ${existingConnection.type} has same or higher priority.`);
+                    return;
+                }
+            }
+
             // Check cooldown to avoid duplicate connection storms
             const lastAttempt = this.autoConnectCooldowns.get(fingerprint);
             const now = Date.now();
             if (lastAttempt && (now - lastAttempt) < NetService.AUTO_CONNECT_COOLDOWN_MS) {
-                console.debug(`[NetService] Auto-connect to ${fp(fingerprint)} on ${type} skipped due to cooldown.`);
+                console.log(`[NetService] Auto-connect to ${fp(fingerprint)} on ${type} skipped due to cooldown.`);
                 return;
             }
             this.autoConnectCooldowns.set(fingerprint, now);

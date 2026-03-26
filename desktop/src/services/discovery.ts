@@ -3,6 +3,7 @@ import { PeerCandidate, BonjourTxt, DeviceInfo, ConnectionType } from 'shared/ty
 import { DiscoveryBase } from 'shared/discoveryBase';
 import { useNativeDiscovery, getNativeModule, NativeServiceInfo } from './nativeDiscovery';
 import os from 'os';
+import { safeIp } from 'shared/utils';
 
 export default class Discovery extends DiscoveryBase {
     // bonjour-service for browsing + publishing on non-Windows
@@ -79,6 +80,8 @@ export default class Discovery extends DiscoveryBase {
                     iconKey: txt.icn,
                 };
 
+                console.debug('[Discovery] Service found:', service.name, service.addresses.map(a => safeIp(a)));
+
                 if (this.onFoundCallback) {
                     this.onFoundCallback(candidate);
                 }
@@ -104,6 +107,7 @@ export default class Discovery extends DiscoveryBase {
                 return;
             }
             const candidate = this.serviceToCandidate(service);
+            console.debug('[Discovery] Service found:', service.name, service.addresses.map(a => safeIp(a)));
             if (this.onFoundCallback) {
                 this.onFoundCallback(candidate);
             }

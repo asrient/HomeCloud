@@ -9,6 +9,7 @@ import { filterValidBonjourIps } from "shared/utils";
  */
 export default class TCPInterface extends ConnectionInterface {
     isSecure = false; // TCP connections are only established over local networks only so we are avoiding encryption overhead.
+    priority = 1;
     discovery: Discovery;
     private server: net.Server | null = null;
     private connections: Map<string, net.Socket> = new Map();
@@ -49,84 +50,65 @@ export default class TCPInterface extends ConnectionInterface {
         this.onIncomingConnectionCallback = callback;
     }
 
-    async _isHostReachable(host: string, port: number): Promise<boolean> {
-        return new Promise((resolve) => {
-            const socket = net.createConnection({ host, port }, () => {
-                socket.end();
-                resolve(true);
-            }
-            ).on('error', () => {
-                resolve(false);
-            });
-            socket.setTimeout(3000); // Set a timeout for the connection attempt
-            socket.on('timeout', () => {
-                socket.destroy();
-                resolve(false);
-            });
-        }
-        );
-    }
-
-    async _findReachableHost(hosts: string[], port: number): Promise<string> {
-        // Run simultaneous checks for each host and return the first reachable one
-        return new Promise((resolve, reject) => {
-            let isResolved = false;
-            if (hosts.length === 0) {
-                reject(new Error("No hosts provided for reachability check"));
-                return;
-            }
-            const promises = hosts.map(async (host) => {
-                const isReachable = await this._isHostReachable(host, port);
-                if (isReachable && !isResolved) {
-                    isResolved = true;
-                    resolve(host);
-                }
-            });
-
-            Promise.all(promises).then(() => {
-                if (!isResolved) {
-                    reject(new Error("No reachable hosts found"));
-                }
-            }).catch(reject);
-        });
-    }
-
     /**
      * Connects to a peer candidate and returns a data channel.
+     * Races all candidate hosts in parallel and returns the first successful socket,
+     * destroying any remaining sockets once a winner is found.
      * @param {PeerCandidate} candidate - The peer candidate to connect to.
      * @returns {Promise<GenericDataChannel>} A promise that resolves to a data channel.
      */
     async connect(candidate: PeerCandidate): Promise<GenericDataChannel> {
-        const socket = new net.Socket();
         const hosts = candidate.data?.hosts || [];
         const port = candidate.data?.port || this.port;
-        const host = await this._findReachableHost(hosts, port);
+
+        if (hosts.length === 0) {
+            throw new Error("No hosts provided");
+        }
 
         return new Promise((resolve, reject) => {
-            let isResolved = false;
-            socket.connect(port, host, () => {
-                socket.setKeepAlive(true);
-                const connectionId = `${host}:${port}`;
-                this.connections.set(connectionId, socket);
+            let resolved = false;
+            let failCount = 0;
+            const sockets: net.Socket[] = [];
+            const failed = new Set<net.Socket>();
 
-                const dataChannel = this.createDataChannel(socket, connectionId);
-                resolve(dataChannel);
-                isResolved = true;
-            });
-
-            socket.on('error', (error) => {
-                if (isResolved) return; // Avoid resolving/rejecting multiple times
-                console.error('[TCPInterface] TCP connection error:', error);
-                reject(error);
-            });
-
-            socket.on('timeout', () => {
+            const onFail = (socket: net.Socket) => {
+                if (resolved || failed.has(socket)) return;
+                failed.add(socket);
                 socket.destroy();
-                reject(new Error('Connection timeout'));
-            });
+                failCount++;
+                if (failCount >= hosts.length) {
+                    reject(new Error("No reachable hosts found"));
+                }
+            };
 
-            // Set connection timeout
-            socket.setTimeout(10000);
+            for (const host of hosts) {
+                const socket = new net.Socket();
+                sockets.push(socket);
+                socket.setTimeout(3000);
+
+                socket.connect(port, host, () => {
+                    if (resolved) {
+                        socket.destroy();
+                        return;
+                    }
+                    resolved = true;
+                    socket.setTimeout(0);
+                    socket.setKeepAlive(true);
+                    const connectionId = `${host}:${port}`;
+                    this.connections.set(connectionId, socket);
+
+                    // Destroy all other in-flight sockets
+                    for (const s of sockets) {
+                        if (s !== socket) s.destroy();
+                    }
+
+                    const dataChannel = this.createDataChannel(socket, connectionId);
+                    resolve(dataChannel);
+                });
+
+                socket.on('error', () => onFail(socket));
+                socket.on('timeout', () => onFail(socket));
+            }
         });
     }
 

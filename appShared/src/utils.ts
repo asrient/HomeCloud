@@ -54,7 +54,7 @@ export function getIconKey(deviceInfo: DeviceInfo) {
 }
 
 export function fp(fingerprint: string) {
-  if (!fingerprint) return 'this-device';
+  if (!fingerprint) return 'unknown';
   return fingerprint.slice(0, 5);
 }
 
