@@ -146,7 +146,7 @@ export default class TCPInterface extends ConnectionInterface {
                     // check cache from discovery
                     const cachedCandidate = this.discovery.getCandidateFromCache(fingerprint);
                     if (cachedCandidate) {
-                        console.log('[TCPInterface] Resolving candidate from cache for fingerprint:', fingerprint, cachedCandidate);
+                        console.log('[TCPInterface] Resolving candidate from cache for fingerprint:', fingerprint);
                         return resolve([cachedCandidate]);
                     }
                 }
