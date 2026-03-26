@@ -114,7 +114,7 @@ export class NetService extends Service {
                 });
             });
             connectionInterface.onCandidateAvailable((candidate) => {
-                this.handleCandidateAvailable(type, candidate);
+                setTimeout(() => this.handleCandidateAvailable(type, candidate), 0);
             });
         });
     }
