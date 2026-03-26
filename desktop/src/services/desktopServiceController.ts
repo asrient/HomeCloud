@@ -28,7 +28,7 @@ export default class DesktopServiceController extends ServiceController {
     public override terminal = DesktopTerminalService.getInstance<DesktopTerminalService>();
 
     async setup() {
-        console.log("Setting up services...");
+        console.log("[ServiceController] Setting up services...");
         await this.account.init({
             httpClient: new HttpClient_(),
             webSocket: new WebSocket_()
@@ -46,16 +46,16 @@ export default class DesktopServiceController extends ServiceController {
                 [ConnectionType.WEB, new DesktopWebcInterface()]
             ]
         ));
-        console.log("All services initialized.");
+        console.log("[ServiceController] All services initialized.");
         await this.startAll();
         this.readyState = true;
         this.readyStateSignal.dispatch(this.readyState);
-        console.log("ServiceController is ready.");
+        console.log("[ServiceController] Ready.");
     }
 
     private async startAll() {
         // Start services.
-        console.log("Starting services...");
+        console.log("[ServiceController] Starting services...");
         await this.account.start();
         await this.app.start();
         await this.system.start();
@@ -64,6 +64,6 @@ export default class DesktopServiceController extends ServiceController {
         await this.thumbnail.start();
         await this.photos.start();
         await this.screen.start();
-        console.log("All services started.");
+        console.log("[ServiceController] All services started.");
     }
 }

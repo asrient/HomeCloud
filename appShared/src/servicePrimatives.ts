@@ -28,16 +28,16 @@ export function serviceStartMethod(target: any, methodName: string, descriptor: 
     const originalMethod = descriptor.value;
     descriptor.value = async function (this: any, ...args: any[]) {
         if (this.isRunning) {
-            console.log("Service is already running.");
+            console.debug(`${this.constructor.name} is already running.`);
             return;
         }
         this.isRunning = true;
-        console.log("Starting service...");
+        console.log(`Starting ${this.constructor.name}...`);
         try {
             await originalMethod.call(this, ...args);
-            console.log("Service started.");
+            console.log(`${this.constructor.name} started.`);
         } catch (error) {
-            console.error("Error during service startup:", error);
+            console.error(`Error starting ${this.constructor.name}:`, error);
             this.isRunning = false;
             throw error; // Rethrow the error if needed
         }
@@ -49,13 +49,13 @@ export function serviceStopMethod(target: any, methodName: string, descriptor: P
     const originalMethod = descriptor.value;
     descriptor.value = async function (this: any, ...args: any[]) {
         if (!this.isRunning) {
-            console.log("Service is not running.");
+            console.debug(`${this.constructor.name} is not running.`);
             return;
         }
-        console.log("Stopping service...");
+        console.log(`Stopping ${this.constructor.name}...`);
         await originalMethod.call(this, ...args);
         this.isRunning = false;
-        console.log("Service stopped.");
+        console.log(`${this.constructor.name} stopped.`);
     }
     return descriptor;
 }

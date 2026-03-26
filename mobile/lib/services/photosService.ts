@@ -69,7 +69,7 @@ export abstract class MobilePhotosService extends PhotosService {
             try {
                 return await this.assetToPhoto(asset);
             } catch (error) {
-                console.error("Failed to convert asset to photo:", error);
+                console.error("[PhotosService] Failed to convert asset to photo:", error);
             }
         });
         const results = await Promise.allSettled(promises);
@@ -112,7 +112,7 @@ export abstract class MobilePhotosService extends PhotosService {
 
     @exposed
     public async deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> {
-        console.log(`Deleting photos from library ${libraryId}:`, ids);
+        console.debug(`[PhotosService] Deleting ${ids?.length || 0} photos from library:`, libraryId, 'with IDs:', ids);
         const success = await MediaLibrary.deleteAssetsAsync(ids);
         if (!success) {
             throw new Error("Failed to delete photos");
@@ -124,7 +124,7 @@ export abstract class MobilePhotosService extends PhotosService {
     }
 
     private mapSortBy(sortBy: string): MediaLibrary.SortByKey {
-        console.log("Mapping sortBy:", sortBy);
+        console.debug("[PhotosService] Mapping sortBy:", sortBy);
         switch (sortBy) {
             case 'capturedOn':
                 return 'creationTime';
@@ -142,7 +142,7 @@ export abstract class MobilePhotosService extends PhotosService {
         if (!hasPermissions) {
             throw new Error("No permissions to access photo library");
         }
-        console.log('parameters for getPhotos:', params);
+        console.debug('[PhotosService] Fetching photos from library:', libraryId, 'with params:', params);
         const fetchedPhotos = await MediaLibrary.getAssetsAsync({
             album: albumId,
             first: params.limit || 100,

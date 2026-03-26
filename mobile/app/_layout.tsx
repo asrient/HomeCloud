@@ -57,7 +57,7 @@ export default function RootLayout() {
         await setupPermissions();
         setAppReady(true);
       } catch (error) {
-        console.error('Failed to initialize modules:', error);
+        console.error('[App] Failed to initialize modules:', error);
       }
     }
 

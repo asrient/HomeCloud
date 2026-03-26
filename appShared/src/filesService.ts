@@ -56,7 +56,7 @@ export abstract class FilesService extends Service {
                 try {
                     await this.fs.unlink(localFilePath);
                 } catch (e) {
-                    console.error("Failed to delete source directory:", e);
+                    console.error(`[FilesService] Failed to delete source directory:`, e);
                 }
             }
             return [remoteDir];
@@ -71,7 +71,7 @@ export abstract class FilesService extends Service {
                 try {
                     await this.fs.unlink(localFilePath);
                 } catch (e) {
-                    console.error("Failed to delete source file:", e);
+                    console.error(`[FilesService] Failed to delete source file:`, e);
                 }
             }
             return [remoteItem];
@@ -99,7 +99,7 @@ export abstract class FilesService extends Service {
             if (result.status === "fulfilled") {
                 items.push(...result.value);
             } else {
-                console.error("Failed to move file:", result.reason);
+                console.error(`[FilesService] Failed to move file:`, result.reason);
                 errors.push(result.reason?.message || String(result.reason));
             }
         });
@@ -156,17 +156,17 @@ export abstract class FilesService extends Service {
         await this.clearShareCache();
         // todo: there is a potential issue of name collisions here.
         const createdItems = await serviceController.files.move(fingerprint === null ? null : modules.config.FINGERPRINT, this.getShareCacheDir(), paths, false);
-        console.log("Created share cache items:", createdItems);
+        console.log(`[FilesService] Share cache prepared: ${createdItems.length} item(s).`);
         const sharePaths = createdItems.map(item => item.path);
         this.shareLocalFiles(sharePaths);
         // start cleanup timer
         this.shareCacheCleanupTimer = setTimeout(() => {
             this.clearShareCache()
                 .then(() => {
-                    console.log("Share cache cleared.");
+                    console.log(`[FilesService] Share cache cleared.`);
                 })
                 .catch((e) => {
-                    console.error("Failed to clear share cache:", e);
+                    console.error(`[FilesService] Failed to clear share cache:`, e);
                 });
         }, 10 * 60 * 1000); // 10 minutes
     }

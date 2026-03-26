@@ -16,7 +16,7 @@ export default class MobileAccountService extends AccountService {
 
     public override async connectWebSocket() {
         if (!this.appStateActive) {
-            console.log("App is in background; skipping WebSocket connection.");
+            console.log("[AccountService] App is in background; skipping WebSocket connection.");
             return;
         }
         return super.connectWebSocket();
@@ -28,6 +28,7 @@ export default class MobileAccountService extends AccountService {
             this.stopWebSocket();
         } else if (state === "active") {
             this.appStateActive = true;
+            console.log("[AccountService] App is active; reconnecting WebSocket.");
             this.connectWebSocket();
         }
     };

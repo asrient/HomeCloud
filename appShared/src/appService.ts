@@ -44,7 +44,7 @@ export class AppService extends Service {
         });
 
         localSc.account.peerRemovedSignal.add(async (peer: PeerInfo) => {
-            console.log("[AppService] Account peer removed - removing from peer list...", peer.fingerprint);
+            console.debug("[AppService] Peer removed from peer list.");
             await this.removePeerFromStore(peer.fingerprint);
         });
 
@@ -78,7 +78,7 @@ export class AppService extends Service {
         const peers = this.getPeers();
         peers.forEach((peer) => {
             if (this.shouldAutoConnectPeer(peer)) {
-                console.log("[AppService] Adding peer to auto-connect list:", peer.fingerprint);
+                console.debug("[AppService] Adding peer to auto-connect list.");
                 localSc.net.addAutoConnectFingerprint(peer.fingerprint);
             }
         });
@@ -86,7 +86,7 @@ export class AppService extends Service {
 
     public async resyncPeerListIfNeeded() {
         const now = Date.now();
-        if (now - this.lastPeerListSync > 60 * 1000) { // 1 min
+        if (now - this.lastPeerListSync > 2 * 60 * 1000) { // 2 min
             return this.resyncPeerList();
         }
     }
@@ -121,7 +121,7 @@ export class AppService extends Service {
         for (const [fingerprint,] of localPeerMap) {
             await this.removePeerFromStore(fingerprint);
         }
-        console.log("Peer list resynced.");
+        console.log("[AppService] Peer list resynced.");
     }
 
     public isPairingAllowed(): boolean {
@@ -187,7 +187,7 @@ export class AppService extends Service {
     protected async addPeerToStore(peer: PeerInfo) {
         // skip self in production
         if (peer.fingerprint === modules.config.FINGERPRINT && !modules.config.IS_DEV) {
-            console.log("[AppService] Skipping self peer during resync.", peer);
+            console.debug("[AppService] Skipping self peer during resync.");
             return null;
         }
         const peers = this.getPeers();
@@ -216,14 +216,14 @@ export class AppService extends Service {
     public async pushPeerInfoUpdate() {
         const localSc = modules.getLocalServiceController();
         if (!localSc.account.isLinked()) {
-            console.log("Account not linked. Skipping peer info update.");
+            console.log("[AppService] Account not linked. Skipping peer info update.");
             return;
         }
         try {
             await localSc.account.updatePeerInfo(await this.peerInfo());
             this.isPeerInfoPushed = true;
         } catch (err) {
-            console.error("Failed to update peer info:", err);
+            console.error("[AppService] Failed to update peer info:", err);
         }
     }
 
@@ -270,7 +270,7 @@ export class AppService extends Service {
     @withContext
     public async receiveContent(ctx: MethodContext | null, content: string, type?: 'text' | 'link' | 'html' | 'rtf'): Promise<void> {
         type = type || 'text';
-        console.log(`[AppService] receiveContent called from ${ctx ? ctx.fingerprint : "Unknown"}: type=${type}, content=${content}`);
+        console.debug(`[AppService] receiveContent: type=${type}, length=${content.length}`);
         const deviceName = ctx && ctx.peerInfo ? ctx.peerInfo.deviceName : "Unknown Device";
         const croppedContent = content.length > 100 ? content.substring(0, 30) + "..." : content;
         const localSc = modules.getLocalServiceController();
@@ -282,7 +282,7 @@ export class AppService extends Service {
                 isDefault: true,
                 onPress: () => {
                     localSc.system.openUrl(content).catch((err) => {
-                        console.error("Failed to open URL:", err);
+                        console.error("[AppService] Failed to open URL:", err);
                     });
                 },
             });

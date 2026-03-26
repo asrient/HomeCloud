@@ -21,7 +21,7 @@ export default class Discovery extends DiscoveryBase {
             // Initialize bonjour-service for non-Windows platforms
             this.bonjour = new Bonjour(undefined, (err: any) => {
                 if (err) {
-                    console.error('Error starting bonjour browser:', err);
+                    console.error('[Discovery] Error starting bonjour browser:', err);
                 }
             });
         }
@@ -205,7 +205,7 @@ export default class Discovery extends DiscoveryBase {
             const instanceName = `${serviceInfo.name}._${serviceInfo.type}._${serviceInfo.protocol}.local`;
             const hostname = `${os.hostname()}.local`;
             native.registerService(instanceName, hostname, this.port, serviceInfo.txt as Record<string, string>);
-            console.log('mDNS service published via native DNS-SD API');
+            console.log('[Discovery] mDNS service published via native DNS-SD API.');
         } else {
             // Use bonjour-service for publishing on non-Windows platforms
             this.bonjour!.publish({
@@ -214,7 +214,7 @@ export default class Discovery extends DiscoveryBase {
                 port: this.port,
                 txt: serviceInfo.txt,
             });
-            console.log('mDNS service published via bonjour-service');
+            console.log('[Discovery] mDNS service published via bonjour-service.');
         }
     }
 
@@ -279,7 +279,7 @@ export class AgentUpdateService {
 
     private serviceDiscovered(service: Service) {
         if(!Discovery.isServiceVaild(service)) return;
-        console.log('New service discovered:', service);
+        console.debug('[Discovery] New service discovered.');
     }
 
     start() {

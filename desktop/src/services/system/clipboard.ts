@@ -14,7 +14,7 @@ function writeFilePathsWindows(filePaths: string[]): void {
 
     const success = win32Clipboard.setClipboardFilePaths(normalizedPaths);
     if (!success) {
-        console.error('Failed to write file paths to clipboard via native API');
+        console.error('[Clipboard] Failed to write file paths via native API.');
     }
 }
 
@@ -89,7 +89,7 @@ function parseCustomClipboardContent(): ClipboardFile[] | null {
             return parsed as ClipboardFile[];
         }
     } catch (e) {
-        console.error('Failed to parse custom clipboard content:', e);
+        console.error('[Clipboard] Failed to parse custom clipboard content:', e);
     }
     return null;
 }
@@ -120,7 +120,7 @@ function readFilePathsMacOS(): string[] | null {
                 }
             }
         } catch (e) {
-            console.error('Failed to parse NSFilenamesPboardType:', e);
+            console.error('[Clipboard] Failed to parse NSFilenamesPboardType:', e);
         }
     }
 

@@ -18,7 +18,7 @@ async function getMediaInfo() {
         miCleanupTimer = null;
     }
     if (!miInstance) {
-        console.log("MediaInfo: creating WASM instance");
+        console.debug("[MediaInfo] Creating WASM instance.");
         miInstance = await mediaInfoFactory({ format: "object" });
     }
     miActiveCount++;
@@ -30,7 +30,7 @@ function releaseMediaInfo() {
     if (miActiveCount === 0 && !miCleanupTimer) {
         miCleanupTimer = setTimeout(() => {
             if (miActiveCount === 0 && miInstance) {
-                console.log("MediaInfo: closing WASM instance after idle timeout");
+                console.debug("[MediaInfo] Closing WASM instance after idle timeout.");
                 miInstance.close();
                 miInstance = null;
             }
@@ -168,7 +168,7 @@ export async function metaFromVideoStream(filePath: string): Promise<AssetDetail
         };
         return detail;
     } catch (err) {
-        console.error("Error getting video metadata", err);
+        console.error("[MediaInfo] Error getting video metadata:", err);
         throw err;
     } finally {
         await fd.close();

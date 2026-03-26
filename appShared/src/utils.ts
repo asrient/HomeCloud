@@ -53,7 +53,8 @@ export function getIconKey(deviceInfo: DeviceInfo) {
   }
 }
 
-export function deviceIdFromFingerprint(fingerprint: string) {
+export function fp(fingerprint: string) {
+  if (!fingerprint) return 'this-device';
   return fingerprint.slice(0, 5);
 }
 
@@ -135,4 +136,24 @@ export function filterValidBonjourIps(addresses: string[]): string[] {
 
 export function isDebug(): boolean {
   return modules.config.IS_DEV;
+}
+
+/**
+ * Safe IP for logging. Local/private IPs pass through as-is (useful for
+ * subnet debugging). Public IPs are replaced with a short hash so they
+ * are still correlatable across log lines but not personally identifiable.
+ * IPv6 link-local (fe80::) passes through; all other IPv6 is hashed.
+ */
+export function safeIp(address: string): string {
+  if (!address) return 'unknown';
+  // IPv4
+  if (isIpV4(address)) {
+    return isLocalIp(address) ? address : `pubIPv4[${modules.crypto.hashString(address, 'sha256').slice(0, 8)}]`;
+  }
+  // IPv6 link-local
+  if (address.startsWith('fe80:') || address.startsWith('::1')) {
+    return address;
+  }
+  // All other IPv6 (global) — hash it
+  return `pubIPv6[${modules.crypto.hashString(address, 'sha256').slice(0, 8)}]`;
 }

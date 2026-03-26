@@ -185,7 +185,7 @@ export class MacOSPlaybackWatcher {
     private async sendCommand(action: 'play' | 'pause' | 'next' | 'previous'): Promise<void> {
         // If we don't know the active player, fetch first
         if (!this.activeSource) {
-            console.debug('Active player source unknown, fetching before sending command');
+            console.debug('[MediaControl] Active player source unknown, fetching before sending command');
             const result = parseFetchResult(await runAppleScript(FETCH_SCRIPT));
             this.activeSource = result?.source ?? null;
         }

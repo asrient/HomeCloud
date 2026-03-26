@@ -27,7 +27,7 @@ export default class MobileServiceController extends ServiceController {
     public override terminal = TerminalService.getInstance<TerminalService>();
 
     async setup() {
-        console.log("Setting up services...");
+        console.log("[ServiceController] Setting up services...");
         await this.account.init({
             httpClient: new HttpClient_(),
             webSocket: new WebSocket_()
@@ -65,7 +65,7 @@ export default class MobileServiceController extends ServiceController {
 
     private async startAll() {
         // Start services.
-        console.log("Starting services...");
+        console.log("[ServiceController] Starting services...");
         await this.account.start();
         await this.app.start();
         await this.system.start();
@@ -79,6 +79,6 @@ export default class MobileServiceController extends ServiceController {
         await this.files.start();
         await this.thumbnail.start();
         await this.photos.start();
-        console.log("All services started.");
+        console.log("[ServiceController] All services started.");
     }
 }

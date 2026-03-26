@@ -17,10 +17,10 @@ async function createOrGetSecretKey(dataDir: string) {
     const secretKeyPath = Paths.join(dataDir, "secret.key");
     const file = new File(secretKeyPath);
     if (!file.exists) {
-        console.log("Secret key not found. Creating a new one..");
+        console.log("[App] Secret key not found. Creating a new one.");
         const secretKey = cryptoModule.generateRandomKey();
         file.write(secretKey);
-        console.log("Secret key written to file:", secretKeyPath);
+        console.log("[App] Secret key created.");
         return secretKey;
     }
     return file.text();
@@ -32,11 +32,11 @@ async function getOrGenerateKeys(dataDir: string) {
     const privateKeyFile = new File(privateKeyPath);
     const publicKeyFile = new File(publicKeyPath);
     if (!privateKeyFile.exists || !publicKeyFile.exists) {
-        console.log("Key pair not found. Generating a new one..");
+        console.log("[App] Key pair not found. Generating a new one.");
         const { privateKey, publicKey } = await cryptoModule.generateKeyPair();
         privateKeyFile.write(privateKey);
         publicKeyFile.write(publicKey);
-        console.log("Key pair written to files:", privateKeyPath, publicKeyPath);
+        console.log("[App] Key pair generated.");
         return { privateKeyPem: privateKey, publicKeyPem: publicKey };
     }
     const privateKeyText = await privateKeyFile.text();
@@ -95,7 +95,7 @@ async function getConfig() {
 
 export async function initModules() {
     if ((global as any).modules) {
-        console.log("Modules already initialized. skipping...");
+        console.log("[App] Modules already initialized, skipping.");
         return;
     }
 
@@ -114,5 +114,5 @@ export async function initModules() {
     setModules(modules, global);
     const serviceController = MobileServiceController.getLocalInstance<MobileServiceController>();
     await serviceController.setup();
-    console.log("All Modules Initialized.");
+    console.log("[App] All modules initialized.");
 }

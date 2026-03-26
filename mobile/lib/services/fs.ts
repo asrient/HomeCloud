@@ -69,7 +69,7 @@ export default class MobileFsDriver extends FsDriver {
           modificationTime = new Date(stat.modificationTime * 1000);
         }
       } catch (error) {
-        console.error('Error getting file info:', error);
+        console.error('[FilesService] Error getting file info:', error);
       }
     }
 
@@ -127,7 +127,7 @@ export default class MobileFsDriver extends FsDriver {
       if (result.status === "fulfilled") {
         items.push(result.value);
       } else {
-        console.error(`Error reading file: ${dirPath}`, result.reason);
+        console.error(`[FilesService] Error reading directory.`, result.reason);
       }
     });
     return items;
@@ -202,7 +202,7 @@ export default class MobileFsDriver extends FsDriver {
     const response = await fetch(uri);
     if (!response.ok) throw new Error("Failed to fetch file");
     if (!response.body) {
-      console.log('fetch details:', response);
+      console.debug('[FilesService] Fetch details have no body stream. URI:', uri, 'Status:', response.status);
       throw new Error("No data in file response");
     }
 

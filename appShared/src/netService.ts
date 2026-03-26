@@ -2,7 +2,7 @@ import { Service, serviceStartMethod, serviceStopMethod, RPCController, getMetho
 import { GenericDataChannel, PeerCandidate, ConnectionType, MethodContext, ConnectionInfo, SignalEvent, CON_IFACE_PREF_KEY } from "./types";
 import { RPCPeer } from "./rpc";
 import Signal, { SignalNodeRef } from "./signals";
-import { filterValidBonjourIps, sleep } from "./utils";
+import { filterValidBonjourIps, sleep, fp } from "./utils";
 
 let rpcCounter = 0;
 
@@ -161,7 +161,7 @@ export class NetService extends Service {
             const lastAttempt = this.autoConnectCooldowns.get(fingerprint);
             const now = Date.now();
             if (lastAttempt && (now - lastAttempt) < NetService.AUTO_CONNECT_COOLDOWN_MS) {
-                console.log(`[NetService] Auto-connect to ${fingerprint} on ${type} skipped due to cooldown.`);
+                console.debug(`[NetService] Auto-connect to ${fp(fingerprint)} on ${type} skipped due to cooldown.`);
                 return;
             }
             this.autoConnectCooldowns.set(fingerprint, now);
@@ -176,27 +176,27 @@ export class NetService extends Service {
                     });
                 });
                 if (result instanceof RPCController) {
-                    console.log(`[NetService] Connection to ${fingerprint} already established while waiting for existing connection, skipping auto-connect.`);
+                    console.debug(`[NetService] Connection to ${fp(fingerprint)} already established, skipping auto-connect.`);
                     return;
                 }
             }
             // Acquire the lock
             const newSignal = this.setupConnectionLock(fingerprint);
             try {
-                console.log(`[NetService] Auto-connecting to candidate ${fingerprint} on ${type}`);
+                console.log(`[NetService] Auto-connecting to candidate ${fp(fingerprint)} on ${type}`);
                 const connectionInterface = this.connectionInterfaces.get(type);
                 if (connectionInterface && connectionInterface.isActive()) {
                     const dataChannel = await connectionInterface.connect(candidate);
                     // Check lock still exists
                     if (!this.connectionLock.has(fingerprint)) {
-                        console.log(`[NetService] Connection lock released for ${fingerprint} while auto-connecting on ${type}, aborting.`);
+                        console.debug(`[NetService] Connection lock released for ${fp(fingerprint)} while auto-connecting on ${type}, aborting.`);
                         dataChannel.disconnect();
                         return;
                     }
                     await this.setupConnection(type, fingerprint, dataChannel);
                 }
             } catch (error) {
-                console.error(`[NetService] Error auto-connecting to candidate ${fingerprint} on ${type}:`, error);
+                console.error(`[NetService] Error auto-connecting to candidate ${fp(fingerprint)} on ${type}:`, error);
                 if (this.connectionLock.has(fingerprint) && this.connectionLock.get(fingerprint) === newSignal) {
                     newSignal.dispatch(error);
                     this.connectionLock.delete(fingerprint);
@@ -322,7 +322,7 @@ export class NetService extends Service {
             }
         }
         if (candidates.length === 0) {
-            const err = new Error(`No candidates found for fingerprint ${fingerprint}`);
+            const err = new Error('ERR_NO_CANDIDATES');
             if (this.connectionLock.has(fingerprint) && this.connectionLock.get(fingerprint) === signal) {
                 signal.dispatch(err);
                 this.connectionLock.delete(fingerprint);
@@ -340,29 +340,29 @@ export class NetService extends Service {
                 const connectionInterface = this.getConnectionInterface(candidate.connectionType);
                 if (connectionInterface && connectionInterface.isActive()) {
                     try {
-                        console.log(`Connecting to ${fingerprint} on ${candidate.connectionType}`);
+                        console.log(`[NetService] Connecting to ${fp(fingerprint)} on ${candidate.connectionType}`);
                         const dataChannel = await connectionInterface.connect(candidate);
                         this.removeAvailableCandidate(fingerprint, candidate);
                         const sc = await this.setupConnection(candidate.connectionType, fingerprint, dataChannel);
                         return sc as T;
                     }
                     catch (error) {
-                        console.error(`Error connecting to ${fingerprint} on ${candidate.connectionType}:`, error);
+                        console.error(`[NetService] Error connecting to ${fp(fingerprint)} on ${candidate.connectionType}:`, error);
                     }
                 }
             }
         }
         // No connection could be established, trigger brokered local connect as last resort
         try {
-            console.log(`[NetService] Trying brokered local connect for ${fingerprint}`);
+            console.log(`[NetService] Trying brokered local connect for ${fp(fingerprint)}`);
             await this.requestConnectLocal(fingerprint);
             // Sleep for a short while to allow incoming connection to arrive and resolve the lock
             await sleep(6000);
         } catch (error) {
-            console.error(`[NetService] Error requesting brokered local connect for ${fingerprint}:`, error);
+            console.error(`[NetService] Error requesting brokered local connect for ${fp(fingerprint)}:`, error);
         }
         if (this.connectionLock.has(fingerprint) && this.connectionLock.get(fingerprint) === signal) {
-            signal.dispatch(new Error(`No connection interface found for fingerprint ${fingerprint}`));
+            signal.dispatch(new Error('ERR_CONNECTION_FAILED'));
             this.connectionLock.delete(fingerprint);
         }
         return null;
@@ -410,7 +410,7 @@ export class NetService extends Service {
 
     private setupConnection(type: ConnectionType, fingerprint_: string | null, dataChannel: GenericDataChannel): Promise<RPCController> {
         const connInterface = this.connectionInterfaces.get(type);
-        console.log(`[NetService] Setting up connection for ${fingerprint_ || 'incoming connection'} on ${type}`);
+        console.log(`[NetService] Setting up connection for ${fp(fingerprint_ || 'incoming connection')} on ${type}`);
         // Create a connection lock if fingerprint is known
         if (fingerprint_) {
             this.setupConnectionLock(fingerprint_);
@@ -422,6 +422,7 @@ export class NetService extends Service {
                 isSecure: connInterface?.isSecure || false,
                 pingIntervalMs: 5000,
                 fingerprint: fingerprint_,
+                id: rpcId,
                 dataChannel,
                 handlers: {
                     signalEvent: (fqn, args) => {
@@ -468,7 +469,7 @@ export class NetService extends Service {
                     methodCall: async (fqn: string, args: any[]) => {
                         const fingerprint = rpc.getTargetFingerprint();
                         if (!fingerprint) {
-                            throw new Error(`[NetService] Fingerprint not resolved for method call ${fqn} on ${type}`);
+                            throw new Error(`ERR_FINGERPRINT_NOT_RESOLVED`);
                         }
                         const serviceController = modules.ServiceController.getLocalInstance();
                         const { obj, funcName } = serviceController.getCallable(fqn);
@@ -476,7 +477,7 @@ export class NetService extends Service {
                         const methodInfo = getMethodInfo(obj[funcName]);
                         const [canAccess, err] = serviceController.app.checkAccess(fingerprint, fqn, methodInfo);
                         if (!canAccess) {
-                            throw (err || new Error(`Access denied for ${fingerprint} on ${fqn}`));
+                            throw (err || new Error(`ERR_ACCESS_DENIED`));
                         }
                         if (methodInfo.passContext) {
                             const peerInfo = serviceController.app.getPeer(fingerprint);
@@ -498,11 +499,11 @@ export class NetService extends Service {
 
                 onClose: (rpc) => {
                     const fingerprint = rpc.getTargetFingerprint();
-                    console.log(`Connection closed for ${fingerprint} on ${type}`, isResolved ? '(already resolved)' : '');
+                    console.log(`[NetService] Connection closed for ${fp(fingerprint)} on ${type}`, isResolved ? '(already resolved)' : '');
                     const connection = this.getConnectionRecord(fingerprint, rpcId);
                     const isprimaryLine = this.connections.get(fingerprint)?.rpcId === rpcId;
                     if (!!connection) {
-                        console.log(`[NetService] Cleaning up connection for ${fingerprint} on ${type}, ID=`, connection.rpcId);
+                        console.log(`[NetService] Cleaning up connection for ${fp(fingerprint)} on ${type}, ID=`, connection.rpcId);
                         // Clean up
                         const proxy = this.serviceControllerProxyFactory.get(fingerprint);
                         if (proxy && isprimaryLine) {
@@ -525,11 +526,11 @@ export class NetService extends Service {
                         if (fingerprint) {
                             const lockSignal = this.connectionLock.get(fingerprint);
                             if (lockSignal) {
-                                lockSignal.dispatch(new Error(`Connection closed for ${fingerprint} on ${type}`));
+                                lockSignal.dispatch(new Error('ERR_CONNECTION_CLOSED'));
                                 this.connectionLock.delete(fingerprint);
                             }
                         }
-                        reject(new Error(`Connection closed for ${fingerprint} on ${type}`));
+                        reject(new Error('ERR_CONNECTION_CLOSED'));
                         isResolved = true;
                     }
 
@@ -556,14 +557,14 @@ export class NetService extends Service {
                     // If there is a primary connection, move it to standby and promote the new one
                     const existingConnection = this.connections.get(fingerprint);
                     if (existingConnection) {
-                        console.log(`[NetService] Existing primary connection found for ${fingerprint}, moving it to standby and promoting new connection as primary, ID=`, rpcId);
+                        console.log(`[NetService] Existing primary connection found for ${fp(fingerprint)}, moving it to standby and promoting new connection as primary, ID=`, rpcId);
                         if (!this.standbyConnections.has(fingerprint)) {
                             this.standbyConnections.set(fingerprint, []);
                         }
                         this.standbyConnections.get(fingerprint)!.push(existingConnection);
                         existingConnection.rpc.setStandby(true);
                     } else {
-                        console.log(`[NetService] No existing connection for ${fingerprint}, setting new connection as primary, ID=`, rpcId);
+                        console.log(`[NetService] No existing connection for ${fp(fingerprint)}, setting new connection as primary, ID=`, rpcId);
                     }
 
                     // Set the new connection as primary
@@ -602,23 +603,23 @@ export class NetService extends Service {
     private scheduleReconnect(fingerprint: string, attempt: number = 0) {
         if (!this.autoConnectFingerprints.has(fingerprint) || !this.isServiceRunning()) return;
         if (attempt >= NetService.RECONNECT_MAX_ATTEMPTS) {
-            console.log(`[NetService] Reconnect attempts exhausted for ${fingerprint}, relying on auto-connect.`);
+            console.log(`[NetService] Reconnect attempts exhausted for ${fp(fingerprint)}, relying on auto-connect.`);
             return;
         }
         // Cancel any existing timer for this fingerprint
         this.cancelReconnect(fingerprint);
         const delay = NetService.RECONNECT_BASE_DELAY_MS * Math.pow(2, attempt); // 2s, 4s, 8s
-        console.log(`[NetService] Scheduling reconnect for ${fingerprint} in ${delay}ms (attempt ${attempt + 1}/${NetService.RECONNECT_MAX_ATTEMPTS})`);
+        console.log(`[NetService] Scheduling reconnect for ${fp(fingerprint)} in ${delay}ms (attempt ${attempt + 1}/${NetService.RECONNECT_MAX_ATTEMPTS})`);
         const timer = setTimeout(() => {
             this.reconnectTimers.delete(fingerprint);
             if (!this.isServiceRunning()) return;
             if (this.connections.has(fingerprint)) return; // already reconnected
             if (!this.autoConnectFingerprints.has(fingerprint)) return; // auto-connect removed
-            console.log(`[NetService] Attempting reconnect for ${fingerprint} (attempt ${attempt + 1})`);
+            console.log(`[NetService] Attempting reconnect for ${fp(fingerprint)} (attempt ${attempt + 1})`);
             this.getRemoteServiceController(fingerprint).then(() => {
-                console.log(`[NetService] Reconnect successful for ${fingerprint}`);
+                console.log(`[NetService] Reconnect successful for ${fp(fingerprint)}`);
             }).catch((err) => {
-                console.warn(`[NetService] Reconnect failed for ${fingerprint}:`, err?.message);
+                console.warn(`[NetService] Reconnect failed for ${fp(fingerprint)}:`, err?.message);
                 this.scheduleReconnect(fingerprint, attempt + 1);
             });
         }, delay);
@@ -645,7 +646,7 @@ export class NetService extends Service {
         }
         const isPeerOnline = await localSc.account.isPeerOnline(fingerprint);
         if (!isPeerOnline) {
-            console.warn('[NetService] Cannot get brokered candidate, peer is offline:', fingerprint);
+            console.warn('[NetService] Cannot get brokered candidate, peer is offline.');
             return;
         }
         await localSc.account.requestPeerConnect(fingerprint, addresses, port);
@@ -665,7 +666,7 @@ export class NetService extends Service {
                     });
                 }
             } catch (error) {
-                console.error(`Error getting candidates from ${type}:`, error);
+                console.error(`[NetService] Error getting candidates from ${type}:`, error);
             }
         }
         return candidates;

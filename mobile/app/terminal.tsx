@@ -234,7 +234,7 @@ export default function TerminalScreen() {
             sessionIdRef.current = null;
             readerRef.current = null;
             if (!isMountedRef.current) return;
-            console.error('Terminal error:', e);
+            console.error('[Terminal] Error:', e);
             setError(e?.message || 'Failed to connect.');
         }
     }, [deviceFingerprint]);
@@ -269,7 +269,7 @@ export default function TerminalScreen() {
                 }
             }
         } catch (e) {
-            console.error('WebView message error:', e);
+            console.error('[Terminal] WebView message error:', e);
         }
     }, [connectTerminal, clearModifiers]);
 

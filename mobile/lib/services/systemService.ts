@@ -52,7 +52,7 @@ class MobileSystemService extends SystemService {
                 return Platform.Version.toString();
             }
         } catch (error) {
-            console.warn('Failed to get OS flavour:', error);
+            console.warn('[SystemService] Failed to get OS flavour:', error);
         }
         return null;
     }
@@ -139,7 +139,7 @@ class MobileSystemService extends SystemService {
         return {
             close: () => {
                 // React Native Alert doesn't provide a way to programmatically close
-                console.warn('Alert close requested, but React Native Alert cannot be closed programmatically');
+                console.warn('[SystemService] Alert close requested, but React Native Alert cannot be closed programmatically');
             }
         };
     }
@@ -150,7 +150,7 @@ class MobileSystemService extends SystemService {
 
     public async openFile(filePath: string): Promise<void> {
         filePath = pathToUri(filePath);
-        console.log('Opening file:', filePath);
+        console.debug('[SystemService] Opening file:', filePath);
         try {
             if (Platform.OS === 'ios') {
                 await preview({ url: filePath });
@@ -160,7 +160,7 @@ class MobileSystemService extends SystemService {
                 throw new Error('Unsupported platform for opening files.');
             }
         } catch (error) {
-            console.warn('Failed to open file:', error);
+            console.warn('[SystemService] Failed to open file:', error);
             Alert.alert('Cannot Open File', 'No application found to open this file type.');
         }
     }
@@ -261,7 +261,7 @@ class MobileSystemService extends SystemService {
         let content = options.content || '';
         if (options.type === 'file' && options.files && options.files.length > 0) {
             content = pathToUri(options.files[0]);
-            console.log('Sharing file:', content);
+            console.debug('[SystemService] Sharing file:', content);
         }
         let mimeType = 'text/plain';
         let UTI = 'public.data';

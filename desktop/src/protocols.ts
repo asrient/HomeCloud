@@ -12,7 +12,7 @@ export async function handleMediaRequest(request: Request): Promise<GlobalRespon
       fingerprint = null; // Convert 'null' string to actual null
     }
     const filePath = urlObj.searchParams.get('path') || '';
-    console.log('Handling media preview request:', { fingerprint, path: filePath });
+    console.debug('[Protocols] Handling media preview request:', filePath);
     try {
       const serviceController = await getExistingServiceController(fingerprint);
       // Desktop uses web views which don't support HEIC, so always convert
@@ -28,7 +28,7 @@ export async function handleMediaRequest(request: Request): Promise<GlobalRespon
         },
       }) as GlobalResponse;
     } catch (e: any) {
-      console.error('Media preview error:', e?.message);
+      console.error('[Protocols] Media preview error:', e?.message);
       return new Response(e?.message || 'Service unavailable', { status: 410 }) as GlobalResponse;
     }
   }
@@ -60,7 +60,7 @@ export function handleProtocols() {
       await fs.promises.access(filePath);
     }
     catch (error) {
-      console.error('File not found:', filePath);
+      console.error('[Protocols] File not found for preview.', error?.message);
       throw new Error(`File not found: ${filePath}`);
     }
     // Re-append the original query string so the web app can read it

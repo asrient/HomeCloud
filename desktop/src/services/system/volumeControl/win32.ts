@@ -8,7 +8,7 @@ try {
     volumeMixer = mod.NodeAudioVolumeMixer;
 } catch (e) {
     // Module not available on this platform
-    console.log('Volume mixer not available on this platform');
+    console.debug('[VolumeControl] Volume mixer not available on this platform.');
 }
 
 function assetModuleAvailable() {

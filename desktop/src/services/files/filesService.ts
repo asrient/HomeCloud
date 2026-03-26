@@ -42,12 +42,12 @@ export default class DesktopFilesService extends FilesService {
             await this.addPinnedFolder(folder.path, folder.name);
           } catch (e) {
             // Ignore errors for individual folders (e.g., already exists)
-            console.warn(`Failed to add default pinned folder "${folder.name}":`, e);
+            console.warn(`[FilesService] Failed to add default pinned folder:`, e);
           }
         }
       }
     } catch (e) {
-      console.error("Failed to add default pinned folders:", e);
+      console.error("[FilesService] Failed to add default pinned folders:", e);
     }
 
     // Mark as done regardless of success to avoid retrying on every start

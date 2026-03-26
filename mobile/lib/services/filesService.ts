@@ -97,7 +97,7 @@ export default class MobileFilesService extends FilesService {
       const id = previewId(filePath);
       const cachedPath = this.previewCache.get(id);
       if (cachedPath) {
-        console.log('Using cached converted HEIC preview:', cachedPath);
+        console.debug('[FilesService] Using cached HEIC preview. Cached path:', cachedPath);
         const cachedFile = new File(cachedPath);
         const convertedName = resolved.filename.replace(/\.(heic|heif)$/i, '.jpg');
         return {
@@ -127,7 +127,7 @@ export default class MobileFilesService extends FilesService {
           stream: convertedFile.readableStream(),
         };
       } catch (error) {
-        console.error('Failed to convert HEIC image:', error);
+        console.error('[FilesService] Failed to convert HEIC image:', error);
         // Fall back to original file if conversion fails
         return this.fs.readFile(filePath);
       }
@@ -139,7 +139,7 @@ export default class MobileFilesService extends FilesService {
   async _openRemoteFile(remoteFingerprint: string, remotePath: string): Promise<void> {
     const id = remoteFileId(remoteFingerprint, remotePath);
     const filename = Paths.basename(remotePath);
-    console.log('Previewing remote file:', remotePath, 'with id:', id);
+    console.debug('[FilesService] Previewing remote file.');
 
     let cachedPath = this.remoteFileCache.get(id);
     if (!cachedPath) {
@@ -158,7 +158,7 @@ export default class MobileFilesService extends FilesService {
       cachedPath = previewFile.uri;
     }
 
-    console.log(`[Preview] Opening file: ${cachedPath}`);
+    console.debug('[FilesService] Opening cached preview file.');
     const localSc = modules.getLocalServiceController();
     localSc.system.openFile(cachedPath);
   }

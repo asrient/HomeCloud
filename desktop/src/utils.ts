@@ -27,7 +27,7 @@ export const cleanupTmpDir = async () => {
     try {
         await fs.promises.rm(scopedTmpDir, { recursive: true, force: true });
     } catch (error) {
-        console.error('Error cleaning tmp dir:', error);
+        console.error('[Utils] Error cleaning tmp dir:', error);
     }
 }
 

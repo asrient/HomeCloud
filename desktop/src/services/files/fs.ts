@@ -68,7 +68,7 @@ export default class LocalFsDriver extends FsDriver {
       if (result.status === "fulfilled") {
         items.push(result.value);
       } else {
-        console.error(`Error reading file: ${dirPath}`, result.reason);
+        console.error(`[FilesService] Error reading directory.`, result.reason);
       }
     });
     return items;

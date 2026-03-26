@@ -67,7 +67,7 @@ class DesktopSystemService extends SystemService {
             detail: description || '',
             buttons: ['OK']
         }).catch((error) => {
-            console.error('Failed to show alert dialog:', error);
+            console.error('[SystemService] Failed to show alert dialog:', error);
         });
     }
 
@@ -114,7 +114,7 @@ class DesktopSystemService extends SystemService {
                 }
             }
         }).catch((error) => {
-            console.error('Failed to show ask dialog:', error);
+            console.error('[SystemService] Failed to show ask dialog:', error);
         });
 
         return {
@@ -122,7 +122,7 @@ class DesktopSystemService extends SystemService {
                 dialogClosed = true;
                 // Note: Electron doesn't provide a direct way to close a message box programmatically
                 // The dialog will remain open until user interaction
-                console.warn('Dialog close requested, but Electron MessageBox cannot be closed programmatically');
+                console.warn('[SystemService] Dialog close requested, but Electron MessageBox cannot be closed programmatically');
             }
         };
     }
@@ -221,7 +221,7 @@ class DesktopSystemService extends SystemService {
                 clipboard.writeRTF(text);
                 break;
             default:
-                console.warn(`Unsupported clipboard type: ${type}. Defaulting to text.`);
+                console.warn(`[SystemService] Unsupported clipboard type: ${type}. Defaulting to text.`);
                 clipboard.writeText(text);
         }
     }
@@ -480,7 +480,7 @@ class DesktopSystemService extends SystemService {
         if (process.platform === 'win32') {
             // Accent color change listener only for Windows
             systemPreferences.on('accent-color-changed', (_ev, newColor: string) => {
-                console.log('Accent color changed:', newColor);
+                console.debug('[SystemService] Accent color changed.');
                 this.accentColorChangeSignal.dispatch(newColor);
             });
             mediaControlWin.onAudioPlaybackInfoChanged((info) => {

@@ -331,7 +331,7 @@ export default function FolderScreen() {
         }
         break;
       default:
-        console.warn('Unknown quick action:', action);
+        console.warn('[FileBrowser] Unknown quick action:', action);
     }
   }, [deleteItems, openInDevice, renameItem, sendToDevice, shareItem, showAlert]);
 

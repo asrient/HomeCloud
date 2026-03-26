@@ -65,7 +65,7 @@ export async function checkForUpdates(force = false): Promise<UpdateInfo | null>
         });
 
         if (!response.ok) {
-            console.warn(`Update check failed: ${response.status}`);
+            console.warn(`[UpdateCheck] Failed: HTTP ${response.status}`);
             return cachedInfo;
         }
 
@@ -86,7 +86,7 @@ export async function checkForUpdates(force = false): Promise<UpdateInfo | null>
 
         return cachedInfo;
     } catch (err) {
-        console.warn('Update check error:', err);
+        console.warn('[UpdateCheck] Error:', err);
         return cachedInfo;
     } finally {
         setChecking(false);

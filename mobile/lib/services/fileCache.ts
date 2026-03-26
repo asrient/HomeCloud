@@ -40,7 +40,7 @@ export class FileCache {
         }
         dir.create({ intermediates: true, idempotent: true });
         this.entries = [];
-        console.log(`FileCache (${this.name}) location:`, this.cacheDir);
+        console.debug(`[FileCache:${this.name}] Initialized.`);
     }
 
     /**
@@ -57,7 +57,7 @@ export class FileCache {
     log(id: string, filePath: string) {
         // make sure the file is inside the cache directory
         if (!filePath.startsWith(this.cacheDir)) {
-            console.warn(`FileCache (${this.name}) logged an external file: ${filePath}`);
+            console.warn(`[FileCache:${this.name}] Logged an external file.`);
         }
         // Remove existing entry with same id (will re-add at end)
         this.entries = this.entries.filter(e => e.id !== id);
@@ -107,7 +107,7 @@ export class FileCache {
             const file = new File(entry.path);
             if (file.exists) {
                 file.delete();
-                console.log(`FileCache (${this.name}) evicted:`, entry.path);
+                console.debug(`[FileCache:${this.name}] Evicted entry.`);
             }
         } catch {
             // Ignore deletion errors

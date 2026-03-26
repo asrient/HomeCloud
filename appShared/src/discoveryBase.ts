@@ -30,7 +30,7 @@ export class DiscoveryBase {
     protected updateMyAddresses(addresses: string[]): void {
         const filtered = filterValidBonjourIps(addresses);
         if (filtered.length === 0) {
-            console.warn('[DiscoveryBase] No valid local addresses found to update my addresses:', addresses);
+            console.warn('[DiscoveryBase] No valid local addresses found.');
             return;
         }
         // Merge new addresses with existing ones instead of replacing,
@@ -77,7 +77,7 @@ export class DiscoveryBase {
         }
 
         if (!matchedHost) {
-            console.warn('[DiscoveryBase] Could not find matching host interface for caching addresses:', addresses, 'hosts:', this.hostAddresses);
+            console.warn('[DiscoveryBase] Could not find matching host interface for caching addresses.');
             return;
         }
 
@@ -131,7 +131,7 @@ export class DiscoveryBase {
             return false;
         }
         if (!txt.fpt || !txt.nme || !txt.icn) {
-            console.warn('DEBUG: Bonjour Browser returned an unexpected service:', txt);
+            console.debug('[DiscoveryBase] Bonjour service missing required TXT records.');
             return false;
         }
         const fingerprint = txt.fpt;

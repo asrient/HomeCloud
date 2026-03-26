@@ -117,7 +117,7 @@ export default function SettingsScreen() {
   const openLink = (type: HelpLinkType) => {
     const localSc = modules.getLocalServiceController();
     localSc.app.openHelpLink(type).catch((err) => {
-      console.error('Failed to open help link:', err);
+      console.error('[Settings] Failed to open help link:', err);
       showAlert('Error', 'Failed to open link.');
     });
   };

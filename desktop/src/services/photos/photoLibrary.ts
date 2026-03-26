@@ -46,7 +46,7 @@ export class PhotoLibrary {
         if (this._isMounted) {
             return;
         }
-        console.log("📸 Initializing Photo Library at:", this._location);
+        console.log("[PhotoLibrary] Initializing lib:", this._location);
         this._firstScan = true;
         const stats = await fsPromises.stat(this._location);
         this._firstScanDirMtime = stats.mtime;
@@ -57,7 +57,7 @@ export class PhotoLibrary {
             logging: modules.config.IS_DEV,
         });
         await this._db.authenticate();
-        console.log("📸 Photo Library DB Connection established.");
+        console.log("[PhotoLibrary] DB connection established.");
         this._repo = new PhotoRepository(this._db, this._location);
         this._infoRepo = new InfoRepository(this._db);
         await this._db.sync();
@@ -67,7 +67,7 @@ export class PhotoLibrary {
         if (!lastVersion) {
             this._infoRepo.setVersion(modules.config.VERSION);
         }
-        console.log("📸 Last Version:", lastVersion);
+        console.debug("[PhotoLibrary] Last version:", lastVersion);
         await this.searchUpdatedFiles();
         this.startWatching();
         this._isMounted = true;
@@ -78,7 +78,7 @@ export class PhotoLibrary {
     }
 
     public async eject() {
-        console.log("📸 Ejecting Photo Library at:", this._location);
+        console.log("[PhotoLibrary] Ejecting lib:", this._location);
         this._watcher.close();
         if (this.batchTimeout) {
             clearTimeout(this.batchTimeout);
@@ -117,7 +117,7 @@ export class PhotoLibrary {
      * traversing only directories that have been modified.
      */
     async searchUpdatedFiles(): Promise<void> {
-        console.log("📸 Searching for updated files starting from:", this._lastUpdate);
+        console.log("[PhotoLibrary] Scanning for updates. Last update:", this._lastUpdate);
         const newFiles: string[] = [];
         const deletedFiles: string[] = [];
         const deletedDirs: string[] = [];
@@ -140,7 +140,7 @@ export class PhotoLibrary {
             if (mtime <= this._lastUpdate || this.isDeltaNegligible(mtime, this._lastUpdate, isRoot ? 1200 : 600)) {
                 return;
             }
-            console.log("📸 Traversing directory:", directoryPath, "Last Modified:", mtime);
+            console.debug("[PhotoLibrary] Traversing directory:", directoryPath);
 
             if (mtime > maxMtime) {
                 maxMtime = mtime;
@@ -170,7 +170,7 @@ export class PhotoLibrary {
             // Log errors if any
             const failed = result.filter((r) => r.status === 'rejected');
             if (failed.length > 0) {
-                console.error("Error traversing directory", directoryPath, failed);
+                console.error("[PhotoLibrary] Error traversing directory:", failed);
             }
 
             // Add directories to global deletedDirs that have been deleted, i.e exists in DB but not on FS
@@ -191,8 +191,8 @@ export class PhotoLibrary {
         }
 
         await traverseDirectory(this._location, true);
-        console.log("📸 Found new files count:", newFiles.length);
-        console.log("📸 Found deleted files count:", deletedFiles.length);
+        console.log("[PhotoLibrary] Found new files:", newFiles.length);
+        console.log("[PhotoLibrary] Found deleted files:", deletedFiles.length);
 
         if (newFiles.length === 0 && deletedFiles.length === 0 && this.isDeltaNegligible(maxMtime, this._lastUpdate)) return;
         await this.ingestUpdates({ deletedFiles, addedFiles: newFiles, deletedDirs }, maxMtime);
@@ -225,7 +225,7 @@ export class PhotoLibrary {
 
         const fullPath = path.join(this._location, filename);
         const relativePath = path.relative(this._location, fullPath);
-        console.debug("📸 File changed:", filename);
+        console.debug("[PhotoLibrary] File changed:", relativePath);
 
         let stats: fs.Stats = null;
         try {
@@ -267,7 +267,7 @@ export class PhotoLibrary {
             try {
                 await this.handleFileChange(filename);
             } catch (e) {
-                console.error("📸 Error handling file change:", filename, e);
+                console.error("[PhotoLibrary] Error handling file change:", e);
             }
         });
 
@@ -286,10 +286,10 @@ export class PhotoLibrary {
         // });
 
         this._watcher.on('error', (err) => {
-            console.error("📸 Watcher error:", err);
+            console.error("[PhotoLibrary] Watcher error:", err);
         });
 
-        console.log("📸 Watching for changes in:", this._location);
+        console.log("[PhotoLibrary] Watching for changes.");
     }
 
     private updatesQueue: { deletedFiles: string[], addedFiles: string[], deletedDirs: string[], timestamp: Date }[] = [];
@@ -307,7 +307,7 @@ export class PhotoLibrary {
     private async batchProcessUpdates() {
         const batch = this.updatesQueue;
         this.updatesQueue = [];
-        console.log("📸 Processing batch updates:", batch);
+        console.debug("[PhotoLibrary] Processing batch updates.");
         const deletedFiles = new Set<string>();
         const deletedDirs = new Set<string>();
         const addedFiles = new Set<string>();
@@ -336,7 +336,7 @@ export class PhotoLibrary {
             try {
                 await this._repo.deletePhotosByPath(Array.from(del));
             } catch (e) {
-                console.error("Error deleting photos", e);
+                console.error("[PhotoLibrary] Error deleting photos:", e);
             }
         }
 
@@ -345,7 +345,7 @@ export class PhotoLibrary {
             try {
                 await this._repo.deletePhotosByDirectories(delDirs);
             } catch (e) {
-                console.error("Error deleting photos dir", e);
+                console.error("[PhotoLibrary] Error deleting photos dir:", e);
             }
         }
 
@@ -371,7 +371,7 @@ export class PhotoLibrary {
         const result = await Promise.allSettled(tasks);
         const failed = result.filter((r) => r.status === 'rejected');
         if (failed.length > 0) {
-            console.error("Error generating detail for files", failed);
+            console.error("[PhotoLibrary] Error generating detail for files.", failed);
         }
 
         try {
@@ -390,7 +390,7 @@ export class PhotoLibrary {
                 };
             }));
         } catch (e) {
-            console.error("Error creating photos", e);
+            console.error("[PhotoLibrary] Error creating photos:", e);
         }
     }
 
@@ -429,7 +429,7 @@ export class PhotoLibrary {
         const result = await Promise.allSettled(promises);
         const failed = result.filter((r) => r.status === 'rejected');
         if (failed.length > 0) {
-            console.error("Error deleting photos", failed);
+            console.error("[PhotoLibrary] Error deleting photos", failed);
         }
         const success = result.filter((r) => r.status === 'fulfilled');
         const successIds = success.map((r) => r.value);

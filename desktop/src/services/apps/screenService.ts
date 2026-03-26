@@ -209,7 +209,7 @@ export default class DesktopScreenService extends ScreenService {
         this.sessionCleanupTimer = setInterval(() => {
             const now = Date.now();
             if (this.screenSession && now - this.screenSession.lastHeartbeat > SESSION_HEARTBEAT_TIMEOUT) {
-                console.log(`No heartbeat for screen session, closing stream.`);
+                console.log(`[ScreenService] No heartbeat for screen session, closing stream.`);
                 this.stopStreamingSession();
             }
             if (!this.screenSession) {
@@ -287,7 +287,7 @@ export default class DesktopScreenService extends ScreenService {
 
     @serviceStartMethod
     public async start() {
-        console.log("ScreenService started.");
+        console.log("[ScreenService] Started.");
     }
 
     @serviceStopMethod
@@ -298,6 +298,6 @@ export default class DesktopScreenService extends ScreenService {
             clearInterval(this.sessionCleanupTimer);
             this.sessionCleanupTimer = null;
         }
-        console.log("ScreenService stopped.");
+        console.log("[ScreenService] Stopped.");
     }
 }

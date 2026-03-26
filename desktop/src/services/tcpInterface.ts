@@ -116,7 +116,7 @@ export default class TCPInterface extends ConnectionInterface {
 
             socket.on('error', (error) => {
                 if (isResolved) return; // Avoid resolving/rejecting multiple times
-                console.error('TCP connection error:', error);
+                console.error('[TCPInterface] TCP connection error:', error);
                 reject(error);
             });
 
@@ -214,7 +214,7 @@ export default class TCPInterface extends ConnectionInterface {
                     port: this.port,
                     host: '0.0.0.0'
                 }, async () => {
-                    console.log(`TCP server listening on port ${this.port}`);
+                    console.log(`[TCPInterface] TCP server listening on port ${this.port}`);
 
                     // Start discovery service
                     this.discovery.listen();
@@ -228,7 +228,7 @@ export default class TCPInterface extends ConnectionInterface {
                 });
 
                 this.server.on('error', (err) => {
-                    console.error('TCP server error:', err);
+                    console.error('[TCPInterface] TCP server error:', err);
                     this.server = null;
                     const localSc = modules.getLocalServiceController();
                     localSc.system.alert(
@@ -238,7 +238,7 @@ export default class TCPInterface extends ConnectionInterface {
                     resolve(); // Resolve instead of reject to avoid crashing
                 });
             } catch (error) {
-                console.error('Error starting TCPInterface:', error);
+                console.error('[TCPInterface] Error starting:', error);
                 reject(error);
             }
         });
@@ -261,7 +261,7 @@ export default class TCPInterface extends ConnectionInterface {
         if (this.server) {
             promises.push(new Promise<void>((resolve) => {
                 this.server!.close(() => {
-                    console.log('TCP server stopped');
+                    console.log('[TCPInterface] TCP server stopped');
                     resolve();
                 });
             }));
@@ -285,7 +285,7 @@ export default class TCPInterface extends ConnectionInterface {
         const connectionId = `${socket.remoteAddress}:${socket.remotePort}`;
         this.connections.set(connectionId, socket);
 
-        console.log(`New TCP connection from ${connectionId}`);
+        console.log(`[TCPInterface] New connection: ${connectionId}`);
 
         const dataChannel = this.createDataChannel(socket, connectionId);
 
@@ -294,12 +294,12 @@ export default class TCPInterface extends ConnectionInterface {
         }
 
         socket.on('close', (hasErr) => {
-            console.log(`TCP connection closed: ${connectionId}. Had error: ${hasErr}`);
+            console.log(`[TCPInterface] Connection closed: ${connectionId}. Had error: ${hasErr}`);
             this.connections.delete(connectionId);
         });
 
         socket.on('error', (error) => {
-            console.error(`TCP connection error for ${connectionId}:`, error);
+            console.error(`[TCPInterface] Connection error ${connectionId}:`, error);
             this.connections.delete(connectionId);
         });
     }
@@ -331,7 +331,7 @@ export default class TCPInterface extends ConnectionInterface {
         });
 
         socket.on('close', (hadErr) => {
-            console.log(`Socket ${connectionId} closed. Had error: ${hadErr}`);
+            console.debug(`[TCPInterface] Socket ${connectionId} closed. Had error: ${hadErr}`);
             if (disconnectHandler) {
                 disconnectHandler(hadErr ? new Error('Socket closed due to error') : undefined);
             }
@@ -346,14 +346,14 @@ export default class TCPInterface extends ConnectionInterface {
                     if (socket.writable) {
                         socket.write(data, (err) => {
                             if (err) {
-                                console.error(`Error sending data on socket ${connectionId}:`, err);
+                                console.error(`[TCPInterface] Error sending data on ${connectionId}:`, err);
                                 reject(err);
                             } else {
                                 resolve();
                             }
                         });
                     } else {
-                        console.warn(`Attempted to send data on closed socket: ${connectionId}`);
+                        console.warn(`[TCPInterface] Attempted to send on closed socket: ${connectionId}`);
                         reject(new Error(`Socket ${connectionId} is not writable`));
                     }
                 });
@@ -384,7 +384,7 @@ export default class TCPInterface extends ConnectionInterface {
             },
 
             disconnect: () => {
-                console.log(`Disconnecting socket: ${connectionId}`);
+                console.debug(`[TCPInterface] Disconnecting socket: ${connectionId}`);
                 socket.end();
                 this.connections.delete(connectionId);
             }

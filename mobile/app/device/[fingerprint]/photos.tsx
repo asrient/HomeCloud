@@ -148,9 +148,9 @@ export default function DevicePhotosScreen() {
         ].filter(Boolean).join('\n'));
         break;
       default:
-        console.warn('Unknown action type:', action.type);
+        console.warn('[Photos] Unknown action type:', action.type);
     }
-  }, [sharePhoto, deletePhotos, openInDevice, sendToDevice]);
+  }, [sharePhoto, deletePhotos, openInDevice, sendToDevice, showAlert]);
 
   const fetchOpts = useMemo(() => {
     if (deviceFingerprint !== currentFingerprintRef.current) {
