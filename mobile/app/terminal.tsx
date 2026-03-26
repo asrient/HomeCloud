@@ -21,8 +21,9 @@ import { UIButton } from '@/components/ui/UIButton';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '@react-navigation/native';
 import { useNavigationTheme } from '@/hooks/useNavigationTheme';
+import { useAssets } from 'expo-asset';
 
-const TERMINAL_HTML = require('@/assets/terminal.html');
+const terminalHtmlModule = require('@/assets/terminal.html');
 
 const SPECIAL_KEYS: { label: string; key: string }[] = [
     { label: 'Esc', key: '\x1b' },
@@ -150,6 +151,12 @@ export default function TerminalScreen() {
         setAltActive(false);
         setShiftActive(false);
     }, []);
+
+    const [assets] = useAssets([terminalHtmlModule]);
+    const terminalSource = useMemo(() =>
+        assets?.[0]?.localUri ? { uri: assets[0].localUri } : null,
+        [assets]
+    );
 
     const sessionIdRef = useRef<string | null>(null);
     const isMountedRef = useRef(true);
@@ -365,67 +372,68 @@ export default function TerminalScreen() {
 
     return (
         <ThemeProvider value={darkTheme}>
-        <View style={[styles.root, { paddingTop: insets.top }]}>
-            <StatusBar style="light" />
+            <View style={[styles.root, { paddingTop: insets.top }]}>
+                <StatusBar style="light" />
 
-            {/* Custom dark header */}
-            <View style={styles.header}>
-                <View style={{ zIndex: 2 }}>
-                    <UIButton type="secondary" icon="xmark" iconSize={20} onPress={handleClose} />
+                {/* Custom dark header */}
+                <View style={styles.header}>
+                    <View style={{ zIndex: 2 }}>
+                        <UIButton type="secondary" icon="xmark" iconSize={20} onPress={handleClose} />
+                    </View>
+                    <View pointerEvents="none" style={styles.headerTitleWrap}>
+                        <Text style={styles.headerTitle} numberOfLines={1}>{deviceName}</Text>
+                    </View>
                 </View>
-                <View pointerEvents="none" style={styles.headerTitleWrap}>
-                    <Text style={styles.headerTitle} numberOfLines={1}>{deviceName}</Text>
-                </View>
-            </View>
 
-            <View style={[styles.container, keyboardHeight > 0 && { marginBottom: keyboardHeight + KEYBAR_HEIGHT + (Platform.OS === 'android' ? insets.bottom : 0) }]}>
-                {isConnecting && (
-                    <View style={styles.overlay}>
-                        <ActivityIndicator color="#fff" />
-                        <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
-                            Connecting...
-                        </UIText>
-                    </View>
-                )}
-                {error && (
-                    <View style={styles.overlay}>
-                        <UIText color="textSecondary" size="sm">{error}</UIText>
-                        <UIButton
-                            type="secondary"
-                            title={sessionIdRef.current ? 'New Session' : 'Reconnect'}
-                            size="sm"
-                            onPress={reconnect}
-                            style={{ marginTop: 16 }}
-                        />
-                    </View>
-                )}
-                <WebView
-                    ref={webViewRef}
-                    source={TERMINAL_HTML}
-                    style={styles.webview}
-                    originWhitelist={['*']}
-                    javaScriptEnabled
-                    domStorageEnabled
-                    onMessage={onWebViewMessage}
-                    scrollEnabled={false}
-                    bounces={false}
-                    keyboardDisplayRequiresUserAction={false}
-                    hideKeyboardAccessoryView
-                    autoManageStatusBarEnabled={false}
-                />
+                <View style={[styles.container, keyboardHeight > 0 && { marginBottom: keyboardHeight + KEYBAR_HEIGHT + (Platform.OS === 'android' ? insets.bottom : 0) }]}>
+                    {isConnecting && (
+                        <View style={styles.overlay}>
+                            <ActivityIndicator color="#fff" />
+                            <UIText color="textSecondary" size="sm" style={{ marginTop: 8 }}>
+                                Connecting...
+                            </UIText>
+                        </View>
+                    )}
+                    {error && (
+                        <View style={styles.overlay}>
+                            <UIText color="textSecondary" size="sm">{error}</UIText>
+                            <UIButton
+                                type="secondary"
+                                title={sessionIdRef.current ? 'New Session' : 'Reconnect'}
+                                size="sm"
+                                onPress={reconnect}
+                                style={{ marginTop: 16 }}
+                            />
+                        </View>
+                    )}
+                    {terminalSource && <WebView
+                        ref={webViewRef}
+                        source={terminalSource}
+                        style={styles.webview}
+                        originWhitelist={['*']}
+                        allowFileAccess
+                        javaScriptEnabled
+                        domStorageEnabled
+                        onMessage={onWebViewMessage}
+                        scrollEnabled={false}
+                        bounces={false}
+                        keyboardDisplayRequiresUserAction={false}
+                        hideKeyboardAccessoryView
+                        autoManageStatusBarEnabled={false}
+                    />}
+                </View>
+                <View style={[styles.keybarContainer, { bottom: keyboardHeight + (Platform.OS === 'android' ? insets.bottom : 0) }]}>
+                    <TerminalKeybar
+                        onKey={sendKey}
+                        ctrlActive={ctrlActive}
+                        altActive={altActive}
+                        shiftActive={shiftActive}
+                        onToggleCtrl={toggleCtrl}
+                        onToggleAlt={toggleAlt}
+                        onToggleShift={toggleShift}
+                    />
+                </View>
             </View>
-            <View style={[styles.keybarContainer, { bottom: keyboardHeight + (Platform.OS === 'android' ? insets.bottom : 0) }]}>
-                <TerminalKeybar
-                    onKey={sendKey}
-                    ctrlActive={ctrlActive}
-                    altActive={altActive}
-                    shiftActive={shiftActive}
-                    onToggleCtrl={toggleCtrl}
-                    onToggleAlt={toggleAlt}
-                    onToggleShift={toggleShift}
-                />
-            </View>
-        </View>
         </ThemeProvider>
     );
 }
