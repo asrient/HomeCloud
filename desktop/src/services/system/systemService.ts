@@ -1,16 +1,19 @@
 import { SystemService } from "shared/systemService";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType, ClipboardFile } from "shared/types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType, ClipboardFile, ScreenLockStatus } from "shared/types";
 import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
-import { dialog, BrowserWindow, shell, systemPreferences, clipboard, ShareMenu, SharingItem } from "electron";
+import { dialog, BrowserWindow, shell, systemPreferences, clipboard, ShareMenu, SharingItem, powerMonitor } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails, WinDriveType } from "../../types";
 import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import volumeDriver from "./volumeControl";
 import * as mediaControlWin from "./mediaControl/win32";
 import { getBatteryInfo, onBatteryInfoChanged } from "./batteryLevel";
-// Need to use require for this module as it does not have proper ES module support
-const nodeDiskInfo = require('node-disk-info');
 import path from "path";
+import { execSync, execFile } from "child_process";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
+
 import { MacOSPlaybackWatcher } from "./mediaControl/mac";
 import { LinuxPlaybackWatcher } from "./mediaControl/linux";
 import { writeFilePathsToClipboard, readFilePathsFromClipboard } from "./clipboard";
@@ -64,7 +67,7 @@ class DesktopSystemService extends SystemService {
             detail: description || '',
             buttons: ['OK']
         }).catch((error) => {
-            console.error('Failed to show alert dialog:', error);
+            console.error('[SystemService] Failed to show alert dialog:', error);
         });
     }
 
@@ -111,7 +114,7 @@ class DesktopSystemService extends SystemService {
                 }
             }
         }).catch((error) => {
-            console.error('Failed to show ask dialog:', error);
+            console.error('[SystemService] Failed to show ask dialog:', error);
         });
 
         return {
@@ -119,7 +122,7 @@ class DesktopSystemService extends SystemService {
                 dialogClosed = true;
                 // Note: Electron doesn't provide a direct way to close a message box programmatically
                 // The dialog will remain open until user interaction
-                console.warn('Dialog close requested, but Electron MessageBox cannot be closed programmatically');
+                console.warn('[SystemService] Dialog close requested, but Electron MessageBox cannot be closed programmatically');
             }
         };
     }
@@ -128,12 +131,71 @@ class DesktopSystemService extends SystemService {
         return getDriveDetails();
     }
 
+    @exposed
     public async openUrl(url: string): Promise<void> {
         await shell.openExternal(url);
     }
 
+    @exposed
     public async openFile(filePath: string): Promise<void> {
         await shell.openPath(filePath);
+    }
+
+    @exposed
+    public async lockScreen(): Promise<void> {
+        const os = process.platform;
+        console.log('[lockScreen] platform:', os);
+        if (os === 'darwin') {
+            // macOS: use pmset to lock (activates lock screen immediately)
+            try {
+                const result = execSync('pmset displaysleepnow', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+                console.log('[lockScreen] pmset stdout:', result);
+            } catch (err: any) {
+                console.error('[lockScreen] pmset failed:', err.message);
+                console.error('[lockScreen] stderr:', err.stderr?.toString());
+                console.error('[lockScreen] status:', err.status);
+                throw err;
+            }
+        } else if (os === 'win32') {
+            // Windows: LockWorkStation via rundll32
+            execSync('rundll32.exe user32.dll,LockWorkStation');
+        } else {
+            // Linux: try common screen lockers
+            try { execSync('loginctl lock-session'); } catch {
+                try { execSync('xdg-screensaver lock'); } catch {
+                    throw new Error('Could not lock screen on this platform');
+                }
+            }
+        }
+    }
+
+    @exposed
+    public async getScreenLockStatus(): Promise<ScreenLockStatus> {
+        const os = process.platform;
+        try {
+            if (os === 'darwin') {
+                // macOS: check if screen is locked via ioreg
+                const output = execSync('ioreg -n Root -d1 -a', { encoding: 'utf8' });
+                // If CGSSessionScreenIsLocked is true, screen is locked
+                if (output.includes('CGSSessionScreenIsLocked') && output.includes('<true/>')) {
+                    return 'locked';
+                }
+                return 'unlocked';
+            } else if (os === 'win32') {
+                // Windows: check if LogonUI.exe is running (indicates lock screen)
+                const output = execSync('tasklist /FI "IMAGENAME eq LogonUI.exe" /NH', { encoding: 'utf8' });
+                if (output.includes('LogonUI.exe')) {
+                    return 'locked';
+                }
+                return 'unlocked';
+            } else {
+                // Linux: try loginctl
+                const output = execSync('loginctl show-session $(loginctl | grep $(whoami) | awk \'{print $1}\') -p LockedHint --value', { encoding: 'utf8' });
+                return output.trim() === 'yes' ? 'locked' : 'unlocked';
+            }
+        } catch {
+            return 'not-supported';
+        }
     }
 
     public getAccentColorHex(): string {
@@ -159,7 +221,7 @@ class DesktopSystemService extends SystemService {
                 clipboard.writeRTF(text);
                 break;
             default:
-                console.warn(`Unsupported clipboard type: ${type}. Defaulting to text.`);
+                console.warn(`[SystemService] Unsupported clipboard type: ${type}. Defaulting to text.`);
                 clipboard.writeText(text);
         }
     }
@@ -341,50 +403,47 @@ class DesktopSystemService extends SystemService {
         else if (process.platform === 'linux' || process.platform === 'darwin') {
             const disks: Disk[] = [];
 
-            const diskInfos = await nodeDiskInfo.getDiskInfo();
+            // Use df -Pk for POSIX output with 1024-byte blocks
+            const { stdout } = await execFileAsync('df', ['-Pk'], { encoding: 'utf8' });
+            const lines = stdout.split('\n').slice(1); // skip header
             const linuxPermitedDriveLocations = ['/media/', '/mnt/', '/run/media/'];
-            for (const info of diskInfos) {
-                let isExternal = false;
-                let location = info.mounted;
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                const tokens = line.replace(/ +/g, ' ').split(' ');
+                if (tokens.length < 6) continue;
+
+                const filesystem = tokens[0];
+                const blocks = parseInt(tokens[1], 10) || 0;
+                const available = parseInt(tokens[3], 10) || 0;
+                const location = tokens.slice(5).join(' ');
                 let name = path.basename(location);
+                let isExternal = false;
+
                 // Filter out irrelevant file systems
-                if (info.filesystem.startsWith('dev') || info.filesystem === 'tmpfs' || info.filesystem === 'overlay') {
+                if (filesystem.startsWith('dev') || filesystem === 'tmpfs' || filesystem === 'overlay') {
                     continue;
                 }
                 if (process.platform === 'linux') {
-                    // Check if the mount point is under permitted locations
-                    let permitted = false;
-                    for (const permitedLocation of linuxPermitedDriveLocations) {
-                        if (location.startsWith(permitedLocation)) {
-                            permitted = true;
-                            break;
-                        }
-                    }
-                    if (!permitted && location !== '/') {
-                        continue; // Skip non-permitted locations except root
-                    }
+                    const permitted = linuxPermitedDriveLocations.some(p => location.startsWith(p));
+                    if (!permitted && location !== '/') continue;
                 }
-                if (process.platform === 'darwin' && (info.mounted.startsWith('/System/') || !info.mounted.startsWith('/'))) {
-                    continue; // Skip System volumes and non-root volumes on macOS
+                if (process.platform === 'darwin') {
+                    if (location !== '/' && !location.startsWith('/Volumes/')) continue;
                 }
                 if (name === '') {
-                    if (process.platform === 'linux') {
-                        name = 'Hard Disk';
-                    } else {
-                        name = 'Macintosh HD';
-                    }
+                    name = process.platform === 'linux' ? 'Hard Disk' : 'Macintosh HD';
                 }
                 if (location !== '/') {
                     isExternal = true;
                 }
-                const disk: Disk = {
+                disks.push({
                     type: isExternal ? 'external' : 'internal',
                     name,
                     path: location,
-                    size: info.blocks * 1024,
-                    free: info.available * 1024,
-                };
-                disks.push(disk);
+                    size: blocks * 1024,
+                    free: available * 1024,
+                });
             }
             return disks;
         }
@@ -421,22 +480,22 @@ class DesktopSystemService extends SystemService {
         if (process.platform === 'win32') {
             // Accent color change listener only for Windows
             systemPreferences.on('accent-color-changed', (_ev, newColor: string) => {
-                console.log('Accent color changed:', newColor);
+                console.debug('[SystemService] Accent color changed.');
                 this.accentColorChangeSignal.dispatch(newColor);
             });
             mediaControlWin.onAudioPlaybackInfoChanged((info) => {
-                console.log('Audio playback info changed:', info);
+                // console.log('Audio playback info changed:', info);
                 const playbackInfo = winPlaybackInfoToAudioPlaybackInfo(info);
                 this.audioPlaybackSignal.dispatch(playbackInfo);
             });
         } else if (process.platform === 'darwin') {
             this.macPlaybackWatcher = new MacOSPlaybackWatcher((info) => {
-                console.log('Audio playback info changed (macOS):', info);
+                // console.log('Audio playback info changed (macOS):', info);
                 this.audioPlaybackSignal.dispatch(info);
             });
         } else if (process.platform === 'linux') {
             this.linuxPlaybackWatcher = new LinuxPlaybackWatcher((info) => {
-                console.log('Audio playback info changed (Linux):', info);
+                // console.log('Audio playback info changed (Linux):', info);
                 this.audioPlaybackSignal.dispatch(info);
             });
         }
@@ -444,6 +503,14 @@ class DesktopSystemService extends SystemService {
         // Battery info change listener
         onBatteryInfoChanged((info) => {
             this.batteryInfoSignal.dispatch(info);
+        });
+
+        // Screen lock/unlock listener
+        powerMonitor.on('lock-screen', () => {
+            this.screenLockSignal.dispatch('locked');
+        });
+        powerMonitor.on('unlock-screen', () => {
+            this.screenLockSignal.dispatch('unlocked');
         });
     }
 

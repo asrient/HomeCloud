@@ -80,6 +80,7 @@ function ThumbnailPhoto({ item, className, height, width }: ThumbnailPhotoProps)
 
   return (<LazyImage
     fetchSrc={fetchThumbnailSrc}
+    itemKey={item.fileId + '|' + item.deviceFingerprint}
     src={dafaultSrc}
     alt={item.id.toString()}
     width={width || 0}
@@ -124,7 +125,7 @@ export default function PhotosPreview({
     });
     try {
       const serviceController = await getServiceController(null);
-      await serviceController.files.download(deviceFingerprint, fileId);
+      await serviceController.files.download(deviceFingerprint, [fileId]);
       toast({
         title: 'Photo downloaded',
       });

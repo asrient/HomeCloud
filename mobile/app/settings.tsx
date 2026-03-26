@@ -12,7 +12,7 @@ import { useAccountState } from '@/hooks/useAccountState';
 import { useAppState } from '@/hooks/useAppState';
 import { useAlert } from '@/hooks/useAlert';
 import { useManagedLoading } from '@/hooks/useManagedLoading';
-import { getAppName, getOSIconUrl, isGlassEnabled, isIos, getBottomPadding } from '@/lib/utils';
+import { getAppName, isGlassEnabled, isIos, getBottomPadding } from '@/lib/utils';
 import DeviceIcon from '@/components/deviceIcon';
 import { HelpLinkType } from 'shared/helpLinks';
 import { hasStorageAccess, requestStorageAccess } from '@/lib/permissions';
@@ -117,7 +117,7 @@ export default function SettingsScreen() {
   const openLink = (type: HelpLinkType) => {
     const localSc = modules.getLocalServiceController();
     localSc.app.openHelpLink(type).catch((err) => {
-      console.error('Failed to open help link:', err);
+      console.error('[Settings] Failed to open help link:', err);
       showAlert('Error', 'Failed to open link.');
     });
   };
@@ -125,150 +125,154 @@ export default function SettingsScreen() {
   return (
     <View style={{ flex: 1 }}>
       <UIScrollView themeColor={isIos ? 'backgroundSecondary' : 'background'} showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: bottomPadding }}>
-      {isGlassEnabled && <View style={{ height: headerHeight }} />}
-      <FormContainer>
-        <Section title="About">
-          <Line title="Version" value={modules.config.VERSION} />
-          <Line title="Device Info">
-            {deviceInfo && (
-              <View style={styles.deviceInfoRow}>
-                <Image
-                  source={getOSIconUrl(deviceInfo)}
-                  style={styles.osIcon}
-                />
-                <UIText size="md" color="textSecondary">
-                  {`${deviceInfo.os} ${deviceInfo.osFlavour} (${deviceInfo.formFactor})`}
-                </UIText>
-              </View>
-            )}
-          </Line>
-        </Section>
-
-        {showPermissionsSection && (
-          <Section title="Permissions">
-            {
-              !storageGranted && (
-                <LineLink
-                  text="Grant Storage Access"
-                  onPress={handleGrantStorage}
-                  color="primary"
-                />
-              )
-            }
-          </Section>
-        )}
-
-        {ifaceStatuses.length > 0 && (
-          <Section title="Allowed Connections" footer="At least one connection method must be enabled to connect to other devices.">
-            {ifaceStatuses.map(({ type, enabled }) => (
-              <Line key={type} title={connectionInterfaceLabels[type] || type}>
-                <Switch
-                  value={enabled}
-                  onValueChange={(value) => handleToggleInterface(type, value)}
-                  trackColor={{ true: highlightColor }}
-                />
-              </Line>
-            ))}
-          </Section>
-        )}
-
-        <Section title="Account">
-          {!isLinked && (
-            <LineLink text="Login to account" onPress={openLogin} color="primary" />
-          )}
-          {isLinked && (
-            <>
-              <Line title="Email" value={accountEmail || ''} />
-              <LineLink text="Unlink Device" onPress={handleUnlink} color="destructive" />
-            </>
-          )}
-        </Section>
-
-        {isLinked && (
-          <Section title="Linked Devices">
-            {peers.map((peer) => (
-              <Line key={peer.fingerprint}>
-                <View style={styles.peerRow}>
-                  <DeviceIcon size={32} iconKey={peer.iconKey} />
-                  <View style={styles.peerInfo}>
-                    <UIText size="md" color="text" numberOfLines={1}>
-                      {peer.deviceName}
-                    </UIText>
-                    <UIText size="xs" color="textSecondary" numberOfLines={1}>
-                      {peer.deviceInfo ? `${peer.deviceInfo.os} ${peer.deviceInfo.osFlavour}` : peer.version}
-                    </UIText>
-                  </View>
-                  <Pressable
-                    onPress={() => handleRemovePeer(peer)}
-                    hitSlop={8}
-                    style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
-                  >
-                    <UIIcon name="trash" size={20} color="#FF3B30" />
-                  </Pressable>
+        {isGlassEnabled && <View style={{ height: headerHeight }} />}
+        <FormContainer>
+          <Section title="About">
+            <Line title="Version" value={modules.config.VERSION} />
+            <Line title="Device Info">
+              {deviceInfo && (
+                <View style={styles.deviceInfoRow}>
+                  <UIText size="md" color="textSecondary">
+                    {`${deviceInfo.os} ${deviceInfo.osFlavour} - ${deviceInfo.formFactor}`}
+                  </UIText>
                 </View>
-              </Line>
-            ))}
-            <LineLink
-              text="Add More Devices"
-              onPress={() => setInstallLinkOpen(true)}
-              color="primary"
-            />
+              )}
+            </Line>
           </Section>
-        )}
 
-        {isDev && (
-          <Section title="Development">
+          {showPermissionsSection && (
+            <Section title="Permissions">
+              {
+                !storageGranted && (
+                  <LineLink
+                    text="Grant Storage Access"
+                    onPress={handleGrantStorage}
+                    color="primary"
+                  />
+                )
+              }
+            </Section>
+          )}
+
+          {ifaceStatuses.length > 0 && (
+            <Section title="Allowed Connections" footer="At least one connection method must be enabled to connect to other devices.">
+              {ifaceStatuses.map(({ type, enabled }) => (
+                <Line key={type} title={connectionInterfaceLabels[type] || type}>
+                  <Switch
+                    value={enabled}
+                    onValueChange={(value) => handleToggleInterface(type, value)}
+                    trackColor={{ true: highlightColor }}
+                  />
+                </Line>
+              ))}
+            </Section>
+          )}
+
+          <Section title="Account">
+            {!isLinked && (
+              <LineLink text="Login to account" onPress={openLogin} color="primary" />
+            )}
+            {isLinked && (
+              <>
+                <Line title="Email" value={accountEmail || ''} />
+                <LineLink text="Unlink Device" onPress={handleUnlink} color="destructive" />
+              </>
+            )}
+          </Section>
+
+          {isLinked && (
+            <Section title="Linked Devices">
+              {peers.map((peer) => (
+                <Line key={peer.fingerprint}>
+                  <View style={styles.peerRow}>
+                    <DeviceIcon size={32} iconKey={peer.iconKey} />
+                    <View style={styles.peerInfo}>
+                      <UIText size="md" color="text" numberOfLines={1}>
+                        {peer.deviceName}
+                      </UIText>
+                      <UIText size="xs" color="textSecondary" numberOfLines={1}>
+                        {peer.deviceInfo ? `${peer.deviceInfo.os} ${peer.deviceInfo.osFlavour}` : peer.version}
+                      </UIText>
+                    </View>
+                    <Pressable
+                      onPress={() => handleRemovePeer(peer)}
+                      hitSlop={8}
+                      style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
+                    >
+                      <UIIcon name="trash" size={20} color="#FF3B30" />
+                    </Pressable>
+                  </View>
+                </Line>
+              ))}
+              <LineLink
+                text="Add More Devices"
+                onPress={() => setInstallLinkOpen(true)}
+                color="primary"
+              />
+            </Section>
+          )}
+
+          {isDev && (
+            <Section title="Development">
+              <LineLink
+                text="Reset Onboarding"
+                onPress={async () => {
+                  const localSc = modules.getLocalServiceController();
+                  await localSc.app.setOnboarded(false);
+                  setOnboarded(false);
+                  showAlert('Onboarding flag reset', 'Restart the app to see the welcome screen.');
+                }}
+                color="destructive"
+              />
+              <LineLink
+                text="Open Login"
+                onPress={() => router.navigate('/login')}
+              />
+              <LineLink
+                text="Test Loading Modal"
+                onPress={() => {
+                  withLoading(async (isCancelled) => {
+                    await new Promise<void>((resolve) => {
+                      const interval = setInterval(() => {
+                        if (isCancelled()) {
+                          clearInterval(interval);
+                          resolve();
+                        }
+                      }, 100);
+                    });
+                  }, { title: 'Testing loading modal...', canCancel: true });
+                }}
+              />
+            </Section>
+          )}
+
+          <Section title="Help">
             <LineLink
-              text="Reset Onboarding"
-              onPress={async () => {
-                const localSc = modules.getLocalServiceController();
-                await localSc.app.setOnboarded(false);
-                setOnboarded(false);
-                showAlert('Onboarding flag reset', 'Restart the app to see the welcome screen.');
-              }}
-              color="destructive"
-            />
-            <LineLink
-              text="Open Login"
-              onPress={() => router.navigate('/login')}
-            />
-            <LineLink
-              text="Test Loading Modal"
+              text="Export Logs"
               onPress={() => {
-                withLoading(async (isCancelled) => {
-                  await new Promise<void>((resolve) => {
-                    const interval = setInterval(() => {
-                      if (isCancelled()) {
-                        clearInterval(interval);
-                        resolve();
-                      }
-                    }, 100);
-                  });
-                }, { title: 'Testing loading modal...', canCancel: true });
+                modules.getLocalServiceController().app.exportLogs().catch((err: any) => {
+                  showAlert('Error', err?.message || 'Failed to export logs.');
+                });
               }}
             />
+            <LineLink text="Privacy Policy" onPress={() => openLink('Privacy')} />
+            <LineLink text="Website" onPress={() => openLink('Website')} />
           </Section>
-        )}
 
-        <Section title="Help">
-          <LineLink text="Privacy Policy" onPress={() => openLink('Privacy')} />
-          <LineLink text="Website" onPress={() => openLink('Website')} />
-        </Section>
+          <View style={styles.footer}>
+            <Image
+              source={require('@/assets/images/icon.png')}
+              style={styles.appIcon}
+            />
+            <UIText size="sm" color="textSecondary" style={styles.footerText}>
+              {getAppName()}. Asrient&apos;s Studio, 2026.
+            </UIText>
+          </View>
 
-        <View style={styles.footer}>
-          <Image
-            source={require('@/assets/images/icon.png')}
-            style={styles.appIcon}
-          />
-          <UIText size="sm" color="textSecondary" style={styles.footerText}>
-            {getAppName()}. Asrient&apos;s Studio, 2026.
-          </UIText>
-        </View>
-
-      </FormContainer>
-      <InstallLinkModal isOpen={installLinkOpen} onClose={() => setInstallLinkOpen(false)} />
-    </UIScrollView>
-    <LoadingModal />
+        </FormContainer>
+        <InstallLinkModal isOpen={installLinkOpen} onClose={() => setInstallLinkOpen(false)} />
+      </UIScrollView>
+      <LoadingModal />
     </View>
   );
 }

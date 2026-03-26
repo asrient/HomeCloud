@@ -1,11 +1,10 @@
-import { View, Pressable, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { UIText } from '@/components/ui/UIText';
 import { UIPageSheet } from '@/components/ui/UIPageSheet';
 import { FileRemoteItem, RemoteItemWithPeer } from '@/lib/types';
 import { FolderFilesGrid } from '@/components/filesGrid';
 import { useAppState } from '@/hooks/useAppState';
-import { UIIcon } from './ui/UIIcon';
-import DeviceIcon from './deviceIcon';
+import { DeviceTile } from './DeviceTile';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { UIButton } from './ui/UIButton';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -22,30 +21,21 @@ export type FilePickerProps = {
 
 function DeviceList({ selectDevice }: { selectDevice: (fingerprint: string | null) => void }) {
     const { peers } = useAppState();
-    const themeBorderColor = useThemeColor({}, 'seperator');
     return (
         <View>
-            {[null, ...peers].map((peer) => {
+            {[null, ...peers].map((peer, index, arr) => {
                 const fingerprint = peer ? peer.fingerprint : null;
                 const name = peer ? peer.deviceName : 'This Device';
-                return (<Pressable
-                    key={fingerprint || 'this-device'}
-                    onPress={() => selectDevice(fingerprint)}
-                    style={{
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 12,
-                        borderBottomColor: themeBorderColor,
-                        borderBottomWidth: 0.5
-                    }}
-                >
-                    <DeviceIcon size={30} iconKey={peer ? peer.iconKey : null} />
-                    <UIText size="md">{name}</UIText>
-                    <View style={{ flex: 1 }} />
-                    <UIIcon name="chevron.forward" size={18} themeColor="textTertiary" />
-                </Pressable>)
+                const iconKey = peer ? peer.iconKey : null;
+                return (
+                    <DeviceTile
+                        key={fingerprint || 'this-device'}
+                        iconKey={iconKey}
+                        title={name}
+                        onPress={() => selectDevice(fingerprint)}
+                        showDivider={index < arr.length - 1}
+                    />
+                );
             })}
         </View>
     );
@@ -54,7 +44,6 @@ function DeviceList({ selectDevice }: { selectDevice: (fingerprint: string | nul
 function DeviceListPage({ onSelect }: { onSelect: (fingerprint: string | null) => void }) {
     return (
         <View style={{ flex: 1 }}>
-            <UIText style={{ padding: 8 }} size='md' font='semibold'>My Devices</UIText>
             <ScrollView>
                 <View style={{ paddingHorizontal: 4 }}>
                     <DeviceList selectDevice={onSelect} />
@@ -74,7 +63,8 @@ function getParentPath(path: string): string {
 function getPathName(path: string): string {
     if (!path || path === '/' || path === '') return 'Root';
     const parts = path.split('/').filter(Boolean);
-    return parts[parts.length - 1] || 'Root';
+    const name = parts[parts.length - 1] || 'Root';
+    try { return decodeURIComponent(name); } catch { return name; }
 }
 
 export function FilePickerModal({ isOpen, onDone, selectedFingerprint, defaultPath, pickerType = 'file', selectMultiple = false, title }: FilePickerProps) {
@@ -130,6 +120,13 @@ export function FilePickerModal({ isOpen, onDone, selectedFingerprint, defaultPa
     // Handle file/folder selection
     const handleSelect = useCallback((item: FileRemoteItem) => {
         if (!isItemSelectable(item)) return false;
+        // In folder picker with single select, navigate into the folder instead of selecting.
+        // The "Select This Folder" button handles picking the current directory.
+        if (pickerType === 'folder' && !selectMultiple && item.type === 'directory') {
+            setCurrentPath(item.path);
+            setSelectedItems([]);
+            return true;
+        }
         if (selectMultiple) {
             setSelectedItems(prev => {
                 const exists = prev.some(i => i.path === item.path && i.deviceFingerprint === item.deviceFingerprint);
@@ -139,11 +136,10 @@ export function FilePickerModal({ isOpen, onDone, selectedFingerprint, defaultPa
                 return [...prev, item];
             });
         } else {
-            // Single selection - immediately select
             setSelectedItems([item]);
         }
         return true;
-    }, [isItemSelectable, selectMultiple]);
+    }, [isItemSelectable, selectMultiple, pickerType]);
 
     const handleDeselect = useCallback((item: FileRemoteItem) => {
         setSelectedItems(prev =>

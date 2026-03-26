@@ -11,7 +11,7 @@ export const useResource = ({
     deviceFingerprint: string | null;
     load: (serviceController: ServiceController, shouldAbort: () => boolean) => Promise<void>;
     clearSignals?: (serviceController: ServiceController) => void;
-    setupSignals?: (serviceController: ServiceController) => void;
+    setupSignals?: (serviceController: ServiceController) => Promise<void> | void;
     resourceKey?: string;
 }) => {
     const isLoadingRef = useRef(false);
@@ -93,7 +93,6 @@ export const useResource = ({
         }
 
         const init = async () => {
-            console.log('Initializing resource for device:', _fingerprint);
             // Use getExistingServiceController when we already have a cached
             // service controller (reconnection after disconnect) to avoid
             // if the existing sc is no longer valid it will throw here.
@@ -106,7 +105,9 @@ export const useResource = ({
                 return;
             }
             serviceControllerRef.current = serviceController;
-            setupSignals && !hasSignalSetupRef.current && setupSignals(serviceController);
+            if (setupSignals && !hasSignalSetupRef.current) {
+                await setupSignals(serviceController);
+            }
             hasSignalSetupRef.current = true;
             await load(serviceController, shouldAbort);
         };
@@ -133,7 +134,10 @@ export const useResource = ({
             setIsLoading(false);
         });
         return () => {
-            clearSignals && serviceControllerRef.current && hasSignalSetupRef.current && clearSignals(serviceControllerRef.current);
+            if (clearSignals && serviceControllerRef.current && hasSignalSetupRef.current) {
+                clearSignals(serviceControllerRef.current);
+                hasSignalSetupRef.current = false;
+            }
         };
     }, [clearSignals, isConnected, deviceFingerprint, load, setupSignals, resourceKey]);
 
@@ -141,13 +145,14 @@ export const useResource = ({
 };
 
 export const useResourceWithPolling = ({
-    deviceFingerprint, load, interval, clearSignals, setupSignals,
+    deviceFingerprint, load, interval, clearSignals, setupSignals, poll,
 }: {
     deviceFingerprint: string | null;
     load: (serviceController: ServiceController, shouldAbort: () => boolean) => Promise<void>;
     interval: number;
     clearSignals?: (serviceController: ServiceController) => void;
-    setupSignals?: (serviceController: ServiceController) => void;
+    setupSignals?: (serviceController: ServiceController) => Promise<void> | void;
+    poll?: () => void;
 }) => {
     const { isLoading, error, reload } = useResource({
         deviceFingerprint,
@@ -156,15 +161,15 @@ export const useResourceWithPolling = ({
         setupSignals,
     });
 
+    const pollFn = poll ?? reload;
+
     useEffect(() => {
-        const pollingInterval = setInterval(() => {
-            reload();
-        }, interval);
+        const pollingInterval = setInterval(pollFn, interval);
 
         return () => {
             clearInterval(pollingInterval);
         };
-    }, [deviceFingerprint, interval, reload]);
+    }, [deviceFingerprint, interval, pollFn]);
 
     return { isLoading, error, reload };
 };

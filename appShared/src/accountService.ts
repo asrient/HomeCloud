@@ -4,6 +4,7 @@ import { Service, serviceStartMethod, serviceStopMethod } from "./servicePrimati
 import ConfigStorage from "./storage";
 import { AccountLinkResponse, AccountLinkVerifyResponse, PeerConnectRequest, PeerInfo, StoreNames, WebcInit, WebcPeerData, WebcReject } from "./types";
 import CustomError, { ErrorCode, ErrorType } from "./customError";
+import { fp } from "./utils";
 
 const USER_AGENT = "HomeCloud-AppClient/1.0";
 
@@ -96,7 +97,7 @@ export class AccountService extends Service {
     }
 
     private handleWebSocketEvent(event: WebSocketEvent, data: any) {
-        console.log("Received WebSocket event:", event, data);
+        console.debug(`[AccountService] Received WebSocket event: ${event}`);
         switch (event) {
             case WebSocketEvent.WEB_CONNECT_REQUEST:
                 this.webcInitSignal.dispatch(data as WebcInit);
@@ -114,11 +115,11 @@ export class AccountService extends Service {
                 this.peerRemovedSignal.dispatch(data as PeerInfo);
                 break;
             case WebSocketEvent.PEER_ONLINE:
-                console.log(`Peer online event received for fingerprint: ${data.fingerprint}`);
+                console.debug(`[AccountService] Peer online event received, fpt=${fp(data.fingerprint)}`);
                 this.peerOnlineSignal.dispatch(data.fingerprint as string);
                 break;
             case WebSocketEvent.AUTH_ERROR:
-                console.warn("WebSocket auth error received.");
+                console.warn(`[AccountService] WebSocket auth error received.`);
                 this.resetToken();
                 this.webSocket.close();
                 break;
@@ -126,7 +127,7 @@ export class AccountService extends Service {
                 this.peerConnectRequestSignal.dispatch(data as PeerConnectRequest);
                 break;
             default:
-                console.warn(`Unknown WebSocket event: ${event}`);
+                console.warn(`[AccountService] Unknown WebSocket event: ${event}`);
         }
     }
 
@@ -175,7 +176,7 @@ export class AccountService extends Service {
         } else {
             err = new CustomError(ErrorType.Generic, `Request failed with status ${resp.status}`);
         }
-        console.error(`[API error] ${resp.url} (${resp.status})`);
+        console.error(`[AccountService] ${resp.url} (${resp.status})`);
         console.error(err);
         throw err;
     }
@@ -252,7 +253,7 @@ export class AccountService extends Service {
     }
 
     private async renewToken(): Promise<string> {
-        console.log("Fetching new auth token...");
+        console.log(`[AccountService] Fetching new auth token...`);
         try {
             const { requestId, requiresVerification } = await this.initiateLink();
             if (requiresVerification) {
@@ -260,17 +261,17 @@ export class AccountService extends Service {
                 throw new Error("Account requires verification to renew token.");
             }
             const linkResp = await this.verifyLink(requestId, null);
-            console.log("Fetched new auth token.");
+            console.log(`[AccountService] Fetched new auth token.`);
             return linkResp.authToken;
         } catch (err) {
             // If account no longer exists on server, reset local account data
             // For backwards compatibility, we are considering validation error on accountId as well.
-            console.log("Failed to fetch new auth token:", err);
+            console.warn(`[AccountService] Failed to fetch new auth token:`, err);
             if (err instanceof CustomError && (
                 err.data?.code === ErrorCode.ACCOUNT_NOT_FOUND
                 || (err.type === ErrorType.Validation && !!err.data?.fields?.accountId)
             )) {
-                console.warn("Account not found on server. Resetting local account data.");
+                console.warn(`[AccountService] Account not found on server. Resetting local account data.`);
                 await this.resetAccountData();
             }
             throw err;
@@ -344,7 +345,7 @@ export class AccountService extends Service {
             // Regardless of success or failure, if we its a removal of self, reset account data
             // This helps when server is having issues and we still want the user to remove account link locally
             if (fingerprint === null) {
-                console.log("Removed self from account; resetting account data.");
+                console.log(`[AccountService] Removed self from account; resetting account data.`);
                 await this.resetAccountData();
             }
         }
@@ -379,11 +380,11 @@ export class AccountService extends Service {
                 const msg = JSON.parse(event.data);
                 this.handleWebSocketEvent(msg.type as WebSocketEvent, msg.data);
             } catch (err) {
-                console.error("Failed to handle WebSocket message:", err);
+                console.error(`[AccountService] Failed to handle WebSocket message:`, err);
             }
         };
         this.webSocket.onclose = async (event: CloseEvent) => {
-            console.warn(`WebSocket closed: code=${event.code}, reason=${event.reason}`);
+            console.warn(`[AccountService] WebSocket closed: code=${event.code}, reason=${event.reason}`);
             await this.handleWebsocketClose();
         }
         this.webSocket.onerror = (event: ErrorEvent) => {
@@ -397,7 +398,7 @@ export class AccountService extends Service {
     public async connectWebSocket() {
         if (!this.isServiceRunning()) return;
         if (!this.isLinked()) {
-            console.warn("Account is not linked; skipping WebSocket connection.");
+            console.warn(`[AccountService] Account is not linked; skipping WebSocket connection.`);
             return;
         }
         if (this.webSocket.isConnected() || this.isConnectingWebSocket) {
@@ -408,7 +409,7 @@ export class AccountService extends Service {
         try {
             token = await this.getOrFetchToken();
         } catch (err) {
-            console.warn("Failed to get token for WebSocket:", err);
+            console.warn(`[AccountService] Failed to get token for WebSocket:`, err);
             this.isConnectingWebSocket = false;
             return;
         }
@@ -419,7 +420,7 @@ export class AccountService extends Service {
         try {
             this.webSocket.connect(modules.config.WS_SERVER_URL, `tok-${token}`);
         } catch (err) {
-            console.error("Failed to connect WebSocket:", err);
+            console.error(`[AccountService] Failed to connect WebSocket:`, err);
         } finally {
             this.isConnectingWebSocket = false;
         }
@@ -465,7 +466,7 @@ export class AccountService extends Service {
     };
 
     private handleWebsocketError = (error: Error) => {
-        console.error("WebSocket error:", error);
+        console.error(`[AccountService] WebSocket error:`, error);
         if (this.webSocket.isConnected()) {
             this.webSocket.close();
         } else {
@@ -474,7 +475,7 @@ export class AccountService extends Service {
     };
 
     private handleWebsocketConnected = async () => {
-        console.log("WebSocket connected.");
+        console.log(`[AccountService] WebSocket connected.`);
         if (this.retryTimer) {
             clearTimeout(this.retryTimer);
             this.retryTimer = null;
@@ -509,7 +510,7 @@ export class AccountService extends Service {
             try {
                 this.webSocket.send(JSON.stringify({ type: "ping" }));
             } catch (err) {
-                console.error("Failed to send ping:", err);
+                console.error(`[AccountService] Failed to send ping:`, err);
             }
         }
     }

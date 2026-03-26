@@ -84,7 +84,7 @@ function handleContextMenuFromWindow(win: BrowserWindow) {
 export function createWindow(url?: string): BrowserWindow {
     // Create the browser window.
     const isSystemDarkMode = nativeTheme.shouldUseDarkColors;
-    console.log('System dark mode:', isSystemDarkMode);
+    console.debug('[Window] System dark mode:', isSystemDarkMode);
     const win = new BrowserWindow({
         width: process.platform === 'darwin' ? 1040 : 1200,
         height: process.platform === 'darwin' ? 640 : 860,
@@ -115,7 +115,7 @@ export function createWindow(url?: string): BrowserWindow {
 
     // Load the URL
     const loadUrl = url || getHomeUrl();
-    console.log('Loading URL:', loadUrl);
+    console.debug('[Window] Loading UI.');
     win.loadURL(loadUrl);
 
     handleContextMenuFromWindow(win);
@@ -150,7 +150,7 @@ export function getOrCreateWindow(): BrowserWindow {
 
 // Navigate an existing window to a new path
 export function navigateTo(win: BrowserWindow, url: string): void {
-    console.log('Navigating to:', url);
+    console.debug('[Window] Navigating.');
     win.loadURL(url);
     win.show();
     win.focus();

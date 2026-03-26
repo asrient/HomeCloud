@@ -1,26 +1,46 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 
-export default function LazyImage({ fetchSrc, src, alt, ...rest }: {
+export default function LazyImage({ fetchSrc, itemKey, src, alt, ...rest }: {
     fetchSrc: () => Promise<string | null>;
+    /** Stable identifier for the item this image represents.
+     *  When it changes, the loaded image is discarded and re-fetched. */
+    itemKey?: string;
     src: string;
 } & React.ComponentProps<typeof Image>) {
 
     const [imgSrc, setImgSrc] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const loadingRef = useRef(false);
+    const activeKeyRef = useRef(itemKey);
+
+    // When the item identity changes, reset so we re-fetch.
+    useEffect(() => {
+        if (activeKeyRef.current !== itemKey) {
+            activeKeyRef.current = itemKey;
+            loadingRef.current = false;
+            setImgSrc(null);
+        }
+    }, [itemKey]);
 
     const loadImage = useCallback(async () => {
-        if(isLoading) return;
-        setIsLoading(true);
+        if (loadingRef.current) return;
+        loadingRef.current = true;
+        const startKey = activeKeyRef.current;
         try {
-            const imgSrc = await fetchSrc();
-            setImgSrc(imgSrc || src);
+            const result = await fetchSrc();
+            if (activeKeyRef.current === startKey) {
+                setImgSrc(result || src);
+            }
         } catch (e) {
-            setImgSrc(src);
+            if (activeKeyRef.current === startKey) {
+                setImgSrc(src);
+            }
         } finally {
-            setIsLoading(false);
+            if (activeKeyRef.current === startKey) {
+                loadingRef.current = false;
+            }
         }
-    }, [fetchSrc, src, isLoading]);
+    }, [fetchSrc, src]);
 
     const onError = useCallback(() => {
         setImgSrc(src);

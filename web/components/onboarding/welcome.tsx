@@ -35,12 +35,12 @@ export function WelcomePage() {
 
     return (
         <>
-            <div className="flex flex-col items-center pt-6 pb-2">
+            <div className="flex flex-col items-center pt-6">
                 <Image
                     src="/icons/icon.png"
                     alt={getAppName()}
-                    width={72}
-                    height={72}
+                    width={60}
+                    height={60}
                     className="rounded-2xl mb-4"
                 />
                 <DialogHeader>
@@ -52,8 +52,8 @@ export function WelcomePage() {
             <div className="flex flex-col gap-1 py-4 px-4 max-w-md mx-auto">
                 <Bulletin
                     icon="/icons/devices.png"
-                    title="Transfer files, browse photos & more"
-                    description="Transfer unlimited files, share your clipboard, browse photos and edit documents across all your devices."
+                    title="Work across your devices"
+                    description="Transfer files, access clipboard, browse photos or edit documents from any device."
                 />
                 <Bulletin
                     icon="/icons/internet.png"

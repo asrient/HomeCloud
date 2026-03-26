@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(NEXT_PUBLIC_UI_THEME=win11 npx next build)",
+      "Bash(UI_THEME=win11 NEXT_PUBLIC_UI_THEME=win11 npx next build)"
+    ]
+  }
+}

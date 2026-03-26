@@ -1,13 +1,151 @@
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { AudioPlaybackInfo } from "shared/types";
 
 type StateCallback = (info: AudioPlaybackInfo | null) => void;
+
+// Single script that checks Spotify → Music → QuickTime in one osascript invocation
+const FETCH_SCRIPT = `
+tell application "System Events"
+  if exists process "Spotify" then
+    tell application "Spotify"
+      if player state is playing or player state is paused then
+        set pState to (player state as string)
+        try
+          set tName to name of current track as text
+        on error
+          set tName to ""
+        end try
+        try
+          set tArtist to artist of current track as text
+        on error
+          set tArtist to ""
+        end try
+        try
+          set tAlbum to album of current track as text
+        on error
+          set tAlbum to ""
+        end try
+        return "spotify||" & pState & "||" & tName & "||" & tArtist & "||" & tAlbum
+      end if
+    end tell
+  end if
+  if exists process "Music" then
+    tell application "Music"
+      if player state is playing or player state is paused then
+        set pState to (player state as string)
+        try
+          set tName to name of current track as text
+        on error
+          set tName to ""
+        end try
+        try
+          set tArtist to artist of current track as text
+        on error
+          set tArtist to ""
+        end try
+        try
+          set tAlbum to album of current track as text
+        on error
+          set tAlbum to ""
+        end try
+        return "music||" & pState & "||" & tName & "||" & tArtist & "||" & tAlbum
+      end if
+    end tell
+  end if
+  if exists process "QuickTime Player" then
+    tell application "QuickTime Player"
+      if (count of documents) > 0 then
+        tell front document
+          set isPlaying to playing
+          set docName to name
+          return "quicktime||" & (isPlaying as string) & "||" & docName
+        end tell
+      end if
+    end tell
+  end if
+end tell
+return "none"
+`;
+
+type PlayerSource = 'spotify' | 'music' | 'quicktime';
+
+const PLAYER_COMMANDS: Record<PlayerSource, { play: string; pause: string; next: string; previous: string }> = {
+    spotify: {
+        play: 'tell application "Spotify" to play',
+        pause: 'tell application "Spotify" to pause',
+        next: 'tell application "Spotify" to next track',
+        previous: 'tell application "Spotify" to previous track',
+    },
+    music: {
+        play: 'tell application "Music" to play',
+        pause: 'tell application "Music" to pause',
+        next: 'tell application "Music" to next track',
+        previous: 'tell application "Music" to previous track',
+    },
+    quicktime: {
+        play: 'tell application "QuickTime Player" to tell front document to play',
+        pause: 'tell application "QuickTime Player" to tell front document to pause',
+        next: 'tell application "QuickTime Player" to tell front document to step forward',
+        previous: 'tell application "QuickTime Player" to tell front document to step backward',
+    },
+};
+
+function runAppleScript(script: string, timeoutMs = 3000): Promise<string | null> {
+    return new Promise((resolve) => {
+        const lines = script.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const args: string[] = [];
+        for (const line of lines) {
+            args.push('-e', line);
+        }
+        execFile('osascript', args, { timeout: timeoutMs }, (err, stdout) => {
+            if (err) return resolve(null);
+            const out = stdout.trim();
+            resolve(out.length ? out : null);
+        });
+    });
+}
+
+interface FetchResult {
+    source: PlayerSource;
+    info: AudioPlaybackInfo;
+}
+
+function parseFetchResult(res: string | null): FetchResult | null {
+    if (!res || res === 'none') return null;
+    const parts = res.split('||');
+    const source = parts[0] as string;
+    if (source === 'spotify' || source === 'music') {
+        return {
+            source,
+            info: {
+                trackName: parts[2] || '',
+                artistName: parts[3] || '',
+                albumName: parts[4] || '',
+                isPlaying: parts[1] === 'playing',
+            },
+        };
+    }
+    if (source === 'quicktime') {
+        return {
+            source,
+            info: {
+                trackName: parts[2] || '',
+                artistName: undefined,
+                albumName: undefined,
+                isPlaying: parts[1] === 'true',
+            },
+        };
+    }
+    return null;
+}
 
 export class MacOSPlaybackWatcher {
     private onChange: StateCallback;
     private pollTimer: NodeJS.Timeout | null = null;
     private lastInfo: AudioPlaybackInfo | null = null;
     private lastGetCallTs = 0;
+    private polling = false;
+    private activeSource: PlayerSource | null = null;
 
     private readonly POLL_INTERVAL = 3000;
     private readonly IDLE_TIMEOUT = 2 * 60 * 1000;
@@ -16,134 +154,80 @@ export class MacOSPlaybackWatcher {
         this.onChange = onStateChange;
     }
 
-    /** Public API */
     async getPlaybackInfo(): Promise<AudioPlaybackInfo | null> {
         this.lastGetCallTs = Date.now();
-
-        if (!this.pollTimer) {
-            this.startPolling();
+        if (this.pollTimer && this.lastInfo) {
+            return this.lastInfo;
         }
-
-        const info = await this.fetchPlaybackInfo();
-        return info;
+        if (!this.pollTimer) this.startPolling();
+        const result = parseFetchResult(await runAppleScript(FETCH_SCRIPT));
+        this.activeSource = result?.source ?? null;
+        this.lastInfo = result?.info ?? null;
+        return this.lastInfo;
     }
 
     async play(): Promise<void> {
-        await this.executePlayerCommand('play');
-        await this.refreshState();
+        await this.sendCommand('play');
     }
 
     async pause(): Promise<void> {
-        await this.executePlayerCommand('pause');
-        await this.refreshState();
+        await this.sendCommand('pause');
     }
 
     async next(): Promise<void> {
-        await this.executePlayerCommand('next track');
-        await this.refreshState();
+        await this.sendCommand('next');
     }
 
     async previous(): Promise<void> {
-        await this.executePlayerCommand('previous track');
-        await this.refreshState();
+        await this.sendCommand('previous');
     }
 
-    /** ---------------- Internals ---------------- */
-
-    private async executePlayerCommand(command: string): Promise<void> {
-        // Try Spotify first
-        const spotifyScript = `
-tell application "System Events"
-  if exists process "Spotify" then
-    tell application "Spotify" to ${command}
-    return "ok"
-  end if
-end tell
-        `;
-
-        const spotifyResult = await this.execAppleScript(spotifyScript);
-        if (spotifyResult === 'ok') return;
-
-        // Try Apple Music
-        const musicScript = `
-tell application "System Events"
-  if exists process "Music" then
-    tell application "Music" to ${command}
-    return "ok"
-  end if
-end tell
-        `;
-
-        const musicResult = await this.execAppleScript(musicScript);
-        if (musicResult === 'ok') return;
-
-        // Try QuickTime Player
-        const qtCommand = this.mapToQuickTimeCommand(command);
-        if (qtCommand) {
-            const quickTimeScript = `
-tell application "System Events"
-  if exists process "QuickTime Player" then
-    tell application "QuickTime Player"
-      if (count of documents) > 0 then
-        tell front document to ${qtCommand}
-        return "ok"
-      end if
-    end tell
-  end if
-end tell
-            `;
-
-            await this.execAppleScript(quickTimeScript);
+    private async sendCommand(action: 'play' | 'pause' | 'next' | 'previous'): Promise<void> {
+        // If we don't know the active player, fetch first
+        if (!this.activeSource) {
+            console.debug('[MediaControl] Active player source unknown, fetching before sending command');
+            const result = parseFetchResult(await runAppleScript(FETCH_SCRIPT));
+            this.activeSource = result?.source ?? null;
         }
-    }
+        if (!this.activeSource) return;
+        const cmd = PLAYER_COMMANDS[this.activeSource][action];
+        await runAppleScript(cmd);
 
-    private mapToQuickTimeCommand(command: string): string | null {
-        // QuickTime uses different command syntax
-        switch (command) {
-            case 'play':
-                return 'play';
-            case 'pause':
-                return 'pause';
-            case 'next track':
-                return 'step forward';
-            case 'previous track':
-                return 'step backward';
-            default:
-                return null;
+        // Optimistically update state based on the action to avoid
+        // the "not playing" flash while the player settles
+        if (this.lastInfo) {
+            const optimistic = { ...this.lastInfo };
+            if (action === 'play') optimistic.isPlaying = true;
+            else if (action === 'pause') optimistic.isPlaying = false;
+            this.publishIfChanged(optimistic);
         }
-    }
-
-    private async refreshState(): Promise<void> {
-        // Wait a bit for the player to update
-        await new Promise(resolve => setTimeout(resolve, 100));
-        const info = await this.fetchPlaybackInfo();
-        this.publishIfChanged(info);
     }
 
     private startPolling() {
         this.pollTimer = setInterval(async () => {
-            // Stop if idle
             if (Date.now() - this.lastGetCallTs > this.IDLE_TIMEOUT) {
                 this.stopPolling();
                 return;
             }
-
-            const info = await this.fetchPlaybackInfo();
-
-            // Stop if nothing is open anymore
-            if (!info) {
-                this.stopPolling();
-                this.publishIfChanged(null);
-                return;
+            if (this.polling) return;
+            this.polling = true;
+            try {
+                const result = parseFetchResult(await runAppleScript(FETCH_SCRIPT));
+                this.activeSource = result?.source ?? null;
+                if (!result) {
+                    this.stopPolling();
+                    this.publishIfChanged(null);
+                    return;
+                }
+                this.publishIfChanged(result.info);
+            } finally {
+                this.polling = false;
             }
-
-            this.publishIfChanged(info);
         }, this.POLL_INTERVAL);
     }
 
     private stopPolling() {
         if (this.pollTimer) {
-            // console.log('Stopping MacOSPlaybackWatcher polling due to inactivity');
             clearInterval(this.pollTimer);
             this.pollTimer = null;
             this.lastInfo = null;
@@ -151,149 +235,14 @@ end tell
     }
 
     private publishIfChanged(info: AudioPlaybackInfo | null) {
-        if (!this.isSame(this.lastInfo, info)) {
-            this.lastInfo = info;
-            this.onChange(info);
-        }
-    }
-
-    private isSame(
-        a: AudioPlaybackInfo | null,
-        b: AudioPlaybackInfo | null
-    ): boolean {
-        return JSON.stringify(a) === JSON.stringify(b);
-    }
-
-    /** ---------------- Data Fetch ---------------- */
-
-    private async fetchPlaybackInfo(): Promise<AudioPlaybackInfo | null> {
-        // Priority order: Spotify → Apple Music → QuickTime Player
-        const spotify = await this.querySpotify();
-        if (spotify) return spotify;
-
-        const music = await this.queryAppleMusic();
-        if (music) return music;
-
-        const quicktime = await this.queryQuickTime();
-        if (quicktime) return quicktime;
-
-        return null;
-    }
-
-    private execAppleScript(script: string): Promise<string | null> {
-        return new Promise((resolve) => {
-            // Split script into lines and build command with multiple -e flags
-            const lines = script
-                .split('\n')
-                .map(line => line.trim())
-                .filter(line => line.length > 0);
-
-            // Build command with one -e flag per line
-            const eFlags = lines
-                .map(line => `-e '${line.replace(/'/g, "'\"'\"'")}'`)
-                .join(' ');
-
-            const cmd = `osascript ${eFlags}`;
-            exec(cmd, (err, stdout, stderr) => {
-                if (err) {
-                    console.error('AppleScript error:', err.message);
-                    console.error('stderr:', stderr);
-                    return resolve(null);
-                }
-                const out = stdout.trim();
-                resolve(out.length ? out : null);
-            });
-        });
-    }
-
-    /** ---------------- Spotify ---------------- */
-
-    private async querySpotify(): Promise<AudioPlaybackInfo | null> {
-        const script = `
-tell application "System Events"
-  if exists process "Spotify" then
-    tell application "Spotify"
-      if player state is playing or player state is paused then
-        return (player state as string) & "||" & name of current track & "||" & artist of current track & "||" & album of current track
-      end if
-    end tell
-  end if
-end tell
-    `;
-
-        const res = await this.execAppleScript(script);
-        // console.log('Spotify AppleScript result:', res);
-        if (!res) return null;
-
-        const [state, track, artist, album] = res.split("||");
-
-        return {
-            trackName: track,
-            artistName: artist,
-            albumName: album,
-            isPlaying: state === "playing",
-        };
-    }
-
-    /** ---------------- Apple Music ---------------- */
-
-    private async queryAppleMusic(): Promise<AudioPlaybackInfo | null> {
-        const script = `
-tell application "System Events"
-  if exists process "Music" then
-    tell application "Music"
-      if player state is playing or player state is paused then
-        return (player state as string) & "||" & name of current track & "||" & artist of current track & "||" & album of current track
-      end if
-    end tell
-  end if
-end tell
-    `;
-
-        const res = await this.execAppleScript(script);
-        // console.log('Apple Music AppleScript result:', res);
-        if (!res) return null;
-
-        const [state, track, artist, album] = res.split("||");
-
-        return {
-            trackName: track,
-            artistName: artist,
-            albumName: album,
-            isPlaying: state === "playing",
-        };
-    }
-
-    /** ---------------- QuickTime Player ---------------- */
-
-    private async queryQuickTime(): Promise<AudioPlaybackInfo | null> {
-        const script = `
-tell application "System Events"
-  if exists process "QuickTime Player" then
-    tell application "QuickTime Player"
-      if (count of documents) > 0 then
-        tell front document
-          set isPlaying to playing
-          set docName to name
-          return (isPlaying as string) & "||" & docName
-        end tell
-      end if
-    end tell
-  end if
-end tell
-    `;
-
-        const res = await this.execAppleScript(script);
-        // console.log('QuickTime AppleScript result:', res);
-        if (!res) return null;
-
-        const [playing, docName] = res.split("||");
-
-        return {
-            trackName: docName,
-            artistName: undefined,
-            albumName: undefined,
-            isPlaying: playing === "true",
-        };
+        const prev = this.lastInfo;
+        if (prev === info) return;
+        if (prev && info
+            && prev.trackName === info.trackName
+            && prev.artistName === info.artistName
+            && prev.albumName === info.albumName
+            && prev.isPlaying === info.isPlaying) return;
+        this.lastInfo = info;
+        this.onChange(info);
     }
 }

@@ -75,7 +75,7 @@ export function trayOnClick() {
 
 export function createTray() {
     const iconPath = getTrayIconPath();
-    console.log('Creating tray with icon:', iconPath);
+    console.debug('[Tray] Creating tray.');
 
     const icon = nativeImage.createFromPath(iconPath);
     if (process.platform === 'darwin') {

@@ -1,7 +1,5 @@
 import { DatagramCompat } from "./compat";
-import { isLocalIp } from "./utils";
-
-const DEBUG_BENCHMARKS = true;
+import { isLocalIp, isDebug, safeIp } from "./utils";
 
 const HEADER_SIZE = 5; // 1 byte type + 4 bytes seq
 const MAX_PACKET_SIZE = 1300;
@@ -46,12 +44,13 @@ const FLAG_PING = 5;
 
 const MAX_PACKET_PAYLOAD = MAX_PACKET_SIZE - HEADER_SIZE;
 
-const STRICT_IP_CHECK = false;
+const STRICT_IP_CHECK = true;
 
 export class ReDatagram {
     private socket: DatagramCompat;
     private remote: { address: string; port: number };
     private allowedAddresses: Set<string>;
+    public tag: string;
 
     private sendSeq = 1;
     private recvSeq = 1;
@@ -103,14 +102,15 @@ export class ReDatagram {
     private statsIntervalId: number | null = null;
     private statsLastTime = Date.now();
 
-    constructor(socket: DatagramCompat, peerAddresses: string[], port: number, onReady?: (isSuccess: boolean) => void) {
+    constructor(socket: DatagramCompat, peerAddresses: string[], port: number, onReady?: (isSuccess: boolean) => void, tag?: string) {
         this.socket = socket;
+        this.tag = tag || 'udp';
 
         // Detect LAN vs internet based on peer IP — tune congestion control accordingly.
         const isLan = peerAddresses.some(addr => isLocalIp(addr));
         this.profile = isLan ? LAN_PROFILE : WAN_PROFILE;
         this.ssthresh = INITIAL_SSTHRESH;
-        console.log(`[ReUDP] Network profile: ${isLan ? 'LAN' : 'WAN'} (β=${this.profile.beta}, maxRetransmits=${this.profile.maxRetransmits})`);
+        console.debug(`[ReUDP:${this.tag}] Network profile: ${isLan ? 'LAN' : 'WAN'} (Beta=${this.profile.beta}, maxRetransmits=${this.profile.maxRetransmits})`);
 
         this.onReady = onReady;
         this.remote = { address: peerAddresses[0], port };
@@ -119,17 +119,19 @@ export class ReDatagram {
         this.socket.onMessage = (msg, rinfo) => {
             // always verify port matches
             if (rinfo.port !== this.remote.port) {
-                console.warn(`[ReUDP] Ignoring packet from unexpected port ${rinfo.address}:${rinfo.port}, expected port ${this.remote.port}`);
+                console.warn(`[ReUDP:${this.tag}] Ignoring packet from unexpected port.`);
+                console.debug(`[ReUDP:${this.tag}] Expected address ${safeIp(this.remote.address)}:${this.remote.port}, got ${safeIp(rinfo.address)}:${rinfo.port}`);
                 return;
             }
             // make sure message is from an allowed remote address
             if (STRICT_IP_CHECK && !this.allowedAddresses.has(rinfo.address)) {
-                console.warn(`[ReUDP] Ignoring packet from unexpected remote ${rinfo.address}:${rinfo.port}, not in allowed addresses`);
+                console.warn(`[ReUDP:${this.tag}] Ignoring packet from unexpected remote.`);
+                console.debug(`[ReUDP:${this.tag}] Expected address ${safeIp(this.remote.address)}:${this.remote.port}, got ${safeIp(rinfo.address)}:${rinfo.port}`);
                 return;
             }
             // Update remote address if it changed to an allowed one
             if (rinfo.address !== this.remote.address && this.allowedAddresses.has(rinfo.address)) {
-                console.log(`[ReUDP] Remote address changed from ${this.remote.address} to ${rinfo.address}`);
+                console.debug(`[ReUDP:${this.tag}] Remote address changed from ${safeIp(this.remote.address)}:${this.remote.port} to ${safeIp(rinfo.address)}:${rinfo.port}.`);
                 this.remote.address = rinfo.address;
             }
             this.handlePacket(msg);
@@ -140,7 +142,7 @@ export class ReDatagram {
                 this.isRemoteClosed = true;
             } else {
                 // Socket errors are common during app background/foreground, use warn level
-                console.warn('[ReUDP] Socket error:', err.message || err);
+                console.warn(`[ReUDP:${this.tag}] Socket error:`, err.message || err);
                 this.close();
             }
         };
@@ -153,7 +155,7 @@ export class ReDatagram {
         this.sendHello();
         this.startPingLoop();
         this.startRetransmitLoop();
-        if (DEBUG_BENCHMARKS) this.startStatsLoop();
+        if (isDebug()) this.startStatsLoop();
     }
 
     private startRetransmitLoop() {
@@ -168,7 +170,7 @@ export class ReDatagram {
                 const effectiveRto = Math.min(this.rto * Math.pow(2, Math.max(0, entry.attempts - 1)), MAX_RTO);
                 if (now - entry.sentAt < effectiveRto) continue;
                 if (entry.attempts >= this.profile.maxRetransmits) {
-                    console.error(`[ReUDP] Max retransmits reached for seq=${seq}, closing`);
+                    console.error(`[ReUDP:${this.tag}] Max retransmits reached for seq=${seq}, closing`);
                     this.sendWindow.delete(seq);
                     this.close();
                     return;
@@ -201,7 +203,7 @@ export class ReDatagram {
                 const sendRate = ((sentDelta / dt) / 1024).toFixed(1);
                 const recvRate = ((recvDelta / dt) / 1024).toFixed(1);
                 const windowWaitInfo = this.windowWaitCount > 0 ? ` | WindowWait: ${this.windowWaitMs}ms (${this.windowWaitCount}×)` : '';
-                console.log(`[ReUDP Stats] TX: ${sendRate} KB/s (${(this.bytesSent / 1024).toFixed(0)} KB total) | RX: ${recvRate} KB/s (${(this.bytesReceived / 1024).toFixed(0)} KB total) | Window: ${this.sendWindow.size}/${this.effectiveWindow()} | cwnd: ${Math.floor(this.cwnd)} ssthresh: ${this.ssthresh} | Retransmits: ${retxDelta} (${this.retransmitCount} total) | RTO: ${this.rto}ms SRTT: ${this.srtt.toFixed(0)}ms${windowWaitInfo}`);
+                console.debug(`[ReUDP:${this.tag}] [STATS] TX: ${sendRate} KB/s (${(this.bytesSent / 1024).toFixed(0)} KB total) | RX: ${recvRate} KB/s (${(this.bytesReceived / 1024).toFixed(0)} KB total) | Window: ${this.sendWindow.size}/${this.effectiveWindow()} | cwnd: ${Math.floor(this.cwnd)} ssthresh: ${this.ssthresh} | Retransmits: ${retxDelta} (${this.retransmitCount} total) | RTO: ${this.rto}ms SRTT: ${this.srtt.toFixed(0)}ms${windowWaitInfo}`);
                 this.windowWaitMs = 0;
                 this.windowWaitCount = 0;
             }
@@ -222,7 +224,7 @@ export class ReDatagram {
                 return;
             }
             if (Date.now() - this.lastPingReceived > MAX_PING_DELAY_MS) {
-                console.warn('[ReUDP] No ping received from remote, closing connection.');
+                console.warn(`[ReUDP:${this.tag}] No ping received from remote, closing connection.`);
                 this.close();
                 return;
             }
@@ -262,7 +264,7 @@ export class ReDatagram {
             this.socket.close();
             return;
         }
-        console.log(`[ReUDP] Sending HELLO (attempt ${attempt})`);
+        console.debug(`[ReUDP:${this.tag}] Sending HELLO (attempt ${attempt})`);
         const header = this.encodeHeader(FLAG_HELLO, 0);
         await this.socket.send(header, this.remote.port, this.remote.address);
         setTimeout(() => this.sendHello(attempt + 1), INITIAL_RTO);
@@ -280,18 +282,18 @@ export class ReDatagram {
         if (this.isClosing) {
             if (!this.warnedSendAfterClose) {
                 this.warnedSendAfterClose = true;
-                console.warn('[ReUDP] Attempting to send after close');
+                console.warn(`[ReUDP:${this.tag}] Attempting to send after close`);
             }
             return;
         }
         if (data.length === 0) {
-            console.warn('[ReUDP] Attempting to send empty data');
+            console.warn(`[ReUDP:${this.tag}] Attempting to send empty data`);
             return;
         }
 
         const task = this.sendQueue.then(() => this.sendData(data));
         this.sendQueue = task.catch((e) => {
-            console.log('[ReUDP] Send failed in queue:', e?.message || e);
+            console.warn(`[ReUDP:${this.tag}] Send failed in queue:`, e?.message || e);
         });
         await task;
     }
@@ -380,7 +382,7 @@ export class ReDatagram {
         // The send window provides flow control; the kernel UDP buffer handles queueing.
         this.socket.send(packet, this.remote.port, this.remote.address).catch((error) => {
             if (!this.isClosing) {
-                console.error(`[ReUDP] Failed to send packet seq=${seq}:`, error);
+                console.error(`[ReUDP:${this.tag}] Failed to send packet seq=${seq}:`, error);
             }
         });
     }
@@ -431,13 +433,13 @@ export class ReDatagram {
                 this.onMessage?.(merged);
             }
         } catch (error) {
-            console.error('[ReUDP] Error in onMessage handler:', error);
+            console.error(`[ReUDP:${this.tag}] Error in onMessage handler:`, error);
         }
     }
 
     private handleDataPacket(seq: number, payload: Uint8Array, alreadyCopied = false) {
         if (seq < 1 || seq > 0xFFFFFFFF) {
-            console.warn(`[ReUDP] Invalid sequence number: ${seq}`);
+            console.warn(`[ReUDP:${this.tag}] Invalid sequence number: ${seq}`);
             return;
         }
 
@@ -511,12 +513,12 @@ export class ReDatagram {
         if (this.isClosing) return;
         try {
             if (buf.length === 0) {
-                console.warn('[ReUDP] Received empty packet, ignoring');
+                console.warn(`[ReUDP:${this.tag}] Received empty packet, ignoring`);
                 return;
             }
 
             // if (buf.length < HEADER_SIZE) {
-            //     console.warn(`[ReUDP] DATA packet too short: ${buf.length}`);
+            //     console.warn(`[ReUDP:${this.tag}] DATA packet too short: ${buf.length}`);
             //     return;
             // }
 
@@ -602,7 +604,7 @@ export class ReDatagram {
                             const gapEntry = this.sendWindow.get(s);
                             if (gapEntry && !gapEntry.sacked && now - gapEntry.sentAt >= MIN_RTO) {
                                 if (gapEntry.attempts >= this.profile.maxRetransmits) {
-                                    console.error(`[ReUDP] Max retransmits (fast) for seq=${s}, closing`);
+                                    console.error(`[ReUDP:${this.tag}] Max retransmits (fast) for seq=${s}, closing`);
                                     this.close();
                                     return;
                                 }
@@ -622,30 +624,30 @@ export class ReDatagram {
                 this.wakeWindowWaiters();
             }
             else if (type === FLAG_HELLO) {
-                console.log("[ReUDP] Received HELLO, sending HELLO_ACK");
+                console.debug("[ReUDP:${this.tag}] Received HELLO, sending HELLO_ACK");
                 this.lastPingReceived = Date.now();
                 const header = this.encodeHeader(FLAG_HELLO_ACK, 0);
                 this.socket.send(header, this.remote.port, this.remote.address).catch(() => { });
             }
             else if (type === FLAG_HELLO_ACK) {
-                console.log("[ReUDP] Received HELLO_ACK");
+                console.debug("[ReUDP:${this.tag}] Received HELLO_ACK");
                 this.lastPingReceived = Date.now();
                 // this.markReady();
             }
             else if (type === FLAG_PING) {
-                // console.log("[ReUDP] Received PING, sending PING back");
+                // console.log("[ReUDP:${this.tag}] Received PING, sending PING back");
                 this.lastPingReceived = Date.now();
             }
             else if (type === FLAG_BYE) {
-                console.log("[ReUDP] Received BYE from remote, closing connection.");
+                console.log("[ReUDP:${this.tag}] Received BYE from remote, closing connection.");
                 this.isRemoteClosed = true;
                 this.close();
             }
             else {
-                console.warn(`[ReUDP] Unknown packet type: ${type}`);
+                console.warn(`[ReUDP:${this.tag}] Unknown packet type: ${type}`);
             }
         } catch (error) {
-            console.error('[ReUDP] Error handling packet:', error);
+            console.error(`[ReUDP:${this.tag}] Error handling packet:`, error);
             // close connection on error
             this.close();
         }
@@ -782,7 +784,7 @@ export class ReDatagram {
             try {
                 await this.socket.send(header, this.remote.port, this.remote.address);
             } catch (error) {
-                console.warn('[ReUDP] Failed to send BYE packet:', error);
+                console.warn(`[ReUDP:${this.tag}] Failed to send BYE packet:`, error);
             }
         }
         this.cleanup();

@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useUIFlag } from "./hooks/useUIFlag";
+import { cn } from "@/lib/utils";
 
 export type TextModalProps = {
     title: string,
@@ -36,6 +38,8 @@ export default function TextModal({ title, buttonText, children, onDone, default
     const [isLoading, setIsLoading] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(isOpen || false);
     const [error, setError] = useState<string | null>(null);
+
+    const { supportLiquidGlass } = useUIFlag();
 
     useEffect(() => {
         if (isOpen === undefined) return;
@@ -137,10 +141,14 @@ export default function TextModal({ title, buttonText, children, onDone, default
                     </div>}
 
                     <div className="space-x-2 flex justify-center items-center">
-                        <Button variant='secondary' size='platform' stretch disabled={isLoading} onClick={() => handleOpenChange(false)}>
+                        <Button
+                            useGlass={false}
+                            variant='secondary' size='platform' stretch disabled={isLoading} onClick={() => handleOpenChange(false)}>
                             Cancel
                         </Button>
-                        <Button type='submit' variant='default' size='platform' stretch disabled={isLoading || !text} onClick={handleSubmit}>
+                        <Button type='submit'
+                            useGlass={false}
+                            variant='default' size='platform' stretch disabled={isLoading || !text} onClick={handleSubmit}>
                             {buttonText || 'Save'}
                         </Button>
                     </div>

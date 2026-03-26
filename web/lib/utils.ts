@@ -13,6 +13,13 @@ export function nameToInitials(name: string) {
   return parts.map((part) => part[0]).join("").toUpperCase();
 }
 
+export function truncateMiddle(text: string, maxLength: number, endChars = 6): string {
+  if (text.length <= maxLength) return text;
+  const startLen = maxLength - endChars - 1;
+  if (startLen < 1) return text.slice(0, maxLength - 1) + '…';
+  return text.slice(0, startLen) + '…' + text.slice(-endChars);
+}
+
 export function openExternalLink(url: string) {
   window.open(url, "_blank")
 }
@@ -83,6 +90,13 @@ export async function getServiceController(fingerprint: string | null) {
     return window.modules.getLocalServiceController();
   }
   return window.modules.getRemoteServiceController(fingerprint);
+}
+
+export function getLocalServiceController() {
+  if (typeof window === 'undefined') {
+    throw new Error('getLocalServiceController can only be called in browser environment');
+  }
+  return window.modules.getLocalServiceController();
 }
 
 /**
@@ -245,4 +259,12 @@ export function getAppName() {
     return window.modules.config.APP_NAME;
   }
   return 'App';
+}
+
+export function formatFileSize(bytes: number | null | undefined): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }

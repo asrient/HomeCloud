@@ -14,14 +14,14 @@ async function batteryLevelMac2(): Promise<number> {
         }
         throw new Error('Could not parse battery level from pmset output');
     } catch (error) {
-        console.error('Error getting battery level on Mac (pmset):', error);
+        console.error('[BatteryLevel] Error on Mac (pmset):', error);
         throw error;
     }
 }
 
 
 async function batteryLevelMac(): Promise<number> {
-    const { stdout } = await execa('ioreg', ['-n', 'AppleSmartBattery', '-r', '-a']);
+    const { stdout } = await execa('ioreg', ['-n', 'AppleSmartBattery', '-r']);
     // Parse the output to find CurrentCapacity and MaxCapacity
     const currentCapacityMatch = stdout.match(/"CurrentCapacity"\s*=\s*(\d+)/);
     const maxCapacityMatch = stdout.match(/"MaxCapacity"\s*=\s*(\d+)/);
@@ -31,7 +31,7 @@ async function batteryLevelMac(): Promise<number> {
         const max = parseInt(maxCapacityMatch[1]);
         return current / max;
     }
-    console.warn('Could not parse battery capacity on Mac, using alternative method.');
+    // console.warn('Could not parse battery capacity on Mac, using alternative method.');
     return batteryLevelMac2();
 }
 
@@ -42,7 +42,7 @@ async function batteryLevelWin(): Promise<number> {
         const percentage = level > 100 ? 100 : level;
         return percentage / 100;
     } catch (error) {
-        console.error('Error getting battery level on Windows:', error);
+        console.error('[BatteryLevel] Error on Windows:', error);
         return 1;
     }
 }
@@ -72,7 +72,7 @@ async function batteryLevelLinux(): Promise<number> {
             const percentage = parseInt(capacity.trim());
             return percentage / 100;
         } catch (fallbackError) {
-            console.error('Error getting battery level on Linux:', error, fallbackError);
+            console.error('[BatteryLevel] Error on Linux:', error, fallbackError);
             throw error;
         }
     }

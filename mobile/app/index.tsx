@@ -1,19 +1,18 @@
 import { Stack, useRouter } from 'expo-router';
-import { StyleSheet, View, Pressable, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
-import DeviceIcon from '@/components/deviceIcon';
 import { useAppState } from '@/hooks/useAppState';
 import { UIText } from '@/components/ui/UIText';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UIScrollView } from '@/components/ui/UIScrollView';
 import { UIView } from '@/components/ui/UIView';
 import { UIIcon } from '@/components/ui/UIIcon';
-import { DeviceButton } from '@/components/DeviceButton';
+import { DeviceTile } from '@/components/DeviceTile';
 import { UIButton } from '@/components/ui/UIButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useMemo, useState } from 'react';
 import { PeerInfo } from 'shared/types';
-import { isGlassEnabled, getAppName, getBottomPadding, isIos } from '@/lib/utils';
+import { isGlassEnabled, getAppName, getBottomPadding } from '@/lib/utils';
 import { useAccountState } from '@/hooks/useAccountState';
 import { useDiscoverable } from '@/hooks/useDiscoverable';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -113,18 +112,12 @@ function ThisDeviceCard({ onPress }: { onPress: () => void }) {
   return (
     <View style={styles.section}>
       <UIText type="subtitle" style={styles.sectionTitle}>This Device</UIText>
-      <Pressable onPress={onPress}>
-        <UIView themeColor="backgroundSecondary" useGlass style={styles.thisDeviceCard}>
-          <DeviceIcon size={50} iconKey={localPeerInfo?.iconKey || null} />
-          <View style={{ marginLeft: 12, flex: 1 }}>
-            <UIText size="md" font="medium">{deviceName}</UIText>
-            {deviceInfoText ? (
-              <UIText size="sm" color="textSecondary">{deviceInfoText}</UIText>
-            ) : null}
-          </View>
-          <UIIcon name="chevron.right" size={16} themeColor="textSecondary" />
-        </UIView>
-      </Pressable>
+      <DeviceTile
+        iconKey={localPeerInfo?.iconKey || null}
+        title={deviceName}
+        subtitle={deviceInfoText || undefined}
+        onPress={onPress}
+      />
     </View>
   );
 }
@@ -146,9 +139,9 @@ export default function HomeScreen() {
   const GAP = 10;
   const PADDING = 16;
   const gridColumns = useMemo(() => {
-    if (screenWidth >= 768) return 4;
-    if (screenWidth >= 500) return 3;
-    return 2;
+    if (screenWidth >= 900) return 3;
+    if (screenWidth >= 600) return 2;
+    return 1;
   }, [screenWidth]);
   const availableWidth = screenWidth - PADDING * 2;
   const itemWidth = (availableWidth - GAP * (gridColumns - 1)) / gridColumns;
@@ -178,15 +171,22 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <UIText type="subtitle" style={styles.sectionTitle}>My Devices</UIText>
             <View style={styles.devicesGrid}>
-              {peers.map((peer) => (
-                <View key={peer.fingerprint} style={{ width: itemWidth }}>
-                  <DeviceButton
-                    iconKey={peer.iconKey}
-                    title={peer.deviceName}
-                    onPress={() => router.navigate({ pathname: '/device-sheet', params: { fingerprint: peer.fingerprint } } as any)}
-                  />
-                </View>
-              ))}
+              {peers.map((peer) => {
+                const di = peer.deviceInfo;
+                const subtitle = di
+                  ? `${di.os} ${di.osFlavour || ''} • ${di.formFactor}`.trim()
+                  : undefined;
+                return (
+                  <View key={peer.fingerprint} style={{ width: itemWidth }}>
+                    <DeviceTile
+                      iconKey={peer.iconKey}
+                      title={peer.deviceName}
+                      subtitle={subtitle}
+                      onPress={() => router.navigate({ pathname: '/device-sheet', params: { fingerprint: peer.fingerprint } } as any)}
+                    />
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}
@@ -232,13 +232,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 16,
     gap: 12,
-  },
-  thisDeviceCard: {
-    borderRadius: isIos ? 30 : 20,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    maxWidth: 400,
   },
   section: {
     marginVertical: 15,

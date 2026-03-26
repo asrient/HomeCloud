@@ -40,7 +40,7 @@ export class WatchedFile {
         const id = WatchedFile.getId(targetFingerprint, targetFileId);
         const existing = WatchedFile.watchedFiles.find((f) => f.getId() === id);
         if (existing) {
-            console.log('File already being watched. renewing expiry.');
+            console.debug('[WatchedFile] Already watched, renewing expiry.');
             existing.renewExpiry();
             existing.openFile();
             return existing;
@@ -64,7 +64,7 @@ export class WatchedFile {
     }
 
     async remove() {
-        console.log('Removing watched file', this.tmpFile);
+        console.debug('[WatchedFile] Removing watched file.');
         if (this.watcher) {
             await this.watcher.close();
         }
@@ -91,10 +91,10 @@ export class WatchedFile {
                 await this.remove();
             } catch (err) {
                 if (err.code === 'EBUSY' || err.code === 'EPERM' || err.code === 'EACCES') {
-                    console.log('File is busy. renewing expiry.');
+                    console.debug('[WatchedFile] File is busy, renewing expiry.');
                     this.renewExpiry();
                 } else {
-                    console.error(`On expiry, file access error: ${err.message}`);
+                    console.error(`[WatchedFile] On expiry, file access error: ${err.message}`);
                     await this.remove();
                 }
             }
@@ -102,7 +102,7 @@ export class WatchedFile {
     }
 
     private fileChanged(_path: string, stats: fs.Stats) {
-        console.log('File changed', this.tmpFile, stats.mtime);
+        console.debug('[WatchedFile] File changed:', this.tmpFile);
         this.lastModified = stats.mtime;
         this.renewExpiry();
         this.saveChanges();
@@ -113,7 +113,7 @@ export class WatchedFile {
         if (this.isSaving) {
             return;
         }
-        console.log('Saving file', this.tmpFile);
+        console.log('[WatchedFile] Saving local file to remote:', this.tmpFile);
         const localSc = modules.getLocalServiceController();
         localSc.system.ask({
             title: 'Save changes to the original file?',
@@ -122,7 +122,7 @@ export class WatchedFile {
                 text: 'Cancel',
                 isDefault: true,
                 onPress: async () => {
-                    console.log('Cancelled saving file');
+                    console.debug('[WatchedFile] Cancelled saving file.');
                 }
             }, {
                 text: 'Save',
@@ -141,9 +141,9 @@ export class WatchedFile {
             const targetDir = path.dirname(this.targetFileId);
             const stat = await this.targetServiceController.files.fs.writeFile(targetDir, fileContent);
             this.lastModified = stat.lastModified;
-            console.log('Saved file to remote');
+            console.log('[WatchedFile] Saved file to remote.');
         } catch (e) {
-            console.error('Error saving file to remote', e);
+            console.error('[WatchedFile] Error saving file to remote:', e);
             const localSc = modules.getLocalServiceController();
             localSc.system.ask({
                 title: `Could not saving file "${path.basename(this.tmpFile)}"`,
@@ -152,7 +152,7 @@ export class WatchedFile {
                     text: 'Cancel',
                     isDefault: true,
                     onPress: () => {
-                        console.log('Cancelled saving file');
+                        console.debug('[WatchedFile] Cancelled saving file.');
                     }
                 }, {
                     text: 'Try again',

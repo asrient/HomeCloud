@@ -11,3 +11,9 @@ export const helpLinks = {
 };
 
 export type HelpLinkType = keyof typeof helpLinks;
+
+export function createCrashReportLink(appType: string, title: string, details: string): string {
+    const issueTitle = encodeURIComponent(`[${appType}] Crash Report: ${title}`);
+    const body = encodeURIComponent(details);
+    return `${helpLinks.ReportIssue}/new?title=${issueTitle}&body=${body}`;
+}

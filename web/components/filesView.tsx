@@ -2,7 +2,7 @@ import { folderViewUrl } from "@/lib/urls";
 import { getKind, getDefaultIcon, canGenerateThumbnail } from "@/lib/fileUtils";
 import { useRouter } from "next/router";
 import LazyImage from "./lazyImage";
-import { cn, getServiceController, isMobile } from "@/lib/utils";
+import { cn, getServiceController, isMobile, formatFileSize } from "@/lib/utils";
 import Image from "next/image";
 import { useCallback, useMemo } from "react";
 import {
@@ -40,6 +40,7 @@ function ThumbnailImage({ item, className }: { item: FileRemoteItem, className?:
 
     return (<LazyImage
         fetchSrc={fetchThumbnailSrc}
+        itemKey={item.path + '|' + item.deviceFingerprint}
         src={dafaultSrc}
         alt={item.name}
         width="0"
@@ -98,7 +99,7 @@ function ListItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
         onRightClick && onRightClick(item, e);
     }
 
-    return (<div className={`fileItem select-none flex items-center px-4 py-2 space-x-3 shadow-sm ${item.isSelected ? 'bg-secondary text-secondary-foreground' : 'hover:bg-muted'}`}
+    return (<div className={`fileItem select-none flex items-center px-4 py-2 space-x-3 border-b border-border/30 ${item.isSelected ? 'bg-secondary text-secondary-foreground' : 'hover:bg-muted'}`}
         onDoubleClick={onDbClick_}
         onClick={onClick_}
         onContextMenu={onRightClick_}>
@@ -107,8 +108,10 @@ function ListItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
         </div>
         <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-foreground truncate">{item.name}</div>
-            <div className="text-sm text-foreground/70">
-                <span>{item.type}</span>
+            <div className="text-sm text-foreground/70 gap-2 flex items-center">
+                {
+                    item.type === 'directory' ? 'Folder' : formatFileSize(item.size)
+                }
             </div>
         </div>
     </div>)

@@ -300,6 +300,8 @@ export type BatteryInfo = {
     isLowPowerMode?: boolean;
 }
 
+export type ScreenLockStatus = 'locked' | 'unlocked' | 'not-supported';
+
 export type ClipboardFile = {
     fingerprint?: string;
     path: string;
@@ -317,4 +319,83 @@ export type ClipboardContent = {
 export type FileFilter = {
     name: string;
     extensions: string[];
+}
+
+export type RemoteAppInfo = {
+    name: string;
+    id: string;
+    iconPath: string | null;
+    location?: string;
+}
+
+export enum RemoteAppWindowType {
+    Regular = "regular",
+    Modal = "modal",
+    Floating = "floating",
+    Tooltip = "tooltip",
+    ContextMenu = "contextMenu",
+    Popup = "popup",
+}
+
+export type RemoteAppWindow = {
+    id: string;
+    appId: string;
+    title: string;
+    type: RemoteAppWindowType;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    isFocused: boolean;
+    isHidden: boolean;
+    isMinimized: boolean;
+    isMaximized: boolean;
+    parentWindowId?: string;
+}
+
+export type StreamingSessionInfo = {
+    stream: ReadableStream<Uint8Array>;
+    width: number;
+    height: number;
+    dpi: number;
+}
+
+export type TerminalSessionInfo = {
+    stream: ReadableStream<Uint8Array>;
+    sessionId: string;
+    cols: number;
+    rows: number;
+}
+
+export enum RemoteAppWindowAction {
+    Focus = "focus",
+    Minimize = "minimize",
+    Maximize = "maximize",
+    Restore = "restore",
+    Close = "close",
+    Click = "click",
+    DoubleClick = "doubleClick",
+    RightClick = "rightClick",
+    Hover = "hover",
+    TextInput = "textInput",
+    KeyInput = "keyInput",
+    Scroll = "scroll",
+    Resize = "resize",
+    DragStart = "dragStart",
+    DragMove = "dragMove",
+    DragEnd = "dragEnd",
+}
+
+export type RemoteAppWindowActionPayload = {
+    action: RemoteAppWindowAction;
+    windowId?: string;
+    x?: number;
+    y?: number;
+    text?: string;
+    key?: string;
+    scrollDeltaX?: number;
+    scrollDeltaY?: number;
+    newWidth?: number;
+    newHeight?: number;
+    modifiers?: string[]; // e.g. ["shift", "cmd", "alt", "ctrl"]
 }

@@ -90,6 +90,14 @@ export type NativeUtils = {
     checkForUpdates: (force?: boolean) => Promise<UpdateInfo | null>;
     getUpdateStatus: () => UpdateStatus;
     triggerUpdateCheck: () => void;
+    openScreenWindow?: (fingerprint: string | null, deviceName?: string) => void;
+    openTerminalWindow?: (fingerprint: string | null) => void;
+    windowControls?: {
+        close: () => void;
+        minimize: () => void;
+        maximize: () => void;
+        resize: (width: number, height: number) => void;
+    };
 }
 
 export enum UserPreferences {

@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import { buildPageConfig, cn, getServiceController, isMacos, isMacosTheme, isMobile } from '@/lib/utils'
+import { buildPageConfig, cn, getServiceController, isMacos, isMacosTheme, isMobile, formatFileSize } from '@/lib/utils'
 import { FileRemoteItem } from "@/lib/types"
 import { RemoteItem } from 'shared/types'
 import { NextPageWithConfig } from '@/pages/_app'
@@ -265,7 +265,7 @@ const Page: NextPageWithConfig = () => {
     if (!item || item.type !== 'directory') return;
     const serviceController = await getServiceController(item.deviceFingerprint);
     try {
-      const pin = await serviceController.files.addPinnedFolder(item.path);
+      const pin = await serviceController.files.addPinnedFolder(item.path, item.name);
       console.log('Pinned folder:', pin);
     } catch (e) {
       console.error(e);
@@ -294,7 +294,7 @@ const Page: NextPageWithConfig = () => {
   const sendToDevice = useCallback(async (file: FileRemoteItem, fingerprint: string) => {
     try {
       const serviceController = await getServiceController(fingerprint);
-      await serviceController.files.download(window.modules.config.FINGERPRINT, file.path);
+      await serviceController.files.download(window.modules.config.FINGERPRINT, [file.path]);
     } catch (e: any) {
       console.error(e);
       toast({
@@ -351,13 +351,24 @@ const Page: NextPageWithConfig = () => {
         if (clickedItem) {
           const serviceController = window.modules.getLocalServiceController();
           toast({ title: 'Download started', description: clickedItem.name });
-          serviceController.files.download(clickedItem.deviceFingerprint!, clickedItem.path)
+          serviceController.files.download(clickedItem.deviceFingerprint!, [clickedItem.path])
             .then(() => toast({ title: 'File downloaded', description: clickedItem.name }))
             .catch((e: any) => toast({ variant: "destructive", title: 'Could not download file', description: clickedItem.name }));
         }
         break;
       case 'getInfo':
-        // TODO: implement get info
+        if (clickedItem) {
+          const info = [
+            `Name: ${clickedItem.name}`,
+            `Type: ${clickedItem.type}`,
+            clickedItem.size ? `Size: ${formatFileSize(clickedItem.size)}` : null,
+            clickedItem.mimeType ? `MIME: ${clickedItem.mimeType}` : null,
+            clickedItem.lastModified ? `Modified: ${new Date(clickedItem.lastModified).toLocaleString()}` : null,
+            `Path: ${clickedItem.path}`,
+          ].filter(Boolean).join('\n');
+          const localSc = window.modules.getLocalServiceController();
+          localSc.system.alert(clickedItem.name, info);
+        }
         break;
       case 'addToFavorites':
         if (clickedItem) pinFolder(clickedItem);
@@ -496,7 +507,7 @@ const Page: NextPageWithConfig = () => {
     </>
   )
 
-  const peerName = peer ? peer.deviceName : 'Unknown device'
+  const peerName = peer ? peer.deviceName : window.modules?.config?.DEVICE_NAME || 'Unknown Device';
   const selectedCount = selectedItems.length;
   const isFolderSelected = selectedCount === 1 && selectedItems[0].type === 'directory';
 
@@ -573,7 +584,7 @@ const Page: NextPageWithConfig = () => {
         {
           selectedCount > 0 && <ConfirmModal isOpen={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}
             title={selectedCount > 1 ? `Delete ${selectedCount} items?` : `Delete "${selectedItems[0].name}"?`}
-            description='You may or may not be able to recover them depending on your storage type.'
+            description="You won't be able to recover them later."
             buttonText='Delete'
             buttonVariant='destructive'
             onConfirm={onDelete}>

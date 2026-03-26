@@ -2,6 +2,7 @@ import { PeerCandidate, BonjourTxt, ConnectionType, DeviceInfo } from 'shared/ty
 import Zeroconf, { Service } from 'react-native-zeroconf';
 import { AppState, AppStateStatus } from 'react-native';
 import { DiscoveryBase } from 'shared/discoveryBase';
+import { safeIp } from 'shared/utils';
 import { getIpAddressAsync } from 'expo-network';
 
 export default class Discovery extends DiscoveryBase {
@@ -22,7 +23,7 @@ export default class Discovery extends DiscoveryBase {
             console.error('[Discovery] Zeroconf error:', err);
         });
         this.zeroconf.on('resolved', (service) => {
-            console.log('[Discovery] Found service:', service);
+            // console.log('[Discovery] Found service:', service);
             if (this.onFoundCallback) {
                 const pc = this.serviceToPeerCandidate(service);
                 if (pc) {
@@ -171,11 +172,11 @@ export default class Discovery extends DiscoveryBase {
             this.cacheCandidate(service.addresses, service.txt as BonjourTxt, service.port);
         }
         if (!this.isServiceVaild(service)) {
-            console.warn('Invalid service discovered, skipping:', service.name);
+            console.warn('[Discovery] Invalid service discovered, skipping.');
             return null;
         }
         const txt = service.txt as BonjourTxt;
-        console.log('Addresses found for service:', service.name, service.addresses);
+        console.log('[Discovery] Addresses found for service:', service.name, service.addresses.map(a => safeIp(a)));
         return {
             data: {
                 host: service.addresses[0],
@@ -235,7 +236,7 @@ export default class Discovery extends DiscoveryBase {
     async updateHostAddress(): Promise<void> {
         try {
             const ipAddr = await getIpAddressAsync();
-            console.log('[Discovery] Device IP address:', ipAddr);
+            console.debug('[Discovery] Device IP retrieved.');
             if (ipAddr !== '0.0.0.0') {
                 this.updateMyAddresses([ipAddr]);
             }

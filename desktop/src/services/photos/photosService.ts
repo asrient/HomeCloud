@@ -108,7 +108,7 @@ export abstract class DesktopPhotosService extends PhotosService {
                     lib,
                 };
             } catch (e) {
-                console.error(`Failed to mount library ${rec.name} at ${rec.location}:`, e);
+                console.error(`[PhotosService] Failed to mount library ${rec.name}:`, e);
                 return;
             }
         });

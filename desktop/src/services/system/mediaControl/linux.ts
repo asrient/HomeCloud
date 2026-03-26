@@ -85,7 +85,7 @@ export class LinuxPlaybackWatcher {
             }
             return false;
         } catch (err) {
-            console.error("Error updating active player:", err);
+            console.error("[MediaControl] Error updating active player:", err);
             return false;
         }
     }
@@ -122,7 +122,7 @@ export class LinuxPlaybackWatcher {
                 isPlaying: status.value === "Playing",
             };
         } catch (err) {
-            console.error("Error getting playback info:", err);
+            console.error("[MediaControl] Error getting playback info:", err);
             // Player might have closed, try to find a new one
             if (canRetry) {
                 this.currentPlayer = null;
@@ -168,7 +168,7 @@ export class LinuxPlaybackWatcher {
                 }
             );
         } catch (err) {
-            console.error("Error subscribing to player:", err);
+            console.error("[MediaControl] Error subscribing to player:", err);
         }
     }
 

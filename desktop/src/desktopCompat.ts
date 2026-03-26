@@ -287,7 +287,7 @@ export function createBestDatagram(): DatagramCompat {
             const localSc = modules.getLocalServiceController();
             const useWinRT = localSc.app.getUserPreference(UserPreferences.USE_WINRT_DGRAM);
             if (useWinRT) {
-                console.log('Using WinRT DatagramSocket.');
+                console.log('[Datagram] Using WinRT DatagramSocket.');
                 return new WinRTDatagram();
             }
         } catch (e) {

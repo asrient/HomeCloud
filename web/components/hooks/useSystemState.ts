@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useResource, useResourceWithPolling } from "./useResource";
-import { AudioPlaybackInfo, BatteryInfo, ClipboardContent, Disk } from "shared/types";
+import { AudioPlaybackInfo, BatteryInfo, ClipboardContent, Disk, ScreenLockStatus } from "shared/types";
 import ServiceController from "shared/controller";
 import { getServiceController } from "@/lib/utils";
 import { SignalNodeRef } from "shared/signals";
@@ -46,6 +46,46 @@ export const useBatteryInfo = (deviceFingerprint: string | null) => {
     });
 
     return { isLoading, error, reload, batteryInfo };
+};
+
+export const useScreenLock = (deviceFingerprint: string | null) => {
+    const [lockStatus, setLockStatus] = useState<ScreenLockStatus>('not-supported');
+    const signalRef = useRef<SignalNodeRef<[ScreenLockStatus], string> | null>(null);
+
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        const status = await serviceController.system.getScreenLockStatus();
+        if (shouldAbort()) return;
+        setLockStatus(status);
+    }, []);
+
+    const clearSignals = useCallback((serviceController: ServiceController) => {
+        if (signalRef.current) {
+            serviceController.system.screenLockSignal.detach(signalRef.current);
+            signalRef.current = null;
+        }
+    }, []);
+
+    const setupSignals = useCallback((serviceController: ServiceController) => {
+        clearSignals(serviceController);
+        signalRef.current = serviceController.system.screenLockSignal.add((status) => {
+            setLockStatus(status);
+        });
+    }, [clearSignals]);
+
+    const { isLoading } = useResource({
+        deviceFingerprint,
+        load,
+        setupSignals,
+        clearSignals,
+    });
+
+    const lockScreen = useCallback(async () => {
+        const sc = await getServiceController(deviceFingerprint);
+        await sc.system.lockScreen();
+        setLockStatus('locked');
+    }, [deviceFingerprint]);
+
+    return { lockStatus, isLoading, lockScreen };
 };
 
 export const useVolume = (deviceFingerprint: string | null) => {
@@ -151,13 +191,8 @@ export const useMediaPlayback = (deviceFingerprint: string | null) => {
         } else if (type === 'previous') {
             await serviceController.system.previousAudioTrack();
         }
-        if (fingerprint !== deviceFingerprint) {
-            return;
-        }
-        // Update playback info
-        console.log("Reloading media playback info after action:", type);
-        reload();
-    }, [deviceFingerprint, reload]);
+        // State update arrives via audioPlaybackSignal (optimistic + poll)
+    }, [deviceFingerprint]);
 
     const play = useCallback(async () => {
         await action('play');
@@ -195,6 +230,22 @@ export const useDisks = (deviceFingerprint: string | null) => {
     });
 
     return { isLoading, error, reload, disks };
+};
+
+export const useTerminalAvailable = (deviceFingerprint: string | null) => {
+    const [available, setAvailable] = useState(false);
+    const load = useCallback(async (serviceController: ServiceController, shouldAbort: () => boolean) => {
+        const isAvailable = await serviceController.terminal.isAvailable();
+        if (shouldAbort()) return;
+        setAvailable(isAvailable);
+    }, []);
+
+    const { isLoading } = useResource({
+        deviceFingerprint,
+        load,
+    });
+
+    return { available, isLoading };
 };
 
 export const useClipboard = (deviceFingerprint: string | null) => {

@@ -47,7 +47,7 @@ export default class MobileFilesService extends FilesService {
   private remoteFileCache = new FileCache('FilePreviews', { maxItems: 10 });
 
   @exposed
-  async download(remoteFingerprint: string | null, remotePath: string): Promise<void> {
+  async download(remoteFingerprint: string | null, remotePaths: string[]): Promise<void> {
     const serviceController = await getServiceController(remoteFingerprint);
     const localSc = modules.getLocalServiceController();
     const defaultDirs = await localSc.system.getDefaultDirectories();
@@ -55,15 +55,33 @@ export default class MobileFilesService extends FilesService {
     if (!downloadDir) {
       throw new Error("Download directory not found.");
     }
-    const fileContent = await serviceController.files.fs.readFile(remotePath);
-    const { name: fileName, stream } = fileContent;
-    let file = new File(Paths.join(downloadDir, fileName));
-    file.create({
-      intermediates: true,
-      overwrite: true
-    });
-    await writeStreamToFile(stream, file, true);
-    localSc.system.openFile(file.uri);
+
+    for (const remotePath of remotePaths) {
+      await this.downloadSingle(serviceController, remotePath, downloadDir);
+    }
+
+    if (remotePaths.length === 1) {
+      const stat = await serviceController.files.fs.getStat(remotePaths[0]);
+      localSc.system.openFile(Paths.join(downloadDir, stat.name));
+    }
+  }
+
+  private async downloadSingle(serviceController: any, remotePath: string, localDir: string): Promise<void> {
+    const stat = await serviceController.files.fs.getStat(remotePath);
+    if (stat.type === 'directory') {
+      const dirPath = Paths.join(localDir, stat.name);
+      const dir = new Directory(dirPath);
+      dir.create({ intermediates: true, idempotent: true });
+      const children = await serviceController.files.fs.readDir(remotePath);
+      for (const child of children) {
+        await this.downloadSingle(serviceController, child.path, dirPath);
+      }
+    } else {
+      const { name: fileName, stream } = await serviceController.files.fs.readFile(remotePath);
+      const file = new File(Paths.join(localDir, fileName));
+      file.create({ intermediates: true, overwrite: true });
+      await writeStreamToFile(stream, file, true);
+    }
   }
 
   @exposed
@@ -79,7 +97,7 @@ export default class MobileFilesService extends FilesService {
       const id = previewId(filePath);
       const cachedPath = this.previewCache.get(id);
       if (cachedPath) {
-        console.log('Using cached converted HEIC preview:', cachedPath);
+        console.debug('[FilesService] Using cached HEIC preview. Cached path:', cachedPath);
         const cachedFile = new File(cachedPath);
         const convertedName = resolved.filename.replace(/\.(heic|heif)$/i, '.jpg');
         return {
@@ -109,7 +127,7 @@ export default class MobileFilesService extends FilesService {
           stream: convertedFile.readableStream(),
         };
       } catch (error) {
-        console.error('Failed to convert HEIC image:', error);
+        console.error('[FilesService] Failed to convert HEIC image:', error);
         // Fall back to original file if conversion fails
         return this.fs.readFile(filePath);
       }
@@ -121,7 +139,7 @@ export default class MobileFilesService extends FilesService {
   async _openRemoteFile(remoteFingerprint: string, remotePath: string): Promise<void> {
     const id = remoteFileId(remoteFingerprint, remotePath);
     const filename = Paths.basename(remotePath);
-    console.log('Previewing remote file:', remotePath, 'with id:', id);
+    console.debug('[FilesService] Previewing remote file.');
 
     let cachedPath = this.remoteFileCache.get(id);
     if (!cachedPath) {
@@ -140,7 +158,7 @@ export default class MobileFilesService extends FilesService {
       cachedPath = previewFile.uri;
     }
 
-    console.log(`[Preview] Opening file: ${cachedPath}`);
+    console.debug('[FilesService] Opening cached preview file.');
     const localSc = modules.getLocalServiceController();
     localSc.system.openFile(cachedPath);
   }

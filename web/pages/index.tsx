@@ -1,5 +1,5 @@
 import Head from 'next/head'
-import { PageBar, PageContent } from "@/components/pagePrimatives";
+import { PageBar, PageContent, MenuButton, MenuGroup } from "@/components/pagePrimatives";
 import { ConnectionType, ThemedIconName } from '@/lib/enums'
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SortBy, Group } from '@/components/filesView';
@@ -11,19 +11,23 @@ import { useAppDispatch, useAppState } from '@/components/hooks/useAppState';
 import { usePeer, usePeerConnectionState } from '@/components/hooks/usePeerState';
 import { cn, getServiceController, isMacosTheme, isWin11Theme } from '@/lib/utils';
 import { DeviceIcon } from '@/components/DeviceIcon';
-import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard } from 'lucide-react';
+import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard, Lock, Terminal, Monitor, Settings, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionIcon } from '@/components/deviceSwitcher';
-import { useBatteryInfo, useMediaPlayback, useVolume } from '@/components/hooks/useSystemState';
+import { useBatteryInfo, useMediaPlayback, useScreenLock, useTerminalAvailable, useVolume } from '@/components/hooks/useSystemState';
+import { useAppsAvailable } from '@/components/hooks/useApps';
 import { PauseIcon, PlayIcon, ForwardIcon, BackwardIcon } from '@heroicons/react/24/solid';
 import TextModal from '@/components/textModal';
 import ConfirmModal from '@/components/confirmModal';
+import { TruncatedText } from '@/components/ui/truncatedText';
 import LoadingIcon from '@/components/ui/loadingIcon';
 import { Slider } from "@/components/ui/slider"
 import { DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { DisksGrid } from '@/components/DisksGrid';
 import { getAppName } from '@/lib/utils';
+import { settingsUrl } from '@/lib/urls';
 import { useRouter } from 'next/router';
 import { ActionTypes } from '@/lib/state';
 import { PeerQuickSelect } from '@/components/peerQuickSelect';
@@ -78,8 +82,9 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
   const connection = usePeerConnectionState(isThisDevice ? null : peer.fingerprint);
   const { batteryInfo, isLoading: batteryInfoLoading } = useBatteryInfo(isThisDevice ? null : peer.fingerprint);
   const { mediaPlayback, play, pause, previous, next, canControl, isLoading: mediaPlaybackLoading } = useMediaPlayback(isThisDevice ? null : peer.fingerprint);
+  const { lockStatus } = useScreenLock(isThisDevice ? null : peer.fingerprint);
   return (
-    <div className={cn("py-3 px-4 lg:px-6 xl:px-10 lg:min-h-[8rem] flex flex-col lg:flex-row items-center justify-around lg:justify-between relative")}>
+    <div className={cn("py-3 px-4 lg:px-6 xl:px-10 lg:min-h-[8rem] flex flex-col lg:flex-row items-start lg:items-center justify-around lg:justify-between relative")}>
       <div className='flex items-center space-x-4 w-fit px-5 py-2'>
         <DeviceIcon iconKey={peer.iconKey} size={120} alt="Peer icon" />
         <div className="flex flex-col text-base">
@@ -89,18 +94,24 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
               <span>{peer.deviceInfo.os || 'Unknown OS'}</span>
               <span className='ml-1'>{peer.deviceInfo.osFlavour || 'Unknown platform'}</span>
             </div>
-            <div className='text-xs justify-start flex-row flex w-full gap-6'>
+            <div className='text-xs justify-start flex-row flex w-full gap-3'>
+              {lockStatus === 'locked' && (
+                <div title='Device is locked'
+                  className='flex items-center flex-row justify-center px-1'>
+                  <Lock size={14} />
+                </div>
+              )}
               {
                 !(batteryInfoLoading) && <div className='flex flex-row justify-center items-center w-max gap-1'>
-                  <BatteryIcon size={22} level={batteryInfo ? batteryInfo.level * 100 : 0} isCharging={batteryInfo ? batteryInfo.isCharging : false} />
+                  <BatteryIcon size={16} level={batteryInfo ? batteryInfo.level * 100 : 0} isCharging={batteryInfo ? batteryInfo.isCharging : false} />
                   {batteryInfo ? `${Math.round(batteryInfo.level * 100)}%` : ''}
                   {batteryInfo && batteryInfo.isCharging ? ' - Charging' : ''}
                 </div>
               }
               {
-                !isThisDevice && <div className='flex items-center flex-row justify-center w-max'>
-                  <ConnectionIcon connection={connection} size={16} />
-                  <span className='ml-1'>{!!connection ? (connection.connectionType === ConnectionType.LOCAL ? 'Local Network' : 'Web Connect') : 'Offline'}</span>
+                !isThisDevice && <div className='flex items-center flex-row justify-center w-max gap-1'>
+                  <ConnectionIcon connection={connection} size={14} />
+                  <span>{!!connection ? (connection.connectionType === ConnectionType.LOCAL ? 'Local Network' : 'Web Connect') : 'Offline'}</span>
                 </div>
               }
             </div>
@@ -109,34 +120,36 @@ const PeerInfoHero = ({ peer, isThisDevice }: { peer: PeerInfo, isThisDevice: bo
       </div>
       {
         canControl &&
-        <div className={cn('px-6 py-3 text-sm w-full lg:w-[40%] min-w-[12rem] space-y-1 border-t lg:border-l lg:border-t-0 border-border/70 flex flex-col items-center lg:items-start justify-center min-h-[8rem] lg:min-h-[7rem]')}>
-          <div className='font-medium mb-1 text-xs text-foreground/80'>
+        <div className={cn('px-6 py-3 text-sm w-full lg:w-[40%] min-w-[12rem] space-y-1 border-t lg:border-l lg:border-t-0 border-border/70 flex flex-col items-center lg:items-start justify-center min-h-[4rem] lg:min-h-[7rem] overflow-hidden')}>
+          <div className='font-medium mb-1 text-xs text-foreground/80 hidden lg:block'>
             <Airplay size={16} className="inline-block mr-2" />
             Now Playing
           </div>
 
-          <div className={'flex flex-col items-center lg:items-start gap-1'}>
-            <div className='font-semibold truncate max-w-xs'>{mediaPlayback ? mediaPlayback.trackName : 'Not playing'}</div>
-            <div className='text-xs text-foreground/80 truncate max-w-xs'>{mediaPlayback && mediaPlayback.artistName ? mediaPlayback.artistName : ''}</div>
-          </div>
-          <div className='flex flex-row space-x-4'>
-            <Button variant='ghost' size='icon' onClick={() => previous()} disabled={mediaPlaybackLoading || !mediaPlayback}>
-              <BackwardIcon className='w-5 h-5' />
-            </Button>
-            {
-              mediaPlayback && mediaPlayback.isPlaying ? (
-                <Button variant='ghost' size='icon' onClick={() => pause()} disabled={mediaPlaybackLoading}>
-                  <PauseIcon className='w-5 h-5' />
-                </Button>
-              ) : (
-                <Button variant='ghost' size='icon' onClick={() => play()} disabled={mediaPlaybackLoading || !mediaPlayback}>
-                  <PlayIcon className='w-5 h-5' />
-                </Button>
-              )
-            }
-            <Button variant='ghost' size='icon' onClick={() => next()} disabled={mediaPlaybackLoading || !mediaPlayback}>
-              <ForwardIcon className='w-5 h-5' />
-            </Button>
+          <div className='flex flex-row items-center justify-between w-full lg:flex-col lg:items-start lg:gap-1 min-w-0'>
+            <div className='flex flex-col items-start gap-1 min-w-0 overflow-hidden'>
+              <TruncatedText maxWidth='100%' className='font-semibold'>{mediaPlayback ? mediaPlayback.trackName : 'Not playing'}</TruncatedText>
+              <TruncatedText maxWidth='100%' className='text-xs text-foreground/80'>{mediaPlayback && mediaPlayback.artistName ? mediaPlayback.artistName : ''}</TruncatedText>
+            </div>
+            <div className='flex flex-row space-x-4 shrink-0'>
+              <Button variant='ghost' size='icon' onClick={() => previous()} disabled={mediaPlaybackLoading || !mediaPlayback}>
+                <BackwardIcon className='w-5 h-5' />
+              </Button>
+              {
+                mediaPlayback && mediaPlayback.isPlaying ? (
+                  <Button variant='ghost' size='icon' onClick={() => pause()} disabled={mediaPlaybackLoading}>
+                    <PauseIcon className='w-5 h-5' />
+                  </Button>
+                ) : (
+                  <Button variant='ghost' size='icon' onClick={() => play()} disabled={mediaPlaybackLoading || !mediaPlayback}>
+                    <PlayIcon className='w-5 h-5' />
+                  </Button>
+                )
+              }
+              <Button variant='ghost' size='icon' onClick={() => next()} disabled={mediaPlaybackLoading || !mediaPlayback}>
+                <ForwardIcon className='w-5 h-5' />
+              </Button>
+            </div>
           </div>
 
         </div>
@@ -214,9 +227,7 @@ function FilesSendAction({ deviceFingerprint }: { deviceFingerprint: string | nu
     console.log('Uploading files to device:', deviceFingerprint, files);
     try {
       const sc = await getServiceController(deviceFingerprint);
-      for (const asset of files) {
-        await sc.files.download(window.modules.config.FINGERPRINT, asset.path);
-      }
+      await sc.files.download(window.modules.config.FINGERPRINT, files.map(f => f.path));
     } catch (e) {
       console.error('Error sending files to device:', e);
       const localSc = window.modules.getLocalServiceController();
@@ -330,6 +341,22 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
     return peers.find(p => p.fingerprint === deviceFingerprint) || null;
   }, [deviceFingerprint, peers]);
 
+  const { lockStatus, lockScreen } = useScreenLock(deviceFingerprint);
+  const { available: terminalAvailable } = useTerminalAvailable(deviceFingerprint);
+  const { available: appsAvailable } = useAppsAvailable(deviceFingerprint);
+
+  const openScreen = useCallback(() => {
+    if (window.utils?.openScreenWindow) {
+      window.utils.openScreenWindow(deviceFingerprint, peerInfo?.deviceName);
+    }
+  }, [deviceFingerprint, peerInfo]);
+
+  const openTerminal = useCallback(() => {
+    if (window.utils?.openTerminalWindow) {
+      window.utils.openTerminalWindow(deviceFingerprint);
+    }
+  }, [deviceFingerprint]);
+
   const onTextSend = useCallback(async (text: string) => {
     const sc = await getServiceController(deviceFingerprint);
     sc.app.receiveContent(null, text.trim(), 'text').catch((error) => {
@@ -339,8 +366,12 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
     });
   }, [deviceFingerprint]);
 
+  const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
+
+  const hasOverflowItems = terminalAvailable || lockStatus !== 'not-supported';
+
   return (
-    <div className='p-1 mx-2 flex flex-row items-center justify-center lg:justify-start space-x-2'>
+    <div className='p-1 mx-2 flex flex-row items-center justify-start gap-2'>
       <FilesSendAction deviceFingerprint={deviceFingerprint} />
       <TextModal onDone={onTextSend}
         title='Send Text'
@@ -358,6 +389,60 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
         </Button>
       </VolumeModal>
       <ClipboardButton deviceFingerprint={deviceFingerprint} />
+      {appsAvailable && deviceFingerprint !== null && (
+        <Button variant='secondary' size='sm' onClick={openScreen}>
+          <Monitor className='mr-2' size={16} />Screen
+        </Button>
+      )}
+      {/* Show Terminal & Lock inline on wide screens */}
+      {terminalAvailable && (
+        <Button variant='secondary' size='sm' onClick={openTerminal} className='hidden lg:inline-flex'>
+          <Terminal className='mr-2' size={16} />Terminal
+        </Button>
+      )}
+      {lockStatus !== 'not-supported' && (
+        <ConfirmModal
+          title='Lock Device'
+          description='Are you sure you want to lock this device?'
+          buttonText='Lock'
+          buttonVariant='destructive'
+          onConfirm={lockScreen}
+          isOpen={lockConfirmOpen}
+          onOpenChange={setLockConfirmOpen}
+        >
+          <Button variant='secondary' size='sm' disabled={lockStatus !== 'unlocked'} className='hidden lg:inline-flex'>
+            <Lock className='mr-2' size={16} />
+            Lock
+          </Button>
+        </ConfirmModal>
+      )}
+      {/* More dropdown on small screens for Terminal & Lock */}
+      {hasOverflowItems && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant='secondary' size='sm' className='lg:hidden shrink-0'>
+              <MoreHorizontal size={16} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            {terminalAvailable && (
+              <DropdownMenuItem onClick={openTerminal}>
+                <Terminal className='w-4 h-4 mr-2' />
+                Terminal
+              </DropdownMenuItem>
+            )}
+            {lockStatus !== 'not-supported' && (
+              <DropdownMenuItem
+                disabled={lockStatus !== 'unlocked'}
+                onClick={() => setLockConfirmOpen(true)}
+              >
+                <Lock className='w-4 h-4 mr-2' />
+                Lock
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   )
 }
@@ -366,7 +451,8 @@ export default function Home() {
   const { selectedFingerprint } = useAppState();
   const dispatch = useAppDispatch();
   const peer = usePeer(selectedFingerprint);
-  const { query } = useRouter()
+  const router = useRouter();
+  const { query } = router;
 
   useEffect(() => {
     console.log('Query params changed:', query);
@@ -380,9 +466,7 @@ export default function Home() {
     const isMultiple = filePaths.length > 1;
     try {
       const sc = await getServiceController(fprint);
-      for (const filePath of filePaths) {
-        await sc.files.download(window.modules.config.FINGERPRINT, filePath);
-      }
+      await sc.files.download(window.modules.config.FINGERPRINT, filePaths);
       localSc.system.alert(
         'Files sent',
         `${filePaths.length} ${isMultiple ? 'files have' : 'file has'} been sent to the device.`
@@ -432,6 +516,11 @@ export default function Home() {
       </Head>
 
       <PageBar icon={ThemedIconName.Home} title={getAppName()}>
+        {isMacosTheme() && <MenuGroup>
+          <MenuButton title='Settings' onClick={() => router.push(settingsUrl())}>
+            <Settings size={16} />
+          </MenuButton>
+        </MenuGroup>}
       </PageBar>
       <PageContent onDrop={onDrop}>
         <PeerQuickSelect />

@@ -1,9 +1,12 @@
-import { app } from 'electron';
+import { app, shell } from 'electron';
 import { AppService } from 'shared/appService';
 import { exposed } from 'shared/servicePrimatives';
 import { UserPreferences } from '../types';
 import { isAppContainerWin, getStartupTaskState, requestEnableStartupTask, disableStartupTask } from '../appContainer';
 import { PeerInfo } from 'shared/types';
+import log from 'electron-log/main';
+import path from 'node:path';
+import { fp } from 'shared/utils';
 
 const AUTO_START_KEY = 'pref.autoStart';
 const MSIX_STARTUP_TASK_ID = 'HomeCloudStartup';
@@ -30,7 +33,7 @@ export default class DesktopAppService extends AppService {
         // autoconnect to mobile peers
         // By default, prefersAutoConnectMobile is considered true.
         if ((prefersAutoConnectMobile !== false) && (formFactor === 'mobile' || formFactor === 'tablet')) {
-            console.log(`[AppService] auto-connect to mobile peers. Peer ${peer.fingerprint} will auto-connect.`);
+            console.log(`[AppService] auto-connect to mobile peers. Peer ${fp(peer.fingerprint)} will auto-connect.`);
             return true;
         }
         return false;
@@ -73,7 +76,7 @@ export default class DesktopAppService extends AppService {
      */
     public override async setAutoStart(enable: boolean, openInBackground: boolean = true): Promise<void> {
         if (process.platform === 'linux') {
-            console.warn('Auto-start on Linux requires manual .desktop file setup');
+            console.warn('[AppService] Auto-start on Linux requires manual .desktop file setup.');
             return;
         }
 
@@ -110,7 +113,7 @@ export default class DesktopAppService extends AppService {
         app.setLoginItemSettings(options);
         this.store.setItem(AUTO_START_KEY, enable);
         await this.store.save();
-        console.log(`Auto-start ${enable ? 'enabled' : 'disabled'} (background: ${openInBackground})`);
+        console.log(`[AppService] Auto-start ${enable ? 'enabled' : 'disabled'} (background: ${openInBackground})`);
     }
 
     /**
@@ -125,6 +128,12 @@ export default class DesktopAppService extends AppService {
     protected override isUserPrefKey(key: string): boolean {
         return super.isUserPrefKey(key)
             || USER_PREFERENCE_KEYS.includes(key as UserPreferences);
+    }
+
+    public override async exportLogs(): Promise<void> {
+        const logFilePath = log.transports.file.getFile().path;
+        const logDir = path.dirname(logFilePath);
+        shell.openPath(logDir);
     }
 
     async init() {

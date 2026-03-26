@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
-import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType, ClipboardFile } from "./types";
+import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType, ClipboardFile, ScreenLockStatus } from "./types";
 import Signal from "./signals";
 
 
@@ -95,6 +95,18 @@ export abstract class SystemService extends Service {
     public async openFile(filePath: string) {
         throw new Error("Method not implemented.");
     }
+
+    @exposed
+    public async lockScreen(): Promise<void> {
+        throw new Error("Not supported.");
+    }
+
+    @exposed
+    public async getScreenLockStatus(): Promise<ScreenLockStatus> {
+        return 'not-supported';
+    }
+
+    public screenLockSignal = new Signal<[ScreenLockStatus]>({ isExposed: true, isAllowAll: false });
 
     @exposed
     public async deviceInfo(): Promise<DeviceInfo> {

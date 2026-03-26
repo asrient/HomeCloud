@@ -1,7 +1,7 @@
 import { usePeerState } from "./hooks/usePeerState";
 import { useAppState } from "./hooks/useAppState";
 import { useNavigation } from "./hooks/useNavigation";
-import { cn, isMacosTheme } from "@/lib/utils";
+import { cn, isMacosTheme, isWin11Theme } from "@/lib/utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Monitor, Laptop, Smartphone, Tablet, Server, MoreHorizontal, Plus, LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,13 +17,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const CHAR_WIDTH = 7; // approximate character width in px at text-xs
-const BUTTON_PADDING = 24; // px-2.5 (10px * 2) + gap + icon (16px)
+const BUTTON_PADDING_MACOS = 40; // px-4 (12px * 2) + gap + icon (16px)
+const BUTTON_PADDING_DEFAULT = 28; // px-2 (8px * 2) + gap + icon (16px)
 const MORE_BUTTON_WIDTH = 90;
 const CONTAINER_PADDING = 32; // px-4 = 16px * 2
 const GAP = 6; // gap-1.5
 
 function estimateButtonWidth(label: string): number {
-    return BUTTON_PADDING + label.length * CHAR_WIDTH;
+    return (isMacosTheme() ? BUTTON_PADDING_MACOS : BUTTON_PADDING_DEFAULT) + label.length * CHAR_WIDTH;
 }
 
 function getDeviceIcon(formFactor?: DeviceFormType): LucideIcon {
@@ -45,14 +46,17 @@ function PillButton({ icon: Icon, label, isSelected, onClick }: {
 }) {
     return (
         <Button
-            variant={isSelected ? "default" : isMacosTheme() ? "secondary" : "outline"}
+            variant={isMacosTheme() ? "secondary" : "link"}
             useGlass={isSelected}
             size="sm"
             onClick={onClick}
-            className={cn("gap-1.5 whitespace-nowrap px-2.5 py-0.5", 
-            isSelected && 'border border-primary',
-            !isSelected && 'text-foreground/60',
-            !isSelected && isMacosTheme() ? 'bg-secondary/40' : 'border-secondary-foreground/10'
+            stretch={isMacosTheme()}
+            className={cn("gap-1.5 whitespace-nowrap py-0.5",
+            isMacosTheme() ? 'max-w-full px-4' : 'px-2',
+            !isSelected && 'text-foreground/60 hover:text-foreground',
+            !isMacosTheme() && isSelected && 'border-b-[0.5px] border-foreground rounded-none',
+            isSelected && !isMacosTheme() && 'text-foreground',
+            !isSelected && isMacosTheme() && 'bg-transparent'
             )}>
             <Icon size={16} />
             <span className="truncate">{label}</span>
@@ -121,8 +125,9 @@ export function PeerQuickSelect() {
     }, [peers, containerWidth]);
 
     return (
-        <div ref={containerRef} className={cn("flex flex-row items-center px-4 py-3",
-            isMacosTheme() ? 'gap-1' : 'gap-1.5',
+        <div ref={containerRef} className={cn("flex flex-row items-center mx-4 my-3",
+            isMacosTheme () ?'gap-1 justify-between' : 'gap-4',
+            isMacosTheme() && 'bg-secondary/50 rounded-full'
         )}>
             <PillButton
                 icon={Monitor}
@@ -152,14 +157,16 @@ export function PeerQuickSelect() {
             {overflowPeers.length > 0 && (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <div>
+                        <div className={
+                            isMacosTheme () ? "w-full" : ""
+                            }>
                             <PillButton
                                 icon={MoreHorizontal}
                                 label="More"
                                 isSelected={false}
                                 onClick={() => {}}
                             />
-                        </div>
+                            </div>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
                         {overflowPeers.map(peer => {

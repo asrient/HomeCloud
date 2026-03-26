@@ -13,9 +13,11 @@ import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { useAccountState } from "@/components/hooks/useAccountState";
 import { useAppState } from "@/components/hooks/useAppState";
 import { getAppName } from '@/lib/utils';
-import { Folder, Plus, X } from 'lucide-react';
+import { Folder, Plus, X, MoreHorizontal, ExternalLink, Trash2 } from 'lucide-react';
 import { DeviceIcon } from '@/components/DeviceIcon';
 import { UserPreferences } from "@/lib/types";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { useNavigation } from '@/components/hooks/useNavigation';
 
 function Page() {
   const [photoLibraries, setPhotoLibraries] = useState<PhotoLibraryLocation[]>([]);
@@ -108,7 +110,9 @@ function Page() {
       const result = await localSc.files.openFilePicker(false, true, undefined, 'Select Library Folder', 'Select');
       if (result && result.length > 0) {
         const selectedPath = result[0].path;
-        const folderName = selectedPath.split(/[/\\]/).pop() || 'Library';
+        const rawName = selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Library';
+        let folderName: string;
+        try { folderName = decodeURIComponent(rawName); } catch { folderName = rawName; }
         await localSc.photos.addLocation(folderName, selectedPath);
         await fetchPhotoLibraries();
       }
@@ -129,6 +133,7 @@ function Page() {
 
   const { isLinked, accountEmail } = useAccountState();
   const { peers, deviceInfo } = useAppState();
+  const { openDevicePage } = useNavigation();
 
   const showPreferences = useMemo(() => {
     return autoStartEnabled !== null
@@ -154,48 +159,56 @@ function Page() {
             <Line title='Device Info'>
               {deviceInfo && (
                 <div className="flex items-center">
-                  <Image src={getOSIconUrl(deviceInfo)} alt={deviceInfo.os} width={20} height={20} className="mr-1" />
-                  {`${deviceInfo.os} ${deviceInfo.osFlavour} (${deviceInfo.formFactor})`}
+                  {`${deviceInfo.os} ${deviceInfo.osFlavour} - ${deviceInfo.formFactor}`}
                 </div>
               )}
+            </Line>
+            <Line>
+              <Button variant='ghost' className="text-primary" size='sm' onClick={() => {
+                window.modules.getLocalServiceController().app.exportLogs().catch((err: any) => {
+                  console.error('Failed to open log directory:', err);
+                });
+              }}>
+                Export logs for help...
+              </Button>
             </Line>
             {'triggerUpdateCheck' in (window.utils || {}) && !window.modules.config.IS_STORE_DISTRIBUTION && (
               <Line>
                 <Button variant='ghost' className="text-primary" size='sm' onClick={() => window.utils.triggerUpdateCheck()}>
-                  Check for updates
+                  Check for updates...
                 </Button>
               </Line>
             )}
           </Section>
           {showPreferences && <Section title="Preferences">
-              {autoStartEnabled !== null && <Line title={`Start ${getAppName()} at login`}>
+            {autoStartEnabled !== null && <Line title={`Start ${getAppName()} at login`}>
+              <Switch
+                checked={autoStartEnabled}
+                onCheckedChange={handleAutoStartToggle}
+                disabled={autoStartDisabled}
+              />
+            </Line>}
+            {!window.modules.config.IS_STORE_DISTRIBUTION && <Line title='Check for updates automatically'>
+              <Switch
+                checked={checkForUpdates}
+                onCheckedChange={updateCheckForUpdates}
+              />
+            </Line>}
+            {isLinked && <Line title='Auto connect my mobile devices'>
+              <Switch
+                checked={autoConnectMobile}
+                onCheckedChange={updateAutoConnectMobile}
+              />
+            </Line>}
+            {
+              isWindows() && <Line title={'Use modern network API for Windows (Experimental)'}>
                 <Switch
-                  checked={autoStartEnabled}
-                  onCheckedChange={handleAutoStartToggle}
-                  disabled={autoStartDisabled}
+                  checked={useWinrtDgram}
+                  onCheckedChange={updateWinrtDgram}
                 />
-              </Line>}
-              {!window.modules.config.IS_STORE_DISTRIBUTION && <Line title='Check for updates automatically'>
-                <Switch
-                  checked={checkForUpdates}
-                  onCheckedChange={updateCheckForUpdates}
-                />
-              </Line>}
-              {isLinked && <Line title='Auto connect my mobile devices'>
-                <Switch
-                  checked={autoConnectMobile}
-                  onCheckedChange={updateAutoConnectMobile}
-                />
-              </Line>}
-              {
-                isWindows() && <Line title={'Use modern network API for Windows (Experimental)'}>
-                  <Switch
-                    checked={useWinrtDgram}
-                    onCheckedChange={updateWinrtDgram}
-                  />
-                </Line>
-              }
-            </Section>}
+              </Line>
+            }
+          </Section>}
           {ifaceStatuses.length > 0 && (
             <Section title="Allowed Connections" footer="At least one connection method must be enabled to connect to other devices.">
               {ifaceStatuses.map(({ type, enabled }) => (
@@ -212,7 +225,7 @@ function Page() {
             {photoLibraries.map((library) => (
               <Line key={library.id} title={
                 <div className="flex items-center">
-                  <Folder className="w-8 h-8 mr-3 text-foreground/70" />
+                  <Folder className="w-7 h-7 mr-2 text-foreground/70" />
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">{library.name}</span>
                     <span className="text-xs text-foreground/50">{library.location}</span>
@@ -245,7 +258,7 @@ function Page() {
                 <Button variant='ghost' className="text-primary" size={'sm'} onClick={() => {
                   openDialog('login');
                 }}>
-                  Login to account
+                  Login to account...
                 </Button>
               </Line>
             }
@@ -267,7 +280,7 @@ function Page() {
                   buttonText='Confirm'
                 >
                   <Button variant='ghost' className='text-red-500' size='sm'>
-                    Unlink device
+                    Unlink device...
                   </Button>
                 </ConfirmModal>
               </Line>
@@ -292,20 +305,32 @@ function Page() {
                     </div>
                   </div>
                 }>
-                  <ConfirmModal
-                    title='Remove Device'
-                    description={`Are you sure you want to remove "${peer.deviceName}" from your account?`}
-                    onConfirm={async () => {
-                      const localSc = window.modules.getLocalServiceController();
-                      await localSc.account.removePeer(peer.fingerprint);
-                    }}
-                    buttonVariant='destructive'
-                    buttonText='Remove'
-                  >
-                    <Button variant='ghost' className='text-red-500' size='icon'>
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </ConfirmModal>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant='ghost' size='icon'>
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      <DropdownMenuItem onClick={() => openDevicePage(peer.fingerprint)}>
+                        Open device
+                      </DropdownMenuItem>
+                      <ConfirmModal
+                        title='Remove Device'
+                        description={`Are you sure you want to remove "${peer.deviceName}" from your account?`}
+                        onConfirm={async () => {
+                          const localSc = window.modules.getLocalServiceController();
+                          await localSc.account.removePeer(peer.fingerprint);
+                        }}
+                        buttonVariant='destructive'
+                        buttonText='Remove'
+                      >
+                        <DropdownMenuItem className='text-red-500' onSelect={(e) => e.preventDefault()}>
+                          Remove
+                        </DropdownMenuItem>
+                      </ConfirmModal>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </Line>
               ))}
             </Section>

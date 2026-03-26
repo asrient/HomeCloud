@@ -40,12 +40,12 @@ export default class ThumbGeneratorLinux extends ThumbGenerator {
 
     // Setup method: Check for available tools once during setup
     async setup() {
-        console.log('Setting up the Linux Thumbnail Generator...');
+        console.log('[Thumbnail] Setting up Linux generator...');
 
         for (let tool of this.tools) {
             if (await this.isCommandAvailable(tool)) {
                 this.availableTool = tool;
-                console.log(`${tool} is available.`);
+                console.debug(`[Thumbnail] ${tool} is available.`);
                 break;
             }
         }
@@ -107,7 +107,7 @@ export default class ThumbGeneratorLinux extends ThumbGenerator {
 
     // Stop method
     async stop() {
-        console.log('Stopping the Linux Thumbnail Generator...');
+        console.log('[Thumbnail] Stopping Linux generator...');
         // Clean up any resources or states if necessary
     }
 }

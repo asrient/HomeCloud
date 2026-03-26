@@ -8,11 +8,11 @@ import { useColorScheme } from '@/hooks/useColorScheme';
  * Custom hook that provides a React Navigation theme based on the current color scheme.
  * Uses Material You colors on Android and iOS system colors on iOS.
  */
-export function useNavigationTheme(): Theme {
+export function useNavigationTheme(options?: { forceDark?: boolean }): Theme {
     const colorScheme = useColorScheme();
 
     const theme = useMemo(() => {
-        const isDark = colorScheme === 'dark';
+        const isDark = options?.forceDark || colorScheme === 'dark';
         const colors = Platform.OS === 'android'
             ? (isDark ? ColorsAndroid.dark : ColorsAndroid.light)
             : (isDark ? ColorsIos.dark : ColorsIos.light);
@@ -46,7 +46,7 @@ export function useNavigationTheme(): Theme {
                 },
             },
         };
-    }, [colorScheme]);
+    }, [colorScheme, options?.forceDark]);
 
     return theme;
 }

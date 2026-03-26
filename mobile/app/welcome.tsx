@@ -14,9 +14,9 @@ import { useState } from 'react';
 
 const features = [
     {
-        icon: 'arrow.left.arrow.right' as const,
-        title: 'Transfer files, browse photos & more',
-        description: "Transfer unlimited files, share your clipboard, browse photos and edit documents across all your devices.",
+        icon: 'macbook.and.iphone' as const,
+        title: 'Work across your devices',
+        description: "Transfer files, access clipboard, browse photos or edit documents from any device.",
     },
     {
         icon: 'antenna.radiowaves.left.and.right' as const,

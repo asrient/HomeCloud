@@ -5,6 +5,7 @@ import { UIText } from "./ui/UIText";
 import { UIIcon, IconSymbolName } from "./ui/UIIcon";
 import { UIContextMenu, UIContextMenuAction } from "./ui/UIContextMenu";
 import { useState, useRef, useCallback } from "react";
+import { isGlassEnabled, isIos } from "@/lib/utils";
 
 
 const HEIGHT_UNIT = 80;
@@ -183,7 +184,7 @@ function BentoBox({ config }: { config: BentoBoxConfig }) {
                     animationType="fade"
                     onRequestClose={handleCloseExpanded}
                 >
-                    <BlurView intensity={80} style={styles.modalOverlay} tint="dark">
+                    <BlurView intensity={isIos && isGlassEnabled ? 30 : 80} style={styles.modalOverlay}  tint="dark">
                         <Pressable
                             style={styles.modalOverlay}
                             onPress={handleCloseExpanded}

@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import { useAppState } from "../hooks/useAppState";
 import { useFolder, usePinnedFolders } from "../hooks/useFolders";
 import { getDefaultIcon, pinnedFolderToRemoteItem } from "@/lib/fileUtils";
-import { buildNextUrl, folderViewUrl } from "@/lib/urls";
+import { buildNextUrl, folderViewUrl } from '@/lib/urls';
 import { getServiceController } from "@/lib/utils";
 import { usePhotoLibraries } from "../hooks/usePhotos";
 import { photosLibraryUrl } from "@/lib/urls";
@@ -225,7 +225,6 @@ export function AppSidebar() {
             <PhotosSection fingerprint={selectedFingerprint} />
             <FilesSection fingerprint={selectedFingerprint} />
             {isDev && <DevSection />}
-            <SettingsSection />
         </SidebarView>
     )
 }

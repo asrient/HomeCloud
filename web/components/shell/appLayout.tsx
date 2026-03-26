@@ -32,7 +32,7 @@ function DeviceBar({ compact }: { compact?: boolean }) {
 function SidebarArea({ liquidGlass }: { liquidGlass?: boolean }) {
     const compact = isMacosTheme() && !liquidGlass;
     return (<aside className={cn(
-        `sidebar z-20 h-full w-full shrink-0`,
+        `sidebar z-20 h-full w-full shrink-0 overflow-hidden`,
     )}>
         {isMacosTheme() && <div className="app-dragable h-[3rem] w-full"></div>}
         <ScrollArea className={cn(

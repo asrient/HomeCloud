@@ -16,6 +16,7 @@ import { ThemedIconName } from "@/lib/enums";
 import { Grid } from 'react-window';
 import { useAppState } from "./hooks/useAppState";
 import { setItemsToCopy } from "@/lib/fileUtils";
+import { Ratio, ZoomIn, ZoomOut } from "lucide-react";
 
 export type PhotosPageProps = {
     pageTitle: string;
@@ -71,6 +72,7 @@ function ThumbnailPhoto({ item, isSelected, className, maintainAspectRatio, onCl
         <div className={cn("relative h-full w-full")}>
             <LazyImage
                 fetchSrc={fetchThumbnailSrc}
+                itemKey={item.fileId + '|' + item.deviceFingerprint}
                 src={dafaultSrc}
                 alt={item.id.toString()}
                 onClick={handleOnClick}
@@ -482,7 +484,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
     const sendToDevice = useCallback(async (file: PhotoView, fingerprint: string) => {
         try {
             const serviceController = await getServiceController(fingerprint);
-            await serviceController.files.download(window.modules.config.FINGERPRINT, file.fileId);
+            await serviceController.files.download(window.modules.config.FINGERPRINT, [file.fileId]);
         } catch (e: any) {
             console.error(e);
         }
@@ -495,7 +497,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
 
     const download = useCallback(async (item: PhotoView) => {
         const localSc = window.modules.getLocalServiceController();
-        await localSc.files.download(fetchOptions.deviceFingerprint, item.fileId);
+        await localSc.files.download(fetchOptions.deviceFingerprint, [item.fileId]);
     }, [fetchOptions.deviceFingerprint]);
 
     const share = useCallback(async () => {
@@ -537,6 +539,20 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 break;
             case 'download':
                 if (clickedItem) download(clickedItem);
+                break;
+            case 'getInfo':
+                if (clickedItem) {
+                    const info = [
+                        `ID: ${clickedItem.id}`,
+                        `Type: ${clickedItem.mimeType}`,
+                        `Size: ${clickedItem.width} × ${clickedItem.height}`,
+                        clickedItem.duration ? `Duration: ${clickedItem.duration.toFixed(1)}s` : null,
+                        `Captured: ${new Date(clickedItem.capturedOn).toLocaleString()}`,
+                        `File: ${clickedItem.fileId}`,
+                    ].filter(Boolean).join('\n');
+                    const localSc = window.modules.getLocalServiceController();
+                    localSc.system.alert('Photo Info', info);
+                }
                 break;
             case 'share':
                 share();
@@ -587,6 +603,7 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 })
             });
             items.push({ id: 'download', label: 'Download' });
+            items.push({ id: 'getInfo', label: 'Get Info' });
         }
         items.push({ id: 'copy', label: 'Copy' });
         isMacos() && items.push({ id: 'share', label: 'Export' });
@@ -626,21 +643,13 @@ export default function PhotosPage({ pageTitle, pageIcon, fetchOptions }: Photos
                 </MenuGroup>
                 <MenuGroup>
                     <MenuButton title='Maintain aspect ratio' onClick={toggleAspectRatio} selected={maintainAspectRatio}>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
-                        </svg>
+                        <Ratio strokeWidth={1.5} className="w-5 h-5" />
                     </MenuButton>
-                </MenuGroup>
-                <MenuGroup>
                     <MenuButton title='Zoom In' disabled={zoom >= 4} onClick={zoomIn}>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
-                        </svg>
+                        <ZoomIn strokeWidth={1.5} className="w-5 h-5" />
                     </MenuButton>
                     <MenuButton title='Zoom Out' disabled={zoom <= 1} onClick={zoomOut}>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM13.5 10.5h-6" />
-                        </svg>
+                        <ZoomOut strokeWidth={1.5} className="w-5 h-5" />
                     </MenuButton>
                 </MenuGroup>
             </PageBar>

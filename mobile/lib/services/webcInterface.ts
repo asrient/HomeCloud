@@ -77,17 +77,17 @@ class Datagram_ extends DatagramCompat {
         try {
             // Create socket if not already created
             if (!this.socketId) {
-                console.log("Creating UDP socket");
+                console.debug("[WebCInterface] Creating UDP socket.");
                 this.socketId = await SupermanModule.udpCreateSocket();
                 // Register this socket in the global registry
                 activeSockets.set(this.socketId, this);
             }
-            console.log(`Binding UDP socket (ID: ${this.socketId}) to ${address || '0.0.0.0'}:${port || 0}`);
+            console.debug(`[WebCInterface] Binding UDP socket. Port: ${port || 0}`);
             // Bind the socket
             const result = await SupermanModule.udpBind(this.socketId, port, address || '0.0.0.0');
             this.boundAddress = result.address;
             this.boundPort = result.port;
-            console.log(`UDP socket bound to ${this.boundAddress}:${this.boundPort}`);
+            console.debug(`[WebCInterface] UDP socket bound.`);
         } catch (error) {
             throw new Error(`Failed to bind UDP socket: ${error}`);
         }
@@ -126,16 +126,16 @@ class Datagram_ extends DatagramCompat {
     }
 
     close(): void {
-        console.log("Closing UDP socket");
+        console.debug("[WebCInterface] Closing UDP socket.");
         if (this.socketId) {
             const socketId = this.socketId;
             activeSockets.delete(socketId);
             this.socketId = null;
             this.isListening = false;
-            
+
             // Fire and forget - no await since interface expects void return
             SupermanModule.udpClose(socketId).catch(error => {
-                console.warn(`Error closing UDP socket: ${error}`);
+                console.warn(`[WebCInterface] Error closing UDP socket: ${error}`);
             });
         }
     }
@@ -162,7 +162,7 @@ export default class MobileWebcInterface extends WebcInterface {
     }
 
     override async start(): Promise<void> {
-        console.log("Starting MobileWebcInterface");
+        console.log("[WebCInterface] Starting.");
         setupGlobalListeners();
         await super.start();
     }

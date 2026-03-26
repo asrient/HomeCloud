@@ -2,6 +2,9 @@
 import { install as installCrypto } from 'react-native-quick-crypto';
 installCrypto();
 
+import { setupFileLogger } from '@/lib/logger';
+setupFileLogger();
+
 import { ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -54,7 +57,7 @@ export default function RootLayout() {
         await setupPermissions();
         setAppReady(true);
       } catch (error) {
-        console.error('Failed to initialize modules:', error);
+        console.error('[App] Failed to initialize modules:', error);
       }
     }
 
@@ -89,6 +92,15 @@ export default function RootLayout() {
           <Stack.Protected guard={isOnboarded}>
             <Stack.Screen name="index" options={{ title: 'Home' }} />
             <Stack.Screen name="device" options={{ headerShown: false }} />
+            <Stack.Screen name="terminal" options={{
+              headerShown: false,
+              presentation: 'fullScreenModal',
+              animation: 'slide_from_bottom',
+            }} />
+            <Stack.Screen name="screen-control" options={{
+              presentation: 'fullScreenModal',
+              animation: 'slide_from_bottom',
+            }} />
             <Stack.Screen name="device-sheet" options={{
               headerShown: false,
               presentation: 'formSheet',

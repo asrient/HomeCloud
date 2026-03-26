@@ -457,7 +457,7 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
 
     const handleFilePress = useCallback(async (file: FileRemoteItem, previewIntent?: boolean) => {
         // Handle file press based on selectMode
-        console.log('File pressed:', file.path, 'selectMode:', selectMode);
+        // console.log('File pressed:', file.path, 'selectMode:', selectMode);
         if (selectMode && isFileSelectable(file, selectKind || 'both') && !previewIntent) {
             if (!file.isSelected) {
                 if (onSelect) {
@@ -576,8 +576,6 @@ export function FolderFilesGrid({ deviceFingerprint, path, footerComponent, show
     }), [deviceFingerprint]);
 
     const { remoteItems, isLoading, error } = useFolder<FileRemoteItem>(deviceFingerprint, path, mapper);
-
-    console.log(`Loaded ${remoteItems.length} items for folder ${path}`);
 
     return (
         <FilesGrid

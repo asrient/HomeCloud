@@ -17,10 +17,7 @@ export function photosLibraryUrl(fingerprint: string | null, libraryId: string) 
 }
 
 export function settingsUrl() {
-    if (isMobile()) {
-        return buildNextUrl('/settings');
-    }
-    return buildNextUrl('/settings/general');
+    return buildNextUrl('/settings');
 }
 
 export function deviceSettingsUrl(fingerprint: string) {

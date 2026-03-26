@@ -10,6 +10,8 @@ import { AccountService } from "shared/accountService";
 import { HttpClient_, WebSocket_ } from "../desktopCompat";
 import DesktopWebcInterface from "./webcInterface";
 import DesktopAppService from "./appService";
+import DesktopScreenService from "./screen/screenService";
+import DesktopTerminalService from "./terminal/terminalService";
 
 const TCP_PORT = 7736;
 
@@ -22,9 +24,11 @@ export default class DesktopServiceController extends ServiceController {
     public override thumbnail = DesktopThumbService.getInstance<DesktopThumbService>();
     public override files = DesktopFilesService.getInstance<DesktopFilesService>();
     public override photos = DesktopPhotosService.getInstance<DesktopPhotosService>();
+    public override screen = DesktopScreenService.getInstance<DesktopScreenService>();
+    public override terminal = DesktopTerminalService.getInstance<DesktopTerminalService>();
 
     async setup() {
-        console.log("Setting up services...");
+        console.log("[ServiceController] Setting up services...");
         await this.account.init({
             httpClient: new HttpClient_(),
             webSocket: new WebSocket_()
@@ -34,22 +38,24 @@ export default class DesktopServiceController extends ServiceController {
         await this.files.init();
         await this.thumbnail.init();
         await this.photos.init();
+        await this.screen.init();
+        await this.terminal.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
                 [ConnectionType.LOCAL, new TCPInterface(TCP_PORT)],
                 [ConnectionType.WEB, new DesktopWebcInterface()]
             ]
         ));
-        console.log("All services initialized.");
+        console.log("[ServiceController] All services initialized.");
         await this.startAll();
         this.readyState = true;
         this.readyStateSignal.dispatch(this.readyState);
-        console.log("ServiceController is ready.");
+        console.log("[ServiceController] Ready.");
     }
 
     private async startAll() {
         // Start services.
-        console.log("Starting services...");
+        console.log("[ServiceController] Starting services...");
         await this.account.start();
         await this.app.start();
         await this.system.start();
@@ -57,6 +63,7 @@ export default class DesktopServiceController extends ServiceController {
         await this.files.start();
         await this.thumbnail.start();
         await this.photos.start();
-        console.log("All services started.");
+        await this.screen.start();
+        console.log("[ServiceController] All services started.");
     }
 }

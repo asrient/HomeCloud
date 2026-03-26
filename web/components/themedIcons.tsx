@@ -1,5 +1,5 @@
 import { isMacosTheme } from "@/lib/utils";
-import { Flower, Folder, Settings, HardDrive, Hammer, House } from "lucide-react";
+import { Flower, Folder, Settings, HardDrive, Hammer, House, AppWindow } from "lucide-react";
 import Image from "next/image";
 import { ThemedIconName } from "@/lib/enums";
 
@@ -10,6 +10,7 @@ const ThemedIcons: Record<ThemedIconName, [string, React.ElementType]> = {
     Settings: ['/icons/settings.png', Settings],
     Tool: ['/icons/tool.png', Hammer],
     Home: ['/icons/home.png', House],
+    Apps: ['/icons/program.png', AppWindow],
 }
 
 export function ThemedIcon({ name, alt, size, type, className }: { name: ThemedIconName, alt?: string, size?: number, type?: 'image' | 'symbol' | 'auto', className?: string }) {

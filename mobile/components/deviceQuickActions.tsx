@@ -1,18 +1,19 @@
 import { PeerInfo } from "shared/types";
-import { Bento } from "./bento";
+import { Bento, BentoGroup } from "./bento";
 import { UIText } from "./ui/UIText";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useBatteryInfo, useClipboard, useMediaPlayback, useVolume } from "@/hooks/useSystemState";
+import { useBatteryInfo, useClipboard, useMediaPlayback, useScreenLock, useVolume } from "@/hooks/useSystemState";
 import { useAppState } from "@/hooks/useAppState";
 import { ConnectionType } from "@/lib/types";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, View } from "react-native";
 import { UIButton } from "./ui/UIButton";
 import { UIView } from "./ui/UIView";
 import { UITextInput } from "./ui/UITextInput";
 import Slider from '@react-native-community/slider';
 import { DisksGrid } from "./disksGrid";
-import { getLocalServiceController, getServiceController } from "@/lib/utils";
-import { useRouter } from "expo-router";
+import { useAppsAvailable, useTerminalAvailable } from "@/hooks/useApps";
+import { getLocalServiceController, getServiceController, isIos } from "@/lib/utils";
+
 import { UIIcon } from "./ui/UIIcon";
 import { useSendAssets } from "@/hooks/useSendAssets";
 import { useManagedLoading } from "@/hooks/useManagedLoading";
@@ -124,7 +125,7 @@ function ClipboardCard({ deviceFingerprint, dismiss }: { deviceFingerprint: stri
                 disabled={isLoading || !!error || !content}
                 onPress={copyToClipboard}
                 title="Copy"
-                type="primary"
+                type={isIos ? "secondary" : "primary"}
                 stretch
             />
         </View>
@@ -183,11 +184,10 @@ function SendTextCard({ deviceFingerprint, dismiss }: { deviceFingerprint: strin
 export type DeviceQuickActionsProps = {
     peerInfo: PeerInfo | null;
     fingerprint: string | null;
-    onNavigate?: (subPath: string) => void;
+    onNavigate: (path: string) => void;
 };
 
 export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: DeviceQuickActionsProps) {
-    const router = useRouter();
     const deviceFingerprint = useMemo(() => {
         return peerInfo ? peerInfo.fingerprint : null;
     }, [peerInfo]);
@@ -202,6 +202,9 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
     }, [connections, deviceFingerprint]);
 
     const { batteryInfo, isLoading: isBatteryLoading } = useBatteryInfo(deviceFingerprint);
+    const { available: appsAvailable } = useAppsAvailable(deviceFingerprint);
+    const { available: terminalAvailable } = useTerminalAvailable(deviceFingerprint);
+    const { lockStatus, lockScreen } = useScreenLock(deviceFingerprint);
 
     const batteryIcon = useMemo(() => {
         if (!batteryInfo) {
@@ -266,6 +269,27 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
         });
     }, [deviceFingerprint, sendAssets]);
 
+    const handleLockScreen = useCallback(() => {
+        Alert.alert(
+            'Lock Screen',
+            'Once locked you won\'t be able to unlock the screen remotely.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Lock',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await lockScreen();
+                        } catch (e) {
+                            console.error('Failed to lock screen:', e);
+                        }
+                    },
+                },
+            ],
+        );
+    }, [lockScreen]);
+
     return <>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, maxWidth: 500, alignSelf: 'center', width: '100%' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -279,6 +303,9 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <UIIcon name={batteryIcon} size={14} themeColor="text" />
                 <UIText size="sm" color="text">{batteryLabel}</UIText>
+                {lockStatus === 'locked' && (
+                    <UIIcon name="lock.fill" size={14} themeColor="text" />
+                )}
             </View>
         </View>
         <Bento config={[
@@ -337,14 +364,14 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                         icon: 'folder.fill',
                         title: 'Files',
                         subtitle: 'Browse files',
-                        onPress: () => onNavigate ? onNavigate('files') : router.push(`/device/${routeFingerprint}/files`),
+                        onPress: () => onNavigate(`/device/${routeFingerprint}/files`),
                     },
                     {
                         type: 'half',
                         icon: 'photo.stack',
                         title: 'Photos',
                         subtitle: 'Photo library',
-                        onPress: () => onNavigate ? onNavigate('photos') : router.push(`/device/${routeFingerprint}/photos`),
+                        onPress: () => onNavigate(`/device/${routeFingerprint}/photos`),
                     },
                 ]
             },
@@ -357,6 +384,27 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                     },
                 ]
             },
+            ...(appsAvailable ? [{
+                flow: 'row',
+                boxes: [
+                    {
+                        type: 'half',
+                        icon: 'display',
+                        title: 'Screen',
+                        subtitle: 'Remote desktop',
+                        disabled: !appsAvailable,
+                        onPress: () => onNavigate(`/screen-control?fingerprint=${routeFingerprint}`),
+                    },
+                    ...(terminalAvailable ? [{
+                        type: 'half' as const,
+                        icon: 'terminal.fill' as const,
+                        title: 'Terminal',
+                        subtitle: 'Remote shell',
+                        disabled: !terminalAvailable,
+                        onPress: () => onNavigate(`/terminal?fingerprint=${routeFingerprint}`),
+                    }] : []),
+                ]
+            }] as BentoGroup[] : []),
             {
                 flow: 'row',
                 boxes: [
@@ -367,6 +415,18 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                     },
                 ]
             },
+            {
+                flow: 'row',
+                boxes: [
+                    {
+                        type: 'half',
+                        icon: 'lock.fill',
+                        title: 'Lock Screen',
+                        disabled: lockStatus !== 'unlocked',
+                        onPress: handleLockScreen,
+                    },
+                ]
+            }
         ]} />
     </>
 }

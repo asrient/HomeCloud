@@ -2,7 +2,7 @@ import { ReDatagram } from "./reUdpProtocol";
 import { DatagramCompat } from "./compat";
 import { ConnectionInterface } from "./netService";
 import { ConnectionType, GenericDataChannel, PeerCandidate, WebcInit, WebcPeerData, WebcReject } from "./types";
-import { filterValidBonjourIps } from "./utils";
+import { filterValidBonjourIps, safeIp } from "./utils";
 
 
 /*
@@ -27,6 +27,7 @@ type UdpConnectionOptions = {
 export class UdpConnection {
     private dgram: DatagramCompat;
     private pin: string;
+    public readonly tag: string;
     private serverAddress: string;
     private serverPort: number;
     private onConnectedCallback?: (reDatagram: ReDatagram) => void;
@@ -45,6 +46,7 @@ export class UdpConnection {
     constructor(options: UdpConnectionOptions) {
         this.dgram = options.dgram;
         this.pin = options.pin;
+        this.tag = `webc_${options.pin.slice(0, 4)}`;
         this.serverAddress = options.serverAddress;
         this.serverPort = options.serverPort;
         this.onConnectedCallback = options.onConnected;
@@ -54,7 +56,8 @@ export class UdpConnection {
 
     public startConnection() {
         const helloMsg = new TextEncoder().encode(`PIN=${this.pin}`);
-        console.log("Starting UDP connection to server:", this.serverAddress, this.serverPort, "with PIN:", this.pin);
+        console.debug(`[WebC:${this.tag}] Starting UDP connection to server.`);
+        console.debug(`[WebC:${this.tag}] Server address: ${safeIp(this.serverAddress)}:${this.serverPort}`);
 
         // Set a timeout for the entire connection establishment
         this.connectionTimeoutId = setTimeout(() => {
@@ -83,37 +86,38 @@ export class UdpConnection {
         this.dgram.onMessage = (msg, rinfo) => {
             // verify it's from the server
             if (rinfo.port !== this.serverPort) {
-                console.warn("Received message from unknown source:", rinfo);
+                console.warn(`[WebC:${this.tag}] Received message from unknown source.`);
+                console.debug(`[WebC:${this.tag}] Expected server address ${safeIp(this.serverAddress)}:${this.serverPort}, got ${safeIp(rinfo.address)}:${rinfo.port}`);
                 return;
             }
             const msgStr = new TextDecoder().decode(msg);
             if (msgStr === "PIN_ACK") {
                 this.isServerAcked = true;
                 this.dgram.onMessage = undefined; // stop listening for server messages
-                console.log("Received PIN_ACK from server.");
+                console.log(`[WebC:${this.tag}] Received PIN_ACK from server.`);
                 this.checkConnectionEstablished();
             }
             else if (msgStr.startsWith("ERROR=")) {
                 const errorMsg = msgStr.substring(6);
                 // Handle same network error specially - don't terminate, switch to local relay
                 if (errorMsg === SAME_NETWORK_ERROR_MSG) {
-                    console.log("[UdpConnection] Received same network error from server, switching to local relay.");
+                    console.log(`[WebC:${this.tag}] Received same network error from server, switching to local relay.`);
                     this.switchToLocalNetwork();
                     return;
                 }
-                console.error("Server error:", errorMsg);
+                console.error(`[WebC:${this.tag}] Server error:`, errorMsg);
                 this.isTerminated = true;
                 this.onErrorCallback?.(new Error(errorMsg));
                 this.dgram.close();
             }
             else {
-                console.warn("Unexpected message from server:", msgStr);
+                console.warn(`[WebC:${this.tag}] Unexpected message from server.`);
             }
         };
 
         this.dgram.onError = (err) => {
             // Socket errors are common during app background/foreground transitions
-            console.warn("Datagram error:", err.message || err);
+            console.warn(`[WebC:${this.tag}] Datagram error:`, err.message || err);
             this.isTerminated = true;
             this.dgram.onMessage = undefined;
             this.dgram.close();
@@ -121,7 +125,7 @@ export class UdpConnection {
         };
 
         this.dgram.onClose = () => {
-            console.log("Datagram socket closed.");
+            console.log(`[WebC:${this.tag}] Datagram socket closed.`);
             this.isTerminated = true;
             this.dgram.onMessage = undefined;
             this.dgram.onError = undefined;
@@ -132,10 +136,10 @@ export class UdpConnection {
 
     public addPeerDetails(peerAddresses: string[], peerPort: number) {
         if (this.isTerminated) {
-            console.warn("[UdpConnection] Connection terminated, ignoring peer details.");
+            console.warn(`[WebC:${this.tag}] Connection terminated, ignoring peer details.`);
             return;
         }
-        console.log("Received peer details:", peerAddresses, peerPort);
+        console.debug(`[WebC:${this.tag}] Received peer details.`);
         this.peerAddresses = peerAddresses;
         this.peerPort = peerPort;
         this.checkConnectionEstablished();
@@ -155,7 +159,7 @@ export class UdpConnection {
      */
     public async switchToLocalNetwork(): Promise<boolean> {
         if (this.isTerminated) {
-            console.warn('[UdpConnection] Connection already terminated, cannot switch to local network.');
+            console.warn(`[WebC:${this.tag}] Connection already terminated, cannot switch to local network.`);
             return false;
         }
 
@@ -181,22 +185,22 @@ export class UdpConnection {
         const localPort = this.getLocalPort();
 
         if (!localAddresses.length || !localPort) {
-            console.warn('[UdpConnection] Cannot request local relay: no local addresses or port available.');
+            console.warn(`[WebC:${this.tag}] Cannot request local relay: no local addresses or port available.`);
             this.terminate('No local addresses available for local relay.');
             return false;
         }
 
-        console.log('[UdpConnection] Same network detected, requesting local relay. PIN:', this.pin, 'Addresses:', localAddresses, 'Port:', localPort);
+        console.debug(`[WebC:${this.tag}] Same network detected, requesting local relay.`);
 
         try {
             const localSc = modules.getLocalServiceController();
             await localSc.account.requestWebcLocal(this.pin, localAddresses, localPort);
-            console.log('[UdpConnection] Local relay request sent, waiting for new peer data...');
+            console.log(`[WebC:${this.tag}] Local relay request sent, waiting for new peer data...`);
             // Check in case peer data arrived during the async request
             this.checkConnectionEstablished();
             return true;
         } catch (err: any) {
-            console.error('[UdpConnection] Failed to request local relay:', err);
+            console.error(`[WebC:${this.tag}] Failed to request local relay:`, err);
             this.terminate(err?.message || 'Local relay request failed');
             return false;
         }
@@ -223,7 +227,8 @@ export class UdpConnection {
 
     private checkConnectionEstablished() {
         if (this.peerAddresses && this.peerAddresses.length > 0 && this.peerPort && this.isServerAcked && !this.isTerminated && !this.reDatagram) {
-            console.log("UDP server handshake complete. Peer addresses:", this.peerAddresses, "Port:", this.peerPort);
+            console.debug(`[WebC:${this.tag}] UDP server handshake complete.`);
+            console.debug(`[WebC:${this.tag}] Peer addresses: ${this.peerAddresses.map(a => safeIp(a)).join(',')}, port: ${this.peerPort}`);
             // Remove dgram event handlers to avoid interference
             this.dgram.onMessage = undefined;
             this.dgram.onError = undefined;
@@ -242,7 +247,7 @@ export class UdpConnection {
                     return;
                 }
                 this.onConnectedCallback?.(this.reDatagram);
-            });
+            }, this.tag);
         }
     }
 
@@ -314,7 +319,7 @@ export abstract class WebcInterface extends ConnectionInterface {
     private async setupConnection(webcInit: WebcInit): Promise<GenericDataChannel> {
         const dgram = this.createDatagramSocket();
         await dgram.bind();
-        console.log("[WebCInterface] Datagram socket bound for connection:", dgram.address());
+        console.debug("[WebCInterface] Datagram socket bound for connection.");
         return new Promise<GenericDataChannel>((resolve, reject) => {
             let isSettled = false;
 
@@ -354,7 +359,7 @@ export abstract class WebcInterface extends ConnectionInterface {
                     }
                 }
                 else {
-                    console.log("[WebCInterface] Found waiting peer data for PIN:", webcInit.pin, waitingEntry.peerData);
+                    console.debug("[WebCInterface] Found waiting peer data for incoming connection.");
                     udpConnection.addPeerDetails(waitingEntry.peerData.peerAddresses, waitingEntry.peerData.peerPort);
                 }
                 this.waitingPeerData.delete(webcInit.pin);
@@ -389,7 +394,7 @@ export abstract class WebcInterface extends ConnectionInterface {
         if (candidate.connectionType !== ConnectionType.WEB) {
             throw new Error(`Unsupported candidate type: ${candidate.connectionType}`);
         }
-        console.log("[WebCInterface] Connecting to WebC peer:", candidate);
+        console.debug("[WebCInterface] Connecting to WebC peer.");
         const localSc = modules.getLocalServiceController();
         const webcInit = await localSc.account.requestWebcInit(candidate.fingerprint);
         return this.setupConnection(webcInit);
@@ -520,7 +525,7 @@ export abstract class WebcInterface extends ConnectionInterface {
         const webcInitRef = localSc.account.webcInitSignal.add(async (webcInit: WebcInit) => {
             // Deduplicate: if this PIN is already being processed (e.g. from a duplicate WebSocket event), skip it
             if (this.activeIncomingPins.has(webcInit.pin)) {
-                console.log("[WebCInterface] Skipping duplicate webc_request for PIN:", webcInit.pin);
+                console.debug("[WebCInterface] Skipping duplicate webc_request.");
                 return;
             }
             this.activeIncomingPins.add(webcInit.pin);
@@ -545,7 +550,7 @@ export abstract class WebcInterface extends ConnectionInterface {
                 waitingEntry.connection.addPeerDetails(webcPeerData.peerAddresses, webcPeerData.peerPort);
                 this.waitingForPeerData.delete(webcPeerData.pin);
             } else {
-                console.warn("[WebCInterface] Received WebC peer data before server handshake for PIN:", webcPeerData.pin);
+                console.warn("[WebCInterface] Received WebC peer data before server handshake.");
                 const cleanupTimer = setTimeout(() => {
                     this.waitingPeerData.delete(webcPeerData.pin);
                 }, 2 * 60000); // 2 minutes timeout
@@ -566,7 +571,7 @@ export abstract class WebcInterface extends ConnectionInterface {
                     waitingEntry.connection.terminate(webcReject.message);
                     this.waitingForPeerData.delete(webcReject.pin);
                 }
-                console.warn("WebC connection rejected for PIN:", webcReject.pin, "Message:", webcReject.message);
+                console.warn(`[WebCInterface] WebC connection rejected.`, webcReject.message);
             } else {
                 const cleanupTimer = setTimeout(() => {
                     this.waitingPeerData.delete(webcReject.pin);

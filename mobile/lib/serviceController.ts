@@ -1,6 +1,6 @@
 import ServiceController from "shared/controller";
 import { ConnectionInterface, NetService } from "shared/netService";
-import { AppService } from "shared/appService";
+import { ScreenService } from "shared/screenService";
 import TCPInterface from "./services/tcpInterface";
 import { ConnectionType } from "shared/types";
 import MobileSystemService from "./services/systemService";
@@ -10,20 +10,24 @@ import { MobilePhotosService } from "./services/photosService";
 import MobileAccountService from "./services/accountService";
 import { HttpClient_, WebSocket_ } from "./mobileCompat";
 import MobileWebcInterface from "./services/webcInterface";
+import { TerminalService } from "shared/terminalService";
+import MobileAppService from "./services/appService";
 
 const TCP_PORT = 7736;
 
 export default class MobileServiceController extends ServiceController {
     public override net = NetService.getInstance<NetService>();
-    public override app = AppService.getInstance<AppService>();
+    public override app = MobileAppService.getInstance<MobileAppService>();
     public override system = MobileSystemService.getInstance<MobileSystemService>();
     public override thumbnail = MobileThumbService.getInstance<MobileThumbService>();
     public override files = MobileFilesService.getInstance<MobileFilesService>();
     public override photos = MobilePhotosService.getInstance<MobilePhotosService>();
     public override account = MobileAccountService.getInstance<MobileAccountService>();
+    public override screen = ScreenService.getInstance<ScreenService>();
+    public override terminal = TerminalService.getInstance<TerminalService>();
 
     async setup() {
-        console.log("Setting up services...");
+        console.log("[ServiceController] Setting up services...");
         await this.account.init({
             httpClient: new HttpClient_(),
             webSocket: new WebSocket_()
@@ -33,6 +37,8 @@ export default class MobileServiceController extends ServiceController {
         await this.files.init();
         await this.thumbnail.init();
         await this.photos.init();
+        await this.terminal.init();
+        this.screen.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
                 [ConnectionType.LOCAL, new TCPInterface(TCP_PORT)],
@@ -59,7 +65,7 @@ export default class MobileServiceController extends ServiceController {
 
     private async startAll() {
         // Start services.
-        console.log("Starting services...");
+        console.log("[ServiceController] Starting services...");
         await this.account.start();
         await this.app.start();
         await this.system.start();
@@ -73,6 +79,6 @@ export default class MobileServiceController extends ServiceController {
         await this.files.start();
         await this.thumbnail.start();
         await this.photos.start();
-        console.log("All services started.");
+        console.log("[ServiceController] All services started.");
     }
 }

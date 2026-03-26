@@ -1,4 +1,4 @@
-import { app, BrowserWindow, safeStorage, protocol, dialog } from 'electron';
+import { app, BrowserWindow, safeStorage, protocol, dialog, shell } from 'electron';
 import path from 'node:path';
 import env from './env';
 import { handleProtocols } from './protocols';
@@ -17,19 +17,67 @@ import { createWindow } from './window';
 import { checkForUpdates } from './updateCheck';
 import { setupAppMenu } from './appMenu';
 import { UserPreferences } from './types';
+import { createCrashReportLink } from 'shared/helpLinks';
 import log from 'electron-log/main';
+import { isAppContainerWin } from './appContainer';
+
+const isDev = !!env && env.NODE_ENV === 'development';
+
+let didAppCrash = false;
 
 log.initialize();
-// Clear previous log file on startup to prevent unbounded growth
-try {
-  fs.writeFileSync(log.transports.file.getFile().path, '');
-} catch { }
+log.errorHandler.startCatching({
+  showDialog: false,
+  onError({ error }) {
+    didAppCrash = true;
+    if (app.isReady()) {
+      showCrashDialogAndQuit(error);
+    } else {
+      app.once('ready', () => {
+        showCrashDialogAndQuit(error);
+      });
+    }
+    // Prevent default handling
+    return false;
+  },
+});
 
-console.log('Logger initialized. Log file:', log.transports.file.getFile().path);
+log.transports.file.maxSize = 3 * 1024 * 1024; // 3 MB — auto-rotates to *.old.log
+
+log.transports.file.level = isDev ? 'silly' : 'info';
+log.transports.console.level = isDev ? 'silly' : 'info';
+
+console.log('[App] Logger initialized.');
 
 Object.assign(console, log.functions);
 
-import { isAppContainerWin } from './appContainer';
+const showCrashDialogAndQuit = (error: Error) => {
+  const choice = dialog.showMessageBoxSync({
+    type: 'error',
+    title: app.getName(),
+    message: `${app.getName()} has crashed`,
+    detail: 'This was unexpected. Help us fix this by reporting the issue on GitHub.',
+    buttons: ['Ignore', 'Report It'],
+  });
+  if (choice === 1) {
+    const details = [
+      `**Error:** ${error.message}`,
+      `**Time:** ${new Date().toISOString()}`,
+      `**App Version:** ${app.getVersion()}`,
+      `**OS:** ${process.platform} ${os.release()}`,
+      `**Arch:** ${process.arch}`,
+      `**Is Packaged:** ${app.isPackaged}`,
+      `**Is Dev Mode:** ${isDev}`,
+      '',
+      '**Stack Trace:**',
+      '```',
+      error.stack || 'N/A',
+      '```',
+    ].join('\n');
+    shell.openExternal(createCrashReportLink('Desktop', error.message, details));
+  }
+  app.quit();
+};
 
 require('@electron/remote/main').initialize();
 
@@ -41,21 +89,18 @@ if (!isAppContainerWin() && require('electron-squirrel-startup')) {
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
-  console.log('Another instance is running. Exiting...');
-  app.quit()
+  console.log('[App] Another instance is running. Exiting...');
+  app.quit();
 }
 
-console.log('Starting Electron app...');
-console.log('Environment variables:', env);
-
-const isDev = env.NODE_ENV === 'development';
+console.log('[App] Starting Electron app...');
+console.log('[App] Version:', app.getVersion(), '| Electron:', process.versions.electron, '| Node:', process.versions.node, '| Platform:', process.platform, process.arch);
 
 // Use separate data directory for development
 if (isDev) {
-  console.log('Running in development mode.');
+  console.log('[App] Running in development mode.');
   app.setName(`${app.getName()}-dev`);
   app.setPath('userData', `${app.getPath('userData')}-dev`);
-  console.log('Data directory set to:', app.getPath('userData'));
 }
 
 const cryptoModule = new CryptoImpl();
@@ -63,12 +108,12 @@ const cryptoModule = new CryptoImpl();
 function createOrGetSecretKey(dataDir: string) {
   const secretKeyPath = path.join(dataDir, "secret.key");
   if (!fs.existsSync(secretKeyPath)) {
-    console.log("😼 Secret key not found. Creating a new one..");
+    console.log("[App] Secret key not found. Creating a new one.");
     const secretKey = cryptoModule.generateRandomKey();
     const encrypted = safeStorage.encryptString(secretKey);
     fs.mkdirSync(path.dirname(secretKeyPath), { recursive: true });
     fs.writeFileSync(secretKeyPath, encrypted);
-    console.log("✅ Secret key written to file:", secretKeyPath);
+    console.log("[App] Secret key created.");
     return secretKey;
   }
   const text = fs.readFileSync(secretKeyPath);
@@ -80,13 +125,13 @@ async function getOrGenerateKeys(dataDir: string) {
   const privateKeyPath = path.join(dataDir, "private.pem.key");
   const publicKeyPath = path.join(dataDir, "public.pem.key");
   if (!fs.existsSync(privateKeyPath) || !fs.existsSync(publicKeyPath)) {
-    console.log("🔑 Key pair not found. Generating a new one..");
+    console.log("[App] Key pair not found. Generating a new one.");
     const { privateKey, publicKey } = await cryptoModule.generateKeyPair();
     const privateKeyEncrypted = safeStorage.encryptString(privateKey);
     const publicKeyEncrypted = safeStorage.encryptString(publicKey);
     fs.writeFileSync(privateKeyPath, privateKeyEncrypted);
     fs.writeFileSync(publicKeyPath, publicKeyEncrypted);
-    console.log("✅ Key pair written to files:", privateKeyPath, publicKeyPath);
+    console.log("[App] Key pair generated.");
     return { privateKeyPem: privateKey, publicKeyPem: publicKey };
   }
   const privateKeyText = fs.readFileSync(privateKeyPath);
@@ -157,7 +202,7 @@ async function getConfig() {
     } else if (env.UI_THEME === UITheme.Win11) {
       uiTheme = UITheme.Win11;
     } else {
-      console.warn('Invalid UI_THEME value:', env.UI_THEME);
+      console.warn('[App] Invalid UI_THEME value:', env.UI_THEME);
     }
   }
   const desktopConfig: DesktopConfigType = {
@@ -232,7 +277,7 @@ async function promptMoveToApplicationsFolder(): Promise<boolean> {
         return true;
       }
     } catch (err) {
-      console.error('Failed to move to Applications folder:', err);
+      console.error('[App] Failed to move to Applications folder:', err);
     }
   }
   return false;
@@ -260,7 +305,7 @@ const startApp = async () => {
       const localSc = modules.getLocalServiceController();
       const checkUpdates = localSc.app.getUserPreference(UserPreferences.CHECK_FOR_UPDATES);
       if (checkUpdates === false) {
-        console.log('Update check disabled by user preference.');
+        console.log('[App] Update check disabled by user preference.');
         return;
       }
       checkForUpdates().then(info => {
@@ -277,12 +322,15 @@ const startApp = async () => {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
 
+  if (didAppCrash) {
+    return;
+  }
+
   try {
     await startApp();
   } catch (error) {
-    console.error('Error during app initialization:', error);
-    // Show error dialog and quit
-    dialog.showErrorBox('Oh my my!', error.message || error);
+    console.error('[App] Error during app initialization:', error);
+    showCrashDialogAndQuit(error instanceof Error ? error : new Error(String(error)));
   }
 
   // On OS X it's common to re-create a window in the app when the

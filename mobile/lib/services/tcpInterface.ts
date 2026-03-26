@@ -6,7 +6,7 @@ import * as Network from 'expo-network';
 import { NetworkState } from "expo-network";
 import { EventSubscription } from 'expo-modules-core';
 import { getPowerStateAsync, addLowPowerModeListener } from 'expo-battery';
-import { filterValidBonjourIps, isSameNetwork } from "shared/utils";
+import { filterValidBonjourIps, fp, isSameNetwork, safeIp } from "shared/utils";
 import { UNSUPPORTED_NETWORK_TYPES } from "../types";
 
 const noop = () => { };
@@ -121,11 +121,11 @@ export default class TCPInterface extends ConnectionInterface {
     private setupConnectListener() {
         const localSc = modules.getLocalServiceController();
         localSc.account.peerConnectRequestSignal.add(async (request) => {
-            console.log('[TCPInterface] Received peer connect request via account server for fingerprint:', request.fingerprint);
+            console.log('[TCPInterface] Received peer connect request via account server.');
             const myAddresses = filterValidBonjourIps(this.discovery.getHostLocalAddresses());
             const hosts = request.addresses.filter(addr => myAddresses.some(myAddr => isSameNetwork(myAddr, addr)));
             if (hosts.length === 0) {
-                console.warn('[TCPInterface] No reachable addresses found for requested peer:', request.addresses);
+                console.warn('[TCPInterface] No reachable addresses found for connect requested peer:', request.addresses);
                 return;
             }
             try {
@@ -157,10 +157,10 @@ export default class TCPInterface extends ConnectionInterface {
         }
         const host = candidate.data?.host || 'localhost';
         const port = candidate.data?.port || this.port;
-        console.log(`[TCPInterface] Connecting to ${host}:${port}`, { candidate });
+        console.log(`[TCPInterface] Connecting to ${safeIp(host)}:${port} with fingerprint ${fp(candidate.fingerprint)}`);
 
         if (host === 'localhost' || host === '127.0.0.1') {
-            console.warn('[TCPInterface] WARNING: Using localhost on Android will not work! Use your computer\'s local IP address instead.');
+            console.warn('[TCPInterface] Using localhost on Android will not work! Use your computer\'s local IP address instead.');
         }
 
         try {
@@ -177,7 +177,7 @@ export default class TCPInterface extends ConnectionInterface {
             this.connections.set(connectionId, connection);
             return dataChannel;
         } catch (error) {
-            console.error(`[TCPInterface] TCP connection failed to ${host}:${port}:`, error);
+            console.error(`[TCPInterface] TCP connection failed to ${safeIp(host)}:${port}`, error);
             throw error;
         }
     }
@@ -202,7 +202,7 @@ export default class TCPInterface extends ConnectionInterface {
                     // check cache from discovery
                     const cachedCandidate = this.discovery.getCandidateFromCache(fingerprint);
                     if (cachedCandidate) {
-                        console.log('[TCPInterface] Resolving candidate from cache for fingerprint:', fingerprint, cachedCandidate);
+                        console.debug('[TCPInterface] Resolving candidate from cache for fingerprint:', fp(fingerprint));
                         return resolve([cachedCandidate]);
                     }
                 }
