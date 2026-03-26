@@ -1,8 +1,8 @@
 name: Android Release
 
 on:
-  push:
-    tags: [ "mobile-v*" ]
+  # push:
+  #   tags: [ "mobile-v*" ]
   workflow_dispatch:
 
 jobs:
