@@ -31,7 +31,7 @@ jobs:
             ui_theme: macos
           - os: macos-latest
             platform: darwin
-            arch: universal
+            arch: x64
             ui_theme: macos
           # - os: ubuntu-latest
           #   platform: linux
