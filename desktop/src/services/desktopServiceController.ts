@@ -10,7 +10,7 @@ import { AccountService } from "shared/accountService";
 import { HttpClient_, WebSocket_ } from "../desktopCompat";
 import DesktopWebcInterface from "./webcInterface";
 import DesktopAppService from "./appService";
-import DesktopScreenService from "./apps/screenService";
+import DesktopScreenService from "./screen/screenService";
 import DesktopTerminalService from "./terminal/terminalService";
 
 const TCP_PORT = 7736;
