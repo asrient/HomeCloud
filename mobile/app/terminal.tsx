@@ -101,6 +101,7 @@ export default function TerminalScreen() {
     useAutoConnect(deviceFingerprint, 'terminal');
 
     const handleClose = useCallback(() => {
+        Keyboard.dismiss();
         router.back();
     }, [router]);
 
@@ -370,11 +371,15 @@ export default function TerminalScreen() {
 
             {/* Custom dark header */}
             <View style={styles.header}>
-                <UIButton type="secondary" icon="xmark" iconSize={20} onPress={handleClose} />
-                <Text style={styles.headerTitle} numberOfLines={1}>{deviceName}</Text>
+                <View style={{ zIndex: 2 }}>
+                    <UIButton type="secondary" icon="xmark" iconSize={20} onPress={handleClose} />
+                </View>
+                <View pointerEvents="none" style={styles.headerTitleWrap}>
+                    <Text style={styles.headerTitle} numberOfLines={1}>{deviceName}</Text>
+                </View>
             </View>
 
-            <View style={[styles.container, keyboardHeight > 0 && { marginBottom: keyboardHeight + KEYBAR_HEIGHT }]}>
+            <View style={[styles.container, keyboardHeight > 0 && { marginBottom: keyboardHeight + KEYBAR_HEIGHT + (Platform.OS === 'android' ? insets.bottom : 0) }]}>
                 {isConnecting && (
                     <View style={styles.overlay}>
                         <ActivityIndicator color="#fff" />
@@ -410,7 +415,7 @@ export default function TerminalScreen() {
                     autoManageStatusBarEnabled={false}
                 />
             </View>
-            <View style={[styles.keybarContainer, { bottom: keyboardHeight }]}>
+            <View style={[styles.keybarContainer, { bottom: keyboardHeight + (Platform.OS === 'android' ? insets.bottom : 0) }]}>
                 <TerminalKeybar
                     onKey={sendKey}
                     ctrlActive={ctrlActive}
@@ -434,20 +439,22 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        height: 44,
+        height: Platform.OS === 'android' ? 56 : 44,
         paddingHorizontal: 8,
         backgroundColor: '#000',
         zIndex: 10,
     },
-    headerTitle: {
+    headerTitleWrap: {
         position: 'absolute',
         left: 0,
         right: 0,
+        zIndex: 1,
+    },
+    headerTitle: {
         color: '#fff',
         fontSize: 16,
         fontWeight: '600',
         textAlign: 'center',
-        pointerEvents: 'none',
     },
     container: {
         flex: 1,

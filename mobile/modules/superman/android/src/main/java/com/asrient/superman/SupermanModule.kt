@@ -20,9 +20,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ClosedSendChannelException
-import kotlinx.coroutines.channels.SendChannel
 import java.net.InetAddress
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
@@ -74,8 +71,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
     val readChannel: ByteReadChannel,
     val writeChannel: ByteWriteChannel,
     val readerJob: Job,
-    val writerJob: Job,
-    val writerQueue: SendChannel<ByteArray>,
+    val writeExecutor: java.util.concurrent.ExecutorService,
     val isIncoming: Boolean = false
   )
 
@@ -329,24 +325,8 @@ class SupermanModule : Module(), LifecycleEventObserver {
           android.util.Log.d("SupermanModule", "TCP connection established: $connectionId")
           val readChannel = socket.openReadChannel()
           val writeChannel = socket.openWriteChannel(autoFlush = true)
-          val writerQueue = Channel<ByteArray>(8)
-
-          val writerJob = launch {
-            try {
-              for (data in writerQueue) {
-                writeChannel.writeFully(data, 0, data.size)
-                writeChannel.flush()
-              }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-            } catch (e: Exception) {
-              android.util.Log.e("SupermanModule", "TCP write error: ${e.message}", e)
-              // Only send events if we successfully remove (prevents duplicates)
-              if (tcpConnections.remove(connectionId) != null) {
-                sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to (e.message ?: "Unknown error")))
-                sendEvent("tcpClose", mapOf("connectionId" to connectionId))
-              }
-              try { socket.close() } catch (_: Exception) {}
-            }
+          val writeExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "tcp-write-$connectionId").apply { isDaemon = true }
           }
 
           val readerJob = launch {
@@ -379,7 +359,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
             }
           }
 
-          val connection = TcpConnection(socket, readChannel, writeChannel, readerJob, writerJob, writerQueue, isIncoming = false)
+          val connection = TcpConnection(socket, readChannel, writeChannel, readerJob, writeExecutor, isIncoming = false)
           tcpConnections[connectionId] = connection
           promise.resolve(connectionId)
         } catch (e: Exception) {
@@ -390,25 +370,32 @@ class SupermanModule : Module(), LifecycleEventObserver {
     }
 
     AsyncFunction("tcpSend") { connectionId: String, data: ByteArray, promise: expo.modules.kotlin.Promise ->
-      moduleScope.launch {
+      val connection = tcpConnections[connectionId]
+      if (connection == null) {
+        promise.resolve(false)
+        return@AsyncFunction
+      }
+      if (connection.socket.isClosed || connection.writeExecutor.isShutdown) {
+        tcpConnections.remove(connectionId)
+        promise.resolve(false)
+        return@AsyncFunction
+      }
+      // Submit to a per-connection single-thread executor.
+      // - Ordering: executor's internal LinkedBlockingQueue is FIFO
+      // - Backpressure: writeFully blocks the executor thread when TCP
+      //   buffer is full, so the queue grows until the network catches up.
+      //   JS awaits the promise, which resolves after the actual write.
+      // - Main thread: never blocked — execute() returns immediately.
+      connection.writeExecutor.execute {
         try {
-          val connection = tcpConnections[connectionId]
-          if (connection == null) {
-            promise.resolve(false)
-            return@launch
+          val wc = connection.writeChannel
+          runBlocking {
+            wc.writeFully(data, 0, data.size)
+            wc.flush()
           }
-          if (connection.socket.isClosed || connection.writerJob.isCancelled) {
-            tcpConnections.remove(connectionId)
-            promise.resolve(false)
-            return@launch
-          }
-          // Suspending send — blocks when channel is full (backpressure)
-          connection.writerQueue.send(data)
           promise.resolve(true)
-        } catch (e: kotlinx.coroutines.channels.ClosedSendChannelException) {
-          promise.resolve(false)
         } catch (e: Exception) {
-          promise.reject("TCP_SEND", e.message ?: "Unknown error", e)
+          promise.resolve(false)
         }
       }
     }
@@ -422,8 +409,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
           return@AsyncFunction
         }
         connection.readerJob.cancel()
-        connection.writerQueue.close()
-        connection.writerJob.cancel()
+        connection.writeExecutor.shutdownNow()
         try { connection.socket.close() } catch (_: Exception) {}
         tcpConnections.remove(connectionId)
         promise.resolve(true)
@@ -755,24 +741,8 @@ class SupermanModule : Module(), LifecycleEventObserver {
       try {
         val readChannel = socket.openReadChannel()
         val writeChannel = socket.openWriteChannel(autoFlush = true)
-        val writerQueue = Channel<ByteArray>(8)
-
-        val writerJob = launch {
-          try {
-            for (data in writerQueue) {
-              writeChannel.writeFully(data, 0, data.size)
-              writeChannel.flush()
-            }
-          } catch (e: kotlinx.coroutines.CancellationException) {
-          } catch (e: Exception) {
-            android.util.Log.e("SupermanModule", "TCP write error (incoming): ${e.message}", e)
-            // Only send events if we successfully remove (prevents duplicates)
-            if (tcpConnections.remove(connectionId) != null) {
-              sendEvent("tcpError", mapOf("connectionId" to connectionId, "error" to (e.message ?: "Unknown error")))
-              sendEvent("tcpClose", mapOf("connectionId" to connectionId))
-            }
-            try { socket.close() } catch (_: Exception) {}
-          }
+        val writeExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+          Thread(r, "tcp-write-$connectionId").apply { isDaemon = true }
         }
 
         val readerJob = launch {
@@ -805,7 +775,7 @@ class SupermanModule : Module(), LifecycleEventObserver {
           }
         }
 
-        val connection = TcpConnection(socket, readChannel, writeChannel, readerJob, writerJob, writerQueue, isIncoming = true)
+        val connection = TcpConnection(socket, readChannel, writeChannel, readerJob, writeExecutor, isIncoming = true)
         tcpConnections[connectionId] = connection
 
         // Notify JS about the new incoming connection

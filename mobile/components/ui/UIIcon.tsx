@@ -92,6 +92,10 @@ const MAPPING = {
   'hand.draw.fill': 'gesture',
   'pointer.arrow.ipad': 'mouse',
   'selection.pin.in.out': 'select-all',
+  'rotate.right': 'rotate-right',
+  'display': 'desktop-windows',
+  'terminal.fill': 'terminal',
+  'lock.fill': 'lock',
 } as IconMapping;
 
 /**
