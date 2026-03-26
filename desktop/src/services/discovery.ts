@@ -13,6 +13,19 @@ export default class Discovery extends DiscoveryBase {
     private nativeServices: Map<string, NativeServiceInfo> = new Map();
     public port: number;
     private onFoundCallback: ((pc: PeerCandidate) => void) | null = null;
+    // Dedup window: suppress duplicate discovery events for the same fingerprint
+    private static readonly DEDUP_WINDOW_MS = 3000;
+    private lastSeenTimestamps: Map<string, number> = new Map();
+
+    private isDuplicate(fingerprint: string): boolean {
+        const now = Date.now();
+        const lastSeen = this.lastSeenTimestamps.get(fingerprint);
+        if (lastSeen && (now - lastSeen) < Discovery.DEDUP_WINDOW_MS) {
+            return true;
+        }
+        this.lastSeenTimestamps.set(fingerprint, now);
+        return false;
+    }
 
     constructor(port: number) {
         super();
@@ -80,6 +93,8 @@ export default class Discovery extends DiscoveryBase {
                     iconKey: txt.icn,
                 };
 
+                if (this.isDuplicate(txt.fpt)) return;
+
                 console.debug('[Discovery] Service found:', service.name, service.addresses.map(a => safeIp(a)));
 
                 if (this.onFoundCallback) {
@@ -107,6 +122,10 @@ export default class Discovery extends DiscoveryBase {
                 return;
             }
             const candidate = this.serviceToCandidate(service);
+            const txt = service.txt as BonjourTxt;
+
+            if (this.isDuplicate(txt.fpt)) return;
+
             console.debug('[Discovery] Service found:', service.name, service.addresses.map(a => safeIp(a)));
             if (this.onFoundCallback) {
                 this.onFoundCallback(candidate);
