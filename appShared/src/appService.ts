@@ -353,6 +353,16 @@ export class AppService extends Service {
         return link;
     }
 
+    /**
+     * Export or reveal app log files.
+     * On desktop: opens the log file directory in the file manager.
+     * On mobile: opens the system share sheet with log files.
+     * Override in platform implementations.
+     */
+    public async exportLogs(): Promise<void> {
+        throw new Error('Not supported on this platform.');
+    }
+
     @serviceStartMethod
     public async start() {
         this.resyncPeerListIfNeeded().catch((err) => {

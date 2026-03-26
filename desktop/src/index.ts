@@ -1,4 +1,4 @@
-import { app, BrowserWindow, safeStorage, protocol, dialog } from 'electron';
+import { app, BrowserWindow, safeStorage, protocol, dialog, shell } from 'electron';
 import path from 'node:path';
 import env from './env';
 import { handleProtocols } from './protocols';
@@ -17,19 +17,67 @@ import { createWindow } from './window';
 import { checkForUpdates } from './updateCheck';
 import { setupAppMenu } from './appMenu';
 import { UserPreferences } from './types';
+import { createCrashReportLink } from 'shared/helpLinks';
 import log from 'electron-log/main';
+import { isAppContainerWin } from './appContainer';
+
+const isDev = !!env && env.NODE_ENV === 'development';
+
+let didAppCrash = false;
 
 log.initialize();
-// Clear previous log file on startup to prevent unbounded growth
-try {
-  fs.writeFileSync(log.transports.file.getFile().path, '');
-} catch { }
+log.errorHandler.startCatching({
+  showDialog: false,
+  onError({ error }) {
+    didAppCrash = true;
+    if (app.isReady()) {
+      showCrashDialogAndQuit(error);
+    } else {
+      app.once('ready', () => {
+        showCrashDialogAndQuit(error);
+      });
+    }
+    // Prevent default handling
+    return false;
+  },
+});
+
+log.transports.file.maxSize = 3 * 1024 * 1024; // 3 MB — auto-rotates to *.old.log
+
+log.transports.file.level = isDev ? 'silly' : 'info';
+log.transports.console.level = isDev ? 'silly' : 'info';
 
 console.log('Logger initialized. Log file:', log.transports.file.getFile().path);
 
 Object.assign(console, log.functions);
 
-import { isAppContainerWin } from './appContainer';
+const showCrashDialogAndQuit = (error: Error) => {
+  const choice = dialog.showMessageBoxSync({
+    type: 'error',
+    title: app.getName(),
+    message: `${app.getName()} has crashed`,
+    detail: 'This was unexpected. Help us fix this by reporting the issue on GitHub.',
+    buttons: ['Ignore', 'Report It'],
+  });
+  if (choice === 1) {
+    const details = [
+      `**Error:** ${error.message}`,
+      `**Time:** ${new Date().toISOString()}`,
+      `**App Version:** ${app.getVersion()}`,
+      `**OS:** ${process.platform} ${os.release()}`,
+      `**Arch:** ${process.arch}`,
+      `**Is Packaged:** ${app.isPackaged}`,
+      `**Is Dev Mode:** ${isDev}`,
+      '',
+      '**Stack Trace:**',
+      '```',
+      error.stack || 'N/A',
+      '```',
+    ].join('\n');
+    shell.openExternal(createCrashReportLink('Desktop', error.message, details));
+  }
+  app.quit();
+};
 
 require('@electron/remote/main').initialize();
 
@@ -42,13 +90,11 @@ if (!isAppContainerWin() && require('electron-squirrel-startup')) {
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   console.log('Another instance is running. Exiting...');
-  app.quit()
+  app.quit();
 }
 
 console.log('Starting Electron app...');
 console.log('Environment variables:', env);
-
-const isDev = env.NODE_ENV === 'development';
 
 // Use separate data directory for development
 if (isDev) {
@@ -277,12 +323,15 @@ const startApp = async () => {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
 
+  if (didAppCrash) {
+    return;
+  }
+
   try {
     await startApp();
   } catch (error) {
     console.error('Error during app initialization:', error);
-    // Show error dialog and quit
-    dialog.showErrorBox('Oh my my!', error.message || error);
+    showCrashDialogAndQuit(error instanceof Error ? error : new Error(String(error)));
   }
 
   // On OS X it's common to re-create a window in the app when the

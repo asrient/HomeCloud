@@ -1,9 +1,11 @@
-import { app } from 'electron';
+import { app, shell } from 'electron';
 import { AppService } from 'shared/appService';
 import { exposed } from 'shared/servicePrimatives';
 import { UserPreferences } from '../types';
 import { isAppContainerWin, getStartupTaskState, requestEnableStartupTask, disableStartupTask } from '../appContainer';
 import { PeerInfo } from 'shared/types';
+import log from 'electron-log/main';
+import path from 'node:path';
 
 const AUTO_START_KEY = 'pref.autoStart';
 const MSIX_STARTUP_TASK_ID = 'HomeCloudStartup';
@@ -125,6 +127,12 @@ export default class DesktopAppService extends AppService {
     protected override isUserPrefKey(key: string): boolean {
         return super.isUserPrefKey(key)
             || USER_PREFERENCE_KEYS.includes(key as UserPreferences);
+    }
+
+    public override async exportLogs(): Promise<void> {
+        const logFilePath = log.transports.file.getFile().path;
+        const logDir = path.dirname(logFilePath);
+        shell.openPath(logDir);
     }
 
     async init() {

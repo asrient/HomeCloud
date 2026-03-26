@@ -21,7 +21,7 @@ async function batteryLevelMac2(): Promise<number> {
 
 
 async function batteryLevelMac(): Promise<number> {
-    const { stdout } = await execa('ioreg', ['-n', 'AppleSmartBattery', '-r', '-a']);
+    const { stdout } = await execa('ioreg', ['-n', 'AppleSmartBattery', '-r']);
     // Parse the output to find CurrentCapacity and MaxCapacity
     const currentCapacityMatch = stdout.match(/"CurrentCapacity"\s*=\s*(\d+)/);
     const maxCapacityMatch = stdout.match(/"MaxCapacity"\s*=\s*(\d+)/);
@@ -31,7 +31,7 @@ async function batteryLevelMac(): Promise<number> {
         const max = parseInt(maxCapacityMatch[1]);
         return current / max;
     }
-    console.warn('Could not parse battery capacity on Mac, using alternative method.');
+    // console.warn('Could not parse battery capacity on Mac, using alternative method.');
     return batteryLevelMac2();
 }
 

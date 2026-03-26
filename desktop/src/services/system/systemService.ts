@@ -484,18 +484,18 @@ class DesktopSystemService extends SystemService {
                 this.accentColorChangeSignal.dispatch(newColor);
             });
             mediaControlWin.onAudioPlaybackInfoChanged((info) => {
-                console.log('Audio playback info changed:', info);
+                // console.log('Audio playback info changed:', info);
                 const playbackInfo = winPlaybackInfoToAudioPlaybackInfo(info);
                 this.audioPlaybackSignal.dispatch(playbackInfo);
             });
         } else if (process.platform === 'darwin') {
             this.macPlaybackWatcher = new MacOSPlaybackWatcher((info) => {
-                console.log('Audio playback info changed (macOS):', info);
+                // console.log('Audio playback info changed (macOS):', info);
                 this.audioPlaybackSignal.dispatch(info);
             });
         } else if (process.platform === 'linux') {
             this.linuxPlaybackWatcher = new LinuxPlaybackWatcher((info) => {
-                console.log('Audio playback info changed (Linux):', info);
+                // console.log('Audio playback info changed (Linux):', info);
                 this.audioPlaybackSignal.dispatch(info);
             });
         }

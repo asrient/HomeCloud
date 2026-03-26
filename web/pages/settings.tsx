@@ -159,48 +159,56 @@ function Page() {
             <Line title='Device Info'>
               {deviceInfo && (
                 <div className="flex items-center">
-                  <Image src={getOSIconUrl(deviceInfo)} alt={deviceInfo.os} width={20} height={20} className="mr-1" />
-                  {`${deviceInfo.os} ${deviceInfo.osFlavour} (${deviceInfo.formFactor})`}
+                  {`${deviceInfo.os} ${deviceInfo.osFlavour} - ${deviceInfo.formFactor}`}
                 </div>
               )}
+            </Line>
+            <Line>
+              <Button variant='ghost' className="text-primary" size='sm' onClick={() => {
+                window.modules.getLocalServiceController().app.exportLogs().catch((err: any) => {
+                  console.error('Failed to open log directory:', err);
+                });
+              }}>
+                Export logs for help...
+              </Button>
             </Line>
             {'triggerUpdateCheck' in (window.utils || {}) && !window.modules.config.IS_STORE_DISTRIBUTION && (
               <Line>
                 <Button variant='ghost' className="text-primary" size='sm' onClick={() => window.utils.triggerUpdateCheck()}>
-                  Check for updates
+                  Check for updates...
                 </Button>
               </Line>
             )}
           </Section>
           {showPreferences && <Section title="Preferences">
-              {autoStartEnabled !== null && <Line title={`Start ${getAppName()} at login`}>
+            {autoStartEnabled !== null && <Line title={`Start ${getAppName()} at login`}>
+              <Switch
+                checked={autoStartEnabled}
+                onCheckedChange={handleAutoStartToggle}
+                disabled={autoStartDisabled}
+              />
+            </Line>}
+            {!window.modules.config.IS_STORE_DISTRIBUTION && <Line title='Check for updates automatically'>
+              <Switch
+                checked={checkForUpdates}
+                onCheckedChange={updateCheckForUpdates}
+              />
+            </Line>}
+            {isLinked && <Line title='Auto connect my mobile devices'>
+              <Switch
+                checked={autoConnectMobile}
+                onCheckedChange={updateAutoConnectMobile}
+              />
+            </Line>}
+            {
+              isWindows() && <Line title={'Use modern network API for Windows (Experimental)'}>
                 <Switch
-                  checked={autoStartEnabled}
-                  onCheckedChange={handleAutoStartToggle}
-                  disabled={autoStartDisabled}
+                  checked={useWinrtDgram}
+                  onCheckedChange={updateWinrtDgram}
                 />
-              </Line>}
-              {!window.modules.config.IS_STORE_DISTRIBUTION && <Line title='Check for updates automatically'>
-                <Switch
-                  checked={checkForUpdates}
-                  onCheckedChange={updateCheckForUpdates}
-                />
-              </Line>}
-              {isLinked && <Line title='Auto connect my mobile devices'>
-                <Switch
-                  checked={autoConnectMobile}
-                  onCheckedChange={updateAutoConnectMobile}
-                />
-              </Line>}
-              {
-                isWindows() && <Line title={'Use modern network API for Windows (Experimental)'}>
-                  <Switch
-                    checked={useWinrtDgram}
-                    onCheckedChange={updateWinrtDgram}
-                  />
-                </Line>
-              }
-            </Section>}
+              </Line>
+            }
+          </Section>}
           {ifaceStatuses.length > 0 && (
             <Section title="Allowed Connections" footer="At least one connection method must be enabled to connect to other devices.">
               {ifaceStatuses.map(({ type, enabled }) => (
@@ -217,7 +225,7 @@ function Page() {
             {photoLibraries.map((library) => (
               <Line key={library.id} title={
                 <div className="flex items-center">
-                  <Folder className="w-8 h-8 mr-3 text-foreground/70" />
+                  <Folder className="w-7 h-7 mr-2 text-foreground/70" />
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">{library.name}</span>
                     <span className="text-xs text-foreground/50">{library.location}</span>
@@ -250,7 +258,7 @@ function Page() {
                 <Button variant='ghost' className="text-primary" size={'sm'} onClick={() => {
                   openDialog('login');
                 }}>
-                  Login to account
+                  Login to account...
                 </Button>
               </Line>
             }
@@ -272,7 +280,7 @@ function Page() {
                   buttonText='Confirm'
                 >
                   <Button variant='ghost' className='text-red-500' size='sm'>
-                    Unlink device
+                    Unlink device...
                   </Button>
                 </ConfirmModal>
               </Line>

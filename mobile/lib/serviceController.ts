@@ -1,6 +1,5 @@
 import ServiceController from "shared/controller";
 import { ConnectionInterface, NetService } from "shared/netService";
-import { AppService } from "shared/appService";
 import { ScreenService } from "shared/screenService";
 import TCPInterface from "./services/tcpInterface";
 import { ConnectionType } from "shared/types";
@@ -12,12 +11,13 @@ import MobileAccountService from "./services/accountService";
 import { HttpClient_, WebSocket_ } from "./mobileCompat";
 import MobileWebcInterface from "./services/webcInterface";
 import { TerminalService } from "shared/terminalService";
+import MobileAppService from "./services/appService";
 
 const TCP_PORT = 7736;
 
 export default class MobileServiceController extends ServiceController {
     public override net = NetService.getInstance<NetService>();
-    public override app = AppService.getInstance<AppService>();
+    public override app = MobileAppService.getInstance<MobileAppService>();
     public override system = MobileSystemService.getInstance<MobileSystemService>();
     public override thumbnail = MobileThumbService.getInstance<MobileThumbService>();
     public override files = MobileFilesService.getInstance<MobileFilesService>();

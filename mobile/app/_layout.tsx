@@ -2,6 +2,9 @@
 import { install as installCrypto } from 'react-native-quick-crypto';
 installCrypto();
 
+import { setupFileLogger } from '@/lib/logger';
+setupFileLogger();
+
 import { ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
