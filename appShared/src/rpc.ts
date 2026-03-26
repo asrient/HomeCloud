@@ -427,6 +427,7 @@ export class RPCPeer {
                             this.streamControllers.set(id, ctrl);
                         },
                         cancel: () => {
+                            console.log(`[RPC:${this.tag}] Stream ${id} cancelled by consumer`);
                             this.cancelStream(id);
                             this.streamControllers.delete(id);
                         }
@@ -468,7 +469,13 @@ export class RPCPeer {
             await this.sendFrame(MessageType.RESPONSE, payload);
 
             for (const { id, stream } of streams) {
-                await this.sendStream(id, stream);
+                try {
+                    await this.sendStream(id, stream);
+                } catch (streamErr) {
+                    console.error(`[RPC:${this.tag}] Error sending stream ${id} for '${method}':`, streamErr);
+                    // Notify receiver so it doesn't hang waiting for data
+                    this.cancelStream(id).catch(() => { });
+                }
             }
         } catch (e) {
             console.error(`[RPC:${this.tag}] Error handling RPC request '${method}':`, e);
@@ -621,6 +628,8 @@ export class RPCPeer {
                     const sizeMB = (stats.bytes / (1024 * 1024)).toFixed(2);
                     const speedKBs = (stats.bytes / 1024 / elapsed).toFixed(1);
                     console.debug(`[RPC:${this.tag}] Received ${sizeMB} MB in ${elapsed.toFixed(1)}s (${speedKBs} KB/s) stream=${streamId}`);
+                } else {
+                    console.debug(`[RPC:${this.tag}] Received STREAM_END for stream=${streamId} (${stats?.bytes ?? 0} bytes)`);
                 }
                 this.streamRecvStats.delete(streamId);
             }
@@ -639,6 +648,7 @@ export class RPCPeer {
         this.outgoingStreamReaders.set(streamId, reader);
 
         const pump = async () => {
+            console.debug(`[RPC:${this.tag}] Stream pump started for stream=${streamId}`);
             let lastYield = Date.now();
             let totalBytes = 0;
             const startTime = Date.now();
@@ -649,17 +659,22 @@ export class RPCPeer {
             let lastLogTime = Date.now();
             try {
                 // Pipeline: kick off the first read before entering the loop
+                console.debug(`[RPC:${this.tag}] stream=${streamId} initiating first read`);
                 let nextRead = reader.read();
 
                 while (true) {
                     if (this.isClosed) {
+                        console.debug(`[RPC:${this.tag}] stream=${streamId} connection closed during pump, cancelling`);
                         reader.cancel();
                         return;
                     }
                     const t0 = Date.now();
                     const { done, value } = await nextRead;
                     const t1 = Date.now();
-                    if (done) break;
+                    if (done) {
+                        console.debug(`[RPC:${this.tag}] stream=${streamId} source stream ended after ${chunkCount} chunks`);
+                        break;
+                    }
                     if (isDebug()) totalBytes += value.byteLength;
                     chunkCount++;
 
@@ -704,16 +719,23 @@ export class RPCPeer {
                 }
 
                 if (!this.isClosed) {
+                    console.debug(`[RPC:${this.tag}] Sending STREAM_END for stream=${streamId} (${chunkCount} chunks, ${totalBytes} bytes)`);
                     const end = new Uint8Array(4);
                     new DataView(end.buffer).setUint32(0, streamId, false);
                     await this.sendFrame(MessageType.STREAM_END, end);
+                    console.debug(`[RPC:${this.tag}] STREAM_END sent for stream=${streamId}`);
+                } else {
+                    console.debug(`[RPC:${this.tag}] Skipping STREAM_END for stream=${streamId} — connection closed`);
                 }
             } catch (e) {
                 if (!this.isClosed) {
-                    console.error(`[RPC:${this.tag}] Error in stream pump:`, e);
+                    console.error(`[RPC:${this.tag}] Error in stream pump for stream=${streamId} after ${chunkCount} chunks, ${totalBytes} bytes:`, e);
+                } else {
+                    console.debug(`[RPC:${this.tag}] Stream pump for stream=${streamId} ended (connection closed) after ${chunkCount} chunks`);
                 }
                 reader.cancel().catch(() => { });
             } finally {
+                console.debug(`[RPC:${this.tag}] Stream pump cleanup for stream=${streamId}`);
                 this.outgoingStreamReaders.delete(streamId);
             }
         };

@@ -183,23 +183,27 @@ export default class MobileFsDriver extends FsDriver {
     }
 
     id = pathToUri(id);
+    // Try direct file read first (reliable), fall back to fetch for content URIs
+    const file = new File(id);
+    if (file.exists) {
+      const stream = createFileReadStream(file);
+      return {
+        name: file.name,
+        mime: file.type || getMimeType(file.name) || 'application/octet-stream',
+        stream: stream
+      };
+    }
     if (modules.config.PLATFORM === MobilePlatform.ANDROID) {
       return this.readWithFetch(id);
     }
-    const file = new File(id);
-    if (!file.exists) {
-      throw new Error(`File not found at path: ${id}`);
-    }
-    const stream = createFileReadStream(file);
-    return {
-      name: file.name,
-      mime: file.type || 'application/octet-stream',
-      stream: stream
-    };
+    throw new Error(`File not found at path: ${id}`);
   }
 
   private async readWithFetch(uri: string, overrideName?: string, overrideMime?: string): Promise<FileContent> {
+    console.debug(`[FilesService] readWithFetch: starting fetch for ${uri.slice(0, 80)}`);
     const response = await fetch(uri);
+    const contentLength = response.headers.get('Content-Length');
+    console.debug(`[FilesService] readWithFetch: fetch completed, status=${response.status}, hasBody=${!!response.body}, contentLength=${contentLength}`);
     if (!response.ok) throw new Error("Failed to fetch file");
     if (!response.body) {
       console.debug('[FilesService] Fetch details have no body stream. URI:', uri, 'Status:', response.status);
