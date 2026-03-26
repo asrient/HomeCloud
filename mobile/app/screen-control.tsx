@@ -6,7 +6,7 @@ import {
     Dimensions,
     TextInput,
     Platform,
-    KeyboardAvoidingView,
+    Keyboard,
     GestureResponderEvent,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -16,7 +16,6 @@ import { UIButton } from '@/components/ui/UIButton';
 import { UIView } from '@/components/ui/UIView';
 import { UIIcon } from '@/components/ui/UIIcon';
 import { useScreenCapture, useScreenActions } from '@/hooks/useApps';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAppState } from '@/hooks/useAppState';
 import {
     RemoteAppWindowAction,
@@ -441,14 +440,23 @@ function KeyboardInput({
 }) {
     const [text, setText] = useState('');
     const inputRef = useRef<TextInput>(null);
-    const separatorColor = useThemeColor({}, 'seperator');
+    const [kbHeight, setKbHeight] = useState(0);
 
     useEffect(() => {
         if (visible) {
             setTimeout(() => inputRef.current?.focus(), 100);
+        } else {
+            inputRef.current?.blur();
         }
     }, [visible]);
 
+    useEffect(() => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+        const showSub = Keyboard.addListener(showEvent, (e) => setKbHeight(e.endCoordinates.height));
+        const hideSub = Keyboard.addListener(hideEvent, () => setKbHeight(0));
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, []);
 
     const handleKeyPress = useCallback(
         (e: any) => {
@@ -480,37 +488,33 @@ function KeyboardInput({
         [text, dispatchAction],
     );
 
-    if (!visible) return null;
-
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.keyboardContainer}
-        >
-            <View style={[styles.keyboardBar, { borderTopColor: separatorColor }]}>
-                <UIView
-                    themeColor="backgroundTertiary"
-                    style={styles.keyboardInputWrapper}
-                >
-                    <TextInput
-                        ref={inputRef}
-                        style={styles.keyboardInput}
-                        value={text}
-                        onChangeText={handleTextChange}
-                        onKeyPress={handleKeyPress}
-                        placeholder="Type here..."
-                        placeholderTextColor="rgba(255,255,255,0.3)"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        blurOnSubmit={false}
-                        onSubmitEditing={() => {
-                            dispatchAction({ action: RemoteAppWindowAction.KeyInput, key: 'Return' });
-                        }}
-                    />
-                </UIView>
-                <UIButton icon="xmark" type="link" themeColor="textSecondary" onPress={onClose} />
-            </View>
-        </KeyboardAvoidingView>
+        <>
+            {/* Hidden TextInput positioned off-screen so Android's adjustPan
+                doesn't pan the window when it gets focus */}
+            <TextInput
+                ref={inputRef}
+                style={styles.hiddenInput}
+                value={text}
+                onChangeText={handleTextChange}
+                onKeyPress={handleKeyPress}
+                autoCapitalize="none"
+                autoCorrect={false}
+                blurOnSubmit={false}
+                onSubmitEditing={() => {
+                    dispatchAction({ action: RemoteAppWindowAction.KeyInput, key: 'Return' });
+                }}
+            />
+            {/* iOS has no system keyboard dismiss button, so show a close button */}
+            {visible && kbHeight > 0 && Platform.OS === 'ios' && (
+                <View style={[styles.keyboardContainer, { bottom: kbHeight }]}>
+                    <View style={styles.keyboardCloseBar}>
+                        <View style={{ flex: 1 }} />
+                        <UIButton title='Hide' type="secondary" onPress={onClose} />
+                    </View>
+                </View>
+            )}
+        </>
     );
 }
 
@@ -730,24 +734,17 @@ const styles = StyleSheet.create({
         right: 0,
         bottom: 0,
     },
-    keyboardBar: {
+    keyboardCloseBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        backgroundColor: 'rgba(0,0,0,0.8)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
     },
-    keyboardInputWrapper: {
-        flex: 1,
-        borderRadius: 20,
-        paddingHorizontal: 12,
-        marginRight: 8,
-    },
-    keyboardInput: {
-        height: 36,
-        color: '#fff',
-        fontSize: 14,
+    hiddenInput: {
+        position: 'absolute',
+        opacity: 0,
+        height: 0,
+        width: 0,
     },
     reconnectOverlay: {
         ...StyleSheet.absoluteFillObject,

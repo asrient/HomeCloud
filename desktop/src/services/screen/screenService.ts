@@ -147,7 +147,7 @@ export default class DesktopScreenService extends ScreenService {
                 const chunk = encodeMediaChunk(metadata, frame.data);
                 session.controller.enqueue(chunk);
                 if (frameCount === 1 || frameCount % 100 === 0) {
-                    console.log(`[ScreenService] screen frame #${frameCount}: ${frame.isKeyframe ? 'keyframe' : 'delta'} ${frame.data.byteLength}B ${frame.width}x${frame.height}`);
+                    // console.log(`[ScreenService] screen frame #${frameCount}: ${frame.isKeyframe ? 'keyframe' : 'delta'} ${frame.data.byteLength}B ${frame.width}x${frame.height}`);
                 }
             } catch (e) {
                 console.error(`[ScreenService] enqueue failed after ${frameCount} frames:`, e);

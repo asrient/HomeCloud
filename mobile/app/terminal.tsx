@@ -340,14 +340,13 @@ export default function TerminalScreen() {
         };
     }, []);
 
-    // Re-fit xterm when keyboard height changes (container size changes)
+    // Re-fit xterm when keyboard height changes (container size changes).
+    // Android WebView layout settles slowly, so fit twice with delay.
     useEffect(() => {
-        const timer = setTimeout(() => {
-            webViewRef.current?.injectJavaScript(
-                `if(window._fitAddon){window._fitAddon.fit();} true;`
-            );
-        }, 50);
-        return () => clearTimeout(timer);
+        const fitCmd = `if(window._fitAddon){window._fitAddon.fit();} true;`;
+        const t1 = setTimeout(() => { webViewRef.current?.injectJavaScript(fitCmd); }, 150);
+        const t2 = setTimeout(() => { webViewRef.current?.injectJavaScript(fitCmd); }, 500);
+        return () => { clearTimeout(t1); clearTimeout(t2); };
     }, [keyboardHeight]);
 
     // Cleanup on unmount

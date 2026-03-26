@@ -47,15 +47,33 @@ ${xtermCss}
   window._fitAddon = fitAddon;
   term.loadAddon(fitAddon);
   term.open(document.getElementById('terminal'));
-  // Force dark keyboard on iOS WebView
+  // Force dark keyboard on iOS WebView; disable IME features for terminal input
   var ta = document.querySelector('.xterm-helper-textarea');
-  if (ta) { ta.style.colorScheme = 'dark'; ta.setAttribute('inputmode', 'text'); }
+  if (ta) {
+    ta.style.colorScheme = 'dark';
+    ta.setAttribute('inputmode', 'text');
+    ta.setAttribute('autocomplete', 'off');
+    ta.setAttribute('autocorrect', 'off');
+    ta.setAttribute('autocapitalize', 'off');
+    ta.setAttribute('spellcheck', 'false');
+    ta.setAttribute('enterkeyhint', 'send');
+  }
   fitAddon.fit();
   function sendToRN(type, data) {
     var msg = JSON.stringify(Object.assign({ type: type }, data || {}));
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(msg);
   }
   term.onData(function(data) { sendToRN('input', { data: data }); });
+  // Android IME eats Enter through its composition pipeline (needs 3 presses).
+  // Intercept it before the IME can buffer it.
+  if (ta) {
+    ta.addEventListener('beforeinput', function(e) {
+      if (e.inputType === 'insertLineBreak') {
+        e.preventDefault();
+        sendToRN('input', { data: '\\x0d' });
+      }
+    });
+  }
   term.onResize(function(size) { sendToRN('resize', { cols: size.cols, rows: size.rows }); });
   window.addEventListener('resize', function() { fitAddon.fit(); });
   setTimeout(function() {

@@ -5,6 +5,7 @@ out/
 .env
 *.sqlite
 *.db
+.claude/settings.local.json
 
 # Logs
 logs
