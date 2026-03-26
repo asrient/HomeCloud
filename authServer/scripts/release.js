@@ -27,6 +27,12 @@ function confirm(question) {
 }
 
 async function main() {
+    const branch = runSilent('git rev-parse --abbrev-ref HEAD');
+    if (branch !== 'main') {
+        console.error(`Error: Releases must be from the main branch. Current branch: ${branch}`);
+        process.exit(1);
+    }
+
     const currentVersion = require('../package.json').version;
     run(`npm version --no-git-tag-version ${bumpType}`);
     const newVersion = runSilent('node -p "require(\'./package.json\').version"');
