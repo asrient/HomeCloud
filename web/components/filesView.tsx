@@ -2,7 +2,7 @@ import { folderViewUrl } from "@/lib/urls";
 import { getKind, getDefaultIcon, canGenerateThumbnail } from "@/lib/fileUtils";
 import { useRouter } from "next/router";
 import LazyImage from "./lazyImage";
-import { cn, getServiceController, isMobile, formatFileSize } from "@/lib/utils";
+import { cn, getServiceController, isMobile, formatFileSize, isMacosTheme } from "@/lib/utils";
 import Image from "next/image";
 import { useCallback, useMemo } from "react";
 import {
@@ -77,7 +77,10 @@ function GridItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
         <div className="pb-1">
             <ThumbnailImage item={item} />
         </div>
-        <div title={item.name} className="mt-2 text-xs font-medium overflow-ellipsis overflow-hidden max-w-[8rem]">
+        <div title={item.name} className={cn(
+            "mt-2 text-xs overflow-ellipsis overflow-hidden max-w-[8rem]",
+            isMacosTheme() && 'font-medium',
+        )}>
             {item.name}
         </div>
         <div className="mt-1 text-xs text-foreground/70">
@@ -107,8 +110,11 @@ function ListItem({ item, onDbClick, onClick, onRightClick }: ItemParams) {
             <ThumbnailImage className="h-[2.5rem] w-[3rem]" item={item} />
         </div>
         <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-foreground truncate">{item.name}</div>
-            <div className="text-sm text-foreground/70 gap-2 flex items-center">
+            <div className={cn(
+                "text-xs text-foreground truncate",
+                isMacosTheme() && 'font-medium',
+            )}>{item.name}</div>
+            <div className="text-xs text-foreground/70 gap-2 flex items-center">
                 {
                     item.type === 'directory' ? 'Folder' : formatFileSize(item.size)
                 }
