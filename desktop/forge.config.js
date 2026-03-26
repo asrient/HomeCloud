@@ -197,10 +197,6 @@ module.exports = {
     derefSymlinks: true, // Dereference symlinks
     // ignore is set dynamically in prePackage hook
     appCategoryType: "public.app-category.productivity",
-    osxUniversal: {
-      // Tell @electron/universal which files are arch-specific so it merges them with lipo
-      x64ArchFiles: '*.node',
-    },
     // macOS code signing (optional — requires Apple Developer certificate in keychain)
     ...(SIGN_MACOS ? {
       osxSign: {
