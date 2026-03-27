@@ -187,7 +187,7 @@ function getWindowsKitPath() {
 module.exports = {
   packagerConfig: {
     asar: {
-      unpackDir: '{assets,build/Release}',
+      unpackDir: '{assets,build/Release,node_modules/node-pty}',
     },
     prune: true,  // Explicitly prune devDependencies
     overwrite: true, // Overwrite existing files
@@ -305,6 +305,28 @@ module.exports = {
       }
 
       console.log('Cleanup complete!');
+
+      // Fix node-pty spawn-helper missing execute bit (node-pty#850)
+      // The npm tarball ships spawn-helper with 644 permissions and asar
+      // unpacking may also strip the execute bit.
+      if (process.platform !== 'win32') {
+        const unpackedPty = path.join(outputPath, 'resources', 'app.asar.unpacked', 'node_modules', 'node-pty');
+        const spawnHelpers = [];
+        for (const dir of ['prebuilds', 'build/Release']) {
+          const base = path.join(unpackedPty, dir);
+          try {
+            const entries = dir === 'prebuilds' ? fs.readdirSync(base) : [''];
+            for (const sub of entries) {
+              const helper = path.join(base, sub, 'spawn-helper');
+              if (fs.existsSync(helper)) spawnHelpers.push(helper);
+            }
+          } catch {}
+        }
+        for (const helper of spawnHelpers) {
+          fs.chmodSync(helper, 0o755);
+          console.log(`Fixed spawn-helper permissions: ${helper}`);
+        }
+      }
     },
 
     postMake: async (forgeConfig, makeResults) => {

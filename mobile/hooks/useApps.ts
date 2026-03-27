@@ -107,7 +107,7 @@ export const useAppIcon = (appId: string, deviceFingerprint: string | null) => {
 
 // ── Full-screen Capture (H.264 stream) ──
 
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 2;
 const HEARTBEAT_INTERVAL_MS = 3000;
 
 export type ScreenFrameState = {
@@ -139,7 +139,7 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
             heartbeatTimerRef.current = null;
         }
         if (readerRef.current) {
-            readerRef.current.cancel().catch(() => {});
+            readerRef.current.cancel().catch(() => { });
             readerRef.current = null;
         }
         if (sessionIdRef.current) {
@@ -192,7 +192,7 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
                 heartbeatTimerRef.current = setInterval(() => {
                     getServiceController(fingerprintRef.current)
                         .then(sc => sc.screen.streamControl())
-                        .catch(() => {});
+                        .catch(() => { });
                 }, HEARTBEAT_INTERVAL_MS);
 
                 // Read stream — yield first to let React mount H264PlayerView
@@ -254,7 +254,7 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
                 console.error('[H264Capture] Stream error:', e?.message || e, e?.stack);
                 cleanup();
 
-                // Auto-reconnect with backoff
+                // Auto-reconnect with backoff (max 2 retries)
                 if (retryCount < MAX_RETRIES) {
                     retryCount++;
                     setRetryAttempt(retryCount);
@@ -265,7 +265,7 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
                         startStream();
                     }
                 } else {
-                    setError('Connection lost. Could not reconnect.');
+                    setError(e?.message || 'Connection lost. Could not reconnect.');
                     setIsReconnecting(false);
                 }
             }
@@ -281,7 +281,7 @@ export const useScreenCapture = (deviceFingerprint: string | null) => {
         // Best-effort stop session on server
         getServiceController(fingerprintRef.current)
             .then(sc => sc.screen.stopStreamingSession())
-            .catch(() => {});
+            .catch(() => { });
     }, [cleanup]);
 
     const cancelReconnect = useCallback(() => {
