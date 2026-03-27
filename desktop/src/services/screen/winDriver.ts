@@ -2,7 +2,6 @@ import { importModule } from "../../utils";
 import { platform } from "os";
 import {
     RemoteAppInfo,
-    RemoteAppWindow,
     RemoteAppWindowActionPayload,
 } from "shared/types";
 import { AppsDriver, H264FrameInfo, H264StreamResult } from "./driver";
@@ -13,7 +12,6 @@ interface AppsWinModule {
     launchApp(appId: string): void;
     quitApp(appId: string): void;
     getAppIcon(appId: string): string | null;
-    getWindows(appId?: string): RemoteAppWindow[];
     performAction(payload: RemoteAppWindowActionPayload): void;
     startH264Stream(
         callback: (err: Error | null, frame: H264FrameInfo) => void,
@@ -21,7 +19,7 @@ interface AppsWinModule {
     stopH264Stream(): void;
     setStreamFps(fps: number): void;
     setStreamBitrate(bitrate: number): void;
-    screenshotWindow(windowId: number): string | null;
+    captureScreenshot(): string | null;
 }
 
 export class WinAppsDriver extends AppsDriver {
@@ -40,7 +38,6 @@ export class WinAppsDriver extends AppsDriver {
     launchApp(appId: string): void { this.native.launchApp(appId); }
     quitApp(appId: string): void { this.native.quitApp(appId); }
     getAppIcon(appId: string): string | null { return this.native.getAppIcon(appId); }
-    getWindows(appId?: string): RemoteAppWindow[] { return this.native.getWindows(appId); }
     performAction(payload: RemoteAppWindowActionPayload): void { this.native.performAction(payload); }
 
     // Full-screen streaming
@@ -51,5 +48,5 @@ export class WinAppsDriver extends AppsDriver {
     setScreenStreamFps(fps: number): void { this.native.setStreamFps(fps); }
     setScreenStreamBitrate(bitrate: number): void { this.native.setStreamBitrate(bitrate); }
 
-    screenshotWindow(windowId: number): string | null { return this.native.screenshotWindow(windowId); }
+    captureScreenshot(): string | null { return this.native.captureScreenshot(); }
 }

@@ -9,11 +9,8 @@
  *   - launchApp(appId)          → open app via ShellExecuteEx
  *   - quitApp(appId)            → close app via WM_CLOSE
  *   - getAppIcon(appId)         → extract icon as base64 PNG data URI
- *   - getWindows(appId?)        → visible windows (EnumWindows)
- *   - captureWindow(hwnd, tileSize, quality, cb)
- *                               → tile-based JPEG capture via PrintWindow
- *   - performAction(payload)    → mouse / keyboard / window actions
- *   - clearWindowCache(hwnd)    → clear tile hash cache for a window
+ *   - performAction(payload)    → mouse / keyboard actions (screen-level)
+ *   - captureScreenshot()       → full screen capture as base64 JPEG
  *   - hasScreenRecordingPermission()  → always true on Windows
  *   - hasAccessibilityPermission()    → always true on Windows
  *   - requestScreenRecordingPermission()  → no-op
@@ -200,132 +197,15 @@ static bool IsAppWindow(HWND hwnd) {
     return true;
 }
 
-// Check if a window is a valid owned popup (visible, not cloaked, has owner, ≥2px)
-static bool IsValidPopupWindow(HWND hwnd, HWND *outOwner = nullptr) {
-    if (!IsWindowVisible(hwnd)) return false;
-    HWND owner = GetWindow(hwnd, GW_OWNER);
-    if (!owner) return false;
-    BOOL cloaked = FALSE;
-    DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
-    if (cloaked) return false;
-    RECT rect;
-    if (!GetWindowRect(hwnd, &rect)) return false;
-    if (rect.right - rect.left < 2 || rect.bottom - rect.top < 2) return false;
-    if (outOwner) *outOwner = owner;
-    return true;
-}
-
-// Detect window type string for normal app windows (first pass)
-static std::string DetectWindowType(HWND hwnd) {
-    LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-    LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-
-    // Check if this is a modal dialog
-    if (exStyle & WS_EX_DLGMODALFRAME) return "modal";
-
-    // Check class name for dialog
-    WCHAR className[256] = {0};
-    GetClassNameW(hwnd, className, 256);
-    if (_wcsicmp(className, L"#32770") == 0) return "modal"; // system dialog class
-
-    return "regular";
-}
-
-// Detect window type string for owned/popup windows (second pass)
-static std::string DetectPopupWindowType(HWND hwnd) {
-    WCHAR className[256] = {0};
-    GetClassNameW(hwnd, className, 256);
-
-    if (_wcsicmp(className, L"tooltips_class32") == 0) return "tooltip";
-    if (_wcsicmp(className, L"#32768") == 0) return "contextMenu"; // system menu class
-
-    LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-
-    // Tool windows that are topmost → floating
-    if ((exStyle & WS_EX_TOOLWINDOW) && (exStyle & WS_EX_TOPMOST)) return "floating";
-    if (exStyle & WS_EX_TOOLWINDOW) return "floating";
-
-    // Modal-frame popups
-    if (exStyle & WS_EX_DLGMODALFRAME) return "modal";
-    if (_wcsicmp(className, L"#32770") == 0) return "modal";
-
-    return "popup";
-}
-
 // ──────────────────────────────────────────────
-// Plain data structs for window/app info
+// Plain data structs for app info
 // ──────────────────────────────────────────────
-
-struct WindowInfoData {
-    std::string id;
-    std::string appId;
-    std::string title;
-    std::string type;
-    bool isFocused = false;
-    bool isHidden = false;
-    bool isMinimized = false;
-    bool isMaximized = false;
-    double x = 0, y = 0, width = 0, height = 0;
-    std::string parentWindowId;
-};
 
 struct AppInfoData {
     std::string name;
     std::string id;
     std::string iconPath;
 };
-
-static WindowInfoData collectWindowInfo(HWND hwnd, HWND foregroundHwnd, HWND ownerHwnd = nullptr) {
-    WindowInfoData info;
-    info.id = std::to_string((uintptr_t)hwnd);
-
-    WCHAR title[512] = {0};
-    GetWindowTextW(hwnd, title, 512);
-    info.title = WideToUtf8(title);
-
-    DWORD pid = GetWindowPID(hwnd);
-    std::wstring exePath = GetProcessExePath(pid);
-    info.appId = WideToUtf8(exePath);
-
-    info.type = ownerHwnd ? DetectPopupWindowType(hwnd) : DetectWindowType(hwnd);
-    info.isFocused = (hwnd == foregroundHwnd);
-    info.isHidden = ownerHwnd ? false : !IsWindowVisible(hwnd);
-    info.isMinimized = ownerHwnd ? false : (bool)IsIconic(hwnd);
-    info.isMaximized = ownerHwnd ? false : (bool)IsZoomed(hwnd);
-
-    RECT rect;
-    if (GetWindowRect(hwnd, &rect)) {
-        info.x = (double)rect.left;
-        info.y = (double)rect.top;
-        info.width = (double)(rect.right - rect.left);
-        info.height = (double)(rect.bottom - rect.top);
-    }
-
-    if (ownerHwnd) {
-        info.parentWindowId = std::to_string((uintptr_t)ownerHwnd);
-    }
-    return info;
-}
-
-static Napi::Object windowInfoToNapi(Napi::Env env, const WindowInfoData &info) {
-    Napi::Object obj = Napi::Object::New(env);
-    obj.Set("id", info.id);
-    obj.Set("appId", info.appId);
-    obj.Set("title", info.title);
-    obj.Set("type", info.type);
-    obj.Set("isFocused", info.isFocused);
-    obj.Set("isHidden", info.isHidden);
-    obj.Set("isMinimized", info.isMinimized);
-    obj.Set("isMaximized", info.isMaximized);
-    obj.Set("x", info.x);
-    obj.Set("y", info.y);
-    obj.Set("width", info.width);
-    obj.Set("height", info.height);
-    if (!info.parentWindowId.empty()) {
-        obj.Set("parentWindowId", info.parentWindowId);
-    }
-    return obj;
-}
 
 static AppInfoData collectAppInfo(const std::wstring &exePath) {
     AppInfoData info;
@@ -347,12 +227,21 @@ static Napi::Object appInfoToNapi(Napi::Env env, const AppInfoData &info) {
     return obj;
 }
 
-// Build a Napi window-info object from an HWND.
-static Napi::Object MakeWindowInfo(Napi::Env env, HWND hwnd, HWND foregroundHwnd,
-                                    HWND ownerHwnd = nullptr) {
-    return windowInfoToNapi(env, collectWindowInfo(hwnd, foregroundHwnd, ownerHwnd));
+// ──────────────────────────────────────────────
+// H.264 streaming via WGC + Media Foundation
+// ──────────────────────────────────────────────
+    if (!IsWindowVisible(hwnd)) return false;
+    HWND owner = GetWindow(hwnd, GW_OWNER);
+    if (!owner) return false;
+    BOOL cloaked = FALSE;
+    DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
+    if (cloaked) return false;
+    RECT rect;
+    if (!GetWindowRect(hwnd, &rect)) return false;
+    if (rect.right - rect.left < 2 || rect.bottom - rect.top < 2) return false;
+    if (outOwner) *outOwner = owner;
+    return true;
 }
-
 // ──────────────────────────────────────────────
 // H.264 streaming via WGC + Media Foundation
 // ──────────────────────────────────────────────
@@ -1272,162 +1161,8 @@ static Napi::Value GetAppIcon(const Napi::CallbackInfo &info) {
 }
 
 // ──────────────────────────────────────────────
-// 7. Get windows
+// 7. Perform action (screen-level input)
 // ──────────────────────────────────────────────
-
-struct EnumWindowsCtx {
-    Napi::Env env;
-    std::wstring filterExePath; // empty = all
-    HWND foregroundHwnd;
-    std::vector<Napi::Object> windows;
-    std::unordered_set<HWND> appHwnds; // collected normal windows (for popup parent lookup)
-
-    explicit EnumWindowsCtx(Napi::Env e) : env(e), foregroundHwnd(nullptr) {}
-};
-
-static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
-    if (!IsAppWindow(hwnd)) return TRUE;
-
-    auto *ctx = reinterpret_cast<EnumWindowsCtx *>(lParam);
-    DWORD pid = GetWindowPID(hwnd);
-    if (pid == 0) return TRUE;
-
-    if (!ctx->filterExePath.empty()) {
-        std::wstring exePath = GetProcessExePath(pid);
-        if (_wcsicmp(exePath.c_str(), ctx->filterExePath.c_str()) != 0)
-            return TRUE;
-    }
-
-    ctx->windows.push_back(MakeWindowInfo(ctx->env, hwnd, ctx->foregroundHwnd));
-    ctx->appHwnds.insert(hwnd);
-    return TRUE;
-}
-
-// Second-pass callback: collect owned popup/menu windows
-static BOOL CALLBACK EnumPopupWindowsProc(HWND hwnd, LPARAM lParam) {
-    HWND owner = nullptr;
-    if (!IsValidPopupWindow(hwnd, &owner)) return TRUE;
-
-    auto *ctx = reinterpret_cast<EnumWindowsCtx *>(lParam);
-    if (ctx->appHwnds.find(owner) == ctx->appHwnds.end()) return TRUE;
-
-    DWORD pid = GetWindowPID(hwnd);
-    if (pid == 0) return TRUE;
-    if (!ctx->filterExePath.empty()) {
-        std::wstring exePath = GetProcessExePath(pid);
-        if (_wcsicmp(exePath.c_str(), ctx->filterExePath.c_str()) != 0)
-            return TRUE;
-    }
-
-    ctx->windows.push_back(MakeWindowInfo(ctx->env, hwnd, ctx->foregroundHwnd, owner));
-    return TRUE;
-}
-
-static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
-    Napi::Env env = info.Env();
-
-    EnumWindowsCtx ctx(env);
-    ctx.foregroundHwnd = GetForegroundWindow();
-
-    if (info.Length() >= 1 && info[0].IsString()) {
-        ctx.filterExePath = Utf8ToWide(info[0].As<Napi::String>().Utf8Value());
-    }
-
-    // First pass: collect normal app windows
-    EnumWindows(EnumWindowsProc, (LPARAM)&ctx);
-
-    // Second pass: collect popup/menu windows owned by the collected app windows
-    EnumWindows(EnumPopupWindowsProc, (LPARAM)&ctx);
-
-    Napi::Array arr = Napi::Array::New(env, ctx.windows.size());
-    for (size_t i = 0; i < ctx.windows.size(); i++) {
-        arr.Set((uint32_t)i, ctx.windows[i]);
-    }
-    return arr;
-}
-
-// 9. Perform action
-// ──────────────────────────────────────────────
-
-// Force a window to the foreground, working around SetForegroundWindow restrictions
-static void ForceForegroundWindow(HWND hwnd) {
-    HWND hForeground = GetForegroundWindow();
-    if (!hForeground) {
-        // No foreground window — we can set directly
-        BringWindowToTop(hwnd);
-        SetForegroundWindow(hwnd);
-        return;
-    }
-
-    DWORD foreThread = GetWindowThreadProcessId(hForeground, nullptr);
-    DWORD appThread = GetCurrentThreadId();
-
-    if (foreThread != appThread) {
-        AttachThreadInput(foreThread, appThread, TRUE);
-        BringWindowToTop(hwnd);
-        SetForegroundWindow(hwnd);
-        AttachThreadInput(foreThread, appThread, FALSE);
-    } else {
-        BringWindowToTop(hwnd);
-        SetForegroundWindow(hwnd);
-    }
-}
-
-/**
- * Transient windows (context menus, tooltips, popups) must not be activated /
- * brought to the foreground — doing so dismisses the owning app's menu on
- * Windows. We detect them the same way we classify them in DetectPopupWindowType.
- */
-static bool IsTransientWindow(HWND hwnd) {
-    HWND owner = GetWindow(hwnd, GW_OWNER);
-    if (!owner) return false; // top-level → not transient
-
-    WCHAR className[256] = {0};
-    GetClassNameW(hwnd, className, 256);
-    if (_wcsicmp(className, L"tooltips_class32") == 0) return true;
-    if (_wcsicmp(className, L"#32768") == 0) return true; // system menu
-
-    LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-    // Tool windows and generic popups are transient
-    if (exStyle & WS_EX_TOOLWINDOW) return true;
-    // Modal dialogs are NOT transient — they want focus
-    if (exStyle & WS_EX_DLGMODALFRAME) return false;
-    if (_wcsicmp(className, L"#32770") == 0) return false;
-
-    return true; // owned, non-modal → popup → transient
-}
-
-// Ensure window is ready to receive input: exists, visible, foreground.
-// Returns false if the window no longer exists.
-// Only sleeps when the window actually needed to be restored or brought forward.
-static bool EnsureWindowReady(HWND hwnd) {
-    if (!IsWindow(hwnd)) return false;
-
-    bool needsWait = false;
-
-    // Restore if minimized
-    if (IsIconic(hwnd)) {
-        ShowWindow(hwnd, SW_RESTORE);
-        needsWait = true;
-    }
-
-    // Bring to foreground only if not already there
-    if (GetForegroundWindow() != hwnd) {
-        ForceForegroundWindow(hwnd);
-        needsWait = true;
-    }
-
-    if (needsWait) {
-        // Poll until conditions we changed are met (max 500ms)
-        for (int i = 0; i < 25; i++) {
-            Sleep(20);
-            if (!IsWindow(hwnd)) break;
-            if (IsIconic(hwnd)) continue;
-            if (IsWindowVisible(hwnd) && GetForegroundWindow() == hwnd) break;
-        }
-    }
-    return true;
-}
 
 // Map modifier name to VK code (0 if not recognized)
 static WORD ModifierToVK(const std::string &mod) {
@@ -1466,15 +1201,6 @@ static void SendModifiers(const Napi::Object &payload, bool release) {
         }
     }
     if (!inputs.empty()) SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
-}
-
-// Get screen point from payload x,y offset relative to window rect
-static POINT ScreenPointFromPayload(HWND hwnd, const Napi::Object &payload) {
-    double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
-    double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-    RECT rect;
-    GetWindowRect(hwnd, &rect);
-    return {rect.left + (LONG)x, rect.top + (LONG)y};
 }
 
 static void PostMouseClick(POINT pt, bool isRight) {
@@ -1668,85 +1394,26 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
     Napi::Object payload = info[0].As<Napi::Object>();
     std::string action = payload.Get("action").As<Napi::String>().Utf8Value();
 
-    // windowId is now optional — if missing or "0", actions are screen-level
-    std::string windowIdStr;
-    if (payload.Has("windowId") && payload.Get("windowId").IsString()) {
-        windowIdStr = payload.Get("windowId").As<Napi::String>().Utf8Value();
-    }
-
-    uintptr_t hwndVal = 0;
-    if (!windowIdStr.empty()) {
-        try {
-            hwndVal = (uintptr_t)std::stoull(windowIdStr);
-        } catch (const std::exception &) {
-            // Invalid windowId — treat as screen-level
-            hwndVal = 0;
-        }
-    }
-    HWND hwnd = (HWND)hwndVal;
-    bool isScreenLevel = (hwndVal == 0);
-
-    // Helper: get screen point — if windowId is provided, offset from window;
-    // if screen-level, x/y are already screen coordinates.
+    // All actions are screen-level — x/y are direct screen coordinates
     auto getScreenPt = [&]() -> POINT {
         double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
         double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-        if (isScreenLevel) {
-            return {(LONG)x, (LONG)y};
-        }
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-        return {rect.left + (LONG)x, rect.top + (LONG)y};
+        return {(LONG)x, (LONG)y};
     };
 
-    // For window-specific actions, validate the window exists
-    if (!isScreenLevel && !IsWindow(hwnd)) {
-        Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-        return env.Null();
-    }
-
-    bool skipEnsure = isScreenLevel || IsTransientWindow(hwnd);
-
-    if (action == "focus") {
-        if (!isScreenLevel && !skipEnsure) EnsureWindowReady(hwnd);
-    }
-    else if (action == "minimize") {
-        if (!isScreenLevel) ShowWindow(hwnd, SW_MINIMIZE);
-    }
-    else if (action == "maximize") {
-        if (!isScreenLevel) ShowWindow(hwnd, SW_MAXIMIZE);
-    }
-    else if (action == "restore") {
-        if (!isScreenLevel) ShowWindow(hwnd, SW_RESTORE);
-    }
-    else if (action == "close") {
-        if (!isScreenLevel) PostMessageW(hwnd, WM_CLOSE, 0, 0);
-    }
-    else if (action == "click" || action == "rightClick") {
-        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) {
-            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-            return env.Null();
-        }
+    if (action == "click" || action == "rightClick") {
         POINT screenPt = getScreenPt();
         SendModifiers(payload, false);
         PostMouseClick(screenPt, action == "rightClick");
         SendModifiers(payload, true);
     }
     else if (action == "doubleClick") {
-        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) {
-            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-            return env.Null();
-        }
         POINT screenPt = getScreenPt();
         SendModifiers(payload, false);
         PostMouseDoubleClick(screenPt);
         SendModifiers(payload, true);
     }
     else if (action == "dragStart") {
-        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) {
-            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-            return env.Null();
-        }
         SendModifiers(payload, false);
         PostMouseDown(getScreenPt(), false);
     }
@@ -1758,29 +1425,19 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         SendModifiers(payload, true);
     }
     else if (action == "hover") {
-        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) return env.Undefined();
         PostMouseMove(getScreenPt());
     }
     else if (action == "textInput") {
-        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) {
-            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-            return env.Null();
-        }
         std::string text = payload.Has("text")
             ? payload.Get("text").As<Napi::String>().Utf8Value() : "";
         PostTextInput(text);
     }
     else if (action == "keyInput") {
-        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) {
-            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-            return env.Null();
-        }
         std::string key = payload.Has("key")
             ? payload.Get("key").As<Napi::String>().Utf8Value() : "";
         PostKeyInput(key);
     }
     else if (action == "scroll") {
-        if (!isScreenLevel && !skipEnsure && !EnsureWindowReady(hwnd)) return env.Undefined();
         POINT screenPt = getScreenPt();
         int deltaX = payload.Has("scrollDeltaX")
             ? payload.Get("scrollDeltaX").As<Napi::Number>().Int32Value() : 0;
@@ -1788,30 +1445,6 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
             ? payload.Get("scrollDeltaY").As<Napi::Number>().Int32Value() : 0;
         SetCursorPos(screenPt.x, screenPt.y);
         PostScroll(deltaX, deltaY);
-    }
-    else if (action == "resize") {
-        if (!isScreenLevel) {
-            double newWidth = payload.Has("newWidth")
-                ? payload.Get("newWidth").As<Napi::Number>().DoubleValue() : 0;
-            double newHeight = payload.Has("newHeight")
-                ? payload.Get("newHeight").As<Napi::Number>().DoubleValue() : 0;
-
-            if (newWidth <= 0 || newHeight <= 0) {
-                Napi::Error::New(env, "resize requires positive newWidth and newHeight")
-                    .ThrowAsJavaScriptException();
-                return env.Null();
-            }
-
-            RECT rect;
-            GetWindowRect(hwnd, &rect);
-            SetWindowPos(hwnd, nullptr, rect.left, rect.top,
-                         (int)newWidth, (int)newHeight,
-                         SWP_NOZORDER | SWP_NOACTIVATE);
-        }
-    }
-    else {
-        Napi::Error::New(env, "Unknown action: " + action).ThrowAsJavaScriptException();
-        return env.Null();
     }
 
     return env.Undefined();
@@ -2060,35 +1693,29 @@ static std::string EncodeBitmapToJpegBase64(HBITMAP hBitmap) {
     return "data:image/jpeg;base64," + b64;
 }
 
-static Napi::Value ScreenshotWindow(const Napi::CallbackInfo &info) {
+// ──────────────────────────────────────────────
+// Capture full screen as base64 JPEG data URI
+// ──────────────────────────────────────────────
+
+static Napi::Value CaptureScreenshot(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
-    if (info.Length() < 1 || !info[0].IsNumber()) return env.Null();
+    EnsureGdiPlus();
 
-    uintptr_t hwndVal = (uintptr_t)info[0].As<Napi::Number>().Int64Value();
-    HWND hwnd = (HWND)hwndVal;
-    if (!IsWindow(hwnd)) return env.Null();
-
-    RECT rect;
-    GetWindowRect(hwnd, &rect);
-    int w = rect.right - rect.left;
-    int h = rect.bottom - rect.top;
+    int w = GetSystemMetrics(SM_CXSCREEN);
+    int h = GetSystemMetrics(SM_CYSCREEN);
     if (w <= 0 || h <= 0) return env.Null();
 
-    HDC hdcWindow = GetDC(hwnd);
-    if (!hdcWindow) return env.Null();
-    HDC hdcMem = CreateCompatibleDC(hdcWindow);
-    HBITMAP hBitmap = CreateCompatibleBitmap(hdcWindow, w, h);
+    HDC hdcScreen = GetDC(nullptr);
+    if (!hdcScreen) return env.Null();
+    HDC hdcMem = CreateCompatibleDC(hdcScreen);
+    HBITMAP hBitmap = CreateCompatibleBitmap(hdcScreen, w, h);
     HGDIOBJ hOld = SelectObject(hdcMem, hBitmap);
 
-    // Use PrintWindow for accurate capture (works with DWM composition)
-    if (!PrintWindow(hwnd, hdcMem, PW_RENDERFULLCONTENT)) {
-        // Fallback to BitBlt
-        BitBlt(hdcMem, 0, 0, w, h, hdcWindow, 0, 0, SRCCOPY);
-    }
+    BitBlt(hdcMem, 0, 0, w, h, hdcScreen, 0, 0, SRCCOPY);
 
     SelectObject(hdcMem, hOld);
     DeleteDC(hdcMem);
-    ReleaseDC(hwnd, hdcWindow);
+    ReleaseDC(nullptr, hdcScreen);
 
     std::string dataUri = EncodeBitmapToJpegBase64(hBitmap);
     DeleteObject(hBitmap);
@@ -2108,7 +1735,6 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("launchApp", Napi::Function::New(env, LaunchApp));
     exports.Set("quitApp", Napi::Function::New(env, QuitApp));
     exports.Set("getAppIcon", Napi::Function::New(env, GetAppIcon));
-    exports.Set("getWindows", Napi::Function::New(env, GetWindows));
     exports.Set("performAction", Napi::Function::New(env, PerformAction));
     exports.Set("hasScreenRecordingPermission", Napi::Function::New(env, HasScreenRecordingPermission));
     exports.Set("hasAccessibilityPermission", Napi::Function::New(env, HasAccessibilityPermission));
@@ -2118,7 +1744,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("stopH264Stream", Napi::Function::New(env, StopH264Stream));
     exports.Set("setStreamFps", Napi::Function::New(env, SetStreamFps));
     exports.Set("setStreamBitrate", Napi::Function::New(env, SetStreamBitrate));
-    exports.Set("screenshotWindow", Napi::Function::New(env, ScreenshotWindow));
+    exports.Set("captureScreenshot", Napi::Function::New(env, CaptureScreenshot));
     return exports;
 }
 

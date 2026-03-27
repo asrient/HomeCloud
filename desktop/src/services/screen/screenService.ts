@@ -1,7 +1,6 @@
 import { ScreenService } from "shared/screenService";
 import {
     RemoteAppInfo,
-    RemoteAppWindow,
     RemoteAppWindowActionPayload,
     StreamingSessionInfo,
 } from "shared/types";
@@ -79,11 +78,6 @@ export default class DesktopScreenService extends ScreenService {
         } catch {
             return null;
         }
-    }
-
-    @exposed
-    public async getWindows(appId?: string): Promise<RemoteAppWindow[]> {
-        return getDriver().getWindows(appId);
     }
 
     // ── Full-screen H.264 Streaming ──
@@ -244,23 +238,32 @@ export default class DesktopScreenService extends ScreenService {
         this.powerBlockerId = null;
     }
 
-    // ── Window control ──
+    // ── Screen control ──
+
+    @exposed
+    public async performAction(payload: RemoteAppWindowActionPayload): Promise<void> {
+        getDriver().performAction(payload);
+    }
 
     @exposed
     public async performWindowAction(payload: RemoteAppWindowActionPayload): Promise<void> {
-        getDriver().performAction(payload);
+        return this.performAction(payload);
     }
 
     // ── Screenshot ──
 
     @exposed
-    public async screenshotWindow(windowId: string): Promise<string | null> {
+    public async captureScreenshot(): Promise<string | null> {
         try {
-            const numId = Number(windowId);
-            return getDriver().screenshotWindow(numId);
+            return getDriver().captureScreenshot();
         } catch {
             return null;
         }
+    }
+
+    @exposed
+    public async screenshotWindow(windowId?: string): Promise<string | null> {
+        return this.captureScreenshot();
     }
 
     // ── Permissions ──

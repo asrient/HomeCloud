@@ -310,10 +310,10 @@ export const useScreenActions = (deviceFingerprint: string | null) => {
     fingerprintRef.current = deviceFingerprint;
 
     const dispatchAction = useCallback(
-        async (payload: Omit<RemoteAppWindowActionPayload, 'windowId'>) => {
+        async (payload: RemoteAppWindowActionPayload) => {
             try {
                 const sc = await getServiceController(fingerprintRef.current);
-                await sc.screen.performWindowAction(payload as RemoteAppWindowActionPayload);
+                await sc.screen.performAction(payload);
             } catch (e: any) {
                 console.error('Action failed:', e);
             }

@@ -1,6 +1,5 @@
 import {
     RemoteAppInfo,
-    RemoteAppWindow,
     RemoteAppWindowActionPayload,
 } from "shared/types";
 
@@ -30,11 +29,7 @@ export abstract class AppsDriver {
     abstract quitApp(appId: string): void;
     abstract getAppIcon(appId: string): string | null;
 
-    // ── Window enumeration ──
-
-    abstract getWindows(appId?: string): RemoteAppWindow[];
-
-    // ── Screen / window actions ──
+    // ── Screen actions ──
 
     abstract performAction(payload: RemoteAppWindowActionPayload): void;
 
@@ -49,7 +44,7 @@ export abstract class AppsDriver {
 
     // ── Screenshot ──
 
-    abstract screenshotWindow(windowId: number): string | null;
+    abstract captureScreenshot(): string | null;
 
     // ── Permissions (defaults: always granted) ──
 

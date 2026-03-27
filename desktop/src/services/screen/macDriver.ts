@@ -2,7 +2,6 @@ import { importModule } from "../../utils";
 import { platform } from "os";
 import {
     RemoteAppInfo,
-    RemoteAppWindow,
     RemoteAppWindowActionPayload,
 } from "shared/types";
 import { AppsDriver, H264FrameInfo, H264StreamResult } from "./driver";
@@ -13,7 +12,6 @@ interface AppsMacModule {
     launchApp(bundleId: string): void;
     quitApp(bundleId: string): void;
     getAppIcon(bundleId: string): string | null;
-    getWindows(bundleId?: string): RemoteAppWindow[];
     performAction(payload: RemoteAppWindowActionPayload): void;
     startH264Stream(
         callback: (err: Error | null, frame: H264FrameInfo) => void,
@@ -21,7 +19,7 @@ interface AppsMacModule {
     stopH264Stream(): void;
     setStreamFps(fps: number): void;
     setStreamBitrate(bitrate: number): void;
-    screenshotWindow(windowId: number): string | null;
+    captureScreenshot(): string | null;
     hasScreenRecordingPermission(): boolean;
     hasAccessibilityPermission(): boolean;
     requestScreenRecordingPermission(): void;
@@ -44,7 +42,6 @@ export class MacAppsDriver extends AppsDriver {
     launchApp(appId: string): void { this.native.launchApp(appId); }
     quitApp(appId: string): void { this.native.quitApp(appId); }
     getAppIcon(appId: string): string | null { return this.native.getAppIcon(appId); }
-    getWindows(appId?: string): RemoteAppWindow[] { return this.native.getWindows(appId); }
     performAction(payload: RemoteAppWindowActionPayload): void { this.native.performAction(payload); }
 
     // Full-screen streaming
@@ -55,7 +52,7 @@ export class MacAppsDriver extends AppsDriver {
     setScreenStreamFps(fps: number): void { this.native.setStreamFps(fps); }
     setScreenStreamBitrate(bitrate: number): void { this.native.setStreamBitrate(bitrate); }
 
-    screenshotWindow(windowId: number): string | null { return this.native.screenshotWindow(windowId); }
+    captureScreenshot(): string | null { return this.native.captureScreenshot(); }
 
     hasScreenRecordingPermission(): boolean { return this.native.hasScreenRecordingPermission(); }
     hasAccessibilityPermission(): boolean { return this.native.hasAccessibilityPermission(); }

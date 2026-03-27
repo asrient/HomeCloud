@@ -1,7 +1,6 @@
 import { Service, exposed, serviceStartMethod, serviceStopMethod } from './servicePrimatives';
 import {
     RemoteAppInfo,
-    RemoteAppWindow,
     RemoteAppWindowActionPayload,
     StreamingSessionInfo,
 } from './types';
@@ -64,17 +63,37 @@ export class ScreenService extends Service {
         return null;
     }
 
-    // ── Window enumeration ──
+    // ── Screen control ──
 
     /**
-     * List all visible windows across all apps (or for a specific app).
+     * Perform an action on the screen. Coordinates are screen-relative.
      */
     @exposed
-    public async getWindows(appId?: string): Promise<RemoteAppWindow[]> {
-        return [];
+    public async performAction(payload: RemoteAppWindowActionPayload): Promise<void> {
     }
 
-    // ── Full-screen streaming ──
+    /** @deprecated Use performAction instead. Kept for backwards compatibility. */
+    @exposed
+    public async performWindowAction(payload: RemoteAppWindowActionPayload): Promise<void> {
+        return this.performAction(payload);
+    }
+
+    // ── Screenshot ──
+
+    /**
+     * Take a screenshot of the screen.
+     * @returns A base64-encoded PNG data URI string, or null if unavailable.
+     */
+    @exposed
+    public async captureScreenshot(): Promise<string | null> {
+        return null;
+    }
+
+    /** @deprecated Use captureScreenshot instead. Kept for backwards compatibility. */
+    @exposed
+    public async screenshotWindow(windowId?: string): Promise<string | null> {
+        return this.captureScreenshot();
+    }
 
     /**
      * Start an H.264 video stream of the entire screen. Returns a ReadableStream of
@@ -105,29 +124,6 @@ export class ScreenService extends Service {
      */
     @exposed
     public async streamControl(fps?: number, quality?: number): Promise<void> {
-    }
-
-    // ── Screen / window control ──
-
-    /**
-     * Perform an action on a window or the screen. Coordinates are screen-relative.
-     * If windowId is provided, the action targets that specific window.
-     * If windowId is omitted, the action targets the screen (e.g. click at screen coords).
-     */
-    @exposed
-    public async performWindowAction(payload: RemoteAppWindowActionPayload): Promise<void> {
-    }
-
-    // ── Screenshot ──
-
-    /**
-     * Take a screenshot of a specific window by its window ID.
-     * @param windowId The ID of the window to screenshot.
-     * @returns A base64-encoded PNG data URI string, or null if unavailable.
-     */
-    @exposed
-    public async screenshotWindow(windowId: string): Promise<string | null> {
-        return null;
     }
 
     // ── Permissions ──

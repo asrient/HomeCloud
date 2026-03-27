@@ -8,10 +8,8 @@
  *   - getRunningApps()          → list running GUI apps (NSWorkspace)
  *   - launchApp(bundleId)       → open app via NSWorkspace
  *   - quitApp(bundleId)         → terminate app
- *   - getWindows(bundleId?)     → visible windows (CGWindowList)
- *   - captureWindow(windowId, tileSize, quality, cb)
- *                               → tile-based JPEG capture of a window
- *   - performAction(payload)    → mouse / keyboard / window actions
+ *   - performAction(payload)    → mouse / keyboard actions (screen-level)
+ *   - captureScreenshot()       → full screen capture as base64 JPEG
  *   - hasScreenRecordingPermission()
  *   - hasAccessibilityPermission()
  *   - requestScreenRecordingPermission()
@@ -45,8 +43,6 @@
 #else
 #define HAS_SCREENCAPTUREKIT 0
 #endif
-// Private AX API: map AXUIElementRef → CGWindowID
-extern "C" AXError _AXUIElementGetWindow(AXUIElementRef element, uint32_t *windowID);
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -76,31 +72,9 @@ static CGEventFlags modifierNameToFlag(const std::string &mod) {
     return (CGEventFlags)0;
 }
 
-// Test whether a CGWindowList dictionary describes a normal (layer-0) window.
-static bool isNormalCGWindow(NSDictionary *w, int minSize = 50) {
-    int layer = [w[(__bridge NSString *)kCGWindowLayer] intValue];
-    float alpha = [w[(__bridge NSString *)kCGWindowAlpha] floatValue];
-    NSDictionary *bounds = w[(__bridge NSString *)kCGWindowBounds];
-    double width = [bounds[@"Width"] doubleValue];
-    double height = [bounds[@"Height"] doubleValue];
-    return layer == 0 && alpha >= 0.01 && width >= minSize && height >= minSize;
-}
-
 // ──────────────────────────────────────────────
-// Plain data structs for window/app info
+// Plain data structs for app info
 // ──────────────────────────────────────────────
-
-struct WindowInfoData {
-    std::string id;
-    std::string appId;
-    std::string title;
-    std::string type;
-    bool isFocused = false;
-    bool isHidden = false;
-    bool isMinimized = false;
-    bool isMaximized = false;
-    double x = 0, y = 0, width = 0, height = 0;
-};
 
 struct AppInfoData {
     std::string name;
@@ -108,23 +82,6 @@ struct AppInfoData {
     std::string iconPath;
     bool hasIcon = false;
 };
-
-static Napi::Object windowInfoToNapi(Napi::Env env, const WindowInfoData &info) {
-    Napi::Object obj = Napi::Object::New(env);
-    obj.Set("id", info.id);
-    obj.Set("appId", info.appId);
-    obj.Set("title", info.title);
-    obj.Set("type", info.type);
-    obj.Set("isFocused", info.isFocused);
-    obj.Set("isHidden", info.isHidden);
-    obj.Set("isMinimized", info.isMinimized);
-    obj.Set("isMaximized", info.isMaximized);
-    obj.Set("x", info.x);
-    obj.Set("y", info.y);
-    obj.Set("width", info.width);
-    obj.Set("height", info.height);
-    return obj;
-}
 
 static AppInfoData collectAppInfoFromRunning(NSRunningApplication *app) {
     AppInfoData info;
@@ -186,9 +143,6 @@ struct H264StreamContext {
 
 static std::mutex g_h264Mutex;
 static std::shared_ptr<H264StreamContext> g_h264Stream;
-
-// Forward declaration — defined later in the file
-static CGRect getWindowBounds(uint32_t windowId);
 
 // VTCompressionSession output callback — called when an encoded frame is ready
 static void vtCompressionCallback(void *outputCallbackRefCon,
@@ -656,309 +610,9 @@ static Napi::Value GetAppIcon(const Napi::CallbackInfo &info) {
     }
 }
 
-// Forward declaration — defined after section 7.
-static AXUIElementRef axWindowForId(uint32_t windowId, CFArrayRef axWindows);
-
 // ──────────────────────────────────────────────
-// 6. Get windows
+// 6. Perform action (screen-level input)
 // ──────────────────────────────────────────────
-static Napi::Value GetWindows(const Napi::CallbackInfo &info) {
-    Napi::Env env = info.Env();
-
-    pid_t filterPid = -1;
-    if (info.Length() >= 1 && info[0].IsString()) {
-        std::string bundleId = info[0].As<Napi::String>().Utf8Value();
-        @autoreleasepool {
-            NSArray<NSRunningApplication *> *apps =
-                [NSRunningApplication runningApplicationsWithBundleIdentifier:
-                    [NSString stringWithUTF8String:bundleId.c_str()]];
-            if (apps.count > 0) {
-                filterPid = apps.firstObject.processIdentifier;
-            }
-        }
-    }
-
-    @autoreleasepool {
-        CFArrayRef windowList = CGWindowListCopyWindowInfo(
-            kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
-            kCGNullWindowID);
-
-        Napi::Array arr = Napi::Array::New(env);
-        uint32_t idx = 0;
-
-        // Cache running-app info by PID for focus/hidden lookups.
-        std::unordered_map<pid_t, NSRunningApplication *> runningByPid;
-        for (NSRunningApplication *ra in [[NSWorkspace sharedWorkspace] runningApplications]) {
-            if (ra.activationPolicy != NSApplicationActivationPolicyRegular) continue;
-            runningByPid[ra.processIdentifier] = ra;
-        }
-
-        if (windowList) {
-            NSArray *wl = (__bridge NSArray *)windowList;
-
-            // Pre-fetch AX windows per PID for type detection (subrole/modal)
-            std::unordered_map<pid_t, CFArrayRef> pidAXWindows;
-            auto getAXWindows = [&](pid_t pid) -> CFArrayRef {
-                auto it = pidAXWindows.find(pid);
-                if (it != pidAXWindows.end()) return it->second;
-                AXUIElementRef appRef = AXUIElementCreateApplication(pid);
-                CFArrayRef axWins = NULL;
-                AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWins);
-                CFRelease(appRef);
-                pidAXWindows[pid] = axWins; // may be NULL
-                return axWins;
-            };
-
-            // Determine window type from AX subrole for layer-0 windows
-            auto detectWindowType = [&](uint32_t windowId, pid_t pid) -> std::string {
-                CFArrayRef axWins = getAXWindows(pid);
-                if (!axWins) return "regular";
-                AXUIElementRef axWin = axWindowForId(windowId, axWins);
-                if (!axWin) return "regular";
-
-                // Check if modal first
-                CFTypeRef modalVal = NULL;
-                if (AXUIElementCopyAttributeValue(axWin, CFSTR("AXModal"), &modalVal) == kAXErrorSuccess) {
-                    if (modalVal) {
-                        Boolean isModal = CFBooleanGetValue((CFBooleanRef)modalVal);
-                        CFRelease(modalVal);
-                        if (isModal) return "modal";
-                    }
-                }
-
-                // Check subrole
-                CFStringRef subrole = NULL;
-                if (AXUIElementCopyAttributeValue(axWin, kAXSubroleAttribute, (CFTypeRef *)&subrole) == kAXErrorSuccess && subrole) {
-                    std::string type = "regular";
-                    if (CFStringCompare(subrole, CFSTR("AXDialog"), 0) == kCFCompareEqualTo ||
-                        CFStringCompare(subrole, CFSTR("AXSheet"), 0) == kCFCompareEqualTo) {
-                        type = "modal";
-                    } else if (CFStringCompare(subrole, CFSTR("AXFloatingWindow"), 0) == kCFCompareEqualTo) {
-                        type = "floating";
-                    }
-                    CFRelease(subrole);
-                    return type;
-                }
-                return "regular";
-            };
-
-            for (NSDictionary *w in wl) {
-                pid_t wPid = [w[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-                if (filterPid != -1 && wPid != filterPid) continue;
-                if (!isNormalCGWindow(w)) continue;
-
-                uint32_t windowId = [w[(__bridge NSString *)kCGWindowNumber] unsignedIntValue];
-                NSString *title = w[(__bridge NSString *)kCGWindowName];
-
-                bool isFocused = false;
-                bool isHidden = false;
-                auto appIt = runningByPid.find(wPid);
-                if (appIt != runningByPid.end()) {
-                    isFocused = appIt->second.isActive;
-                    isHidden = appIt->second.isHidden;
-                }
-
-                auto appIt2 = runningByPid.find(wPid);
-                std::string bundleId = (appIt2 != runningByPid.end() && appIt2->second.bundleIdentifier)
-                    ? nsStringToStd(appIt2->second.bundleIdentifier) : "";
-
-                WindowInfoData winInfo;
-                winInfo.id = std::to_string(windowId);
-                winInfo.appId = bundleId;
-                winInfo.title = nsStringToStd(title);
-                winInfo.type = detectWindowType(windowId, wPid);
-                winInfo.isFocused = isFocused;
-                winInfo.isHidden = isHidden;
-                NSDictionary *wBounds = w[(__bridge NSString *)kCGWindowBounds];
-                winInfo.x = [wBounds[@"X"] doubleValue];
-                winInfo.y = [wBounds[@"Y"] doubleValue];
-                winInfo.width = [wBounds[@"Width"] doubleValue];
-                winInfo.height = [wBounds[@"Height"] doubleValue];
-                arr.Set(idx++, windowInfoToNapi(env, winInfo));
-            }
-
-            // Clean up AX window arrays
-            for (auto &pair : pidAXWindows) {
-                if (pair.second) CFRelease(pair.second);
-            }
-
-            CFRelease(windowList);
-        }
-        return arr;
-    }
-}
-
-// ──────────────────────────────────────────────
-// 8. Perform action
-// ──────────────────────────────────────────────
-
-// Get the PID that owns a window. Returns -1 if not found.
-static pid_t pidForWindow(uint32_t windowId) {
-    CFArrayRef windowList = CGWindowListCopyWindowInfo(
-        kCGWindowListOptionIncludingWindow, windowId);
-    if (!windowList || CFArrayGetCount(windowList) == 0) {
-        if (windowList) CFRelease(windowList);
-        return -1;
-    }
-    NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
-    pid_t pid = [wInfo[(__bridge NSString *)kCGWindowOwnerPID] intValue];
-    CFRelease(windowList);
-    return pid;
-}
-
-// Find the AXUIElementRef matching a CGWindowID via _AXUIElementGetWindow.
-// Returns a non-retained reference from axWindows, or NULL if no match.
-static AXUIElementRef axWindowForId(uint32_t windowId, CFArrayRef axWindows) {
-    for (CFIndex i = 0; i < CFArrayGetCount(axWindows); i++) {
-        AXUIElementRef win = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, i);
-        uint32_t wid = 0;
-        if (_AXUIElementGetWindow(win, &wid) == kAXErrorSuccess && wid == windowId) {
-            return win;
-        }
-    }
-    return NULL;
-}
-
-// Calls block with the specific AX window matching windowId.
-// Handles CGWindowList → PID → AX boilerplate, cleanup, and window matching.
-// Falls back to first AX window if no exact match found.
-// Returns false if window not found or has no AX windows.
-static bool withAXWindow(uint32_t windowId, void (^block)(AXUIElementRef axWindow)) {
-    @autoreleasepool {
-        pid_t pid = pidForWindow(windowId);
-        if (pid < 0) return false;
-        AXUIElementRef appRef = AXUIElementCreateApplication(pid);
-        CFArrayRef axWindows = NULL;
-        AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
-        bool ok = false;
-        if (axWindows && CFArrayGetCount(axWindows) > 0) {
-            AXUIElementRef target = axWindowForId(windowId, axWindows);
-            if (!target) target = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
-            block(target);
-            ok = true;
-        }
-        if (axWindows) CFRelease(axWindows);
-        CFRelease(appRef);
-        return ok;
-    }
-}
-
-// Helper: ensure the window is ready to receive input.
-// Returns false if the window no longer exists.
-static bool ensureWindowReady(uint32_t windowId) {
-    @autoreleasepool {
-        pid_t pid = pidForWindow(windowId);
-        if (pid < 0) {
-            NSLog(@"[ensureWindowReady] pidForWindow failed for windowId %u", windowId);
-            return false;
-        }
-
-        NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
-        if (!app) {
-            NSLog(@"[ensureWindowReady] NSRunningApplication not found for pid %d", pid);
-            return false;
-        }
-
-        bool needsActivation = false;
-        bool wasMinimized = false;
-
-        // Use AX API for everything — NSRunningApplication activation APIs
-        // are unreliable from helper/background processes on macOS 14+.
-        AXUIElementRef appRef = AXUIElementCreateApplication(pid);
-
-        // 1. Check if app is frontmost, activate via AX if not
-        NSRunningApplication *frontmost = [[NSWorkspace sharedWorkspace] frontmostApplication];
-        if (!frontmost || frontmost.processIdentifier != pid) {
-            // Set app as frontmost via Accessibility API
-            AXError frontErr = AXUIElementSetAttributeValue(appRef, kAXFrontmostAttribute, kCFBooleanTrue);
-            if (frontErr != kAXErrorSuccess) {
-                NSLog(@"[ensureWindowReady] set kAXFrontmostAttribute failed: %d, falling back to NSRunningApplication", (int)frontErr);
-                // Fallback: try NSRunningApplication activate
-                #pragma clang diagnostic push
-                #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-                [app activateWithOptions:
-                    NSApplicationActivateIgnoringOtherApps | NSApplicationActivateAllWindows];
-                #pragma clang diagnostic pop
-            }
-            needsActivation = true;
-        }
-
-        // 2. Find and prepare the target window via AX API
-        CFArrayRef axWindows = NULL;
-        AXError axErr = AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute, (CFTypeRef *)&axWindows);
-        if (axErr != kAXErrorSuccess) {
-            NSLog(@"[ensureWindowReady] kAXWindowsAttribute failed: %d", (int)axErr);
-        }
-        if (axWindows) {
-            AXUIElementRef targetWin = axWindowForId(windowId, axWindows);
-            if (!targetWin && CFArrayGetCount(axWindows) > 0) {
-                targetWin = (AXUIElementRef)CFArrayGetValueAtIndex(axWindows, 0);
-            }
-            if (targetWin) {
-                // Un-minimize if needed
-                CFBooleanRef minimized = NULL;
-                AXUIElementCopyAttributeValue(targetWin, kAXMinimizedAttribute, (CFTypeRef *)&minimized);
-                if (minimized && CFBooleanGetValue(minimized)) {
-                    AXUIElementSetAttributeValue(targetWin, kAXMinimizedAttribute, kCFBooleanFalse);
-                    wasMinimized = true;
-                }
-                if (minimized) CFRelease(minimized);
-                // Raise, make main, and set as focused window
-                AXUIElementPerformAction(targetWin, kAXRaiseAction);
-                AXUIElementSetAttributeValue(targetWin, kAXMainAttribute, kCFBooleanTrue);
-                AXUIElementSetAttributeValue(appRef, kAXFocusedWindowAttribute, targetWin);
-            }
-            CFRelease(axWindows);
-        }
-        CFRelease(appRef);
-
-        // 3. Wait until activation completes (max 500ms)
-        if (needsActivation || wasMinimized) {
-            for (int i = 0; i < 25; i++) {
-                usleep(20000);
-                NSRunningApplication *current = [[NSWorkspace sharedWorkspace] frontmostApplication];
-                bool ready = (current && current.processIdentifier == pid);
-                if (wasMinimized) {
-                    AXUIElementRef ar = AXUIElementCreateApplication(pid);
-                    CFArrayRef aw = NULL;
-                    AXUIElementCopyAttributeValue(ar, kAXWindowsAttribute, (CFTypeRef *)&aw);
-                    if (aw) {
-                        AXUIElementRef tw = axWindowForId(windowId, aw);
-                        if (tw) {
-                            CFBooleanRef m = NULL;
-                            AXUIElementCopyAttributeValue(tw, kAXMinimizedAttribute, (CFTypeRef *)&m);
-                            if (m && CFBooleanGetValue(m)) ready = false;
-                            if (m) CFRelease(m);
-                        }
-                        CFRelease(aw);
-                    }
-                    CFRelease(ar);
-                }
-                if (ready) break;
-            }
-        }
-        return true;
-    }
-}
-
-// Helper: get window bounds
-static CGRect getWindowBounds(uint32_t windowId) {
-    CGRect rect = CGRectZero;
-    @autoreleasepool {
-        CFArrayRef windowList = CGWindowListCopyWindowInfo(
-            kCGWindowListOptionIncludingWindow, windowId);
-        if (windowList && CFArrayGetCount(windowList) > 0) {
-            NSDictionary *wInfo = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
-            NSDictionary *bounds = wInfo[(__bridge NSString *)kCGWindowBounds];
-            rect.origin.x = [bounds[@"X"] doubleValue];
-            rect.origin.y = [bounds[@"Y"] doubleValue];
-            rect.size.width = [bounds[@"Width"] doubleValue];
-            rect.size.height = [bounds[@"Height"] doubleValue];
-        }
-        if (windowList) CFRelease(windowList);
-    }
-    return rect;
-}
 
 static void postMouseClick(CGPoint point, CGMouseButton button, bool isRightClick, CGEventFlags modifiers = 0) {
     CGEventType downType = isRightClick ? kCGEventRightMouseDown : kCGEventLeftMouseDown;
@@ -1134,80 +788,14 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
     Napi::Object payload = info[0].As<Napi::Object>();
     std::string action = payload.Get("action").As<Napi::String>().Utf8Value();
 
-    // windowId is now optional — if missing or "0", actions are screen-level
-    std::string windowIdStr;
-    if (payload.Has("windowId") && payload.Get("windowId").IsString()) {
-        windowIdStr = payload.Get("windowId").As<Napi::String>().Utf8Value();
-    }
-    uint32_t windowId = 0;
-    if (!windowIdStr.empty()) {
-        char *end = nullptr;
-        unsigned long parsed = strtoul(windowIdStr.c_str(), &end, 10);
-        windowId = (end && *end == '\0') ? (uint32_t)parsed : 0;
-    }
-    bool isScreenLevel = (windowId == 0);
-
-    // Helper: get screen point — if windowId provided, offset from window; otherwise direct screen coords
+    // All actions are screen-level — x/y are direct screen coordinates
     auto getScreenPt = [&]() -> CGPoint {
         double x = payload.Has("x") ? payload.Get("x").As<Napi::Number>().DoubleValue() : 0;
         double y = payload.Has("y") ? payload.Get("y").As<Napi::Number>().DoubleValue() : 0;
-        if (isScreenLevel) {
-            return CGPointMake(x, y);
-        }
-        CGRect bounds = getWindowBounds(windowId);
-        return CGPointMake(bounds.origin.x + x, bounds.origin.y + y);
+        return CGPointMake(x, y);
     };
 
-    if (action == "focus") {
-        if (!isScreenLevel) ensureWindowReady(windowId);
-    }
-    else if (action == "minimize") {
-        if (!isScreenLevel) {
-            withAXWindow(windowId, ^(AXUIElementRef win) {
-                AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanTrue);
-            });
-        }
-    }
-    else if (action == "maximize") {
-        if (!isScreenLevel) {
-            withAXWindow(windowId, ^(AXUIElementRef win) {
-                NSScreen *mainScreen = [NSScreen mainScreen];
-                NSRect screenFrame = mainScreen.visibleFrame;
-                CGPoint origin = CGPointMake(screenFrame.origin.x, screenFrame.origin.y);
-                CGSize size = CGSizeMake(screenFrame.size.width, screenFrame.size.height);
-                AXValueRef posVal = AXValueCreate((AXValueType)kAXValueCGPointType, &origin);
-                AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
-                AXUIElementSetAttributeValue(win, kAXPositionAttribute, posVal);
-                AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
-                CFRelease(posVal);
-                CFRelease(sizeVal);
-            });
-        }
-    }
-    else if (action == "restore") {
-        if (!isScreenLevel) {
-            withAXWindow(windowId, ^(AXUIElementRef win) {
-                AXUIElementSetAttributeValue(win, kAXMinimizedAttribute, kCFBooleanFalse);
-            });
-        }
-    }
-    else if (action == "close") {
-        if (!isScreenLevel) {
-            withAXWindow(windowId, ^(AXUIElementRef win) {
-                AXUIElementRef closeButton = NULL;
-                AXUIElementCopyAttributeValue(win, kAXCloseButtonAttribute, (CFTypeRef *)&closeButton);
-                if (closeButton) {
-                    AXUIElementPerformAction(closeButton, kAXPressAction);
-                    CFRelease(closeButton);
-                }
-            });
-        }
-    }
-    else if (action == "click" || action == "rightClick") {
-        if (!isScreenLevel && !ensureWindowReady(windowId)) {
-            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-            return env.Null();
-        }
+    if (action == "click" || action == "rightClick") {
         CGPoint screenPoint = getScreenPt();
         CGEventFlags modifiers = parseModifiers(payload);
         CGWarpMouseCursorPosition(screenPoint);
@@ -1216,10 +804,6 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         postMouseClick(screenPoint, isRight ? kCGMouseButtonRight : kCGMouseButtonLeft, isRight, modifiers);
     }
     else if (action == "doubleClick") {
-        if (!isScreenLevel && !ensureWindowReady(windowId)) {
-            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-            return env.Null();
-        }
         CGPoint screenPoint = getScreenPt();
         CGEventFlags modifiers = parseModifiers(payload);
         CGWarpMouseCursorPosition(screenPoint);
@@ -1227,10 +811,6 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         postMouseDoubleClick(screenPoint, kCGMouseButtonLeft, false, modifiers);
     }
     else if (action == "dragStart") {
-        if (!isScreenLevel && !ensureWindowReady(windowId)) {
-            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-            return env.Null();
-        }
         CGPoint screenPoint = getScreenPt();
         CGEventFlags modifiers = parseModifiers(payload);
         CGWarpMouseCursorPosition(screenPoint);
@@ -1248,61 +828,31 @@ static Napi::Value PerformAction(const Napi::CallbackInfo &info) {
         postMouseUp(screenPoint, kCGMouseButtonLeft, false, modifiers);
     }
     else if (action == "hover") {
-        if (!isScreenLevel && !ensureWindowReady(windowId)) return env.Undefined();
         CGPoint screenPoint = getScreenPt();
         CGWarpMouseCursorPosition(screenPoint);
         postMouseMove(screenPoint);
     }
     else if (action == "textInput") {
-        if (!isScreenLevel && !ensureWindowReady(windowId)) {
-            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-            return env.Null();
-        }
         std::string text = payload.Has("text") ? payload.Get("text").As<Napi::String>().Utf8Value() : "";
         postTextInput(text);
     }
     else if (action == "keyInput") {
-        if (!isScreenLevel && !ensureWindowReady(windowId)) {
-            Napi::Error::New(env, "Window no longer exists").ThrowAsJavaScriptException();
-            return env.Null();
-        }
         std::string key = payload.Has("key") ? payload.Get("key").As<Napi::String>().Utf8Value() : "";
         postKeyInput(key);
     }
     else if (action == "scroll") {
-        if (!isScreenLevel && !ensureWindowReady(windowId)) return env.Undefined();
         CGPoint screenPoint = getScreenPt();
         int32_t deltaX = payload.Has("scrollDeltaX") ? payload.Get("scrollDeltaX").As<Napi::Number>().Int32Value() : 0;
         int32_t deltaY = payload.Has("scrollDeltaY") ? payload.Get("scrollDeltaY").As<Napi::Number>().Int32Value() : 0;
         CGWarpMouseCursorPosition(screenPoint);
         postScroll(deltaX, deltaY);
     }
-    else if (action == "resize") {
-        if (!isScreenLevel) {
-            double newWidth = payload.Has("newWidth") ? payload.Get("newWidth").As<Napi::Number>().DoubleValue() : 0;
-            double newHeight = payload.Has("newHeight") ? payload.Get("newHeight").As<Napi::Number>().DoubleValue() : 0;
-            if (newWidth <= 0 || newHeight <= 0) {
-                Napi::Error::New(env, "resize requires positive newWidth and newHeight").ThrowAsJavaScriptException();
-                return env.Null();
-            }
-            withAXWindow(windowId, ^(AXUIElementRef win) {
-                CGSize size = CGSizeMake(newWidth, newHeight);
-                AXValueRef sizeVal = AXValueCreate((AXValueType)kAXValueCGSizeType, &size);
-                AXUIElementSetAttributeValue(win, kAXSizeAttribute, sizeVal);
-                CFRelease(sizeVal);
-            });
-        }
-    }
-    else {
-        Napi::Error::New(env, "Unknown action: " + action).ThrowAsJavaScriptException();
-        return env.Null();
-    }
 
     return env.Undefined();
 }
 
 // ──────────────────────────────────────────────
-// 9. Permissions
+// 7. Permissions
 // ──────────────────────────────────────────────
 
 static Napi::Value HasScreenRecordingPermission(const Napi::CallbackInfo &info) {
@@ -1544,22 +1094,17 @@ static Napi::Value SetStreamBitrate(const Napi::CallbackInfo &info) {
 }
 
 // ──────────────────────────────────────────────
-// Screenshot a window by CGWindowID → base64 PNG data URI
+// Capture full screen as base64 JPEG data URI
 // ──────────────────────────────────────────────
 
-static Napi::Value ScreenshotWindow(const Napi::CallbackInfo &info) {
+static Napi::Value CaptureScreenshot(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
-    if (info.Length() < 1 || !info[0].IsNumber()) return env.Null();
-
-    uint32_t windowId = info[0].As<Napi::Number>().Uint32Value();
-    if (windowId == 0) return env.Null();
-
     @autoreleasepool {
         CGImageRef cgImage = CGWindowListCreateImage(
-            CGRectNull,
-            kCGWindowListOptionIncludingWindow,
-            windowId,
-            kCGWindowImageBoundsIgnoreFraming | kCGWindowImageNominalResolution);
+            CGRectInfinite,
+            kCGWindowListOptionOnScreenOnly,
+            kCGNullWindowID,
+            kCGWindowImageDefault);
         if (!cgImage) return env.Null();
 
         NSBitmapImageRep *bitmapRep = [[NSBitmapImageRep alloc] initWithCGImage:cgImage];
@@ -1588,7 +1133,6 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("launchApp", Napi::Function::New(env, LaunchApp));
     exports.Set("quitApp", Napi::Function::New(env, QuitApp));
     exports.Set("getAppIcon", Napi::Function::New(env, GetAppIcon));
-    exports.Set("getWindows", Napi::Function::New(env, GetWindows));
     exports.Set("performAction", Napi::Function::New(env, PerformAction));
     exports.Set("hasScreenRecordingPermission", Napi::Function::New(env, HasScreenRecordingPermission));
     exports.Set("hasAccessibilityPermission", Napi::Function::New(env, HasAccessibilityPermission));
@@ -1598,7 +1142,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("stopH264Stream", Napi::Function::New(env, StopH264Stream));
     exports.Set("setStreamFps", Napi::Function::New(env, SetStreamFps));
     exports.Set("setStreamBitrate", Napi::Function::New(env, SetStreamBitrate));
-    exports.Set("screenshotWindow", Napi::Function::New(env, ScreenshotWindow));
+    exports.Set("captureScreenshot", Napi::Function::New(env, CaptureScreenshot));
     return exports;
 }
 

@@ -328,31 +328,6 @@ export type RemoteAppInfo = {
     location?: string;
 }
 
-export enum RemoteAppWindowType {
-    Regular = "regular",
-    Modal = "modal",
-    Floating = "floating",
-    Tooltip = "tooltip",
-    ContextMenu = "contextMenu",
-    Popup = "popup",
-}
-
-export type RemoteAppWindow = {
-    id: string;
-    appId: string;
-    title: string;
-    type: RemoteAppWindowType;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    isFocused: boolean;
-    isHidden: boolean;
-    isMinimized: boolean;
-    isMaximized: boolean;
-    parentWindowId?: string;
-}
-
 export type StreamingSessionInfo = {
     stream: ReadableStream<Uint8Array>;
     width: number;
@@ -388,7 +363,6 @@ export enum RemoteAppWindowAction {
 
 export type RemoteAppWindowActionPayload = {
     action: RemoteAppWindowAction;
-    windowId?: string;
     x?: number;
     y?: number;
     text?: string;
