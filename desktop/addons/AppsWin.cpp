@@ -230,21 +230,6 @@ static Napi::Object appInfoToNapi(Napi::Env env, const AppInfoData &info) {
 // ──────────────────────────────────────────────
 // H.264 streaming via WGC + Media Foundation
 // ──────────────────────────────────────────────
-    if (!IsWindowVisible(hwnd)) return false;
-    HWND owner = GetWindow(hwnd, GW_OWNER);
-    if (!owner) return false;
-    BOOL cloaked = FALSE;
-    DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
-    if (cloaked) return false;
-    RECT rect;
-    if (!GetWindowRect(hwnd, &rect)) return false;
-    if (rect.right - rect.left < 2 || rect.bottom - rect.top < 2) return false;
-    if (outOwner) *outOwner = owner;
-    return true;
-}
-// ──────────────────────────────────────────────
-// H.264 streaming via WGC + Media Foundation
-// ──────────────────────────────────────────────
 
 // Check if WGC is available at runtime (Win10 1803+)
 static bool IsWGCAvailable() {
