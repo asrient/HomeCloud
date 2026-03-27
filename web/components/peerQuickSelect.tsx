@@ -151,6 +151,7 @@ export function PeerQuickSelect() {
                     icon={Plus}
                     label="Add Devices"
                     onClick={() => openDialog('login')}
+                    isSelected={false}
                 />
             )}
 

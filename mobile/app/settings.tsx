@@ -20,11 +20,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import InstallLinkModal from '@/components/InstallLinkModal';
 import { LoadingModal } from '@/components/LoadingModal';
+import { useInputPopup } from '@/hooks/usePopup';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
   const { withLoading } = useManagedLoading();
+  const { openInputPopup } = useInputPopup();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const bottomPadding = getBottomPadding(insets.bottom);
@@ -114,6 +116,29 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleDeleteAccount = useCallback(() => {
+    openInputPopup({
+      title: 'Delete Account',
+      description: 'Type DELETE to confirm.',
+      placeholder: 'DELETE',
+      submitButtonText: 'Delete',
+      onDone: async (value) => {
+        if (value !== 'DELETE') {
+          if (value !== null) {
+            showAlert('Error', 'You must type DELETE to confirm.');
+          }
+          return;
+        }
+        try {
+          const localSc = modules.getLocalServiceController();
+          await localSc.account.deleteAccount();
+        } catch (err: any) {
+          showAlert('Error', err?.message || 'Failed to delete account.');
+        }
+      },
+    });
+  }, [openInputPopup, showAlert]);
+
   const openLink = (type: HelpLinkType) => {
     const localSc = modules.getLocalServiceController();
     localSc.app.openHelpLink(type).catch((err) => {
@@ -167,18 +192,6 @@ export default function SettingsScreen() {
               ))}
             </Section>
           )}
-
-          <Section title="Account">
-            {!isLinked && (
-              <LineLink text="Login to account" onPress={openLogin} color="primary" />
-            )}
-            {isLinked && (
-              <>
-                <Line title="Email" value={accountEmail || ''} />
-                <LineLink text="Unlink Device" onPress={handleUnlink} color="destructive" />
-              </>
-            )}
-          </Section>
 
           {isLinked && (
             <Section title="Linked Devices">
@@ -258,6 +271,24 @@ export default function SettingsScreen() {
             <LineLink text="Privacy Policy" onPress={() => openLink('Privacy')} />
             <LineLink text="Website" onPress={() => openLink('Website')} />
           </Section>
+
+          <Section title="Account">
+            {!isLinked && (
+              <LineLink text="Login to account" onPress={openLogin} color="primary" />
+            )}
+            {isLinked && (
+              <>
+                <Line title="Email" value={accountEmail || ''} />
+                <LineLink text="Unlink Device" onPress={handleUnlink} color="destructive" />
+              </>
+            )}
+          </Section>
+
+          {isLinked && (
+            <Section footer="This will permanently delete your account and remove all linked devices.">
+              <LineLink text="Delete Account" onPress={handleDeleteAccount} color="destructive" />
+            </Section>
+          )}
 
           <View style={styles.footer}>
             <Image

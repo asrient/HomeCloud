@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getFn, getTokenContextOrThrow, postFn } from './expressHelper';
-import { assertAccountPeer, assertPeerById, createWebcInit, getPeersForAccount, healthCheck, isPeerOnline, linkPeer, removePeer, relayWebcLocal, updatePeer, verifyLink, requestPeerConnect } from './lib';
+import { assertAccountPeer, assertPeerById, createWebcInit, getPeersForAccount, healthCheck, isPeerOnline, linkPeer, removePeer, deleteAccount, relayWebcLocal, updatePeer, verifyLink, requestPeerConnect } from './lib';
 import { AccountLinkRequest, AccountLinkVerifyRequest, PeerInfo, WebcInitRequest, PeerFingerprintOptional, Peer, PeerFingerprint, WebcLocalPeerData, PeerConnectRequest } from './types';
 import { AccountLinkRequestSchema, AccountLinkVerifyRequestSchema, PeerInfoSchema, WebcInitRequestSchema, PeerFingerprintOptionalSchema, PeerFingerprintSchema, WebcLocalPeerDataSchema, PeerConnectRequestSchema } from './schema';
 import { auth, requireAuth } from './middlewares';
@@ -40,6 +40,11 @@ appRouter.post('/peer/remove', postFn<PeerFingerprintOptional>(async (data, req)
     }
     return removePeer(peer);
 }, PeerFingerprintOptionalSchema));
+
+appRouter.post('/account/delete', postFn(async (data, req) => {
+    const { accountId, peerId } = getTokenContextOrThrow(req);
+    return deleteAccount(accountId, peerId);
+}));
 
 appRouter.get('/peer', getFn((data, req) => {
     const { accountId } = getTokenContextOrThrow(req);

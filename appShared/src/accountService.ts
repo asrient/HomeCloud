@@ -113,6 +113,11 @@ export class AccountService extends Service {
                 break;
             case WebSocketEvent.PEER_REMOVED:
                 this.peerRemovedSignal.dispatch(data as PeerInfo);
+                // If this device was removed from the account, reset local state
+                if ((data as PeerInfo).fingerprint === modules.config.FINGERPRINT) {
+                    console.warn(`[AccountService] This device was removed from the account remotely.`);
+                    this.resetAccountData();
+                }
                 break;
             case WebSocketEvent.PEER_ONLINE:
                 console.debug(`[AccountService] Peer online event received, fpt=${fp(data.fingerprint)}`);
@@ -351,6 +356,13 @@ export class AccountService extends Service {
         }
     }
 
+    public async deleteAccount(): Promise<void> {
+        const resp = await this.postWithAuth("/api/account/delete");
+        await this.assertSuccess(resp);
+        console.log(`[AccountService] Account deleted; resetting local account data.`);
+        await this.resetAccountData();
+    }
+
     public async requestWebcInit(fingerprint: string): Promise<WebcInit> {
         const resp = await this.postWithAuth("/api/webc/init", {
             fingerprint,
@@ -385,7 +397,7 @@ export class AccountService extends Service {
         };
         this.webSocket.onclose = async (event: CloseEvent) => {
             console.warn(`[AccountService] WebSocket closed: code=${event.code}, reason=${event.reason}`);
-            await this.handleWebsocketClose();
+            await this.handleWebsocketClose(event.code);
         }
         this.webSocket.onerror = (event: ErrorEvent) => {
             this.handleWebsocketError(new Error(`WebSocket error occurred: ${event.message || event.error || 'unknown error'}`));
@@ -455,12 +467,21 @@ export class AccountService extends Service {
 
     private isActive = false;
 
-    private handleWebsocketClose = async () => {
+    private handleWebsocketClose = async (code?: number) => {
         if (!this.isServiceRunning()) return;
         this.stopPingInterval();
         if (this.isActive) {
             this.websocketConnectionSignal.dispatch(false);
             this.isActive = false;
+        }
+        // 4001: server rejected auth or peer was removed — reset account state
+        if (code === 4001) {
+            console.warn(`[AccountService] Server closed connection with code 4001. Resetting account data.`);
+            await this.resetAccountData();
+            return;
+        }
+        if (!this.isLinked()) {
+            return;
         }
         this.retryConnect();
     };

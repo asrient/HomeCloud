@@ -11,6 +11,7 @@ import { UIIcon } from '@/components/ui/UIIcon';
 import { UIView } from '@/components/ui/UIView';
 import { LoginModal } from '@/components/LoginModal';
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 
 const features = [
     {
@@ -36,11 +37,13 @@ export default function WelcomeScreen() {
     const { requestPermissions } = usePermissions();
     const { setOnboarded } = useAppState();
     const [showLogin, setShowLogin] = useState(false);
+    const router = useRouter();
 
     const completeOnboarding = async () => {
         await requestPermissions();
         await getLocalServiceController().setUserOnboarded();
         setOnboarded(true);
+        router.replace('/');
     };
 
     const handleGetStarted = () => {

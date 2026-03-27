@@ -21,6 +21,8 @@ export type TextModalProps = {
     onDone: (newName: string) => Promise<void>,
     defaultValue?: string,
     buttonText?: string,
+    buttonVariant?: "default" | "link" | "destructive" | "outline" | "secondary" | "ghost",
+    validateText?: (text: string) => boolean,
     fieldName?: string,
     description?: string,
     onOpenChange?: (open: boolean) => void,
@@ -32,7 +34,7 @@ export type TextModalProps = {
     placeholder?: string,
 }
 
-export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description, isOpen, onOpenChange, noTrigger, additionalContent, textType, rows = 1, placeholder }: TextModalProps) {
+export default function TextModal({ title, buttonText, children, onDone, defaultValue, fieldName, description, isOpen, onOpenChange, noTrigger, additionalContent, textType, rows = 1, placeholder, buttonVariant, validateText }: TextModalProps) {
     const [text, setText] = useState<string>(defaultValue || '');
     const [isDirty, setIsDirty] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -148,7 +150,7 @@ export default function TextModal({ title, buttonText, children, onDone, default
                         </Button>
                         <Button type='submit'
                             useGlass={false}
-                            variant='default' size='platform' stretch disabled={isLoading || !text} onClick={handleSubmit}>
+                            variant={buttonVariant || 'default'} size='platform' stretch disabled={isLoading || !text || (validateText ? !validateText(text) : false)} onClick={handleSubmit}>
                             {buttonText || 'Save'}
                         </Button>
                     </div>

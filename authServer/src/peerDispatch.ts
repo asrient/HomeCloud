@@ -41,7 +41,7 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
     if (typeof token === 'string' && token.startsWith('tok-')) {
         token = token.slice(4);
     } else {
-        ws.close();
+        ws.close(4001, 'auth_failed');
         return;
     }
 
@@ -51,7 +51,7 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
         peerId = tokenData.peerId;
     } catch (e) {
         console.log('Authentication failed for websocket connection. Closing connection.');
-        ws.close();
+        ws.close(4001, 'auth_failed');
         return;
     }
 
@@ -81,7 +81,7 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
                     return;
                 }
                 console.log('Peer has been removed. Closing websocket connection.');
-                ws.close();
+                ws.close(4001, 'peer_removed');
             }
         } catch (e) {
             console.error('Error parsing dispatched event data:', e);

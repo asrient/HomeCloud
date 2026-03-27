@@ -174,6 +174,27 @@ export class MCDB {
         const peer = await db.collection<Peer>(Collections.Peer).findOne({ _id: objectId }, { projection: { fingerprint: 1 } });
         return peer ? peer.fingerprint : null;
     }
+
+    public async deleteAccount(accountId: ObjectId | string): Promise<boolean> {
+        const db = this.getDb();
+        const objectId = toObjectId(accountId);
+
+        const result = await db.collection(Collections.Account).deleteOne({ _id: objectId });
+        return result.deletedCount > 0;
+    }
+
+    public async removeAllPeersForAccount(accountId: ObjectId | string): Promise<Peer[]> {
+        const db = this.getDb();
+        const objectId = toObjectId(accountId);
+
+        const peers = await db.collection<Peer>(Collections.Peer)
+            .find({ accountId: objectId })
+            .toArray();
+        if (peers.length > 0) {
+            await db.collection(Collections.Peer).deleteMany({ accountId: objectId });
+        }
+        return peers;
+    }
 }
 
 // Export convenience functions and singleton instance

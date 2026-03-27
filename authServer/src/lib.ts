@@ -133,8 +133,24 @@ export async function removePeer(peer: Peer): Promise<void> {
     if (!result) {
         throw CustomError.generic('Failed to remove peer');
     }
+    // Invalidate the peer existence cache so the removed peer can't re-authenticate
+    await globalComms.deleteKV(`peerExists_${objectIdtoStr(peer._id)}`);
     // notify all account peers about removal
     await notifyAccountPeers(peer.accountId, 'peer_removed', peerInfo);
+}
+
+export async function deleteAccount(accountId: string, callerPeerId: string): Promise<void> {
+    const account = await mcdb.getAccountById(accountId);
+    if (!account) {
+        throw CustomError.generic('Account not found');
+    }
+    // Remove all peers (reuses removePeer which handles cache invalidation + WS notifications)
+    const peers = await mcdb.getPeersForAccount(accountId);
+    for (const peer of peers) {
+        await removePeer(peer);
+    }
+    // Delete the account
+    await mcdb.deleteAccount(accountId);
 }
 
 export async function updatePeer(updateData: Partial<PeerInfo>, id?: string | ObjectId,): Promise<Peer> {

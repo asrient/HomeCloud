@@ -139,6 +139,7 @@ export function LoginScreen({ onComplete }: LoginScreenProps) {
                     <View style={styles.inputContainer}>
                         {currentStep === 'email' ? (
                             <UITextInput
+                                key="email"
                                 placeholder="Enter your email"
                                 keyboardType="email-address"
                                 autoCapitalize="none"
@@ -148,6 +149,7 @@ export function LoginScreen({ onComplete }: LoginScreenProps) {
                             />
                         ) : (
                             <UITextInput
+                                key="otp"
                                 placeholder="Enter OTP"
                                 keyboardType="number-pad"
                                 value={otpValue}

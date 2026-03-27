@@ -5,6 +5,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import ConfirmModal from '@/components/confirmModal'
+import TextModal from '@/components/textModal'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { ThemedIconName, ConnectionType } from "@/lib/enums";
@@ -252,40 +253,6 @@ function Page() {
               </Button>
             </Line>
           </Section>
-          <Section title="Account">
-            {
-              !isLinked && <Line>
-                <Button variant='ghost' className="text-primary" size={'sm'} onClick={() => {
-                  openDialog('login');
-                }}>
-                  Login to account...
-                </Button>
-              </Line>
-            }
-            {
-              isLinked && <Line title='Email'>
-                {accountEmail}
-              </Line>
-            }
-            {
-              isLinked && <Line>
-                <ConfirmModal
-                  title='Unlink Device'
-                  description='Are you sure you want to unlink this device from your account?'
-                  onConfirm={async () => {
-                    const localSc = window.modules.getLocalServiceController();
-                    await localSc.account.removePeer(null);
-                  }}
-                  buttonVariant='destructive'
-                  buttonText='Confirm'
-                >
-                  <Button variant='ghost' className='text-red-500' size='sm'>
-                    Unlink device...
-                  </Button>
-                </ConfirmModal>
-              </Line>
-            }
-          </Section>
           {isLinked && peers.length > 0 && (
             <Section title="Linked Devices">
               {peers.map((peer: PeerInfo) => (
@@ -333,6 +300,62 @@ function Page() {
                   </DropdownMenu>
                 </Line>
               ))}
+            </Section>
+          )}
+          <Section title="Account">
+            {
+              !isLinked && <Line>
+                <Button variant='ghost' className="text-primary" size={'sm'} onClick={() => {
+                  openDialog('login');
+                }}>
+                  Login to account...
+                </Button>
+              </Line>
+            }
+            {
+              isLinked && <Line title='Email'>
+                {accountEmail}
+              </Line>
+            }
+            {
+              isLinked && <Line>
+                <ConfirmModal
+                  title='Unlink Device'
+                  description='Are you sure you want to unlink this device from your account?'
+                  onConfirm={async () => {
+                    const localSc = window.modules.getLocalServiceController();
+                    await localSc.account.removePeer(null);
+                  }}
+                  buttonVariant='destructive'
+                  buttonText='Confirm'
+                >
+                  <Button variant='ghost' className='text-red-500' size='sm'>
+                    Unlink device...
+                  </Button>
+                </ConfirmModal>
+              </Line>
+            }
+          </Section>
+          {isLinked && (
+            <Section footer="This will permanently delete your account and remove all linked devices.">
+              <Line>
+                <TextModal
+                  title='Delete Account'
+                  description='Type DELETE to confirm.'
+                  placeholder='DELETE'
+                  buttonText='Delete Account'
+                  buttonVariant='destructive'
+                  validateText={(text) => text === 'DELETE'}
+                  onDone={async () => {
+                    const localSc = window.modules.getLocalServiceController();
+                    await localSc.account.deleteAccount();
+                  }}
+                >
+                  <Button variant='ghost' className='text-red-500' size='sm'>
+                    Delete account...
+                  </Button>
+                </TextModal>
+              </Line>
             </Section>
           )}
           <div className='mt-6 mb-5 flex items-center justify-center font-base text-foreground/70'>
