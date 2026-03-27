@@ -1,6 +1,6 @@
 {
     "title": "HomeCloud",
-    "description": "Privacy-first companion app to access and control all your files and devices.",
+    "description": "Privacy-first app to access and control all your devices.",
     "iconPath": "img/icon-dark.png",
     "docsPath": "docs",
     "accentColor": "red",
@@ -8,6 +8,13 @@
     "downloadLinks": {
         "macosArm64": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud-macos-arm64.zip",
         "macosX64": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud-macos-x64.zip",
-        "windowsExe": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud.Setup.exe"
+        "windowsExe": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud.Setup.exe",
+        "playStore": "https://play.google.com/apps/internaltest/4701316894189351800",
+        "msStore": "https://apps.microsoft.com/detail/9PKD1Q6RZ4JC",
+        "downloadNotes": {
+          "macos": "Note: macOS may say the app is damaged. Run this in Terminal to fix: xattr -dr com.apple.quarantine ~/Downloads/HomeCloud.app",
+          "windows": "Using the Microsoft store option is recommended.",
+          "mobile": "Android app is currently in early testing with limited seats."
+      }
     }
 }
