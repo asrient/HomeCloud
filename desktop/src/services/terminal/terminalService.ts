@@ -43,8 +43,9 @@ export default class DesktopTerminalService extends TerminalService {
             },
         });
 
-        // Spawn pty
-        const ptyProcess = pty.spawn(shellPath, [], {
+        // Spawn pty — use login shell flag so user's PATH is loaded in packaged apps
+        const args = platform() === 'win32' ? [] : ['-l'];
+        const ptyProcess = pty.spawn(shellPath, args, {
             name: 'xterm-256color',
             cols: DEFAULT_COLS,
             rows: DEFAULT_ROWS,

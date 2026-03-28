@@ -54,6 +54,7 @@
         "NSPrivacyTracking": false
       },
       "infoPlist": {
+        "LSApplicationCategoryType": "public.app-category.utilities",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         },
