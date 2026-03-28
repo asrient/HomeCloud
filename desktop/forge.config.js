@@ -200,7 +200,6 @@ module.exports = {
     // macOS code signing (optional — requires Apple Developer certificate in keychain)
     ...(SIGN_MACOS ? {
       osxSign: {
-        identity: `Developer ID Application: ${APPLE_TEAM_ID}`,
         optionsForFile: () => ({
           entitlements: path.resolve(__dirname, 'entitlements.plist'),
           'entitlements-inherit': path.resolve(__dirname, 'entitlements.plist'),
