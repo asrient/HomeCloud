@@ -1,8 +1,8 @@
 import { ConnectionInterface } from "shared/netService";
 import { GenericDataChannel, PeerCandidate, ConnectionType } from "shared/types";
 import net from "node:net";
-import Discovery from "./discovery";
 import { filterValidBonjourIps } from "shared/utils";
+import type Discovery from "./discovery";
 
 /**
  * TCP-based implementation of ConnectionInterface using Bonjour service discovery.
@@ -21,10 +21,10 @@ export default class TCPInterface extends ConnectionInterface {
      * Creates an instance of TCPInterface.
      * @param {number} port - The port number for the TCP server and discovery service.
      */
-    constructor(port: number) {
+    constructor(port: number, discovery: Discovery) {
         super();
         this.port = port;
-        this.discovery = new Discovery(port);
+        this.discovery = discovery;
     }
 
     getServicePort(): number | null {
@@ -302,7 +302,11 @@ export default class TCPInterface extends ConnectionInterface {
         socket.on('data', (data) => {
             if (messageHandler) {
                 // Create a MessageEvent-like object
-                messageHandler(data);
+                if (typeof data === "string") {
+                    messageHandler(Buffer.from(data));
+                } else {
+                    messageHandler(data);
+                }
             }
         });
 

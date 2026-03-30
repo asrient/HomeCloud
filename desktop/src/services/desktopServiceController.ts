@@ -1,17 +1,18 @@
 import ServiceController from "shared/controller";
 import { ConnectionInterface, NetService } from "shared/netService";
-import TCPInterface from "./tcpInterface";
+import TCPInterface from "nodeShared/tcpInterface";
 import { ConnectionType } from "shared/types";
 import DesktopSystemService from "./system/systemService";
 import DesktopThumbService from "./thumb/thumbService";
 import DesktopFilesService from "./files/filesService";
-import { DesktopPhotosService } from "./photos/photosService";
+import { NodePhotosService } from "nodeShared/photos/photosService";
 import { AccountService } from "shared/accountService";
-import { HttpClient_, WebSocket_ } from "../desktopCompat";
+import { HttpClient_, WebSocket_ } from "nodeShared/netCompat";
 import DesktopWebcInterface from "./webcInterface";
 import DesktopAppService from "./appService";
 import DesktopScreenService from "./screen/screenService";
-import DesktopTerminalService from "./terminal/terminalService";
+import NodeTerminalService from "nodeShared/terminal/terminalService";
+import DesktopDiscovery from "./discovery";
 
 const TCP_PORT = 7736;
 
@@ -23,9 +24,9 @@ export default class DesktopServiceController extends ServiceController {
     public override system = DesktopSystemService.getInstance<DesktopSystemService>();
     public override thumbnail = DesktopThumbService.getInstance<DesktopThumbService>();
     public override files = DesktopFilesService.getInstance<DesktopFilesService>();
-    public override photos = DesktopPhotosService.getInstance<DesktopPhotosService>();
+    public override photos = NodePhotosService.getInstance<NodePhotosService>();
     public override screen = DesktopScreenService.getInstance<DesktopScreenService>();
-    public override terminal = DesktopTerminalService.getInstance<DesktopTerminalService>();
+    public override terminal = NodeTerminalService.getInstance<NodeTerminalService>();
 
     async setup() {
         console.log("[ServiceController] Setting up services...");
@@ -42,7 +43,7 @@ export default class DesktopServiceController extends ServiceController {
         await this.terminal.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
-                [ConnectionType.LOCAL, new TCPInterface(TCP_PORT)],
+                [ConnectionType.LOCAL, new TCPInterface(TCP_PORT, new DesktopDiscovery(TCP_PORT))],
                 [ConnectionType.WEB, new DesktopWebcInterface()]
             ]
         ));

@@ -1,0 +1,27 @@
+{
+  "name": "@homecloud/node-shared",
+  "version": "0.0.1",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "tsc": "tsc",
+    "watch": "tsc --watch",
+    "postinstall": "node scripts/sync-deps.js",
+    "postuninstall": "node scripts/sync-deps.js"
+  },
+  "dependencies": {
+    "shared": "../appShared/dist",
+    "node-pty": "^1.1.0",
+    "mime": "^3.0.0",
+    "sequelize": "^6.32.1",
+    "sqlite3": "^5.1.6",
+    "exifreader": "^4.26.0",
+    "mediainfo.js": "^0.3.7",
+    "bonjour-service": "^1.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.8.3"
+  }
+}

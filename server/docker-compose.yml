@@ -1,0 +1,17 @@
+services:
+  homecloud:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    ports:
+      - "7736:7736/tcp"
+      - "7736:7736/udp"
+    volumes:
+      - ./config:/config
+      - ${HOMECLOUD_DATA_PATH:-~/HomeCloud}:/data
+    environment:
+      - HOMECLOUD_CONFIG_DIR=/config
+      - HOMECLOUD_DATA_DIR=/data
+      - HOMECLOUD_EMAIL=${HOMECLOUD_EMAIL:-}
+      - HOMECLOUD_AUTH_URL=${HOMECLOUD_AUTH_URL:-}
+    restart: unless-stopped

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "baseUrl": "src",
+    "outDir": "dist",
+    "allowJs": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "esModuleInterop": true,
+    "target": "ES2022",
+    "declaration": true,
+    "skipLibCheck": true,
+    "paths": {
+      "shared/*": ["../appShared/dist/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

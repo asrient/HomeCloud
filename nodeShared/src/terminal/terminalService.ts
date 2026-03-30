@@ -13,7 +13,7 @@ interface TerminalSession {
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 
-export default class DesktopTerminalService extends TerminalService {
+export default class NodeTerminalService extends TerminalService {
     private sessions = new Map<string, TerminalSession>();
     private nextSessionId = 0;
 

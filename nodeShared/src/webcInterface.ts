@@ -1,14 +1,8 @@
 import os from "os";
-import NodeWebcInterface from "nodeShared/webcInterface";
-import { DatagramCompat } from "shared/compat";
+import { WebcInterface } from "shared/webcInterface";
 import { filterValidBonjourIps } from "shared/utils";
-import { createBestDatagram } from "../dgramCompat";
 
-export default class DesktopWebcInterface extends NodeWebcInterface {
-    createDatagramSocket(): DatagramCompat {
-        return createBestDatagram();
-    }
-
+export default abstract class NodeWebcInterface extends WebcInterface {
     protected override async getLocalAddresses(): Promise<string[]> {
         // Get addresses directly from OS network interfaces — no dependency on LOCAL/TCP
         const addresses: string[] = [];
