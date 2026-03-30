@@ -1,10 +1,10 @@
 import { PeerCandidate, BonjourTxt, DeviceInfo, ConnectionType } from 'shared/types';
-import Discovery from 'nodeShared/discovery';
+import NodeDiscovery from 'nodeShared/discovery';
 import { useNativeDiscovery, getNativeModule, NativeServiceInfo } from './nativeDiscovery';
 import os from 'os';
 import { safeIp } from 'shared/utils';
 
-export default class DesktopDiscovery extends Discovery {
+export default class DesktopDiscovery extends NodeDiscovery {
     // Track services discovered via native API for getCandidates()
     private nativeServices: Map<string, NativeServiceInfo> = new Map();
 

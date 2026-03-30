@@ -8,7 +8,7 @@ import { FileFilter, RemoteItem } from "shared/types";
 
 const DEFAULT_PINS_KEY = "defaultPinsAdded";
 
-export default class DesktopFilesService extends FilesService {
+export default class NodeFilesService extends FilesService {
   public fs = new LocalFsDriver();
   public separator = path.sep;
 

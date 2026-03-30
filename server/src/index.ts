@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
-import { execSync } from "node:child_process";
+import 'dotenv/config'
 import { setModules, ModulesType } from "shared/modules.js";
 import { getExistingServiceController } from "shared/utils.js";
 import { AppConfigType, OSType, UITheme, ConnectionType } from "shared/types.js";
@@ -22,8 +22,6 @@ import ServerFilesService from "./filesService.js";
 import ServerThumbService from "./thumbService.js";
 import ServerWebcInterface from "./webcInterface.js";
 import { runSetupWizard } from "./setup.js";
-
-require('dotenv').config();
 
 console.log(`
   ___ ___                       _________ .__                   .___

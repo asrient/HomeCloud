@@ -147,7 +147,12 @@ export default class ServerSystemService extends SystemService {
                 let name = path.basename(location);
                 let isExternal = false;
 
-                if (filesystem.startsWith('dev') || filesystem === 'tmpfs' || filesystem === 'overlay') {
+                if (
+                    filesystem.startsWith('/dev/') ||
+                    filesystem === 'devtmpfs' ||
+                    filesystem === 'tmpfs' ||
+                    filesystem === 'overlay'
+                ) {
                     continue;
                 }
                 if (process.platform === 'linux') {
