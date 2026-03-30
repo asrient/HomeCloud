@@ -23,6 +23,30 @@ import ServerThumbService from "./thumbService.js";
 import ServerWebcInterface from "./webcInterface.js";
 import { runSetupWizard } from "./setup.js";
 
+require('dotenv').config();
+
+console.log(`
+  ___ ___                       _________ .__                   .___
+ /   |   \  ____   _____   ____ \_   ___ \|  |   ____  __ __  __| _/
+/    ~    \/  _ \ /     \_/ __ \/    \  \/|  |  /  _ \|  |  \/ __ | 
+\    Y    (  <_> )  Y Y  \  ___/\     \___|  |_(  <_> )  |  / /_/ | 
+ \___|_  / \____/|__|_|  /\___  >\______  /____/\____/|____/\____ | 
+       \/              \/     \/        \/                       \/ 
+
+        Asrient's Studio  https://asrient.com
+
+`);
+
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:4000';
+const WS_SERVER_URL = deriveWsUrl(SERVER_URL);
+
+function deriveWsUrl(serverUrl: string): string {
+    const isSecure = serverUrl.startsWith('https://');
+    const url = serverUrl.replace(/^https?:\/\//, isSecure ? 'wss://' : 'ws://');
+    console.log(`Derived WS_SERVER_URL: ${url} from SERVER_URL: ${serverUrl}`);
+    return url;
+}
+
 const TCP_PORT = 7736;
 
 const cryptoModule = new CryptoImpl();
@@ -39,29 +63,29 @@ function parseHostname(hostname: string): string {
 }
 
 function getDeviceName(): string {
+    if (process.env.DEVICE_NAME) {
+        return process.env.DEVICE_NAME;
+    }
+
     if (process.platform === 'darwin') {
-        try {
-            const computerName = execSync('scutil --get ComputerName', { encoding: 'utf-8' }).trim();
-            if (computerName) return computerName;
-        } catch { }
         return parseHostname(os.hostname());
     }
     return os.hostname();
 }
 
 function getDataDir(): string {
-    if (process.env.HOMECLOUD_DATA_DIR) {
-        return process.env.HOMECLOUD_DATA_DIR;
+    if (process.env.HC_DATA_DIR) {
+        return process.env.HC_DATA_DIR;
     }
     const home = os.homedir();
-    return path.join(home, '.homecloud');
+    return path.join(home, '.hcServerData');
 }
 
 function getCacheDir(): string {
-    if (process.env.HOMECLOUD_CACHE_DIR) {
-        return process.env.HOMECLOUD_CACHE_DIR;
+    if (process.env.HC_CACHE_DIR) {
+        return process.env.HC_CACHE_DIR;
     }
-    return path.join(os.tmpdir(), 'HomeCloud');
+    return path.join(os.tmpdir(), 'hcServerCache');
 }
 
 /**
@@ -167,24 +191,21 @@ async function getConfig(): Promise<AppConfigType> {
         : process.platform === 'win32' ? OSType.Windows
             : OSType.Linux;
 
-    const serverUrl = process.env.HOMECLOUD_SERVER_URL || 'https://api.homecloud.cc';
-    const wsServerUrl = process.env.HOMECLOUD_WS_SERVER_URL || 'wss://ws.homecloud.cc';
-
     return {
         DATA_DIR: dataDir,
         CACHE_DIR: cacheDir,
         IS_DEV: process.env.NODE_ENV === 'development',
         IS_STORE_DISTRIBUTION: false,
         SECRET_KEY: secretKey,
-        VERSION: '0.0.1',
+        VERSION: process.env.npm_package_version || '0.0.1',
         DEVICE_NAME: getDeviceName(),
         PUBLIC_KEY_PEM: publicKeyPem,
         PRIVATE_KEY_PEM: privateKeyPem,
         FINGERPRINT: fingerprint,
         APP_NAME: 'HomeCloud Server',
         UI_THEME: UITheme.Win11,
-        SERVER_URL: serverUrl,
-        WS_SERVER_URL: wsServerUrl,
+        SERVER_URL: SERVER_URL,
+        WS_SERVER_URL: WS_SERVER_URL,
         OS: osType,
     };
 }

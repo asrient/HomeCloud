@@ -8,17 +8,17 @@
     "tsc": "tsc",
     "watch": "tsc --watch",
     "postinstall": "node scripts/sync-deps.js",
-    "postuninstall": "node scripts/sync-deps.js"
+    "sync": "node scripts/sync-deps.js"
   },
   "dependencies": {
-    "shared": "../appShared/dist",
-    "node-pty": "^1.1.0",
-    "mime": "^3.0.0",
-    "sequelize": "^6.32.1",
-    "sqlite3": "^5.1.6",
+    "bonjour-service": "^1.2.1",
     "exifreader": "^4.26.0",
     "mediainfo.js": "^0.3.7",
-    "bonjour-service": "^1.2.1"
+    "mime": "^3.0.0",
+    "node-pty": "^1.1.0",
+    "sequelize": "^6.32.1",
+    "shared": "../appShared/dist",
+    "sqlite3": "^5.1.6"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

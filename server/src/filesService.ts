@@ -7,6 +7,7 @@ export default class ServerFilesService extends NodeFilesService {
     }
 
     public async openFilePicker(selectMultiple: boolean, pickDir?: boolean, filters?: FileFilter[], title?: string, buttonText?: string): Promise<RemoteItem[] | null> {
+        console.log(`[Server] Opening file picker is not supported. selectMultiple=${selectMultiple}, title=${title}`);
         return null;
     }
 }

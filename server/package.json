@@ -8,20 +8,23 @@
     "build": "tsc",
     "dev": "tsc --watch"
   },
-  "ownDependencies": [],
+  "ownDependencies": [
+    "dotenv"
+  ],
   "dependencies": {
-    "shared": "../appShared/dist",
-    "nodeShared": "../nodeShared/dist",
-    "sequelize": "^6.32.1",
-    "sqlite3": "^5.1.6",
-    "node-pty": "^1.1.0",
-    "mime": "^3.0.0",
+    "bonjour-service": "^1.2.1",
+    "dotenv": "^17.3.1",
     "exifreader": "^4.26.0",
     "mediainfo.js": "^0.3.7",
-    "bonjour-service": "^1.2.1"
+    "mime": "^3.0.0",
+    "node-pty": "^1.1.0",
+    "nodeShared": "../nodeShared/dist",
+    "sequelize": "^6.32.1",
+    "shared": "../appShared/dist",
+    "sqlite3": "^5.1.6"
   },
   "devDependencies": {
-    "typescript": "^5.8.3",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "typescript": "^5.8.3"
   }
 }
