@@ -4,7 +4,7 @@ import os from "node:os";
 import 'dotenv/config'
 import { setModules, ModulesType } from "shared/modules";
 import { getExistingServiceController } from "shared/utils";
-import { AppConfigType, OSType, UITheme, ConnectionType } from "shared/types";
+import { UITheme, ConnectionType } from "shared/types";
 import { ConnectionInterface, NetService } from "shared/netService";
 import { AccountService } from "shared/accountService";
 import { ScreenService } from "shared/screenService";
@@ -21,9 +21,10 @@ import ServerAppService from "./appService";
 import ServerFilesService from "./filesService";
 import ServerThumbService from "./thumbService";
 import ServerWebcInterface from "./webcInterface";
-import { runSetupWizard } from "./setup";
-import { getDeviceName } from "nodeShared/deviceInfo";
+import { getDeviceName, getOSType } from "nodeShared/deviceInfo";
 import { deriveWsUrl } from "nodeShared/utils";
+import { env } from "node:process";
+import { ServerConfigType } from "./types";
 
 console.log(`
   ___ ___                       _________ .__                   .___
@@ -59,37 +60,39 @@ function getCacheDir(): string {
     return path.join(os.tmpdir(), 'hcServerCache');
 }
 
-/**
- * Get or generate keys — stored as plain PEM files (no safeStorage on server).
- */
-async function getOrGenerateKeys(dataDir: string) {
-    const privateKeyPath = path.join(dataDir, "private.pem.key");
-    const publicKeyPath = path.join(dataDir, "public.pem.key");
-    if (!fs.existsSync(privateKeyPath) || !fs.existsSync(publicKeyPath)) {
-        console.log("[Server] Key pair not found. Generating a new one.");
-        const { privateKey, publicKey } = await cryptoModule.generateKeyPair();
-        fs.mkdirSync(path.dirname(privateKeyPath), { recursive: true });
-        fs.writeFileSync(privateKeyPath, privateKey, { mode: 0o600 });
-        fs.writeFileSync(publicKeyPath, publicKey, { mode: 0o644 });
-        console.log("[Server] Key pair generated.");
-        return { privateKeyPem: privateKey, publicKeyPem: publicKey };
-    }
-    const privateKey = fs.readFileSync(privateKeyPath, 'utf-8');
-    const publicKey = fs.readFileSync(publicKeyPath, 'utf-8');
-    return { privateKeyPem: privateKey, publicKeyPem: publicKey };
-}
+async function getCreds(secretKey: string): Promise<{ privateKeyPem: string; publicKeyPem: string; accountId: string }> {
+    let raw: string;
 
-function createOrGetSecretKey(dataDir: string): string {
-    const secretKeyPath = path.join(dataDir, "secret.key");
-    if (!fs.existsSync(secretKeyPath)) {
-        console.log("[Server] Secret key not found. Creating a new one.");
-        const secretKey = cryptoModule.generateRandomKey();
-        fs.mkdirSync(path.dirname(secretKeyPath), { recursive: true });
-        fs.writeFileSync(secretKeyPath, secretKey, { mode: 0o600 });
-        console.log("[Server] Secret key created.");
-        return secretKey;
+    if (process.env.CREDS_PATH) {
+        const credsPath = process.env.CREDS_PATH;
+        if (!fs.existsSync(credsPath)) {
+            throw new Error(`Credentials file not found: ${credsPath}`);
+        }
+        raw = fs.readFileSync(credsPath, 'utf-8');
+    } else if (process.env.CREDS_BASE64) {
+        raw = Buffer.from(process.env.CREDS_BASE64, 'base64').toString('utf-8');
+    } else {
+        throw new Error('Either CREDS_PATH or CREDS_BASE64 must be set.');
     }
-    return fs.readFileSync(secretKeyPath, 'utf-8').trim();
+
+    let parsed: { publicPem: string; encrytPrivatePem: { iv: string; payload: string }; accountId: string };
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        throw new Error('Failed to parse credentials JSON.');
+    }
+
+    if (!parsed.publicPem || !parsed.encrytPrivatePem || !parsed.accountId) {
+        throw new Error('Credentials JSON must contain publicPem, encrytPrivatePem, and accountId.');
+    }
+
+    const privateKeyPem = cryptoModule.decryptString(parsed.encrytPrivatePem, secretKey);
+
+    return {
+        privateKeyPem,
+        publicKeyPem: parsed.publicPem,
+        accountId: parsed.accountId,
+    };
 }
 
 class ServerServiceController extends ServiceController {
@@ -107,7 +110,8 @@ class ServerServiceController extends ServiceController {
         console.log("[ServiceController] Setting up services...");
         await this.account.init({
             httpClient: new HttpClient_(),
-            webSocket: new WebSocket_()
+            webSocket: new WebSocket_(),
+            accountId: modules.config.ACCOUNT_ID,
         });
         await this.app.init();
         await this.system.init();
@@ -143,7 +147,7 @@ class ServerServiceController extends ServiceController {
     }
 }
 
-async function getConfig(): Promise<AppConfigType> {
+async function getConfig(): Promise<ServerConfigType> {
     const dataDir = getDataDir();
     const cacheDir = getCacheDir();
 
@@ -154,13 +158,13 @@ async function getConfig(): Promise<AppConfigType> {
         fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    const { privateKeyPem, publicKeyPem } = await getOrGenerateKeys(dataDir);
-    const fingerprint = cryptoModule.getFingerprintFromPem(publicKeyPem);
-    const secretKey = createOrGetSecretKey(dataDir);
+    const secretKey = env.SECRET_KEY;
 
-    const osType = process.platform === 'darwin' ? OSType.MacOS
-        : process.platform === 'win32' ? OSType.Windows
-            : OSType.Linux;
+    if (!secretKey) {
+        throw new Error('SECRET_KEY is missing.');
+    }
+
+    const { privateKeyPem, publicKeyPem, accountId } = await getCreds(secretKey);
 
     return {
         DATA_DIR: dataDir,
@@ -172,12 +176,13 @@ async function getConfig(): Promise<AppConfigType> {
         DEVICE_NAME: getDeviceName(),
         PUBLIC_KEY_PEM: publicKeyPem,
         PRIVATE_KEY_PEM: privateKeyPem,
-        FINGERPRINT: fingerprint,
+        FINGERPRINT: cryptoModule.getFingerprintFromPem(publicKeyPem),
         APP_NAME: 'HomeCloud Server',
         UI_THEME: UITheme.Win11,
         SERVER_URL: API_SERVER_URL,
         WS_SERVER_URL: WS_SERVER_URL,
-        OS: osType,
+        OS: getOSType(),
+        ACCOUNT_ID: accountId,
     };
 }
 
@@ -206,22 +211,7 @@ async function main() {
     // Check if account is linked
     const isLinked = serviceController.account.isLinked();
     if (!isLinked) {
-        const authToken = process.env.HOMECLOUD_AUTH_TOKEN;
-        if (authToken) {
-            console.log('[Server] Auth token found in environment. Attempting setup...');
-            try {
-                // Use the standard link flow with token
-                console.log('[Server] Token-based setup is not yet implemented. Please use interactive setup.');
-                await runSetupWizard();
-            } catch (error) {
-                console.error('[Server] Token setup failed:', error);
-                process.exit(1);
-            }
-        } else if (process.stdin.isTTY) {
-            await runSetupWizard();
-        } else {
-            console.log('[Server] No account linked. Run interactively to set up, or provide HOMECLOUD_AUTH_TOKEN.');
-        }
+        serviceController.account.initiateLink()
     }
 
     console.log('[Server] HomeCloud Server is running.');

@@ -1,5 +1,5 @@
-import { ModulesType } from "shared/modules.js";
+import { ServerModulesType } from "./types";
 
 declare global {
-    var modules: ModulesType;
+    var modules: ServerModulesType;
 }
