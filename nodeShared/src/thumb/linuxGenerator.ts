@@ -1,4 +1,4 @@
-import ThumbGenerator from "../generator";
+import ThumbGenerator from "./generator";
 import fs from 'fs';
 import path from 'path';
 import os from 'os';

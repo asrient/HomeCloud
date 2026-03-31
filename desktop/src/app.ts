@@ -9,7 +9,6 @@ import CryptoImpl from 'nodeShared/cryptoImpl';
 import DesktopServiceController from './services/desktopServiceController';
 import fs from 'node:fs';
 import os from 'node:os';
-import { execSync } from 'node:child_process';
 import DesktopConfigStorage from 'nodeShared/configStorage';
 import { OSType, UITheme } from 'shared/types';
 import { createTray } from './tray';
@@ -19,6 +18,7 @@ import { setupAppMenu } from './appMenu';
 import { UserPreferences } from './types';
 import { isAppContainerWin } from './appContainer';
 import { createCrashReportLink } from 'shared/helpLinks';
+import { getDeviceName } from 'nodeShared/deviceInfo';
 
 const isDev = !!env && env.NODE_ENV === 'development';
 
@@ -65,41 +65,6 @@ async function getOrGenerateKeys(dataDir: string) {
     privateKeyPem: privateKey,
     publicKeyPem: publicKey,
   };
-}
-
-/**
- * Parse a macOS hostname to make it more presentable.
- * e.g., "Aritras-MacBook-Air-13307.local" -> "Aritras MacBook Air"
- */
-function parseHostname(hostname: string): string {
-  let name = hostname;
-  // Remove .local suffix
-  name = name.replace(/\.local$/, '');
-  // Remove trailing numbers (e.g., -13307)
-  name = name.replace(/-\d+$/, '');
-  // Replace hyphens with spaces
-  name = name.replace(/-/g, ' ');
-  return name.trim();
-}
-
-/**
- * Get the user-friendly device name.
- * On macOS, this returns the "Computer Name" from System Preferences.
- * On other platforms, falls back to os.hostname().
- */
-function getDeviceName(): string {
-  if (process.platform === 'darwin') {
-    try {
-      const computerName = execSync('scutil --get ComputerName', { encoding: 'utf-8' }).trim();
-      if (computerName) {
-        return computerName;
-      }
-    } catch {
-      // Fall back to parsed hostname if scutil fails
-    }
-    return parseHostname(os.hostname());
-  }
-  return os.hostname();
 }
 
 async function getConfig() {

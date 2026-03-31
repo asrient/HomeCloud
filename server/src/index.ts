@@ -2,26 +2,28 @@ import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import 'dotenv/config'
-import { setModules, ModulesType } from "shared/modules.js";
-import { getExistingServiceController } from "shared/utils.js";
-import { AppConfigType, OSType, UITheme, ConnectionType } from "shared/types.js";
-import { ConnectionInterface, NetService } from "shared/netService.js";
-import { AccountService } from "shared/accountService.js";
-import { ScreenService } from "shared/screenService.js";
-import CryptoImpl from "nodeShared/cryptoImpl.js";
-import NodeConfigStorage from "nodeShared/configStorage.js";
-import TCPInterface from "nodeShared/tcpInterface.js";
-import Discovery from "nodeShared/discovery.js";
-import { NodePhotosService } from "nodeShared/photos/photosService.js";
-import { HttpClient_, WebSocket_ } from "nodeShared/netCompat.js";
-import NodeTerminalService from "nodeShared/terminal/terminalService.js";
-import ServiceController from "shared/controller.js";
-import ServerSystemService from "./systemService.js";
-import ServerAppService from "./appService.js";
-import ServerFilesService from "./filesService.js";
-import ServerThumbService from "./thumbService.js";
-import ServerWebcInterface from "./webcInterface.js";
-import { runSetupWizard } from "./setup.js";
+import { setModules, ModulesType } from "shared/modules";
+import { getExistingServiceController } from "shared/utils";
+import { AppConfigType, OSType, UITheme, ConnectionType } from "shared/types";
+import { ConnectionInterface, NetService } from "shared/netService";
+import { AccountService } from "shared/accountService";
+import { ScreenService } from "shared/screenService";
+import CryptoImpl from "nodeShared/cryptoImpl";
+import NodeConfigStorage from "nodeShared/configStorage";
+import TCPInterface from "nodeShared/tcpInterface";
+import Discovery from "nodeShared/discovery";
+import { NodePhotosService } from "nodeShared/photos/photosService";
+import { HttpClient_, WebSocket_ } from "nodeShared/netCompat";
+import NodeTerminalService from "nodeShared/terminal/terminalService";
+import ServiceController from "shared/controller";
+import ServerSystemService from "./systemService";
+import ServerAppService from "./appService";
+import ServerFilesService from "./filesService";
+import ServerThumbService from "./thumbService";
+import ServerWebcInterface from "./webcInterface";
+import { runSetupWizard } from "./setup";
+import { getDeviceName } from "nodeShared/deviceInfo";
+import { deriveWsUrl } from "nodeShared/utils";
 
 console.log(`
   ___ ___                       _________ .__                   .___
@@ -35,41 +37,12 @@ console.log(`
 
 `);
 
-const SERVER_URL = process.env.SERVER_URL || 'http://localhost:4000';
-const WS_SERVER_URL = deriveWsUrl(SERVER_URL);
+const API_SERVER_URL = process.env.API_SERVER_URL || 'http://localhost:4000';
+const WS_SERVER_URL = deriveWsUrl(API_SERVER_URL);
 
-function deriveWsUrl(serverUrl: string): string {
-    const isSecure = serverUrl.startsWith('https://');
-    const url = serverUrl.replace(/^https?:\/\//, isSecure ? 'wss://' : 'ws://');
-    console.log(`Derived WS_SERVER_URL: ${url} from SERVER_URL: ${serverUrl}`);
-    return url;
-}
-
-const TCP_PORT = 7736;
+const TCP_PORT = process.env.TCP_PORT ? parseInt(process.env.TCP_PORT) : 7736;
 
 const cryptoModule = new CryptoImpl();
-
-/**
- * Parse a hostname to make it more presentable.
- */
-function parseHostname(hostname: string): string {
-    let name = hostname;
-    name = name.replace(/\.local$/, '');
-    name = name.replace(/-\d+$/, '');
-    name = name.replace(/-/g, ' ');
-    return name.trim();
-}
-
-function getDeviceName(): string {
-    if (process.env.DEVICE_NAME) {
-        return process.env.DEVICE_NAME;
-    }
-
-    if (process.platform === 'darwin') {
-        return parseHostname(os.hostname());
-    }
-    return os.hostname();
-}
 
 function getDataDir(): string {
     if (process.env.HC_DATA_DIR) {
@@ -202,7 +175,7 @@ async function getConfig(): Promise<AppConfigType> {
         FINGERPRINT: fingerprint,
         APP_NAME: 'HomeCloud Server',
         UI_THEME: UITheme.Win11,
-        SERVER_URL: SERVER_URL,
+        SERVER_URL: API_SERVER_URL,
         WS_SERVER_URL: WS_SERVER_URL,
         OS: osType,
     };

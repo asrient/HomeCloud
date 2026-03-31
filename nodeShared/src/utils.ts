@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
 import { DeviceInfo } from "shared/types";
+import { execFile } from "child_process";
+import { promisify } from "util";
 
 export function getAppName(): string {
     if ((global as any).modules?.config?.APP_NAME) {
@@ -61,4 +63,13 @@ export function jsonToStream(json: any): Readable {
 export function osInfoString(deviceInfo: DeviceInfo) {
     if (!deviceInfo.os) return '';
     return `${deviceInfo.os} ${deviceInfo.osFlavour}`;
+}
+
+export const execFileAsync = promisify(execFile);
+
+export function deriveWsUrl(serverUrl: string): string {
+    const isSecure = serverUrl.startsWith('https://');
+    const url = serverUrl.replace(/^https?:\/\//, isSecure ? 'wss://' : 'ws://');
+    console.log(`Derived WS_SERVER_URL: ${url} from SERVER_URL: ${serverUrl}`);
+    return url;
 }
