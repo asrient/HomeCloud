@@ -7,11 +7,12 @@ services:
       - "7736:7736/tcp"
       - "7736:7736/udp"
     volumes:
-      - ./config:/config
-      - ${HOMECLOUD_DATA_PATH:-~/HomeCloud}:/data
+      - ${HC_DATA_PATH:-~/HomeCloud}:/data
     environment:
-      - HOMECLOUD_CONFIG_DIR=/config
-      - HOMECLOUD_DATA_DIR=/data
-      - HOMECLOUD_EMAIL=${HOMECLOUD_EMAIL:-}
-      - HOMECLOUD_AUTH_URL=${HOMECLOUD_AUTH_URL:-}
+      - HC_DATA_DIR=/data
+      - HC_CACHE_DIR=/tmp/hcServerCache
+      - PASSPHRASE=${PASSPHRASE}
+      - CREDS_BASE64=${CREDS_BASE64:-}
+      - CREDS_PATH=${CREDS_PATH:-}
+      - API_SERVER_URL=${API_SERVER_URL:-}
     restart: unless-stopped

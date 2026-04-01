@@ -1,5 +1,5 @@
 name: Build Desktop App
-description: Shared build steps for the HomeCloud desktop app (appShared, web, desktop native + TS)
+description: Shared build steps for the HomeCloud desktop app (appShared, nodeShared, web, desktop native + TS)
 
 inputs:
   ui_theme:
@@ -38,6 +38,17 @@ runs:
       shell: bash
       run: npm run tsc
       working-directory: ./appShared
+
+    # nodeShared
+    - name: Install nodeShared dependencies
+      shell: bash
+      run: npm install
+      working-directory: ./nodeShared
+
+    - name: Compile nodeShared
+      shell: bash
+      run: npm run build
+      working-directory: ./nodeShared
 
     # web
     - name: Install web dependencies

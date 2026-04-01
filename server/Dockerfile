@@ -25,9 +25,11 @@ COPY server/dist ./dist
 EXPOSE 7736/tcp
 EXPOSE 7736/udp
 
-VOLUME ["/config", "/data"]
+VOLUME ["/data"]
 
-ENV HOMECLOUD_CONFIG_DIR=/config
-ENV HOMECLOUD_DATA_DIR=/data
+ENV HC_DATA_DIR=/data
+ENV HC_CACHE_DIR=/tmp/hcServerCache
+
+# PASSPHRASE and CREDS_PATH or CREDS_BASE64 must be provided at runtime
 
 CMD ["node", "dist/index.js"]
