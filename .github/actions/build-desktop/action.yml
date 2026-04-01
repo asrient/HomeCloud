@@ -47,7 +47,7 @@ runs:
 
     - name: Compile nodeShared
       shell: bash
-      run: npm run build
+      run: npm run tsc
       working-directory: ./nodeShared
 
     # web
