@@ -23,6 +23,7 @@ import ServerThumbService from "./thumbService";
 import ServerWebcInterface from "./webcInterface";
 import { getDeviceName, getOSType } from "nodeShared/deviceInfo";
 import { deriveWsUrl } from "nodeShared/utils";
+import crypto from "node:crypto";
 import { env } from "node:process";
 import { ServerConfigType } from "./types";
 
@@ -38,7 +39,7 @@ console.log(`
 
 `);
 
-const API_SERVER_URL = process.env.API_SERVER_URL || 'http://localhost:4000';
+const API_SERVER_URL = process.env.API_SERVER_URL || 'https://homecloudapi.asrient.com';
 const WS_SERVER_URL = deriveWsUrl(API_SERVER_URL);
 
 const TCP_PORT = process.env.TCP_PORT ? parseInt(process.env.TCP_PORT) : 7736;
@@ -60,7 +61,7 @@ function getCacheDir(): string {
     return path.join(os.tmpdir(), 'hcServerCache');
 }
 
-async function getCreds(secretKey: string): Promise<{ privateKeyPem: string; publicKeyPem: string; accountId: string }> {
+async function getCreds(passphrase: string): Promise<{ privateKeyPem: string; publicKeyPem: string; accountId: string; secretKey: string }> {
     let raw: string;
 
     if (process.env.CREDS_PATH) {
@@ -75,23 +76,27 @@ async function getCreds(secretKey: string): Promise<{ privateKeyPem: string; pub
         throw new Error('Either CREDS_PATH or CREDS_BASE64 must be set.');
     }
 
-    let parsed: { publicPem: string; encrytPrivatePem: { iv: string; payload: string }; accountId: string };
+    let parsed: { publicPem: string; encrytPrivatePem: { iv: string; payload: string }; salt: string; accountId: string };
     try {
         parsed = JSON.parse(raw);
     } catch {
         throw new Error('Failed to parse credentials JSON.');
     }
 
-    if (!parsed.publicPem || !parsed.encrytPrivatePem || !parsed.accountId) {
-        throw new Error('Credentials JSON must contain publicPem, encrytPrivatePem, and accountId.');
+    if (!parsed.publicPem || !parsed.encrytPrivatePem || !parsed.accountId || !parsed.salt) {
+        throw new Error('Credentials JSON must contain publicPem, encrytPrivatePem, salt, and accountId.');
     }
 
-    const privateKeyPem = cryptoModule.decryptString(parsed.encrytPrivatePem, secretKey);
+    const derivedKey = crypto.scryptSync(passphrase, Buffer.from(parsed.salt, 'hex'), 32);
+    const iv = Buffer.from(parsed.encrytPrivatePem.iv, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-ctr', derivedKey, iv);
+    const privateKeyPem = Buffer.concat([decipher.update(Buffer.from(parsed.encrytPrivatePem.payload, 'hex')), decipher.final()]).toString('utf8');
 
     return {
         privateKeyPem,
         publicKeyPem: parsed.publicPem,
         accountId: parsed.accountId,
+        secretKey: derivedKey.toString('hex'),
     };
 }
 
@@ -158,13 +163,13 @@ async function getConfig(): Promise<ServerConfigType> {
         fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    const secretKey = env.SECRET_KEY;
+    const passphrase = env.PASSPHRASE;
 
-    if (!secretKey) {
-        throw new Error('SECRET_KEY is missing.');
+    if (!passphrase) {
+        throw new Error('PASSPHRASE is missing.');
     }
 
-    const { privateKeyPem, publicKeyPem, accountId } = await getCreds(secretKey);
+    const { privateKeyPem, publicKeyPem, accountId, secretKey } = await getCreds(passphrase);
 
     return {
         DATA_DIR: dataDir,
