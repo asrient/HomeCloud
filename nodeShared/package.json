@@ -11,6 +11,7 @@
     "sync": "node scripts/sync-deps.js"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.18.0",
     "bonjour-service": "^1.2.1",
     "exifreader": "^4.26.0",
     "mediainfo.js": "^0.3.7",

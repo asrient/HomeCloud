@@ -21,6 +21,7 @@ import ServerAppService from "./appService";
 import ServerFilesService from "./filesService";
 import ServerThumbService from "./thumbService";
 import ServerWebcInterface from "./webcInterface";
+import NodeAgentService from "nodeShared/agent/agentService";
 import { getDeviceName, getOSType } from "nodeShared/deviceInfo";
 import { deriveWsUrl } from "nodeShared/utils";
 import crypto from "node:crypto";
@@ -110,6 +111,7 @@ class ServerServiceController extends ServiceController {
     public override photos = NodePhotosService.getInstance<NodePhotosService>();
     public override screen = ScreenService.getInstance<ScreenService>();
     public override terminal = NodeTerminalService.getInstance<NodeTerminalService>();
+    public override agent = NodeAgentService.getInstance<NodeAgentService>();
 
     async setup() {
         console.log("[ServiceController] Setting up services...");
@@ -125,6 +127,7 @@ class ServerServiceController extends ServiceController {
         await this.photos.init();
         await this.screen.init();
         await this.terminal.init();
+        await this.agent.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
                 [ConnectionType.LOCAL, new TCPInterface(TCP_PORT, new Discovery(TCP_PORT))],

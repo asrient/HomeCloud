@@ -20,6 +20,10 @@ export function settingsUrl() {
     return buildNextUrl('/settings');
 }
 
+export function agentsUrl() {
+    return buildNextUrl('/agents');
+}
+
 export function deviceSettingsUrl(fingerprint: string) {
     return buildNextUrl('/settings/device', { id: fingerprint });
 }

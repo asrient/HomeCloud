@@ -373,3 +373,175 @@ export type RemoteAppWindowActionPayload = {
     newHeight?: number;
     modifiers?: string[]; // e.g. ["shift", "cmd", "alt", "ctrl"]
 }
+
+// ── Agent Types ──
+
+export type AgentMcpServerStdio = {
+    name: string;
+    command: string;
+    args?: string[];
+    env?: { name: string; value: string }[];
+};
+
+export type AgentMcpServerHttp = {
+    type: 'http';
+    name: string;
+    url: string;
+    headers?: { name: string; value: string }[];
+};
+
+export type AgentMcpServer = AgentMcpServerStdio | AgentMcpServerHttp;
+
+export type AgentConfig = {
+    name: string;
+    command: string;
+    args?: string[];
+    env?: Record<string, string>;
+    description?: string;
+    cwd?: string;
+};
+
+export type AgentCapabilities = {
+    listSessions: boolean;
+    loadSession: boolean;
+    closeSession: boolean;
+    resumeSession: boolean;
+    forkSession: boolean;
+    promptImage: boolean;
+    promptAudio: boolean;
+    promptEmbeddedContext: boolean;
+};
+
+export type AgentStatus = 'ready' | 'starting' | 'error' | 'stopped';
+
+export type AgentInfo = {
+    id: string;
+    name: string;
+    description: string;
+    command: string;
+    args: string[];
+    capabilities: AgentCapabilities;
+    status: AgentStatus;
+    agentName?: string;
+    agentVersion?: string;
+};
+
+export type AgentSessionState = 'idle' | 'processing' | 'need_attention' | 'error';
+
+export type AgentSessionInfo = {
+    sessionId: string;
+    agentId: string;
+    cwd: string;
+    title?: string;
+    updatedAt?: string;
+    state: AgentSessionState;
+};
+
+export type AgentContentBlock =
+    | { type: 'text'; text: string }
+    | { type: 'image'; data: string; mimeType: string }
+    | { type: 'resource_link'; uri: string; name: string; mimeType?: string };
+
+export type AgentToolCallStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+
+export type AgentToolCallKind = 'read' | 'write' | 'execute' | 'search' | 'browser' | 'switch_mode' | 'mcp' | 'other';
+
+export type AgentDiff = {
+    path: string;
+    oldText?: string;
+    newText: string;
+};
+
+export type AgentToolCallContent =
+    | { type: 'content'; content: AgentContentBlock }
+    | { type: 'diff'; diff: AgentDiff }
+    | { type: 'terminal'; terminalId: string };
+
+export type AgentPlanEntry = {
+    content: string;
+    priority: 'high' | 'medium' | 'low';
+    status: 'pending' | 'in_progress' | 'completed';
+};
+
+/** Base union of all session event types. Use AgentSessionStreamEvent or AgentSessionSignalEvent. */
+export type AgentSessionEvent =
+    | { eventType: 'agent_message_chunk'; content: AgentContentBlock }
+    | { eventType: 'user_message_chunk'; content: AgentContentBlock }
+    | { eventType: 'thought_message_chunk'; content: AgentContentBlock }
+    | { eventType: 'tool_call'; toolCallId: string; title: string; kind: AgentToolCallKind; status: AgentToolCallStatus }
+    | { eventType: 'tool_call_update'; toolCallId: string; status?: AgentToolCallStatus; content?: AgentToolCallContent[]; locations?: { path: string; line?: number }[] }
+    | { eventType: 'plan'; entries: AgentPlanEntry[] }
+    | { eventType: 'usage_update'; usage: Record<string, unknown> }
+    | { eventType: 'session_info_update'; title?: string; updatedAt?: string }
+    | { eventType: 'available_commands_update'; commands: { name: string; description: string; hint?: string }[] }
+    | { eventType: 'current_mode_update'; modeId: string }
+    | { eventType: 'config_option_update'; configOptions: AgentConfigOption[] }
+    | { eventType: 'session_state_change'; state: AgentSessionState };
+
+/** Events delivered through the ReadableStream (streamSession). All event types. */
+export type AgentSessionStreamEvent = AgentSessionEvent;
+
+/** Lightweight events delivered through Signals (globally visible). */
+export type AgentSessionSignalEvent = Extract<AgentSessionEvent, { eventType: 'session_state_change' | 'session_info_update' | 'tool_call' }>;
+
+export type AgentConfigOption = {
+    id: string;
+    name: string;
+    description?: string;
+    category?: string;
+    type: 'select';
+    currentValue: string;
+    options: { value: string; name: string; description?: string }[];
+};
+
+export type AgentSessionMode = {
+    id: string;
+    name: string;
+    description?: string;
+};
+
+export type AgentPermissionOptionKind = 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always';
+
+export type AgentPermissionOption = {
+    optionId: string;
+    name: string;
+    kind: AgentPermissionOptionKind;
+};
+
+export type AgentPermissionRequest = {
+    agentId: string;
+    sessionId: string;
+    toolCallId: string;
+    title: string;
+    kind?: AgentToolCallKind;
+    options: AgentPermissionOption[];
+};
+
+export type AgentPermissionResponse = {
+    toolCallId: string;
+    selectedOptionId: string;
+};
+
+export type AgentPromptContent =
+    | { type: 'text'; text: string }
+    | { type: 'resource_link'; uri: string; name: string; mimeType?: string }
+    | { type: 'image'; data: string; mimeType: string };
+
+export type AgentStopReason = 'end_turn' | 'max_tokens' | 'max_turn_requests' | 'refusal' | 'cancelled';
+
+export type AgentPromptResult = {
+    stopReason: AgentStopReason;
+};
+
+export type AgentNewSessionResult = {
+    sessionId: string;
+    agentId: string;
+    cwd: string;
+    modes?: { currentModeId: string; availableModes: AgentSessionMode[] };
+    configOptions?: AgentConfigOption[];
+};
+
+export type AgentSessionFilter = {
+    agentId?: string;
+    cwd?: string;
+};

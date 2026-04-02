@@ -218,6 +218,12 @@ export function AppSidebar() {
                             icon: ThemedIconName.Home,
                             href: buildNextUrl('/'),
                             key: 'home'
+                        },
+                        {
+                            title: 'Agents',
+                            icon: ThemedIconName.Tool,
+                            href: buildNextUrl('/agents'),
+                            key: 'agents'
                         }]
                     }
                 } />

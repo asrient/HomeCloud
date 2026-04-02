@@ -12,6 +12,7 @@ import DesktopWebcInterface from "./webcInterface";
 import DesktopAppService from "./appService";
 import DesktopScreenService from "./screen/screenService";
 import NodeTerminalService from "nodeShared/terminal/terminalService";
+import NodeAgentService from "nodeShared/agent/agentService";
 import DesktopDiscovery from "./discovery";
 
 const TCP_PORT = 7736;
@@ -27,6 +28,7 @@ export default class DesktopServiceController extends ServiceController {
     public override photos = NodePhotosService.getInstance<NodePhotosService>();
     public override screen = DesktopScreenService.getInstance<DesktopScreenService>();
     public override terminal = NodeTerminalService.getInstance<NodeTerminalService>();
+    public override agent = NodeAgentService.getInstance<NodeAgentService>();
 
     async setup() {
         console.log("[ServiceController] Setting up services...");
@@ -41,6 +43,7 @@ export default class DesktopServiceController extends ServiceController {
         await this.photos.init();
         await this.screen.init();
         await this.terminal.init();
+        await this.agent.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
                 [ConnectionType.LOCAL, new TCPInterface(TCP_PORT, new DesktopDiscovery(TCP_PORT))],
