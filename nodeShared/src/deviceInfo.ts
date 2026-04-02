@@ -212,10 +212,11 @@ export async function getUnixDisks(): Promise<Disk[]> {
         let isExternal = false;
 
         // Filter out irrelevant file systems
-        if (filesystem.startsWith('/dev/') ||
+        if (filesystem === 'devfs' ||
             filesystem === 'devtmpfs' ||
             filesystem === 'tmpfs' ||
-            filesystem === 'overlay') {
+            filesystem === 'overlay' ||
+            filesystem === 'map auto_home') {
             continue;
         }
         if (process.platform === 'linux') {
