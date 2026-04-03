@@ -373,3 +373,113 @@ export type RemoteAppWindowActionPayload = {
     newHeight?: number;
     modifiers?: string[]; // e.g. ["shift", "cmd", "alt", "ctrl"]
 }
+
+export enum WorkflowColor {
+    Red = "red",
+    Green = "green",
+    Blue = "blue",
+    Yellow = "yellow",
+    Purple = "purple",
+    Cyan = "cyan",
+}
+
+export type WorkflowTrigger = {
+    id: string;
+    type: 'schedule' | 'signal';
+    data: string; // e.g. cron expression, fingerprint, etc.
+    createdAt: Date;
+}
+
+export type WorkflowTriggerCreateRequest = {
+    type: WorkflowTrigger['type'];
+    data: string;
+}
+
+export type WorkflowTriggerUpdatePayload = {
+    id: string;
+    type?: WorkflowTrigger['type'];
+    data?: string;
+}
+
+export type WorkflowInputField = {
+    name: string;
+    type: 'string' | 'number' | 'boolean' | 'select';
+    options?: string[]; // for select type
+    defaultValue?: string | number | boolean;
+    isRequired?: boolean;
+}
+
+export type WorkflowConfig = {
+    id: string;
+    name: string;
+    description?: string;
+    author: string;
+    version: string;
+    isEnabled: boolean;
+    color?: WorkflowColor;
+    createdAt: Date;
+    updatedAt: Date;
+    inputFields: WorkflowInputField[];
+    maxExecTimeSecs?: number;
+}
+
+export type WorkflowUpdatePayload = {
+    id: string;
+    name?: string;
+    description?: string;
+    isEnabled?: boolean;
+    color?: WorkflowColor;
+    inputFields?: WorkflowInputField[];
+    maxExecTimeSecs?: number;
+}
+
+export type WorkflowCreateRequest = {
+    name: string;
+    description?: string;
+}
+
+export type WorkflowInputs = {
+    [key: string]: string | number | boolean;
+}
+
+export type WorkflowExecutionContext = {
+    trigger?: WorkflowTrigger;
+    inputs: WorkflowInputs;
+    config?: WorkflowConfig;
+    host: PeerInfo;
+}
+
+export type WorkflowExecutionResult = {
+    status: 'ok' | 'error' | 'timeout' | 'cancelled';
+    message?: string;
+}
+
+export type WorkflowExecution = {
+    id: string;
+    workflowId: string | null;
+    script?: string;
+    triggerId?: string;
+    inputs?: WorkflowInputs;
+    result?: WorkflowExecutionResult;
+    startedAt: Date;
+    endedAt?: Date;
+}
+
+export type ListWorkflowsParams = {
+    sortBy?: 'name' | 'createdAt' | 'updatedAt';
+    sortDirection?: 'asc' | 'desc';
+    isEnabled?: boolean;
+}
+
+export type ListWorkflowExecutionsParams = {
+    workflowId?: string;
+    status?: WorkflowExecutionResult['status'];
+    sortBy?: 'startedAt' | 'endedAt';
+    sortDirection?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+}
+
+export type ListTriggersParams = {
+    workflowId?: string;
+}

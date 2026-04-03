@@ -15,6 +15,7 @@ import Discovery from "nodeShared/discovery";
 import { NodePhotosService } from "nodeShared/photos/photosService";
 import { HttpClient_, WebSocket_ } from "nodeShared/netCompat";
 import NodeTerminalService from "nodeShared/terminal/terminalService";
+import NodeWorkflowService from "nodeShared/workflow/workflowService";
 import ServiceController from "shared/controller";
 import ServerSystemService from "./systemService";
 import ServerAppService from "./appService";
@@ -110,6 +111,7 @@ class ServerServiceController extends ServiceController {
     public override photos = NodePhotosService.getInstance<NodePhotosService>();
     public override screen = ScreenService.getInstance<ScreenService>();
     public override terminal = NodeTerminalService.getInstance<NodeTerminalService>();
+    public override workflow = NodeWorkflowService.getInstance<NodeWorkflowService>();
 
     async setup() {
         console.log("[ServiceController] Setting up services...");
@@ -125,6 +127,7 @@ class ServerServiceController extends ServiceController {
         await this.photos.init();
         await this.screen.init();
         await this.terminal.init();
+        await this.workflow.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
                 [ConnectionType.LOCAL, new TCPInterface(TCP_PORT, new Discovery(TCP_PORT))],
@@ -148,6 +151,7 @@ class ServerServiceController extends ServiceController {
         await this.thumbnail.start();
         await this.photos.start();
         await this.screen.start();
+        await this.workflow.start();
         console.log("[ServiceController] All services started.");
     }
 }

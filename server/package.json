@@ -22,7 +22,8 @@
     "nodeShared": "../nodeShared/dist",
     "sequelize": "^6.32.1",
     "shared": "../appShared/dist",
-    "sqlite3": "^5.1.6"
+    "sqlite3": "^5.1.6",
+    "croner": "^10.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
