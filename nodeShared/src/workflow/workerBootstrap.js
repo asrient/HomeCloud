@@ -4,8 +4,15 @@
 const { workerData, parentPort } = require('worker_threads');
 const fs = require('fs');
 const path = require('path');
+const Comlink = require('comlink');
+const nodeEndpoint = require('comlink/dist/umd/node-adapter');
 
-const { scriptPath, scriptContent, context, logFilePath } = workerData;
+const { scriptPath, scriptContent, context, logFilePath, hostPort } = workerData;
+
+// --- Host RPC via Comlink ---
+global.com = Comlink.wrap(nodeEndpoint(hostPort));
+// alias for convenience
+global.host = global.com;
 
 // Setup log file writing
 let logStream = null;
@@ -83,9 +90,8 @@ process.on('unhandledRejection', (reason) => {
         if (scriptPath) {
             require(scriptPath);
         } else if (scriptContent) {
-            const Module = require('module');
-            const m = new Module('<adhoc>');
-            m._compile(scriptContent, '<adhoc>');
+            const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+            await new AsyncFunction(scriptContent)();
         }
     } catch (err) {
         if (!hasExited) {

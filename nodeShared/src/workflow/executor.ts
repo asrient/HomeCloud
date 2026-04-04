@@ -1,4 +1,4 @@
-import { Worker } from 'worker_threads';
+import { Worker, MessageChannel } from 'worker_threads';
 import path from 'path';
 import fsp from 'fs/promises';
 import {
@@ -9,6 +9,7 @@ import {
     WorkflowInputs,
 } from 'shared/types.js';
 import { WorkflowRepository } from './repository.js';
+import { WorkerInterface, exposeWorkerInterface } from './workerInterface.js';
 
 const BOOTSTRAP_PATH = path.join(__dirname, 'workerBootstrap.js');
 const DEFAULT_MAX_EXEC_SECS = 300;
@@ -81,7 +82,14 @@ export class WorkflowExecutor {
     ): Promise<WorkflowExecution> {
         const executionId = execution.id;
         return new Promise<WorkflowExecution>(async (resolve) => {
-            const worker = new Worker(BOOTSTRAP_PATH, { workerData });
+            const { port1, port2 } = new MessageChannel();
+            const iface = new WorkerInterface(executionId);
+            exposeWorkerInterface(port1, iface);
+
+            const worker = new Worker(BOOTSTRAP_PATH, {
+                workerData: { ...workerData, hostPort: port2 },
+                transferList: [port2],
+            });
             this.activeWorkers.set(executionId, worker);
 
             let settled = false;
@@ -91,6 +99,8 @@ export class WorkflowExecutor {
                 settled = true;
                 clearTimeout(timer);
                 this.activeWorkers.delete(executionId);
+                port1.close();
+                iface.cleanup().catch(() => { });
 
                 const endedAt = new Date();
                 await this.repo.updateExecution(executionId, result, endedAt);

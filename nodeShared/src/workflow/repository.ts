@@ -2,6 +2,11 @@ import sqlite3 from 'sqlite3';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+
+export function shortId(): string {
+    return crypto.randomBytes(6).toString('hex');
+}
+
 import {
     WorkflowConfig,
     WorkflowCreateRequest,
@@ -241,7 +246,7 @@ export class WorkflowRepository {
     }
 
     async createWorkflow(data: WorkflowCreateRequest): Promise<WorkflowConfig> {
-        const id = crypto.randomUUID();
+        const id = shortId();
         const now = new Date().toISOString();
 
         await this.db.run(
@@ -291,7 +296,7 @@ export class WorkflowRepository {
     // --- Triggers ---
 
     async createTrigger(data: WorkflowTriggerCreateRequest): Promise<WorkflowTrigger> {
-        const id = crypto.randomUUID();
+        const id = shortId();
         const now = new Date().toISOString();
         await this.db.run(
             `INSERT INTO triggers (id, type, data, created_at) VALUES (?, ?, ?, ?)`,
@@ -374,7 +379,7 @@ export class WorkflowRepository {
         workflowId: string | null,
         opts?: { script?: string; triggerId?: string; inputs?: WorkflowInputs },
     ): Promise<WorkflowExecution> {
-        const id = crypto.randomUUID();
+        const id = shortId();
         const now = new Date().toISOString();
 
         await this.db.run(

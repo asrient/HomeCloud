@@ -23,7 +23,8 @@
     "sequelize": "^6.32.1",
     "shared": "../appShared/dist",
     "sqlite3": "^5.1.6",
-    "croner": "^10.0.1"
+    "croner": "^10.0.1",
+    "comlink": "^4.4.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
