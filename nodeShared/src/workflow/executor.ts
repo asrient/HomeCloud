@@ -48,7 +48,7 @@ export class WorkflowExecutor {
             scriptContent: null,
             context,
             logFilePath,
-        }, timeoutSecs);
+        }, timeoutSecs, config);
     }
 
     async executeScript(script: string, maxWaitSec?: number): Promise<WorkflowExecution> {
@@ -79,11 +79,12 @@ export class WorkflowExecutor {
         execution: WorkflowExecution,
         workerData: { scriptPath: string | null; scriptContent: string | null; context: WorkflowExecutionContext; logFilePath: string },
         timeoutSecs: number,
+        config?: WorkflowConfig,
     ): Promise<WorkflowExecution> {
         const executionId = execution.id;
         return new Promise<WorkflowExecution>(async (resolve) => {
             const { port1, port2 } = new MessageChannel();
-            const iface = new WorkerInterface(executionId);
+            const iface = new WorkerInterface(executionId, this.repo, config);
             exposeWorkerInterface(port1, iface);
 
             const worker = new Worker(BOOTSTRAP_PATH, {

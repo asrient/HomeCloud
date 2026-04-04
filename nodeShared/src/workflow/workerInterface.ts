@@ -2,8 +2,9 @@ import { MessagePort } from 'worker_threads';
 import * as Comlink from 'comlink';
 import nodeEndpoint from 'comlink/dist/umd/node-adapter';
 import { getMethodInfo } from 'shared/servicePrimatives.js';
+import { WorkflowConfig } from 'shared/types.js';
 import { getPartionedTmpDir } from '../utils.js';
-import { shortId } from './repository.js';
+import { shortId, WorkflowRepository } from './repository.js';
 import fsp from 'fs/promises';
 import fs from 'fs';
 import path from 'path';
@@ -14,9 +15,13 @@ import path from 'path';
  */
 export class WorkerInterface {
     #tmpDir: string;
+    #repo: WorkflowRepository;
+    #config: WorkflowConfig | undefined;
 
-    constructor(executionId: string) {
+    constructor(executionId: string, repo: WorkflowRepository, config?: WorkflowConfig) {
         this.#tmpDir = path.join(getPartionedTmpDir('workflow'), executionId);
+        this.#repo = repo;
+        this.#config = config;
     }
 
     async cleanup(): Promise<void> {
@@ -25,6 +30,20 @@ export class WorkerInterface {
 
     async ping(): Promise<string> {
         return 'pong';
+    }
+
+    async getSecret(key: string): Promise<string | null> {
+        if (!this.#config?.permissions?.secrets) {
+            throw new Error('No secret read permission');
+        }
+        return this.#repo.getSecret(key);
+    }
+
+    async setSecret(key: string, value: string): Promise<void> {
+        if (this.#config?.permissions?.secrets !== 'write') {
+            throw new Error('No secret write permission');
+        }
+        return this.#repo.setSecret(key, value);
     }
 
     async #streamToTmpFile(stream: ReadableStream): Promise<string> {

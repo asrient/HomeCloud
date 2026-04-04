@@ -128,4 +128,19 @@ export abstract class WorkflowService extends Service {
     public async readExecutionLog(executionId: string): Promise<string> {
         throw new Error('Not implemented');
     }
+
+    @exposed
+    public async listSecretKeys(): Promise<string[]> {
+        return [];
+    }
+
+    @exposed
+    public async setSecret(key: string, value: string): Promise<void> {
+        throw new Error('Not implemented');
+    }
+
+    @exposed
+    public async deleteSecret(key: string): Promise<void> {
+        throw new Error('Not implemented');
+    }
 }

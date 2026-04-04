@@ -14,6 +14,7 @@ import {
     WorkflowExecutionResult,
     WorkflowInputField,
     WorkflowInputs,
+    WorkflowPermissions,
     WorkflowTrigger,
     WorkflowTriggerCreateRequest,
     WorkflowTriggerUpdatePayload,
@@ -88,6 +89,7 @@ class WorkflowDB {
                 is_enabled INTEGER NOT NULL DEFAULT 1,
                 color TEXT,
                 input_fields TEXT NOT NULL DEFAULT '[]',
+                permissions TEXT,
                 max_exec_time_secs INTEGER,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -122,6 +124,13 @@ class WorkflowDB {
         `);
         await this.run(`CREATE INDEX IF NOT EXISTS idx_executions_workflow_id ON workflow_executions(workflow_id)`);
         await this.run(`CREATE INDEX IF NOT EXISTS idx_executions_started_at ON workflow_executions(started_at)`);
+        await this.run(`
+            CREATE TABLE IF NOT EXISTS secrets (
+                key TEXT PRIMARY KEY,
+                iv TEXT NOT NULL,
+                payload TEXT NOT NULL
+            )
+        `);
     }
 }
 
@@ -134,6 +143,7 @@ type ConfigRow = {
     is_enabled: number;
     color: string | null;
     input_fields: string;
+    permissions: string | null;
     max_exec_time_secs: number | null;
     created_at: string;
     updated_at: string;
@@ -167,6 +177,7 @@ function rowToWorkflowConfig(row: ConfigRow): WorkflowConfig {
         isEnabled: row.is_enabled === 1,
         color: (row.color as WorkflowColor) ?? undefined,
         inputFields: JSON.parse(row.input_fields) as WorkflowInputField[],
+        permissions: row.permissions ? JSON.parse(row.permissions) as WorkflowPermissions : undefined,
         maxExecTimeSecs: row.max_exec_time_secs ?? undefined,
         createdAt: new Date(row.created_at),
         updatedAt: new Date(row.updated_at),
@@ -272,6 +283,7 @@ export class WorkflowRepository {
         if (data.color !== undefined) { fields.push('color = ?'); params.push(data.color); }
         if (data.inputFields !== undefined) { fields.push('input_fields = ?'); params.push(JSON.stringify(data.inputFields)); }
         if (data.maxExecTimeSecs !== undefined) { fields.push('max_exec_time_secs = ?'); params.push(data.maxExecTimeSecs); }
+        if (data.permissions !== undefined) { fields.push('permissions = ?'); params.push(JSON.stringify(data.permissions)); }
 
         params.push(data.id);
         await this.db.run(`UPDATE workflow_configs SET ${fields.join(', ')} WHERE id = ?`, params);
@@ -462,5 +474,32 @@ export class WorkflowRepository {
         await this.db.run(`DELETE FROM workflow_executions WHERE id IN (${placeholders})`, ids);
 
         return ids;
+    }
+
+    // --- Secrets ---
+
+    async getSecret(key: string): Promise<string | null> {
+        const row = await this.db.get<{ key: string; iv: string; payload: string }>(
+            'SELECT * FROM secrets WHERE key = ?', [key]
+        );
+        if (!row) return null;
+        return modules.crypto.decryptString({ iv: row.iv, payload: row.payload }, modules.config.SECRET_KEY);
+    }
+
+    async setSecret(key: string, value: string): Promise<void> {
+        const encrypted = modules.crypto.encryptString(value, modules.config.SECRET_KEY);
+        await this.db.run(
+            `INSERT OR REPLACE INTO secrets (key, iv, payload) VALUES (?, ?, ?)`,
+            [key, encrypted.iv, encrypted.payload]
+        );
+    }
+
+    async deleteSecret(key: string): Promise<void> {
+        await this.db.run('DELETE FROM secrets WHERE key = ?', [key]);
+    }
+
+    async listSecretKeys(): Promise<string[]> {
+        const rows = await this.db.all<{ key: string }>('SELECT key FROM secrets ORDER BY key');
+        return rows.map(r => r.key);
     }
 }

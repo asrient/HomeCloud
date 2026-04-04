@@ -409,6 +409,10 @@ export type WorkflowInputField = {
     isRequired?: boolean;
 }
 
+export type WorkflowPermissions = {
+    secrets?: 'read' | 'write';
+}
+
 export type WorkflowConfig = {
     id: string;
     name: string;
@@ -420,6 +424,7 @@ export type WorkflowConfig = {
     createdAt: Date;
     updatedAt: Date;
     inputFields: WorkflowInputField[];
+    permissions?: WorkflowPermissions;
     maxExecTimeSecs?: number;
 }
 
@@ -430,6 +435,7 @@ export type WorkflowUpdatePayload = {
     isEnabled?: boolean;
     color?: WorkflowColor;
     inputFields?: WorkflowInputField[];
+    permissions?: WorkflowPermissions;
     maxExecTimeSecs?: number;
 }
 

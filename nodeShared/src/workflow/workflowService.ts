@@ -150,6 +150,21 @@ export default class NodeWorkflowService extends WorkflowService {
     }
 
     @exposed
+    public override async listSecretKeys(): Promise<string[]> {
+        return this.repo.listSecretKeys();
+    }
+
+    @exposed
+    public override async setSecret(key: string, value: string): Promise<void> {
+        return this.repo.setSecret(key, value);
+    }
+
+    @exposed
+    public override async deleteSecret(key: string): Promise<void> {
+        return this.repo.deleteSecret(key);
+    }
+
+    @exposed
     public override async createTrigger(data: WorkflowTriggerCreateRequest): Promise<WorkflowTrigger> {
         this.validateCron(data.data);
         const trigger = await this.repo.createTrigger(data);
