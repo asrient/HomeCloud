@@ -1,6 +1,6 @@
 import { importModule } from "../../../utils";
 import { platform } from "os";
-import ThumbGenerator from "../generator";
+import ThumbGenerator from "nodeShared/thumb/generator";
 
 export default class ThumbGeneratorWin extends ThumbGenerator {
 

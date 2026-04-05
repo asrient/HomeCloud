@@ -1,6 +1,5 @@
 import { SystemService } from "shared/systemService";
 import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlaybackInfo, BatteryInfo, Disk, ClipboardContent, ClipboardContentType, ClipboardFile, ScreenLockStatus } from "shared/types";
-import { getDefaultDirectoriesCached, getDeviceInfoCached } from "./deviceInfo";
 import { dialog, BrowserWindow, shell, systemPreferences, clipboard, ShareMenu, SharingItem, powerMonitor } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails, WinDriveType } from "../../types";
@@ -9,14 +8,55 @@ import volumeDriver from "./volumeControl";
 import * as mediaControlWin from "./mediaControl/win32";
 import { getBatteryInfo, onBatteryInfoChanged } from "./batteryLevel";
 import path from "path";
-import { execSync, execFile } from "child_process";
-import { promisify } from "util";
-
-const execFileAsync = promisify(execFile);
+import { execSync } from "child_process";
+import { getOSType, getOSFlavour, getFormFactor, getUnixDisks } from "nodeShared/deviceInfo";
 
 import { MacOSPlaybackWatcher } from "./mediaControl/mac";
 import { LinuxPlaybackWatcher } from "./mediaControl/linux";
 import { writeFilePathsToClipboard, readFilePathsFromClipboard } from "./clipboard";
+
+import os from "os";
+import { app } from "electron";
+
+
+function getDefaultDirectories(): DefaultDirectories {
+    const directories: DefaultDirectories = {
+        Pictures: null,
+        Documents: null,
+        Downloads: null,
+        Videos: null,
+        Movies: null,
+        Music: null,
+        Desktop: null,
+    };
+
+    // Use Electron's app.getPath() for standard directories
+    directories.Documents = app.getPath('documents');
+    directories.Downloads = app.getPath('downloads');
+    directories.Pictures = app.getPath('pictures');
+    directories.Music = app.getPath('music');
+    directories.Videos = app.getPath('videos');
+    directories.Desktop = app.getPath('desktop');
+
+    // For Movies directory, fallback to Videos or manual path
+    if (os.platform() === 'darwin') {
+        // On macOS, Movies is typically separate from Videos
+        directories.Movies = path.join(os.homedir(), 'Movies');
+    } else {
+        // On Windows/Linux, Movies typically equals Videos
+        directories.Movies = directories.Videos;
+    }
+    return directories;
+}
+
+let _defaultDirectories: DefaultDirectories | null = null;
+function getDefaultDirectoriesCached(): DefaultDirectories {
+    if (!_defaultDirectories) {
+        _defaultDirectories = getDefaultDirectories();
+    }
+    return _defaultDirectories;
+}
+
 
 function winPlaybackInfoToAudioPlaybackInfo(info: mediaControlWin.AudioPlaybackInfoWin): AudioPlaybackInfo {
     const playbackInfo: AudioPlaybackInfo = {
@@ -35,13 +75,21 @@ class DesktopSystemService extends SystemService {
 
     private macPlaybackWatcher: MacOSPlaybackWatcher | null = null;
     private linuxPlaybackWatcher: LinuxPlaybackWatcher | null = null;
+    private _deviceInfo: DeviceInfo | null = null;
 
     /**
      * Gets device information using cached values.
      * @returns {Promise<DeviceInfo>} Device information including OS, OS flavor, and form factor.
      */
     public async getDeviceInfo(): Promise<DeviceInfo> {
-        return getDeviceInfoCached();
+        if (!this._deviceInfo) {
+            this._deviceInfo = {
+                os: getOSType(),
+                osFlavour: getOSFlavour(),
+                formFactor: getFormFactor(),
+            };
+        }
+        return this._deviceInfo;
     }
 
     /**
@@ -401,51 +449,7 @@ class DesktopSystemService extends SystemService {
             });
         }
         else if (process.platform === 'linux' || process.platform === 'darwin') {
-            const disks: Disk[] = [];
-
-            // Use df -Pk for POSIX output with 1024-byte blocks
-            const { stdout } = await execFileAsync('df', ['-Pk'], { encoding: 'utf8' });
-            const lines = stdout.split('\n').slice(1); // skip header
-            const linuxPermitedDriveLocations = ['/media/', '/mnt/', '/run/media/'];
-
-            for (const line of lines) {
-                if (!line.trim()) continue;
-                const tokens = line.replace(/ +/g, ' ').split(' ');
-                if (tokens.length < 6) continue;
-
-                const filesystem = tokens[0];
-                const blocks = parseInt(tokens[1], 10) || 0;
-                const available = parseInt(tokens[3], 10) || 0;
-                const location = tokens.slice(5).join(' ');
-                let name = path.basename(location);
-                let isExternal = false;
-
-                // Filter out irrelevant file systems
-                if (filesystem.startsWith('dev') || filesystem === 'tmpfs' || filesystem === 'overlay') {
-                    continue;
-                }
-                if (process.platform === 'linux') {
-                    const permitted = linuxPermitedDriveLocations.some(p => location.startsWith(p));
-                    if (!permitted && location !== '/') continue;
-                }
-                if (process.platform === 'darwin') {
-                    if (location !== '/' && !location.startsWith('/Volumes/')) continue;
-                }
-                if (name === '') {
-                    name = process.platform === 'linux' ? 'Hard Disk' : 'Macintosh HD';
-                }
-                if (location !== '/') {
-                    isExternal = true;
-                }
-                disks.push({
-                    type: isExternal ? 'external' : 'internal',
-                    name,
-                    path: location,
-                    size: blocks * 1024,
-                    free: available * 1024,
-                });
-            }
-            return disks;
+            return getUnixDisks();
         }
         throw new Error("Not supported.");
     }

@@ -1,9 +1,8 @@
-import ConfigStorage from "shared/storage";
+import ConfigStorage from "shared/storage.js";
 import fs from "fs/promises";
 import path from "path";
 
-export default class DesktopConfigStorage extends ConfigStorage {
-
+export default class NodeConfigStorage extends ConfigStorage {
     private getFilePath(): string {
         const dataDir = modules.config.DATA_DIR;
         return path.join(dataDir, 'Config', `${this.getStoreName()}.json`);
@@ -11,16 +10,12 @@ export default class DesktopConfigStorage extends ConfigStorage {
 
     protected override async loadFromDisk(): Promise<any> {
         const filePath = this.getFilePath();
-        // check if the file exists
         try {
             await fs.access(filePath);
         } catch (error) {
-            // file does not exist, return empty object
             return null;
         }
-        // read the file
         const data = await fs.readFile(filePath, 'utf-8');
-        // parse the json
         return JSON.parse(data);
     }
 

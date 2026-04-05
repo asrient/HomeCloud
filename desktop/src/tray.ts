@@ -1,7 +1,7 @@
 import { app, Menu, MenuItemConstructorOptions, Tray, nativeImage } from 'electron';
 import path from 'node:path';
 import { getOrCreateWindow, navigateTo, getPeerUrl, getSettingsUrl } from './window';
-import { osInfoString } from './utils';
+import { osInfoString } from 'nodeShared/utils';
 import { getUpdateMenuItem } from './updateCheck';
 
 let tray: Tray | null = null;

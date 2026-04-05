@@ -11,6 +11,7 @@ const USER_AGENT = "HomeCloud-AppClient/1.0";
 export type AccountOpts = {
     httpClient: HttpClientCompat;
     webSocket: WsClientCompat;
+    accountId?: string;
 };
 
 enum WebSocketEvent {
@@ -387,6 +388,22 @@ export class AccountService extends Service {
         this.webSocket = opts.webSocket;
         this.store = modules.ConfigStorage.getInstance(StoreNames.ACCOUNT);
         await this.store.load();
+        if (!this.isLinked()) {
+            console.log(`[AccountService] No linked account found.`);
+            if (opts.accountId) {
+                this.store.setItem("accountId", opts.accountId);
+                await this.store.save();
+                console.log(`[AccountService] Initialized with provided accountId.`);
+            }
+        } else {
+            if (opts.accountId && opts.accountId !== this.getAccountId()) {
+                console.warn(`[AccountService] Provided accountId does not match stored accountId, resetting account data.`);
+                await this.resetAccountData();
+                this.store.setItem("accountId", opts.accountId);
+                await this.store.save();
+                console.log(`[AccountService] Initialized with new accountId.`);
+            }
+        }
         this.webSocket.onmessage = (event: MessageEvent) => {
             try {
                 const msg = JSON.parse(event.data);

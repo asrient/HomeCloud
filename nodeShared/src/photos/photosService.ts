@@ -5,7 +5,7 @@ import { PhotosService } from "shared/photosService";
 import fs from "fs";
 import os from "os";
 
-export abstract class DesktopPhotosService extends PhotosService {
+export abstract class NodePhotosService extends PhotosService {
 
     private libraries: { [key: string]: { name: string; location: string; lib: PhotoLibrary } } = {};
 

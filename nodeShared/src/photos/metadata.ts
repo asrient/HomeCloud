@@ -1,5 +1,5 @@
 import ExifReader from "exifreader";
-import { streamToBuffer } from "../../utils";
+import { streamToBuffer } from "../utils";
 import { mediaInfoFactory, type MediaInfo } from "mediainfo.js";
 import type { GeneralTrack, VideoTrack } from "mediainfo.js";
 import fs from "fs";
