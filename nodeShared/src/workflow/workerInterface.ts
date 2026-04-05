@@ -2,7 +2,7 @@ import { MessagePort } from 'worker_threads';
 import * as Comlink from 'comlink';
 import nodeEndpoint from 'comlink/dist/umd/node-adapter';
 import { getMethodInfo } from 'shared/servicePrimatives.js';
-import { WorkflowConfig } from 'shared/types.js';
+import { PeerInfo, WorkflowConfig } from 'shared/types.js';
 import { getPartionedTmpDir } from '../utils.js';
 import { shortId, WorkflowRepository } from './repository.js';
 import fsp from 'fs/promises';
@@ -44,6 +44,11 @@ export class WorkerInterface {
             throw new Error('No secret write permission');
         }
         return this.#repo.setSecret(key, value);
+    }
+
+    async getPeers(): Promise<PeerInfo[]> {
+        const localSc = modules.getLocalServiceController();
+        return localSc.app.getPeers();
     }
 
     async #streamToTmpFile(stream: ReadableStream): Promise<string> {
