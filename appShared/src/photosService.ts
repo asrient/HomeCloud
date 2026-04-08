@@ -1,5 +1,5 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
-import { DeletePhotosResponse, GetPhotosParams, GetPhotosResponse, Photo, PhotoLibraryLocation, SignalEvent, StoreNames } from "./types";
+import { Service, serviceStartMethod, serviceStopMethod, exposed, info, input, output, assertServiceRunning, wfApi } from "./servicePrimatives";
+import { Sch, DeletePhotosResponse, DeletePhotosResponseSchema, GetPhotosParams, GetPhotosParamsSchema, GetPhotosResponse, GetPhotosResponseSchema, Photo, PhotoLibraryLocation, PhotoLibraryLocationSchema, SignalEvent, StoreNames } from "./types";
 import ConfigStorage from "./storage";
 import Signal from "./signals";
 
@@ -17,20 +17,51 @@ export abstract class PhotosService extends Service {
         await this.store.load();
     }
 
-    @exposed
-    async getLocations(): Promise<PhotoLibraryLocation[]> {
-        const locations = this.store.getItem<PhotoLibraryLocation[]>(this.PH_LIBS_KEY);
-        return locations || [];
+    // --- Exposed methods (final — do not override) ---
+
+    @exposed @info("List registered photo library locations")
+    @wfApi
+    @output(Sch.Array(PhotoLibraryLocationSchema))
+    async getLocations(): Promise<PhotoLibraryLocation[]> { return this._getLocations(); }
+
+    @exposed @info("Get a photo library location by ID")
+    @input(Sch.String)
+    @output(Sch.Nullable(PhotoLibraryLocationSchema))
+    @wfApi
+    async getLocation(id: string): Promise<PhotoLibraryLocation | null> { return this._getLocation(id); }
+
+    @exposed @info("Register a new photo library location")
+    @wfApi
+    @input(Sch.String, Sch.String)
+    @output(PhotoLibraryLocationSchema)
+    async addLocation(name: string, location: string): Promise<PhotoLibraryLocation> { return this._addLocation(name, location); }
+
+    @exposed @info("Remove a photo library location")
+    @wfApi
+    @input(Sch.String)
+    async removeLocation(id: string): Promise<void> { return this._removeLocation(id); }
+
+    @exposed @info("Delete photos from a library")
+    @wfApi
+    @input(Sch.String, Sch.StringArray)
+    @output(DeletePhotosResponseSchema)
+    public async deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> { return this._deletePhotos(libraryId, ids); }
+
+    @exposed @info("Get photos from a library with pagination")
+    @wfApi
+    @input(Sch.String, GetPhotosParamsSchema)
+    @output(GetPhotosResponseSchema)
+    public async getPhotos(libraryId: string, params: GetPhotosParams): Promise<GetPhotosResponse> { return this._getPhotos(libraryId, params); }
+
+    // --- Protected methods (override these in subclasses) ---
+
+    protected async _getLocations(): Promise<PhotoLibraryLocation[]> {
+        return this.store.getItem<PhotoLibraryLocation[]>(this.PH_LIBS_KEY) || [];
     }
 
-    @exposed
-    async getLocation(id: string): Promise<PhotoLibraryLocation | null> {
-        const locations = await this.getLocations();
-        const location = locations.find(loc => loc.id === id);
-        if (!location) {
-            return null;
-        }
-        return location;
+    protected async _getLocation(id: string): Promise<PhotoLibraryLocation | null> {
+        const locations = await this._getLocations();
+        return locations.find(loc => loc.id === id) || null;
     }
 
     protected async _allowLocationAdd(location: PhotoLibraryLocation): Promise<boolean> {
@@ -51,16 +82,13 @@ export abstract class PhotosService extends Service {
         // This method can be overridden by subclasses to handle additional logic when a location is removed
     }
 
-    @exposed
-    async addLocation(name: string, location: string): Promise<PhotoLibraryLocation> {
+    protected async _addLocation(name: string, location: string): Promise<PhotoLibraryLocation> {
         const locations = this.store.getItem<PhotoLibraryLocation[]>(this.PH_LIBS_KEY) || [];
-        // make sure the location is not already added
         const existingLocation = locations.find(loc => loc.location === location);
         if (existingLocation) {
             throw new Error(`Location "${location}" is already added.`);
         }
         const newLocation: PhotoLibraryLocation = { id: modules.crypto.uuid(), name, location };
-        // Check if the location can be added
         const canAdd = await this._allowLocationAdd(newLocation);
         if (!canAdd) {
             throw new Error(`Location "${location}" cannot be added.`);
@@ -72,8 +100,7 @@ export abstract class PhotosService extends Service {
         return newLocation;
     }
 
-    @exposed
-    async removeLocation(id: string): Promise<void> {
+    protected async _removeLocation(id: string): Promise<void> {
         const locations = this.store.getItem<PhotoLibraryLocation[]>(this.PH_LIBS_KEY) || [];
         const locationToRemove = locations.find(loc => loc.id === id);
         if (!locationToRemove) {
@@ -89,13 +116,11 @@ export abstract class PhotosService extends Service {
         this.locationsSignal.dispatch(SignalEvent.REMOVE, locationToRemove);
     }
 
-    @exposed
-    public async deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> {
+    protected async _deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> {
         throw new Error("deletePhotos not implemented");
     }
 
-    @exposed
-    public async getPhotos(libraryId: string, params: GetPhotosParams): Promise<GetPhotosResponse> {
+    protected async _getPhotos(libraryId: string, params: GetPhotosParams): Promise<GetPhotosResponse> {
         throw new Error("getPhotos not implemented");
     }
 

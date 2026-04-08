@@ -1,4 +1,4 @@
-import { serviceStartMethod, serviceStopMethod, exposed } from "shared/servicePrimatives";
+import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { DeletePhotosResponse, GetPhotosParams, Photo, PhotoLibraryLocation, GetPhotosResponse } from "shared/types";
 import { PhotoLibrary } from "./photoLibrary";
 import { PhotosService } from "shared/photosService";
@@ -77,14 +77,12 @@ export abstract class NodePhotosService extends PhotosService {
         delete this.libraries[phLocation.id];
     }
 
-    @exposed
-    public async deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> {
+    protected override async _deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> {
         const lib = this.getLibraryStrict(libraryId);
         return lib.deletePhotos(ids);
     }
 
-    @exposed
-    public async getPhotos(libraryId: string, params: GetPhotosParams): Promise<GetPhotosResponse> {
+    protected override async _getPhotos(libraryId: string, params: GetPhotosParams): Promise<GetPhotosResponse> {
         const lib = this.getLibraryStrict(libraryId);
         return lib.getPhotos(params);
     }

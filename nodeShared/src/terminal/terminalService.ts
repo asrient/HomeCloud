@@ -1,6 +1,5 @@
 import { TerminalService } from "shared/terminalService";
 import { TerminalSessionInfo } from "shared/types";
-import { exposed } from "shared/servicePrimatives";
 import * as pty from "node-pty";
 import { platform } from "os";
 
@@ -17,13 +16,11 @@ export default class NodeTerminalService extends TerminalService {
     private sessions = new Map<string, TerminalSession>();
     private nextSessionId = 0;
 
-    @exposed
-    public override async isAvailable(): Promise<boolean> {
+    protected override async _isAvailable(): Promise<boolean> {
         return true;
     }
 
-    @exposed
-    public override async startTerminalSession(shell?: string): Promise<TerminalSessionInfo> {
+    protected override async _startTerminalSession(shell?: string): Promise<TerminalSessionInfo> {
         const sessionId = `term-${++this.nextSessionId}`;
 
         // Determine shell
@@ -39,7 +36,7 @@ export default class NodeTerminalService extends TerminalService {
                 streamController = controller;
             },
             cancel: () => {
-                this.stopTerminalSession(sessionId).catch(() => {});
+                this._stopTerminalSession(sessionId).catch(() => {});
             },
         });
 
@@ -68,7 +65,7 @@ export default class NodeTerminalService extends TerminalService {
                 s.controller.enqueue(new TextEncoder().encode(data));
             } catch {
                 // Stream closed
-                this.stopTerminalSession(sessionId).catch(() => {});
+                this._stopTerminalSession(sessionId).catch(() => {});
             }
         });
 
@@ -87,22 +84,19 @@ export default class NodeTerminalService extends TerminalService {
         };
     }
 
-    @exposed
-    public override async writeTerminal(sessionId: string, data: string): Promise<void> {
+    protected override async _writeTerminal(sessionId: string, data: string): Promise<void> {
         const session = this.sessions.get(sessionId);
         if (!session) throw new Error(`No terminal session: ${sessionId}`);
         session.pty.write(data);
     }
 
-    @exposed
-    public override async resizeTerminal(sessionId: string, cols: number, rows: number): Promise<void> {
+    protected override async _resizeTerminal(sessionId: string, cols: number, rows: number): Promise<void> {
         const session = this.sessions.get(sessionId);
         if (!session) return;
         session.pty.resize(cols, rows);
     }
 
-    @exposed
-    public override async stopTerminalSession(sessionId: string): Promise<void> {
+    protected override async _stopTerminalSession(sessionId: string): Promise<void> {
         const session = this.sessions.get(sessionId);
         if (!session) return;
         this.sessions.delete(sessionId);

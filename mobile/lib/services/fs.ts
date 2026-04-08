@@ -1,6 +1,6 @@
 import { FsDriver } from "shared/fsDriver";
 import { FileContent, RemoteItem } from "shared/types";
-import { exposed } from "shared/servicePrimatives";
+
 import { File, Paths, Directory } from 'expo-file-system/next';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getDrivesMapping, pathToUri, uriToPath, getMimeType, resolveFileUri } from "./fileUtils";
@@ -108,8 +108,7 @@ export default class MobileFsDriver extends FsDriver {
     return items;
   }
 
-  @exposed
-  public override async readDir(dirPath: string) {
+  protected override async _readDir(dirPath: string) {
     // Handling special case of '' for drive listing.
     if (dirPath === '') {
       return this.listDrives();
@@ -133,8 +132,7 @@ export default class MobileFsDriver extends FsDriver {
     return items;
   }
 
-  @exposed
-  public override async mkDir(name: string, baseId: string) {
+  protected override async _mkDir(name: string, baseId: string) {
     baseId = pathToUri(baseId);
     const dirPath = Paths.join(baseId, this.normalizeFilename(name));
     const directory = new Directory(dirPath);
@@ -142,14 +140,12 @@ export default class MobileFsDriver extends FsDriver {
     return this.toRemoteItem({ item: directory });
   }
 
-  @exposed
-  public override async unlink(id: string) {
+  protected override async _unlink(id: string) {
     id = pathToUri(id);
     await FileSystem.deleteAsync(id, { idempotent: true });
   }
 
-  @exposed
-  public override async rename(id: string, newName: string) {
+  protected override async _rename(id: string, newName: string) {
     id = pathToUri(id);
     const parentDir = this.pathToParentFolder(id);
     const newPath = Paths.join(parentDir, this.normalizeFilename(newName));
@@ -157,8 +153,7 @@ export default class MobileFsDriver extends FsDriver {
     return this.toRemoteItem({ item: newPath });
   }
 
-  @exposed
-  public override async writeFile(folderId: string, fileContent: FileContent) {
+  protected override async _writeFile(folderId: string, fileContent: FileContent) {
     folderId = pathToUri(folderId);
     const filePath = Paths.join(folderId, this.normalizeFilename(fileContent.name));
 
@@ -172,8 +167,7 @@ export default class MobileFsDriver extends FsDriver {
     return this.toRemoteItem({ item: file });
   }
 
-  @exposed
-  public override async readFile(id: string): Promise<FileContent> {
+  protected override async _readFile(id: string): Promise<FileContent> {
     // ph:// URLs point to iOS Photos library (DCIM) — direct filesystem
     // access is blocked by the iOS sandbox, so we use fetch() which
     // goes through the Photos framework.
@@ -252,15 +246,13 @@ export default class MobileFsDriver extends FsDriver {
     return Paths.dirname(filePath);
   }
 
-  @exposed
-  public override async updateFile(id: string, file: FileContent): Promise<RemoteItem> {
+  protected override async _updateFile(id: string, file: FileContent): Promise<RemoteItem> {
     id = pathToUri(id);
     file.name = this.pathToFilename(id);
     return this.writeFile(this.pathToParentFolder(id), file);
   }
 
-  @exposed
-  public override async moveFile(id: string, destParentId: string, newFileName: string, deleteSource: boolean): Promise<RemoteItem> {
+  protected override async _moveFile(id: string, destParentId: string, newFileName: string, deleteSource: boolean): Promise<RemoteItem> {
     id = pathToUri(id);
     destParentId = pathToUri(destParentId);
     const destPath = Paths.join(destParentId, this.normalizeFilename(newFileName));
@@ -273,15 +265,13 @@ export default class MobileFsDriver extends FsDriver {
     return this.toRemoteItem({ item: destPath });
   }
 
-  @exposed
-  public override async moveDir(id: string, destParentId: string, newDirName: string, deleteSource: boolean): Promise<RemoteItem> {
+  protected override async _moveDir(id: string, destParentId: string, newDirName: string, deleteSource: boolean): Promise<RemoteItem> {
     id = pathToUri(id);
     destParentId = pathToUri(destParentId);
     return this.moveFile(id, destParentId, newDirName, deleteSource);
   }
 
-  @exposed
-  public override async getStat(id: string): Promise<RemoteItem> {
+  protected override async _getStat(id: string): Promise<RemoteItem> {
     if (id.startsWith('ph://')) {
       const resolved = await resolveFileUri(id);
       return this.toRemoteItem({ item: resolved.fileUri, name: resolved.filename, mimeType: resolved.mimeType || undefined, loadStat: true });

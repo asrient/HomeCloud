@@ -1,4 +1,3 @@
-import { exposed } from "shared/servicePrimatives";
 import { DeletePhotosResponse, GetPhotosParams, Photo, PhotoLibraryLocation, GetPhotosResponse } from "shared/types";
 import { PhotosService } from "shared/photosService";
 import * as MediaLibrary from 'expo-media-library';
@@ -99,8 +98,7 @@ export abstract class MobilePhotosService extends PhotosService {
         return id;
     }
 
-    @exposed
-    async getLocations(): Promise<PhotoLibraryLocation[]> {
+    protected override async _getLocations(): Promise<PhotoLibraryLocation[]> {
         const hasPermissions = await this.checkPermissions();
         if (!hasPermissions) {
             throw new Error("No permissions to access photo library");
@@ -110,8 +108,7 @@ export abstract class MobilePhotosService extends PhotosService {
         return [this.defaultLibraryLocation(), ...libs];
     }
 
-    @exposed
-    public async deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> {
+    protected override async _deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> {
         console.debug(`[PhotosService] Deleting ${ids?.length || 0} photos from library:`, libraryId, 'with IDs:', ids);
         const success = await MediaLibrary.deleteAssetsAsync(ids);
         if (!success) {
@@ -135,8 +132,7 @@ export abstract class MobilePhotosService extends PhotosService {
         }
     }
 
-    @exposed
-    public async getPhotos(libraryId: string, params: GetPhotosParams): Promise<GetPhotosResponse> {
+    protected override async _getPhotos(libraryId: string, params: GetPhotosParams): Promise<GetPhotosResponse> {
         const albumId = this.normalizeAlbumId(libraryId);
         const hasPermissions = await this.checkPermissions();
         if (!hasPermissions) {

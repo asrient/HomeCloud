@@ -1,8 +1,12 @@
-import { Service, exposed, serviceStartMethod, serviceStopMethod } from './servicePrimatives';
+import { Service, exposed, info, input, output, serviceStartMethod, serviceStopMethod, wfApi } from './servicePrimatives';
 import {
+    Sch,
     RemoteAppInfo,
+    RemoteAppInfoSchema,
     RemoteAppWindowActionPayload,
+    RemoteAppWindowActionPayloadSchema,
     StreamingSessionInfo,
+    StreamingSessionInfoSchema,
 } from './types';
 
 export class ScreenService extends Service {
@@ -10,153 +14,90 @@ export class ScreenService extends Service {
         this._init();
     }
 
-    /**
-     * Check whether the apps/screen-control service is available on this device.
-     * Returns false by default; desktop overrides to return true.
-     */
-    @exposed
-    public async isAvailable(): Promise<boolean> {
-        return false;
-    }
+    // --- Exposed methods (final — do not override) ---
 
-    // ── App enumeration ──
+    @exposed @info("Check if screen control features are available")
+    @output(Sch.Boolean)
+    public async isAvailable(): Promise<boolean> { return this._isAvailable(); }
 
-    /**
-     * List all installed applications on this device.
-     */
-    @exposed
-    public async getInstalledApps(force?: boolean): Promise<RemoteAppInfo[]> {
-        return [];
-    }
+    @exposed @info("List installed applications")
+    @wfApi
+    @input(Sch.Optional(Sch.Boolean))
+    @output(Sch.Array(RemoteAppInfoSchema))
+    public async getInstalledApps(force?: boolean): Promise<RemoteAppInfo[]> { return this._getInstalledApps(force); }
+    
+    @exposed @info("List currently running applications")
+    @wfApi
+    @output(Sch.Array(RemoteAppInfoSchema))
+    public async getRunningApps(): Promise<RemoteAppInfo[]> { return this._getRunningApps(); }
+    
+    @exposed @info("Launch an application by ID")
+    @wfApi
+    @input(Sch.String)
+    public async launchApp(appId: string): Promise<void> { return this._launchApp(appId); }
+    
+    @exposed @info("Quit a running application by ID")
+    @wfApi
+    @input(Sch.String)
+    public async quitApp(appId: string): Promise<void> { return this._quitApp(appId); }
+    
+    @exposed @info("Get an application's icon as base64")
+    @input(Sch.String)
+    @output(Sch.NullableString)
+    public async getAppIcon(appId: string): Promise<string | null> { return this._getAppIcon(appId); }
+    
+    @exposed @info("Perform an UI action on the screen")
+    @wfApi
+    @input(RemoteAppWindowActionPayloadSchema)
+    public async performAction(payload: RemoteAppWindowActionPayload): Promise<void> { return this._performAction(payload); }
+    
+    @exposed @info("Capture a screenshot of the entire screen")
+    @wfApi
+    @output(Sch.NullableString)
+    public async captureScreenshot(): Promise<string | null> { return this._captureScreenshot(); }
+    
+    @exposed @info("Start a live screen streaming session")
+    @output(StreamingSessionInfoSchema)
+    public async startStreamingSession(): Promise<StreamingSessionInfo> { return this._startStreamingSession(); }
+    
+    @exposed @info("Stop the current screen streaming session")
+    public async stopStreamingSession(): Promise<void> { return this._stopStreamingSession(); }
+    
+    @exposed @info("Adjust streaming FPS and quality")
+    @input(Sch.Optional(Sch.Number), Sch.Optional(Sch.Number))
+    public async streamControl(fps?: number, quality?: number): Promise<void> { return this._streamControl(fps, quality); }
+    
+    @exposed @info("Check if screen recording permission is granted")
+    @output(Sch.Boolean)
+    public async hasScreenRecordingPermission(): Promise<boolean> { return this._hasScreenRecordingPermission(); }
+    
+    @exposed @info("Check if accessibility permission is granted")
+    @output(Sch.Boolean)
+    public async hasAccessibilityPermission(): Promise<boolean> { return this._hasAccessibilityPermission(); }
+    
+    @exposed @info("Request screen recording permission from the OS")
+    public async requestScreenRecordingPermission(): Promise<void> { return this._requestScreenRecordingPermission(); }
+    
+    @exposed @info("Request accessibility permission from the OS")
+    public async requestAccessibilityPermission(): Promise<void> { return this._requestAccessibilityPermission(); }
 
-    /**
-     * List all currently running applications with visible windows.
-     */
-    @exposed
-    public async getRunningApps(): Promise<RemoteAppInfo[]> {
-        return [];
-    }
+    // --- Protected methods (override these in subclasses) ---
 
-    // ── App lifecycle ──
-
-    /**
-     * Launch an installed application by its bundle/app ID.
-     */
-    @exposed
-    public async launchApp(appId: string): Promise<void> {
-    }
-
-    /**
-     * Quit a running application by its bundle/app ID.
-     */
-    @exposed
-    public async quitApp(appId: string): Promise<void> {
-    }
-
-    /**
-     * Get the icon for an application as a base64-encoded PNG data URI.
-     * @param appId The bundle/app ID of the application.
-     * @returns A data URI string (data:image/png;base64,...) or null if unavailable.
-     */
-    @exposed
-    public async getAppIcon(appId: string): Promise<string | null> {
-        return null;
-    }
-
-    // ── Screen control ──
-
-    /**
-     * Perform an action on the screen. Coordinates are screen-relative.
-     */
-    @exposed
-    public async performAction(payload: RemoteAppWindowActionPayload): Promise<void> {
-    }
-
-    /** @deprecated Use performAction instead. Kept for backwards compatibility. */
-    @exposed
-    public async performWindowAction(payload: RemoteAppWindowActionPayload): Promise<void> {
-        return this.performAction(payload);
-    }
-
-    // ── Screenshot ──
-
-    /**
-     * Take a screenshot of the screen.
-     * @returns A base64-encoded PNG data URI string, or null if unavailable.
-     */
-    @exposed
-    public async captureScreenshot(): Promise<string | null> {
-        return null;
-    }
-
-    /** @deprecated Use captureScreenshot instead. Kept for backwards compatibility. */
-    @exposed
-    public async screenshotWindow(windowId?: string): Promise<string | null> {
-        return this.captureScreenshot();
-    }
-
-    /**
-     * Start an H.264 video stream of the entire screen. Returns a ReadableStream of
-     * HCMediaStream chunks (binary: metadata + H.264 NAL units) along with
-     * initial screen dimensions and pixel density. Only one session is allowed at
-     * a time — starting a new session invalidates the previous one.
-     */
-    @exposed
-    public async startStreamingSession(): Promise<StreamingSessionInfo> {
-        throw new Error('Streaming is not supported on this device');
-    }
-
-    /**
-     * Stop the active streaming session.
-     * May not always be called (e.g. client disconnect); the session is
-     * automatically cleaned up on inactivity or when a new session starts.
-     */
-    @exposed
-    public async stopStreamingSession(): Promise<void> {
-    }
-
-    /**
-     * Stream control + heartbeat. Call every ~3s to keep the stream alive.
-     * Optionally pass fps/quality to adjust the stream on the fly.
-     * If not received for ~8s the server closes the stream.
-     * @param fps Optional target frames per second.
-     * @param quality Optional 0.0-1.0 quality (maps to bitrate).
-     */
-    @exposed
-    public async streamControl(fps?: number, quality?: number): Promise<void> {
-    }
-
-    // ── Permissions ──
-
-    /**
-     * Check whether screen recording permission has been granted.
-     */
-    @exposed
-    public async hasScreenRecordingPermission(): Promise<boolean> {
-        return false;
-    }
-
-    /**
-     * Check whether accessibility permission has been granted.
-     */
-    @exposed
-    public async hasAccessibilityPermission(): Promise<boolean> {
-        return false;
-    }
-
-    /**
-     * Request/prompt the user to grant screen recording permission.
-     */
-    @exposed
-    public async requestScreenRecordingPermission(): Promise<void> {
-    }
-
-    /**
-     * Request/prompt the user to grant accessibility permission.
-     */
-    @exposed
-    public async requestAccessibilityPermission(): Promise<void> {
-    }
+    protected async _isAvailable(): Promise<boolean> { return false; }
+    protected async _getInstalledApps(force?: boolean): Promise<RemoteAppInfo[]> { return []; }
+    protected async _getRunningApps(): Promise<RemoteAppInfo[]> { return []; }
+    protected async _launchApp(appId: string): Promise<void> { }
+    protected async _quitApp(appId: string): Promise<void> { }
+    protected async _getAppIcon(appId: string): Promise<string | null> { return null; }
+    protected async _performAction(payload: RemoteAppWindowActionPayload): Promise<void> { }
+    protected async _captureScreenshot(): Promise<string | null> { return null; }
+    protected async _startStreamingSession(): Promise<StreamingSessionInfo> { throw new Error('Streaming is not supported on this device'); }
+    protected async _stopStreamingSession(): Promise<void> { }
+    protected async _streamControl(fps?: number, quality?: number): Promise<void> { }
+    protected async _hasScreenRecordingPermission(): Promise<boolean> { return false; }
+    protected async _hasAccessibilityPermission(): Promise<boolean> { return false; }
+    protected async _requestScreenRecordingPermission(): Promise<void> { }
+    protected async _requestAccessibilityPermission(): Promise<void> { }
 
     @serviceStartMethod
     public async start() { }

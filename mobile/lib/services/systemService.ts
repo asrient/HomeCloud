@@ -1,6 +1,6 @@
 import { SystemService } from "shared/systemService";
 import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, OSType, DeviceFormType, BatteryInfo, Disk, ClipboardContent, ClipboardContentType, ClipboardFile } from "shared/types";
-import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
+import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { Alert, Platform, Linking } from 'react-native';
 import * as Device from 'expo-device';
 import { Paths } from 'expo-file-system/next';
@@ -144,11 +144,11 @@ class MobileSystemService extends SystemService {
         };
     }
 
-    public async openUrl(url: string): Promise<void> {
+    protected override async _openUrl(url: string): Promise<void> {
         await Linking.openURL(url);
     }
 
-    public async openFile(filePath: string): Promise<void> {
+    protected override async _openFile(filePath: string): Promise<void> {
         filePath = pathToUri(filePath);
         console.debug('[SystemService] Opening file:', filePath);
         try {
@@ -174,8 +174,7 @@ class MobileSystemService extends SystemService {
         }
     }
 
-    @exposed
-    public async readClipboard(): Promise<ClipboardContent | null> {
+    protected override async _readClipboard(): Promise<ClipboardContent | null> {
         if (Platform.OS === 'ios') {
             const hasUrl = await Clipboard.hasUrlAsync();
             if (hasUrl) {
@@ -193,25 +192,21 @@ class MobileSystemService extends SystemService {
         return null;
     }
 
-    @exposed
-    public override async canControlVolumeLevel(): Promise<boolean> {
+    protected override async _canControlVolumeLevel(): Promise<boolean> {
         return true;
     }
 
-    @exposed
-    public async getVolumeLevel(): Promise<number> {
+    protected override async _getVolumeLevel(): Promise<number> {
         const volumeResult = await VolumeManager.getVolume();
         return volumeResult.volume;
     }
 
-    @exposed
-    public async setVolumeLevel(level: number): Promise<void> {
+    protected override async _setVolumeLevel(level: number): Promise<void> {
         await VolumeManager.setVolume(level);
     }
 
     // Battery info
-    @exposed
-    public async getBatteryInfo(): Promise<BatteryInfo> {
+    protected override async _getBatteryInfo(): Promise<BatteryInfo> {
         const powerState = await getPowerStateAsync();
         return {
             level: powerState.batteryLevel === -1 ? 1 : powerState.batteryLevel,
@@ -220,13 +215,11 @@ class MobileSystemService extends SystemService {
         };
     }
 
-    @exposed
-    public async canGetBatteryInfo(): Promise<boolean> {
+    protected override async _canGetBatteryInfo(): Promise<boolean> {
         return true;
     }
 
-    @exposed
-    public async listDisks(): Promise<Disk[]> {
+    protected override async _listDisks(): Promise<Disk[]> {
         const disks: Disk[] = [];
         const nativeDisks = await superman.getDisks();
         for (const ndisk of nativeDisks) {

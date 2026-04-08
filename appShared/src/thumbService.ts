@@ -1,5 +1,5 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, assertServiceRunning } from "./servicePrimatives";
-
+import { Service, serviceStartMethod, serviceStopMethod, exposed, info, input, output, assertServiceRunning, wfApi } from "./servicePrimatives";
+import { Sch } from "./types";
 
 export abstract class ThumbService extends Service {
     public init() {
@@ -9,13 +9,15 @@ export abstract class ThumbService extends Service {
     abstract generateThumbnailJPEGImpl(filePath: string): Promise<Uint8Array>;
     abstract generateThumbnailURIImpl(filePath: string): Promise<string>;
 
-    @exposed
     @assertServiceRunning
     async generateThumbnailJPEG(filePath: string): Promise<Uint8Array> {
         return this.generateThumbnailJPEGImpl(filePath);
     }
 
-    @exposed
+    @exposed @info("Generate a thumbnail data URI for a file")
+    @wfApi
+    @input(Sch.String)
+    @output(Sch.String)
     @assertServiceRunning
     async generateThumbnailURI(filePath: string): Promise<string> {
         return this.generateThumbnailURIImpl(filePath);

@@ -5,7 +5,7 @@ import {
     StreamingSessionInfo,
 } from "shared/types";
 import { encodeMediaChunk } from "shared/mediaStream";
-import { serviceStartMethod, serviceStopMethod, exposed } from "shared/servicePrimatives";
+import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { AppsDriver } from "./driver";
 import { MacAppsDriver } from "./macDriver";
 import { WinAppsDriver } from "./winDriver";
@@ -42,37 +42,31 @@ export default class DesktopScreenService extends ScreenService {
     private powerBlockerTimer: ReturnType<typeof setInterval> | null = null;
     private static readonly POWER_BLOCKER_TIMEOUT = 10_000;
 
-    @exposed
-    public override async isAvailable(): Promise<boolean> {
+    protected override async _isAvailable(): Promise<boolean> {
         return true;
     }
 
     // ── App enumeration ──
 
-    @exposed
-    public async getInstalledApps(force?: boolean): Promise<RemoteAppInfo[]> {
+    protected override async _getInstalledApps(force?: boolean): Promise<RemoteAppInfo[]> {
         if (!force && this.installedAppsCache) return this.installedAppsCache;
         this.installedAppsCache = getDriver().getInstalledApps();
         return this.installedAppsCache;
     }
 
-    @exposed
-    public async getRunningApps(): Promise<RemoteAppInfo[]> {
+    protected override async _getRunningApps(): Promise<RemoteAppInfo[]> {
         return getDriver().getRunningApps();
     }
 
-    @exposed
-    public async launchApp(appId: string): Promise<void> {
+    protected override async _launchApp(appId: string): Promise<void> {
         getDriver().launchApp(appId);
     }
 
-    @exposed
-    public async quitApp(appId: string): Promise<void> {
+    protected override async _quitApp(appId: string): Promise<void> {
         getDriver().quitApp(appId);
     }
 
-    @exposed
-    public async getAppIcon(appId: string): Promise<string | null> {
+    protected override async _getAppIcon(appId: string): Promise<string | null> {
         try {
             return getDriver().getAppIcon(appId);
         } catch {
@@ -82,8 +76,7 @@ export default class DesktopScreenService extends ScreenService {
 
     // ── Full-screen H.264 Streaming ──
 
-    @exposed
-    public async startStreamingSession(): Promise<StreamingSessionInfo> {
+    protected override async _startStreamingSession(): Promise<StreamingSessionInfo> {
         const driver = getDriver();
         if (!driver.hasScreenRecordingPermission()) {
             throw new Error("Screen recording permission is required. Grant it in System Settings > Privacy & Security > Screen Recording.");
@@ -93,7 +86,7 @@ export default class DesktopScreenService extends ScreenService {
         }
 
         // Stop any existing session
-        await this.stopStreamingSession();
+        await this._stopStreamingSession();
 
         // Create a ReadableStream that will receive H.264 chunks
         let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
@@ -102,7 +95,7 @@ export default class DesktopScreenService extends ScreenService {
                 streamController = controller;
             },
             cancel: () => {
-                this.stopStreamingSession().catch(() => {});
+                this._stopStreamingSession().catch(() => {});
             },
         });
 
@@ -145,7 +138,7 @@ export default class DesktopScreenService extends ScreenService {
                 }
             } catch (e) {
                 console.error(`[ScreenService] enqueue failed after ${frameCount} frames:`, e);
-                this.stopStreamingSession().catch(() => {});
+                this._stopStreamingSession().catch(() => {});
             }
         });
 
@@ -171,8 +164,7 @@ export default class DesktopScreenService extends ScreenService {
         };
     }
 
-    @exposed
-    public async stopStreamingSession(): Promise<void> {
+    protected override async _stopStreamingSession(): Promise<void> {
         const session = this.screenSession;
         if (!session) return;
         console.log(`[ScreenService] stopStreamingSession (screen)`);
@@ -181,8 +173,7 @@ export default class DesktopScreenService extends ScreenService {
         try { session.controller?.close(); } catch {}
     }
 
-    @exposed
-    public async streamControl(fps?: number, quality?: number): Promise<void> {
+    protected override async _streamControl(fps?: number, quality?: number): Promise<void> {
         if (this.screenSession) this.screenSession.lastHeartbeat = Date.now();
 
         const driver = getDriver();
@@ -204,7 +195,7 @@ export default class DesktopScreenService extends ScreenService {
             const now = Date.now();
             if (this.screenSession && now - this.screenSession.lastHeartbeat > SESSION_HEARTBEAT_TIMEOUT) {
                 console.log(`[ScreenService] No heartbeat for screen session, closing stream.`);
-                this.stopStreamingSession();
+                this._stopStreamingSession();
             }
             if (!this.screenSession) {
                 clearInterval(this.sessionCleanupTimer!);
@@ -240,20 +231,13 @@ export default class DesktopScreenService extends ScreenService {
 
     // ── Screen control ──
 
-    @exposed
-    public async performAction(payload: RemoteAppWindowActionPayload): Promise<void> {
+    protected override async _performAction(payload: RemoteAppWindowActionPayload): Promise<void> {
         getDriver().performAction(payload);
-    }
-
-    @exposed
-    public async performWindowAction(payload: RemoteAppWindowActionPayload): Promise<void> {
-        return this.performAction(payload);
     }
 
     // ── Screenshot ──
 
-    @exposed
-    public async captureScreenshot(): Promise<string | null> {
+    protected override async _captureScreenshot(): Promise<string | null> {
         try {
             return getDriver().captureScreenshot();
         } catch {
@@ -261,30 +245,21 @@ export default class DesktopScreenService extends ScreenService {
         }
     }
 
-    @exposed
-    public async screenshotWindow(windowId?: string): Promise<string | null> {
-        return this.captureScreenshot();
-    }
-
     // ── Permissions ──
 
-    @exposed
-    public async hasScreenRecordingPermission(): Promise<boolean> {
+    protected override async _hasScreenRecordingPermission(): Promise<boolean> {
         try { return getDriver().hasScreenRecordingPermission(); } catch { return false; }
     }
 
-    @exposed
-    public async hasAccessibilityPermission(): Promise<boolean> {
+    protected override async _hasAccessibilityPermission(): Promise<boolean> {
         try { return getDriver().hasAccessibilityPermission(); } catch { return false; }
     }
 
-    @exposed
-    public async requestScreenRecordingPermission(): Promise<void> {
+    protected override async _requestScreenRecordingPermission(): Promise<void> {
         getDriver().requestScreenRecordingPermission();
     }
 
-    @exposed
-    public async requestAccessibilityPermission(): Promise<void> {
+    protected override async _requestAccessibilityPermission(): Promise<void> {
         getDriver().requestAccessibilityPermission();
     }
 
@@ -296,7 +271,7 @@ export default class DesktopScreenService extends ScreenService {
     @serviceStopMethod
     public async stop() {
         this.stopPowerBlocker();
-        this.stopStreamingSession();
+        this._stopStreamingSession();
         if (this.sessionCleanupTimer) {
             clearInterval(this.sessionCleanupTimer);
             this.sessionCleanupTimer = null;

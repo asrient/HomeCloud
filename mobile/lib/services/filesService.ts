@@ -2,7 +2,6 @@ import { FilesService } from "shared/filesService";
 import MobileFsDriver from "./fs";
 import { getServiceController } from "shared/utils";
 import { Paths, File, Directory } from 'expo-file-system/next';
-import { exposed } from "shared/servicePrimatives";
 import { FileContent, PreviewOptions } from "shared/types";
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { isHeicFile, resolveFileUri } from "./fileUtils";
@@ -46,8 +45,7 @@ export default class MobileFilesService extends FilesService {
   private previewCache = new FileCache('ImageManipulator', { maxItems: 15 });
   private remoteFileCache = new FileCache('FilePreviews', { maxItems: 10 });
 
-  @exposed
-  async download(remoteFingerprint: string | null, remotePaths: string[]): Promise<void> {
+  protected override async _download(remoteFingerprint: string | null, remotePaths: string[]): Promise<void> {
     const serviceController = await getServiceController(remoteFingerprint);
     const localSc = modules.getLocalServiceController();
     const defaultDirs = await localSc.system.getDefaultDirectories();
@@ -84,8 +82,7 @@ export default class MobileFilesService extends FilesService {
     }
   }
 
-  @exposed
-  async getPreview(filePath: string, opts?: PreviewOptions): Promise<FileContent> {
+  protected override async _getPreview(filePath: string, opts?: PreviewOptions): Promise<FileContent> {
     // Resolve the file URI to get actual path, filename, and mime type
     const supportsHeic = opts?.supportsHeic ?? false;
     const resolved = await resolveFileUri(filePath);

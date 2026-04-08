@@ -4,7 +4,7 @@ import {
     Disk, ClipboardContent, ClipboardContentType, ClipboardFile,
     DeviceFormType
 } from "shared/types";
-import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
+import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import { getOSType, getOSFlavour, getSysDefaultDirectories, getUnixDisks } from "nodeShared/deviceInfo";
 
 export default class ServerSystemService extends SystemService {
@@ -42,20 +42,17 @@ export default class ServerSystemService extends SystemService {
         throw new Error("Share is not supported on HomeCloud Server");
     }
 
-    @exposed
-    public async openUrl(url: string): Promise<void> {
+    protected override async _openUrl(url: string): Promise<void> {
         console.log(`[Server] openUrl: ${url}`);
         throw new Error("openUrl is not supported on HomeCloud Server");
     }
 
-    @exposed
-    public async openFile(filePath: string): Promise<void> {
+    protected override async _openFile(filePath: string): Promise<void> {
         console.log(`[Server] openFile: ${filePath}`);
         throw new Error("openFile is not supported on HomeCloud Server");
     }
 
-    @exposed
-    public async listDisks(): Promise<Disk[]> {
+    protected override async _listDisks(): Promise<Disk[]> {
         // For now we are only mapping the C drive on windows, can change later if needed.
         if (process.platform === 'win32') {
             return [{
@@ -69,8 +66,7 @@ export default class ServerSystemService extends SystemService {
         return getUnixDisks();
     }
 
-    @exposed
-    public async readClipboard(): Promise<ClipboardContent | null> {
+    protected override async _readClipboard(): Promise<ClipboardContent | null> {
         return null;
     }
 

@@ -2,7 +2,6 @@ import path from 'path';
 import fsp from 'fs/promises';
 import { Cron } from 'croner';
 import { WorkflowService } from 'shared/workflowService.js';
-import { exposed } from 'shared/servicePrimatives.js';
 import {
     WorkflowConfig,
     WorkflowCreateRequest,
@@ -63,37 +62,31 @@ export default class NodeWorkflowService extends WorkflowService {
         await super.stop();
     }
 
-    @exposed
-    public override async isAvailable(): Promise<boolean> {
+    protected override async _isAvailable(): Promise<boolean> {
         return true;
     }
 
-    @exposed
-    public override async readScript(workflowId: string): Promise<string> {
+    protected override async _readScript(workflowId: string): Promise<string> {
         const scriptPath = path.join(this.workflowsDir, 'Scripts', `${workflowId}.js`);
         return fsp.readFile(scriptPath, 'utf-8');
     }
 
-    @exposed
-    public override async writeScript(workflowId: string, script: string): Promise<void> {
-        await this.repo.getWorkflow(workflowId); // ensure it exists
+    protected override async _writeScript(workflowId: string, script: string): Promise<void> {
+        await this.repo.getWorkflow(workflowId);
         const scriptPath = path.join(this.workflowsDir, 'Scripts', `${workflowId}.js`);
         await fsp.writeFile(scriptPath, script, 'utf-8');
         await this.repo.touchUpdatedAt(workflowId);
     }
 
-    @exposed
-    public override async listWorkflows(params?: ListWorkflowsParams): Promise<WorkflowConfig[]> {
+    protected override async _listWorkflows(params?: ListWorkflowsParams): Promise<WorkflowConfig[]> {
         return this.repo.listWorkflows(params);
     }
 
-    @exposed
-    public override async getWorkflowConfig(workflowId: string): Promise<WorkflowConfig> {
+    protected override async _getWorkflowConfig(workflowId: string): Promise<WorkflowConfig> {
         return this.repo.getWorkflow(workflowId);
     }
 
-    @exposed
-    public override async createWorkflow(data: WorkflowCreateRequest): Promise<WorkflowConfig> {
+    protected override async _createWorkflow(data: WorkflowCreateRequest): Promise<WorkflowConfig> {
         const config = await this.repo.createWorkflow(data);
         const scriptsDir = path.join(this.workflowsDir, 'Scripts');
         await fsp.mkdir(scriptsDir, { recursive: true });
@@ -101,21 +94,18 @@ export default class NodeWorkflowService extends WorkflowService {
         return config;
     }
 
-    @exposed
-    public override async updateWorkflow(data: WorkflowUpdatePayload): Promise<WorkflowConfig> {
+    protected override async _updateWorkflow(data: WorkflowUpdatePayload): Promise<WorkflowConfig> {
         return this.repo.updateWorkflow(data);
     }
 
-    @exposed
-    public override async deleteWorkflow(workflowId: string): Promise<void> {
+    protected override async _deleteWorkflow(workflowId: string): Promise<void> {
         await this.executor.cancelExecution(workflowId).catch(() => { });
         await this.repo.deleteWorkflow(workflowId);
         const scriptPath = path.join(this.workflowsDir, 'Scripts', `${workflowId}.js`);
         await fsp.unlink(scriptPath).catch(() => { });
     }
 
-    @exposed
-    public override async executeWorkflow(workflowId: string, inputs: WorkflowInputs, maxWaitSec?: number): Promise<WorkflowExecution> {
+    protected override async _executeWorkflow(workflowId: string, inputs: WorkflowInputs, maxWaitSec?: number): Promise<WorkflowExecution> {
         const config = await this.repo.getWorkflow(workflowId);
         if (!config.isEnabled) {
             throw new Error(`Workflow '${config.name}' is disabled`);
@@ -123,82 +113,68 @@ export default class NodeWorkflowService extends WorkflowService {
         return this.executor.executeWorkflow(config, inputs, maxWaitSec);
     }
 
-    @exposed
-    public override async executeScript(script: string, maxWaitSec?: number): Promise<WorkflowExecution> {
+    protected override async _executeScript(script: string, maxWaitSec?: number): Promise<WorkflowExecution> {
         return this.executor.executeScript(script, maxWaitSec);
     }
 
-    @exposed
-    public override async getWorkflowExecution(executionId: string): Promise<WorkflowExecution> {
+    protected override async _getWorkflowExecution(executionId: string): Promise<WorkflowExecution> {
         return this.repo.getExecution(executionId);
     }
 
-    @exposed
-    public override async cancelWorkflowExecution(executionId: string): Promise<void> {
+    protected override async _cancelWorkflowExecution(executionId: string): Promise<void> {
         return this.executor.cancelExecution(executionId);
     }
 
-    @exposed
-    public override async listWorkflowExecutions(params?: ListWorkflowExecutionsParams): Promise<WorkflowExecution[]> {
+    protected override async _listWorkflowExecutions(params?: ListWorkflowExecutionsParams): Promise<WorkflowExecution[]> {
         return this.repo.listExecutions(params);
     }
 
-    @exposed
-    public override async readExecutionLog(executionId: string): Promise<string> {
+    protected override async _readExecutionLog(executionId: string): Promise<string> {
         const logPath = path.join(this.workflowsDir, 'Logs', `${executionId}.log`);
         return fsp.readFile(logPath, 'utf-8').catch(() => '');
     }
 
-    @exposed
-    public override async listSecretKeys(): Promise<string[]> {
+    protected override async _listSecretKeys(): Promise<string[]> {
         return this.repo.listSecretKeys();
     }
 
-    @exposed
-    public override async setSecret(key: string, value: string): Promise<void> {
+    protected override async _setSecret(key: string, value: string): Promise<void> {
         return this.repo.setSecret(key, value);
     }
 
-    @exposed
-    public override async deleteSecret(key: string): Promise<void> {
+    protected override async _deleteSecret(key: string): Promise<void> {
         return this.repo.deleteSecret(key);
     }
 
-    @exposed
-    public override async createTrigger(data: WorkflowTriggerCreateRequest): Promise<WorkflowTrigger> {
+    protected override async _createTrigger(data: WorkflowTriggerCreateRequest): Promise<WorkflowTrigger> {
         this.validateCron(data.data);
         const trigger = await this.repo.createTrigger(data);
         await this.rebuildTriggers();
         return trigger;
     }
 
-    @exposed
-    public override async updateTrigger(data: WorkflowTriggerUpdatePayload): Promise<WorkflowTrigger> {
+    protected override async _updateTrigger(data: WorkflowTriggerUpdatePayload): Promise<WorkflowTrigger> {
         if (data.data !== undefined) this.validateCron(data.data);
         const trigger = await this.repo.updateTrigger(data);
         await this.rebuildTriggers();
         return trigger;
     }
 
-    @exposed
-    public override async deleteTrigger(triggerId: string): Promise<void> {
+    protected override async _deleteTrigger(triggerId: string): Promise<void> {
         await this.repo.deleteTrigger(triggerId);
         await this.rebuildTriggers();
     }
 
-    @exposed
-    public override async listTriggers(params?: ListTriggersParams): Promise<WorkflowTrigger[]> {
+    protected override async _listTriggers(params?: ListTriggersParams): Promise<WorkflowTrigger[]> {
         return this.repo.listTriggers(params);
     }
 
-    @exposed
-    public override async linkTrigger(workflowId: string, triggerId: string): Promise<void> {
+    protected override async _linkTrigger(workflowId: string, triggerId: string): Promise<void> {
         await this.repo.linkTrigger(workflowId, triggerId);
         await this.rebuildTriggers();
     }
 
-    @exposed
-    public override async unlinkTrigger(workflowId: string, triggerId: string): Promise<void> {
+    protected override async _unlinkTrigger(workflowId: string, triggerId: string): Promise<void> {
         await this.repo.unlinkTrigger(workflowId, triggerId);
         await this.rebuildTriggers();
     }

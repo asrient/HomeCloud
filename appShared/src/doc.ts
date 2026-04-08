@@ -1,4 +1,4 @@
-import {getMethodInfo} from './servicePrimatives';
+import { getMethodInfo } from './servicePrimatives';
 import { MethodInfo, ServiceDoc, ServiceDocTree } from './types';
 
 const geProps = (obj: any): any[] => {
@@ -12,7 +12,7 @@ const geProps = (obj: any): any[] => {
     return properties;
 }
 
-export function generateServicesDoc(sc: object, prefix = null): ServiceDocTree {
+export function generateServicesDoc(sc: object, prefix = null, filter = (key: string, value: ServiceDoc) => true): ServiceDocTree {
     const doc: ServiceDocTree = {};
     geProps(sc).forEach((key) => {
         const fqn = prefix ? `${prefix}.${key}` : key;
@@ -21,19 +21,42 @@ export function generateServicesDoc(sc: object, prefix = null): ServiceDocTree {
             if (service && typeof service === 'object') {
                 doc[key] = generateServicesDoc(service, fqn);
             } else if (typeof service === 'function') {
-                doc[key] = {
+                const methodInfo = getMethodInfo(service);
+                const docEntry: ServiceDoc = {
                     __doctype__: 'function',
-                    description: service.toString(),
-                    methodInfo: getMethodInfo(service),
+                    description: methodInfo.info || 'No info available',
+                    methodInfo,
                     fqn,
                 };
+                if (filter(key, docEntry)) {
+                    doc[key] = docEntry;
+                }
             }
         } catch (error) {
-            doc[key] = {
+            const errorDoc: ServiceDoc = {
                 __doctype__: 'error',
                 description: `Error generating doc: ${error.message}`
             };
+            if (filter(key, errorDoc)) {
+                doc[key] = errorDoc;
+            }
         }
     })
     return doc;
+}
+
+let cachedWfApiDoc: ServiceDocTree | null = null;
+
+export function getWfApiDoc(sc: object, prefix = null): ServiceDocTree {
+    if (cachedWfApiDoc) {
+        return cachedWfApiDoc;
+    }
+    const docTree = generateServicesDoc(sc, prefix, (key, value) => {
+        if (value.__doctype__ === 'function') {
+            return value.methodInfo.isWfApi;
+        }
+        return false;
+    });
+    cachedWfApiDoc = docTree;
+    return docTree;
 }

@@ -3,7 +3,6 @@ import path from "path";
 import { FsDriver } from "shared/fsDriver";
 import { FileContent, RemoteItem } from "shared/types";
 import { getMimeType, getNativeDrives, getFileContent } from "./fileUtils";
-import { exposed } from "shared/servicePrimatives";
 
 export default class LocalFsDriver extends FsDriver {
 
@@ -53,8 +52,8 @@ export default class LocalFsDriver extends FsDriver {
     return Promise.all(promises);
   }
 
-  @exposed
-  public override async readDir(dirPath: string) {
+  
+  protected override async _readDir(dirPath: string) {
     // Handling special case of '' for drive listing.
     if (dirPath === '') {
       return this.listDrives();
@@ -74,22 +73,22 @@ export default class LocalFsDriver extends FsDriver {
     return items;
   }
 
-  @exposed
-  public override async mkDir(name: string, baseId: string) {
+  
+  protected override async _mkDir(name: string, baseId: string) {
     baseId = this.normalizePath(baseId);
     const dirPath = path.join(baseId, this.normalizeFilename(name));
     await fs.mkdir(dirPath, { recursive: false });
     return this.toRemoteItem(dirPath);
   }
 
-  @exposed
-  public override async unlink(id: string) {
+  
+  protected override async _unlink(id: string) {
     id = this.normalizePath(id);
     await fs.rm(id, { recursive: true, force: true });
   }
 
-  @exposed
-  public override async rename(id: string, newName: string) {
+  
+  protected override async _rename(id: string, newName: string) {
     id = this.normalizePath(id);
     const parentDir = this.pathToParentFolder(id);
     const newPath = path.join(parentDir, this.normalizeFilename(newName));
@@ -97,8 +96,8 @@ export default class LocalFsDriver extends FsDriver {
     return this.toRemoteItem(newPath);
   }
 
-  @exposed
-  public override async writeFile(folderId: string, file: FileContent) {
+  
+  protected override async _writeFile(folderId: string, file: FileContent) {
     folderId = this.normalizePath(folderId);
     const filePath = path.join(folderId, this.normalizeFilename(file.name));
     const stream = file.stream;
@@ -106,8 +105,8 @@ export default class LocalFsDriver extends FsDriver {
     return this.toRemoteItem(filePath);
   }
 
-  @exposed
-  public override async readFile(id: string): Promise<FileContent> {
+  
+  protected override async _readFile(id: string): Promise<FileContent> {
     id = this.normalizePath(id);
     return getFileContent(id);
   }
@@ -120,15 +119,15 @@ export default class LocalFsDriver extends FsDriver {
     return path.dirname(filePath);
   }
 
-  @exposed
-  public override async updateFile(id: string, file: FileContent): Promise<RemoteItem> {
+  
+  protected override async _updateFile(id: string, file: FileContent): Promise<RemoteItem> {
     id = this.normalizePath(id);
     file.name = this.pathToFilename(id);
     return this.writeFile(this.pathToParentFolder(id), file);
   }
 
-  @exposed
-  public override async moveFile(id: string, destParentId: string, newFileName: string, deleteSource: boolean): Promise<RemoteItem> {
+  
+  protected override async _moveFile(id: string, destParentId: string, newFileName: string, deleteSource: boolean): Promise<RemoteItem> {
     id = this.normalizePath(id);
     destParentId = this.normalizePath(destParentId);
     const destPath = path.join(destParentId, this.normalizeFilename(newFileName));
@@ -141,15 +140,15 @@ export default class LocalFsDriver extends FsDriver {
     return this.toRemoteItem(destPath);
   }
 
-  @exposed
-  public override async moveDir(id: string, destParentId: string, newDirName: string, deleteSource: boolean): Promise<RemoteItem> {
+  
+  protected override async _moveDir(id: string, destParentId: string, newDirName: string, deleteSource: boolean): Promise<RemoteItem> {
     id = this.normalizePath(id);
     destParentId = this.normalizePath(destParentId);
     return this.moveFile(id, destParentId, newDirName, deleteSource);
   }
 
-  @exposed
-  public override async getStat(id: string): Promise<RemoteItem> {
+  
+  protected override async _getStat(id: string): Promise<RemoteItem> {
     id = this.normalizePath(id);
     return this.toRemoteItem(id);
   }

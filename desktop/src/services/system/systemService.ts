@@ -3,7 +3,7 @@ import { DeviceInfo, NativeAskConfig, NativeAsk, DefaultDirectories, AudioPlayba
 import { dialog, BrowserWindow, shell, systemPreferences, clipboard, ShareMenu, SharingItem, powerMonitor } from "electron";
 import { getDriveDetails } from "./drivers/win32";
 import { WinDriveDetails, WinDriveType } from "../../types";
-import { exposed, serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
+import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives";
 import volumeDriver from "./volumeControl";
 import * as mediaControlWin from "./mediaControl/win32";
 import { getBatteryInfo, onBatteryInfoChanged } from "./batteryLevel";
@@ -179,18 +179,15 @@ class DesktopSystemService extends SystemService {
         return getDriveDetails();
     }
 
-    @exposed
-    public async openUrl(url: string): Promise<void> {
+    protected async _openUrl(url: string): Promise<void> {
         await shell.openExternal(url);
     }
 
-    @exposed
-    public async openFile(filePath: string): Promise<void> {
+    protected async _openFile(filePath: string): Promise<void> {
         await shell.openPath(filePath);
     }
 
-    @exposed
-    public async lockScreen(): Promise<void> {
+    protected async _lockScreen(): Promise<void> {
         const os = process.platform;
         console.log('[lockScreen] platform:', os);
         if (os === 'darwin') {
@@ -217,8 +214,7 @@ class DesktopSystemService extends SystemService {
         }
     }
 
-    @exposed
-    public async getScreenLockStatus(): Promise<ScreenLockStatus> {
+    public async _getScreenLockStatus(): Promise<ScreenLockStatus> {
         const os = process.platform;
         try {
             if (os === 'darwin') {
@@ -274,8 +270,7 @@ class DesktopSystemService extends SystemService {
         }
     }
 
-    @exposed
-    public async readClipboard(type?: ClipboardContentType): Promise<ClipboardContent | null> {
+    public async _readClipboard(type?: ClipboardContentType): Promise<ClipboardContent | null> {
         let availableFormats = clipboard.availableFormats();
         const isTypeAllowed = (type_: string): boolean => {
             return !type || type === type_;
@@ -324,28 +319,23 @@ class DesktopSystemService extends SystemService {
         return null;
     }
 
-    @exposed
-    public async canControlVolumeLevel(): Promise<boolean> {
+    public async _canControlVolumeLevel(): Promise<boolean> {
         return true;
     }
 
-    @exposed
-    public async getVolumeLevel(): Promise<number> {
+    public async _getVolumeLevel(): Promise<number> {
         return volumeDriver.getVolume();
     }
 
-    @exposed
-    public async setVolumeLevel(level: number): Promise<void> {
+    public async _setVolumeLevel(level: number): Promise<void> {
         return volumeDriver.setVolume(level);
     }
 
-    @exposed
-    public async canControlAudioPlayback(): Promise<boolean> {
+    public async _canControlAudioPlayback(): Promise<boolean> {
         return process.platform === 'win32' || process.platform === 'darwin' || process.platform === 'linux';
     }
 
-    @exposed
-    public async getAudioPlaybackInfo(): Promise<AudioPlaybackInfo | null> {
+    public async _getAudioPlaybackInfo(): Promise<AudioPlaybackInfo | null> {
         if (process.platform === 'win32') {
             // console.log('Fetching audio playback info on Windows');
             try {
@@ -367,8 +357,7 @@ class DesktopSystemService extends SystemService {
         throw new Error("Not supported.");
     }
 
-    @exposed
-    public async pauseAudioPlayback(): Promise<void> {
+    public async _pauseAudioPlayback(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.pauseAudioPlayback();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
@@ -379,8 +368,7 @@ class DesktopSystemService extends SystemService {
         throw new Error("Not supported.");
     }
 
-    @exposed
-    public async playAudioPlayback(): Promise<void> {
+    public async _playAudioPlayback(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.playAudioPlayback();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
@@ -392,18 +380,15 @@ class DesktopSystemService extends SystemService {
     }
 
     // Battery info
-    @exposed
-    public async getBatteryInfo(): Promise<BatteryInfo> {
+    public async _getBatteryInfo(): Promise<BatteryInfo> {
         return getBatteryInfo();
     }
 
-    @exposed
-    public async canGetBatteryInfo(): Promise<boolean> {
+    public async _canGetBatteryInfo(): Promise<boolean> {
         return true;
     }
 
-    @exposed
-    public async nextAudioTrack(): Promise<void> {
+    public async _nextAudioTrack(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.nextAudioTrack();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
@@ -414,8 +399,7 @@ class DesktopSystemService extends SystemService {
         throw new Error("Not supported.");
     }
 
-    @exposed
-    public async previousAudioTrack(): Promise<void> {
+    public async _previousAudioTrack(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.previousAudioTrack();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
@@ -427,8 +411,7 @@ class DesktopSystemService extends SystemService {
     }
 
     // Disks
-    @exposed
-    public async listDisks(): Promise<Disk[]> {
+    public async _listDisks(): Promise<Disk[]> {
         if (process.platform === 'win32') {
             const drives = await this.getWindowsDrives();
             return drives.map(drive => {

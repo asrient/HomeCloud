@@ -3,7 +3,6 @@ import LocalFsDriver from "./fs";
 import path from "path";
 import fs from "fs/promises";
 import { getServiceController } from "shared/utils";
-import { exposed } from "shared/servicePrimatives";
 import { FileFilter, RemoteItem } from "shared/types";
 
 const DEFAULT_PINS_KEY = "defaultPinsAdded";
@@ -53,8 +52,7 @@ export default class NodeFilesService extends FilesService {
     await this.store.save();
   }
 
-  @exposed
-  async download(remoteFingerprint: string | null, remotePaths: string[]): Promise<void> {
+  protected override async _download(remoteFingerprint: string | null, remotePaths: string[]): Promise<void> {
     const serviceController = await getServiceController(remoteFingerprint);
     const localSc = modules.getLocalServiceController();
     const defaultDirs = await localSc.system.getDefaultDirectories();

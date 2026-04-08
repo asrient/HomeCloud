@@ -1,5 +1,5 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, allowAll, withContext } from "./servicePrimatives";
-import { MethodContext, MethodInfo, PeerInfo, StoreNames, SignalEvent, NativeButtonConfig, CON_IFACE_PREF_KEY } from "./types";
+import { Service, serviceStartMethod, serviceStopMethod, exposed, info, input, output, allowAll, withContext, wfApi } from "./servicePrimatives";
+import { MethodContext, MethodInfo, Sch, PeerInfo, PeerInfoSchema, StoreNames, SignalEvent, NativeButtonConfig, CON_IFACE_PREF_KEY } from "./types";
 import ConfigStorage from "./storage";
 import { getIconKey } from "./utils";
 import Signal from "./signals";
@@ -252,7 +252,9 @@ export class AppService extends Service {
         return localSc.account.initiateLink(email, peerInfo);
     }
 
-    @exposed
+    @exposed 
+    @info("Get this device's peer information")
+    @output(PeerInfoSchema)
     public async peerInfo(): Promise<PeerInfo> {
         const localSc = modules.getLocalServiceController();
         const deviceInfo = await localSc.system.getDeviceInfo();
@@ -266,8 +268,11 @@ export class AppService extends Service {
         return peer;
     }
 
-    @exposed
+    @exposed 
+    @info("Receive shared text or link content from another device")
     @withContext
+    @wfApi
+    @input(Sch.Any, Sch.String, Sch.Optional({ enum: ['text', 'link', 'html', 'rtf'] }))
     public async receiveContent(ctx: MethodContext | null, content: string, type?: 'text' | 'link' | 'html' | 'rtf'): Promise<void> {
         type = type || 'text';
         console.debug(`[AppService] receiveContent: type=${type}, length=${content.length}`);

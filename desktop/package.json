@@ -48,7 +48,6 @@
     "mediainfo.js": "^0.3.7",
     "mime": "^3.0.0",
     "node-addon-api": "^8.5.0",
-    "node-pty": "^1.1.0",
     "plist": "^3.1.0",
     "sequelize": "^6.32.1",
     "shared": "../appShared/dist",
@@ -57,7 +56,8 @@
     "uuid": "^9.0.1",
     "bonjour-service": "^1.2.1",
     "croner": "^10.0.1",
-    "comlink": "^4.4.2"
+    "comlink": "^4.4.2",
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.9.0",

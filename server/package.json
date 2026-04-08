@@ -18,13 +18,13 @@
     "exifreader": "^4.26.0",
     "mediainfo.js": "^0.3.7",
     "mime": "^3.0.0",
-    "node-pty": "^1.1.0",
     "nodeShared": "../nodeShared/dist",
     "sequelize": "^6.32.1",
     "shared": "../appShared/dist",
     "sqlite3": "^5.1.6",
     "croner": "^10.0.1",
-    "comlink": "^4.4.2"
+    "comlink": "^4.4.2",
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

@@ -1,7 +1,7 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed } from "./servicePrimatives";
+import { Service, serviceStartMethod, serviceStopMethod, exposed, info, input, output, wfApi } from "./servicePrimatives";
 import { FsDriver } from "./fsDriver";
 import ConfigStorage from "./storage";
-import { StoreNames, PinnedFolder, SignalEvent, RemoteItem, FileFilter, FileContent, PreviewOptions } from "./types";
+import { Sch, StoreNames, PinnedFolder, PinnedFolderSchema, SignalEvent, RemoteItem, RemoteItemSchema, FileFilter, FileContent, FileContentSchema, PreviewOptions, PreviewOptionsSchema } from "./types";
 import Signal from "./signals";
 import { getServiceController } from "./utils"
 
@@ -78,7 +78,10 @@ export abstract class FilesService extends Service {
         }
     }
 
-    @exposed
+    @exposed @info("Move or copy files between devices or directories")
+    @wfApi
+    @input(Sch.NullableString, Sch.String, Sch.StringArray, Sch.Boolean)
+    @output(Sch.Array(RemoteItemSchema))
     public async move(remoteFingerprint: string | null, remoteFolderId: string, localFilePaths: string[], deleteSource = false): Promise<RemoteItem[]> {
         // make sure remoteFingerprint is accessible
         await getServiceController(remoteFingerprint);
@@ -109,19 +112,25 @@ export abstract class FilesService extends Service {
         return items;
     }
 
-    @exposed
+    @exposed @info("Download files from a device")
+    @wfApi
+    @input(Sch.NullableString, Sch.StringArray)
     public async download(remoteFingerprint: string | null, remotePaths: string[]): Promise<void> {
+        return this._download(remoteFingerprint, remotePaths);
+    }
+
+    @exposed @info("Get a preview of a file's content")
+    @input(Sch.String, Sch.Optional(PreviewOptionsSchema))
+    @output(FileContentSchema)
+    public async getPreview(filePath: string, opts?: PreviewOptions): Promise<FileContent> {
+        return this._getPreview(filePath, opts);
+    }
+
+    protected async _download(remoteFingerprint: string | null, remotePaths: string[]): Promise<void> {
         throw new Error("Method not implemented.");
     }
 
-    /**
-     * Get a preview of a file. By default, this just returns the file content.
-     * Subclasses can override this to convert files (e.g., HEIC to JPEG) for preview.
-     * @param filePath - Path to the file
-     * @param opts - Preview options (e.g., supportsHeic to skip HEIC conversion)
-     */
-    @exposed
-    public async getPreview(filePath: string, opts?: PreviewOptions): Promise<FileContent> {
+    protected async _getPreview(filePath: string, opts?: PreviewOptions): Promise<FileContent> {
         return this.fs.readFile(filePath);
     }
 
@@ -180,7 +189,9 @@ export abstract class FilesService extends Service {
         })
     }
 
-    @exposed
+    @exposed @info("Open a file on a local or remote device")
+    @wfApi
+    @input(Sch.NullableString, Sch.String)
     public async openFile(deviceFingerprint: string | null, path: string): Promise<void> {
         if (deviceFingerprint === null) {
             // its a local file, just open it.
@@ -192,12 +203,17 @@ export abstract class FilesService extends Service {
         await this._openRemoteFile(deviceFingerprint, path);
     }
 
-    @exposed
+    @exposed @info("List all pinned/bookmarked folders")
+    @wfApi
+    @output(Sch.Array(PinnedFolderSchema))
     public async listPinnedFolders(): Promise<PinnedFolder[]> {
         return this.store.getItem(PINNED_FOLDERS_KEY) || [];
     }
 
-    @exposed
+    @exposed @info("Pin a folder for quick access")
+    @wfApi
+    @input(Sch.String, Sch.Optional(Sch.String))
+    @output(PinnedFolderSchema)
     public async addPinnedFolder(path: string, name?: string): Promise<PinnedFolder> {
         const pinnedFolders = await this.listPinnedFolders();
         if (pinnedFolders.some(folder => folder.path === path)) {
@@ -215,7 +231,9 @@ export abstract class FilesService extends Service {
         return newPinnedFolder;
     }
 
-    @exposed
+    @exposed @info("Unpin a bookmarked folder")
+    @wfApi
+    @input(Sch.String)
     public async removePinnedFolder(path: string): Promise<void> {
         const pinnedFolders = await this.listPinnedFolders();
         const pin = pinnedFolders.find(folder => folder.path === path);

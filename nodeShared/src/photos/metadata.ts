@@ -113,14 +113,15 @@ export async function metaFromPhotoStream(filePath: string | Readable) {
         detail.metadata.gpsLatitude = tags.GPSLatitude.description;
         detail.metadata.gpsLongitude = tags.GPSLongitude.description;
     }
-    if (
-        tags.ImageWidth &&
-        tags.ImageHeight &&
-        typeof tags.ImageWidth.value === "number" &&
-        typeof tags.ImageHeight.value === "number"
-    ) {
-        detail.width = tags.ImageWidth.value;
-        detail.height = tags.ImageHeight.value;
+    // Try multiple tag sources for dimensions:
+    // 1. EXIF IFD0: ImageWidth / ImageHeight
+    // 2. EXIF sub-IFD: PixelXDimension / PixelYDimension
+    // 3. File-level (JPEG SOF): "Image Width" / "Image Height"
+    const wTag = tags.ImageWidth ?? tags.PixelXDimension ?? tags["Image Width"];
+    const hTag = tags.ImageHeight ?? tags.PixelYDimension ?? tags["Image Height"];
+    if (wTag && hTag && typeof wTag.value === "number" && typeof hTag.value === "number") {
+        detail.width = wTag.value;
+        detail.height = hTag.value;
     }
     return detail;
 }

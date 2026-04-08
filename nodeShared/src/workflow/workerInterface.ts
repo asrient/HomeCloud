@@ -94,13 +94,16 @@ export class WorkerInterface {
 
     async callApi(fingerprint: string | null, fqn: string, args: any[] = []): Promise<any> {
         let result: any;
+        const controller = modules.getLocalServiceController();
+        const { obj, funcName } = controller.getCallable('services.' + fqn);
+        const methodInfo = getMethodInfo(obj[funcName]);
+        if (!methodInfo.isExposed) {
+            throw new Error(`Method not exposed: ${fqn}`);
+        }
+        if (!methodInfo.isWfApi) {
+            throw new Error(`Method not available to workflows: ${fqn}`);
+        }
         if (!fingerprint) {
-            const controller = modules.getLocalServiceController();
-            const { obj, funcName } = controller.getCallable('services.' + fqn);
-            const methodInfo = getMethodInfo(obj[funcName]);
-            if (!methodInfo.isExposed) {
-                throw new Error(`Method not exposed: ${fqn}`);
-            }
             result = await this.#methodCall(obj, funcName, args);
         } else {
             // Remote: RPC server enforces @exposed on its side
