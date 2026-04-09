@@ -104,4 +104,5 @@ export enum UserPreferences {
     USE_WINRT_DGRAM = 'useWinrtDgram',
     CHECK_FOR_UPDATES = 'checkForUpdates',
     AUTO_CONNECT_MOBILE = 'autoConnectMobile',
+    MCP_AUTO_START = 'mcpAutoStart',
 }

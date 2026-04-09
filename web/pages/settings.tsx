@@ -9,7 +9,7 @@ import TextModal from '@/components/textModal'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { ThemedIconName, ConnectionType } from "@/lib/enums";
-import { PeerInfo, PhotoLibraryLocation } from "shared/types";
+import { PeerInfo, PhotoLibraryLocation, McpServerInfo } from "shared/types";
 import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { useAccountState } from "@/components/hooks/useAccountState";
 import { useAppState } from "@/components/hooks/useAppState";
@@ -29,6 +29,8 @@ function Page() {
   const [autoConnectMobile, setAutoConnectMobile] = useState(true);
   const [checkForUpdates, setCheckForUpdates] = useState(true);
   const [ifaceStatuses, setIfaceStatuses] = useState<{ type: ConnectionType; enabled: boolean }[]>([]);
+  const [mcpInfo, setMcpInfo] = useState<McpServerInfo | null>(null);
+  const [mcpLoading, setMcpLoading] = useState(false);
 
   useEffect(() => {
     const localSc = window.modules.getLocalServiceController();
@@ -38,6 +40,8 @@ function Page() {
     const updatesPref = localSc.app.getUserPreference(UserPreferences.CHECK_FOR_UPDATES);
     setCheckForUpdates(updatesPref !== false);
     setIfaceStatuses(localSc.net.getConnectionInterfaceStatuses());
+    // MCP
+    localSc.workflow.getMcpServerInfo().then(setMcpInfo).catch(() => {});
   }, []);
 
   const updateWinrtDgram = useCallback(async (val: boolean) => {
@@ -57,6 +61,30 @@ function Page() {
     await localSc.app.setUserPreference(UserPreferences.CHECK_FOR_UPDATES, val);
     setCheckForUpdates(val);
   }, []);
+
+  const refreshMcpInfo = useCallback(async () => {
+    const localSc = window.modules.getLocalServiceController();
+    const info = await localSc.workflow.getMcpServerInfo();
+    setMcpInfo(info);
+    return info;
+  }, []);
+
+  const handleMcpToggle = useCallback(async (start: boolean) => {
+    setMcpLoading(true);
+    try {
+      const localSc = window.modules.getLocalServiceController();
+      if (start) {
+        await localSc.workflow.startMcpServer();
+      } else {
+        await localSc.workflow.stopMcpServer();
+      }
+      await refreshMcpInfo();
+    } catch (e) {
+      console.error('Failed to toggle MCP server:', e);
+    } finally {
+      setMcpLoading(false);
+    }
+  }, [refreshMcpInfo]);
 
   const connectionInterfaceLabels: Record<string, string> = {
     [ConnectionType.LOCAL]: 'Local Network',
@@ -222,6 +250,22 @@ function Page() {
               ))}
             </Section>
           )}
+          <Section title="MCP Server" footer="Allow AI agents access your devices via the Model Context Protocol.">
+            <Line title='Allow MCP connections'>
+              <div className="flex items-center gap-2">
+                {mcpInfo?.isRunning && (
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {mcpInfo.url}
+                  </span>
+                )}
+                <Switch
+                  checked={mcpInfo?.isRunning ?? false}
+                  onCheckedChange={handleMcpToggle}
+                  disabled={mcpLoading}
+                />
+              </div>
+            </Line>
+          </Section>
           <Section title="Photo Libraries">
             {photoLibraries.map((library) => (
               <Line key={library.id} title={

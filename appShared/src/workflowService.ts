@@ -2,6 +2,7 @@ import { Service, exposed, info, input, output, serviceStartMethod, serviceStopM
 import Signal from './signals';
 import {
     Sch,
+    MCP_AUTO_START_PREF_KEY,
     McpServerInfo,
     McpServerInfoSchema,
     WorkflowConfig,
@@ -137,10 +138,18 @@ export abstract class WorkflowService extends Service {
     // --- MCP Server ---
 
     @exposed @info("Start the MCP server")
-    public async startMcpServer(): Promise<void> { return this._startMcpServer(); }
+    public async startMcpServer(): Promise<void> {
+        await this._startMcpServer();
+        const localSc = modules.getLocalServiceController();
+        await localSc.app.setUserPreference(MCP_AUTO_START_PREF_KEY, true);
+    }
 
     @exposed @info("Stop the MCP server")
-    public async stopMcpServer(): Promise<void> { return this._stopMcpServer(); }
+    public async stopMcpServer(): Promise<void> {
+        await this._stopMcpServer();
+        const localSc = modules.getLocalServiceController();
+        await localSc.app.setUserPreference(MCP_AUTO_START_PREF_KEY, false);
+    }
 
     @exposed @info("Get MCP server status and connection info")
     @output(McpServerInfoSchema)

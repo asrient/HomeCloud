@@ -149,8 +149,9 @@ export class McpHttpServer {
         }
 
         if (req.method === 'GET') {
-            res.writeHead(405, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(jsonRpcError(null, -32000, 'SSE not supported, use POST')));
+            // SSE endpoint for server-initiated notifications
+            res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+            req.on('close', () => res.end());
             return;
         }
 
@@ -163,13 +164,6 @@ export class McpHttpServer {
         if (req.method !== 'POST') {
             res.writeHead(405);
             res.end();
-            return;
-        }
-
-        const accept = req.headers['accept'] || '';
-        if (!accept.includes('application/json') && !accept.includes('*/*')) {
-            res.writeHead(406, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(jsonRpcError(null, -32000, 'Accept must include application/json')));
             return;
         }
 
