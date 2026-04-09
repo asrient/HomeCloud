@@ -1,5 +1,5 @@
 import { Service, serviceStartMethod, serviceStopMethod, exposed, info, input, output, allowAll, withContext, wfApi } from "./servicePrimatives";
-import { MethodContext, MethodInfo, Sch, PeerInfo, PeerInfoSchema, StoreNames, SignalEvent, NativeButtonConfig, CON_IFACE_PREF_KEY } from "./types";
+import { MethodContext, MethodInfo, Sch, PeerInfo, PeerInfoSchema, StoreNames, SignalEvent, NativeButtonConfig, CON_IFACE_PREF_KEY, MCP_AUTO_START_PREF_KEY } from "./types";
 import ConfigStorage from "./storage";
 import { getIconKey } from "./utils";
 import Signal from "./signals";
@@ -52,13 +52,16 @@ export class AppService extends Service {
     }
 
     protected isUserPrefKey(key: string): boolean {
-        return key.startsWith(CON_IFACE_PREF_KEY);
+        return key.startsWith(CON_IFACE_PREF_KEY)
+            || key === MCP_AUTO_START_PREF_KEY;
     }
 
     protected shouldAutoConnectPeer(peer: PeerInfo): boolean {
         return false; // default to false, override in implementation to enable auto-connect
     }
 
+    @exposed @info("Set a user preference value")
+    @input(Sch.Name('key', Sch.String), Sch.Name('value', Sch.Any))
     public async setUserPreference(key: string, value: any) {
         // Prefix user preferences with USER_PREF_PREFIX to avoid collision with other store items
         if (!this.isUserPrefKey(key)) {
@@ -69,6 +72,9 @@ export class AppService extends Service {
         await this.store.save();
     }
 
+    @exposed @info("Get a user preference value")
+    @input(Sch.Name('key', Sch.String))
+    @output(Sch.Nullable(Sch.Any))
     public getUserPreference(key: string): any | null {
         return this.store.getItem(USER_PREF_PREFIX + key);
     }
@@ -139,6 +145,13 @@ export class AppService extends Service {
     public async setOnboarded(onboarded = true) {
         this.store.setItem('onboarded', onboarded);
         await this.store.save();
+    }
+
+    @wfApi
+    @info("Get the list of paired devices.")
+    @output(Sch.Array(PeerInfoSchema))
+    public async listPeers(): Promise<PeerInfo[]> {
+        return this.getPeers();
     }
 
     public getPeers(): PeerInfo[] {
@@ -252,7 +265,7 @@ export class AppService extends Service {
         return localSc.account.initiateLink(email, peerInfo);
     }
 
-    @exposed 
+    @exposed
     @info("Get this device's peer information")
     @output(PeerInfoSchema)
     public async peerInfo(): Promise<PeerInfo> {
@@ -268,11 +281,10 @@ export class AppService extends Service {
         return peer;
     }
 
-    @exposed 
+    @exposed
     @info("Receive shared text or link content from another device")
     @withContext
-    @wfApi
-    @input(Sch.Any, Sch.String, Sch.Optional({ enum: ['text', 'link', 'html', 'rtf'] }))
+    @input(Sch.Any, Sch.Name('content', Sch.String), Sch.Name('type', Sch.Optional({ enum: ['text', 'link', 'html', 'rtf'] })))
     public async receiveContent(ctx: MethodContext | null, content: string, type?: 'text' | 'link' | 'html' | 'rtf'): Promise<void> {
         type = type || 'text';
         console.debug(`[AppService] receiveContent: type=${type}, length=${content.length}`);

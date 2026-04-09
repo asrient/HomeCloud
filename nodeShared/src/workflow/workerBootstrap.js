@@ -11,8 +11,88 @@ const { scriptPath, scriptContent, context, logFilePath, hostPort } = workerData
 
 // --- Host RPC via Comlink ---
 global.com = Comlink.wrap(nodeEndpoint(hostPort));
-// alias for convenience
-global.host = global.com;
+
+// --- Input stream helper ---
+// Recursively scan args: replace ReadableStream instances with { __stream: id }
+// markers and start pushing chunks to host via postStreamChunk/endStream.
+let streamIdCounter = 0;
+function prepareArgs(args) {
+    return args.map(arg => prepareValue(arg));
+}
+function prepareValue(value) {
+    if (value === null || value === undefined) return value;
+    if (value instanceof ReadableStream) {
+        const id = 'ws_' + (++streamIdCounter);
+        // Start pushing asynchronously — don't await, let it run in background
+        (async () => {
+            const reader = value.getReader();
+            try {
+                while (true) {
+                    const { done, value: chunk } = await reader.read();
+                    if (done) { await global.com.endStream(id); break; }
+                    await global.com.postStreamChunk(id, chunk);
+                }
+            } catch (err) {
+                await global.com.endStream(id, err.message || String(err));
+            }
+        })();
+        return { __stream: id };
+    }
+    if (Array.isArray(value)) return value.map(prepareValue);
+    if (typeof value === 'object' && value.constructor === Object) {
+        const result = {};
+        for (const [k, v] of Object.entries(value)) {
+            result[k] = prepareValue(v);
+        }
+        return result;
+    }
+    return value;
+}
+
+// --- Output stream resolver ---
+// Recursively scan return values: convert { __stream: id } markers from host
+// into real ReadableStreams that pull chunks via host.readStreamChunk().
+function resolveOutputStreams(value) {
+    if (value === null || value === undefined) return value;
+    if (typeof value === 'object' && value.__stream) {
+        const id = value.__stream;
+        return new ReadableStream({
+            async pull(controller) {
+                const { done, value: chunk } = await global.com.readStreamChunk(id);
+                if (done) controller.close();
+                else controller.enqueue(chunk);
+            }
+        });
+    }
+    if (Array.isArray(value)) return value.map(resolveOutputStreams);
+    if (typeof value === 'object' && value.constructor === Object) {
+        const result = {};
+        for (const [k, v] of Object.entries(value)) {
+            result[k] = resolveOutputStreams(v);
+        }
+        return result;
+    }
+    return value;
+}
+
+// --- Service Controller Proxy ---
+// Usage: const sc = getServiceController(); await sc.files.fs.readDir("/path");
+// Remote: const remote = getServiceController("fingerprint"); await remote.system.deviceInfo();
+function createServiceProxy(fingerprint, segments) {
+    return new Proxy(function () { }, {
+        get(_target, prop) {
+            if (typeof prop !== 'string' || prop === 'then') return undefined;
+            return createServiceProxy(fingerprint, [...segments, prop]);
+        },
+        apply(_target, _thisArg, args) {
+            return global.com.callApi(fingerprint, segments.join('.'), prepareArgs(args))
+                .then(resolveOutputStreams);
+        }
+    });
+}
+global.getServiceController = (fingerprint) => createServiceProxy(fingerprint || null, []);
+global.getSecret = (key) => global.com.getSecret(key);
+global.setSecret = (key, value) => global.com.setSecret(key, value);
 
 // Setup log file writing
 let logStream = null;

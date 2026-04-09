@@ -16,7 +16,7 @@ export abstract class ThumbService extends Service {
 
     @exposed @info("Generate a thumbnail data URI for a file")
     @wfApi
-    @input(Sch.String)
+    @input(Sch.Name('filePath', Sch.String))
     @output(Sch.String)
     @assertServiceRunning
     async generateThumbnailURI(filePath: string): Promise<string> {

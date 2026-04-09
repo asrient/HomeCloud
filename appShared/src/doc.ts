@@ -44,19 +44,3 @@ export function generateServicesDoc(sc: object, prefix = null, filter = (key: st
     })
     return doc;
 }
-
-let cachedWfApiDoc: ServiceDocTree | null = null;
-
-export function getWfApiDoc(sc: object, prefix = null): ServiceDocTree {
-    if (cachedWfApiDoc) {
-        return cachedWfApiDoc;
-    }
-    const docTree = generateServicesDoc(sc, prefix, (key, value) => {
-        if (value.__doctype__ === 'function') {
-            return value.methodInfo.isWfApi;
-        }
-        return false;
-    });
-    cachedWfApiDoc = docTree;
-    return docTree;
-}

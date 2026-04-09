@@ -2,30 +2,33 @@ import { MessagePort } from 'worker_threads';
 import * as Comlink from 'comlink';
 import nodeEndpoint from 'comlink/dist/umd/node-adapter';
 import { getMethodInfo } from 'shared/servicePrimatives.js';
-import { PeerInfo, WorkflowConfig } from 'shared/types.js';
-import { getPartionedTmpDir } from '../utils.js';
+import { PeerInfo, SimpleSchema, WorkflowConfig } from 'shared/types.js';
 import { shortId, WorkflowRepository } from './repository.js';
-import fsp from 'fs/promises';
 import fs from 'fs';
-import path from 'path';
+import { Readable } from 'stream';
 
 /**
  * Defines the methods exposed to workflow worker threads via Comlink.
  * Each method is callable from the worker as `await host.ping()`.
  */
 export class WorkerInterface {
-    #tmpDir: string;
-    #repo: WorkflowRepository;
+    #repo: WorkflowRepository | null;
     #config: WorkflowConfig | undefined;
 
-    constructor(executionId: string, repo: WorkflowRepository, config?: WorkflowConfig) {
-        this.#tmpDir = path.join(getPartionedTmpDir('workflow'), executionId);
-        this.#repo = repo;
+    constructor(executionId: string, repo?: WorkflowRepository, config?: WorkflowConfig) {
+        this.#repo = repo ?? null;
         this.#config = config;
     }
 
     async cleanup(): Promise<void> {
-        await fsp.rm(this.#tmpDir, { recursive: true, force: true }).catch(() => { });
+        for (const reader of this.#streams.values()) {
+            try { reader.cancel(); } catch { }
+        }
+        this.#streams.clear();
+        for (const ctrl of this.#inputStreams.values()) {
+            try { ctrl.close(); } catch { }
+        }
+        this.#inputStreams.clear();
     }
 
     async ping(): Promise<string> {
@@ -33,6 +36,7 @@ export class WorkerInterface {
     }
 
     async getSecret(key: string): Promise<string | null> {
+        if (!this.#repo) throw new Error('Secrets not available');
         if (!this.#config?.permissions?.secrets) {
             throw new Error('No secret read permission');
         }
@@ -40,40 +44,22 @@ export class WorkerInterface {
     }
 
     async setSecret(key: string, value: string): Promise<void> {
+        if (!this.#repo) throw new Error('Secrets not available');
         if (this.#config?.permissions?.secrets !== 'write') {
             throw new Error('No secret write permission');
         }
         return this.#repo.setSecret(key, value);
     }
 
-    async getPeers(): Promise<PeerInfo[]> {
-        const localSc = modules.getLocalServiceController();
-        return localSc.app.getPeers();
-    }
-
-    async #streamToTmpFile(stream: ReadableStream): Promise<string> {
-        await fsp.mkdir(this.#tmpDir, { recursive: true });
-        const filePath = path.join(this.#tmpDir, shortId());
-        const writeable = fs.createWriteStream(filePath);
-        const reader = stream.getReader();
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                writeable.write(value);
-            }
-        } finally {
-            reader.releaseLock();
-            writeable.end();
-        }
-        return filePath;
-    }
+    // Active stream readers keyed by ID, pulled by worker via readStreamChunk()
+    #streams = new Map<string, ReadableStreamDefaultReader>();
 
     async #replaceStreams(value: any): Promise<any> {
         if (value === null || value === undefined) return value;
         if (value instanceof ReadableStream) {
-            const tmpFile = await this.#streamToTmpFile(value);
-            return { tmpFile };
+            const id = shortId();
+            this.#streams.set(id, value.getReader());
+            return { __stream: id };
         }
         if (Array.isArray(value)) {
             return Promise.all(value.map(item => this.#replaceStreams(item)));
@@ -88,6 +74,74 @@ export class WorkerInterface {
         return value;
     }
 
+    /** Called by worker to pull the next chunk from a stream. */
+    async readStreamChunk(id: string): Promise<{ done: boolean; value?: Uint8Array }> {
+        const reader = this.#streams.get(id);
+        if (!reader) throw new Error(`Stream not found: ${id}`);
+        const { done, value } = await reader.read();
+        if (done) {
+            this.#streams.delete(id);
+            return { done: true };
+        }
+        return { done: false, value };
+    }
+
+    // --- Input streams: worker pushes chunks to host via postStreamChunk/endStream ---
+    #inputStreams = new Map<string, ReadableStreamDefaultController>();
+
+    /** Called by worker to push a chunk into an input stream. */
+    async postStreamChunk(id: string, data: Uint8Array): Promise<void> {
+        const ctrl = this.#inputStreams.get(id);
+        if (!ctrl) throw new Error(`Input stream not found: ${id}`);
+        ctrl.enqueue(data);
+    }
+
+    /** Called by worker to signal end of an input stream. */
+    async endStream(id: string, error?: string): Promise<void> {
+        const ctrl = this.#inputStreams.get(id);
+        if (!ctrl) return;
+        if (error) ctrl.error(new Error(error));
+        else ctrl.close();
+        this.#inputStreams.delete(id);
+    }
+
+    /**
+     * Recursively resolve input args against schema:
+     * - Where schema.type === 'stream': convert { __stream: id } marker or file path to ReadableStream
+     * - Recurse into objects using schema.properties
+     * - Recurse into arrays using schema.items
+     */
+    #resolveInputStreams(value: any, schema?: SimpleSchema): any {
+        if (value === null || value === undefined || !schema) return value;
+        if (schema.type === 'stream') {
+            // Worker-pushed stream via { __stream: id }
+            if (value?.__stream) {
+                const id = value.__stream;
+                let ctrl: ReadableStreamDefaultController;
+                const stream = new ReadableStream({
+                    start(c) { ctrl = c; }
+                });
+                this.#inputStreams.set(id, ctrl!);
+                return stream;
+            }
+            // File path fallback
+            if (typeof value === 'string') {
+                return Readable.toWeb(fs.createReadStream(value)) as ReadableStream;
+            }
+        }
+        if (schema.type === 'object' && schema.properties && typeof value === 'object' && !Array.isArray(value)) {
+            const result: any = {};
+            for (const [k, v] of Object.entries(value)) {
+                result[k] = this.#resolveInputStreams(v, schema.properties[k]);
+            }
+            return result;
+        }
+        if (schema.type === 'array' && schema.items && Array.isArray(value)) {
+            return value.map(item => this.#resolveInputStreams(item, schema.items));
+        }
+        return value;
+    }
+
     #methodCall(target: any, methodName: string, args: any[]): Promise<any> {
         return target[methodName](...args);
     }
@@ -97,14 +151,14 @@ export class WorkerInterface {
         const controller = modules.getLocalServiceController();
         const { obj, funcName } = controller.getCallable('services.' + fqn);
         const methodInfo = getMethodInfo(obj[funcName]);
-        if (!methodInfo.isExposed) {
-            throw new Error(`Method not exposed: ${fqn}`);
-        }
         if (!methodInfo.isWfApi) {
             throw new Error(`Method not available to workflows: ${fqn}`);
         }
+        // Resolve file paths to ReadableStreams where schema expects stream type
+        const inputSchemas = methodInfo.inputSchema ?? [];
+        const resolvedArgs = args.map((arg, i) => this.#resolveInputStreams(arg, inputSchemas[i]));
         if (!fingerprint) {
-            result = await this.#methodCall(obj, funcName, args);
+            result = await this.#methodCall(obj, funcName, resolvedArgs);
         } else {
             // Remote: RPC server enforces @exposed on its side
             const controller = await modules.getRemoteServiceController(fingerprint);
@@ -118,7 +172,7 @@ export class WorkerInterface {
             if (typeof target[method] !== 'function') {
                 throw new Error(`Method not found: ${fqn}`);
             }
-            result = await this.#methodCall(target, method, args);
+            result = await this.#methodCall(target, method, resolvedArgs);
         }
 
         return this.#replaceStreams(result);

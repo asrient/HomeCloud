@@ -1,8 +1,9 @@
 import path from 'path';
 import fsp from 'fs/promises';
 import { Cron } from 'croner';
-import { WorkflowService } from 'shared/workflowService.js';
+import { WorkflowService } from 'shared/workflowService';
 import {
+    McpServerInfo,
     WorkflowConfig,
     WorkflowCreateRequest,
     WorkflowExecution,
@@ -14,9 +15,13 @@ import {
     ListWorkflowsParams,
     ListWorkflowExecutionsParams,
     ListTriggersParams,
-} from 'shared/types.js';
-import { WorkflowRepository } from './repository.js';
-import { WorkflowExecutor } from './executor.js';
+} from 'shared/types';
+import { WorkflowRepository } from './repository';
+import { WorkflowExecutor } from './executor';
+import { McpHttpServer } from './mcpServer';
+import { getScriptingDocMarkdown } from './doc';
+
+const DEFAULT_MCP_PORT = 9637;
 
 const DEFAULT_SCRIPT_TEMPLATE = `// Workflow script
 // Access workflow context via global.ctx
@@ -36,6 +41,7 @@ export default class NodeWorkflowService extends WorkflowService {
     private executor!: WorkflowExecutor;
     private workflowsDir!: string;
     private cronJobs = new Map<string, Cron>();
+    private mcpServer = new McpHttpServer();
 
     public override init() {
         super.init();
@@ -244,5 +250,60 @@ export default class NodeWorkflowService extends WorkflowService {
                 console.error(`[WorkflowService] Triggered execution failed for workflow ${config.id}:`, err);
             });
         }
+    }
+
+    // --- MCP Server ---
+
+    private registerMcpTools(): void {
+        const docText = getScriptingDocMarkdown();
+
+        this.mcpServer.registerTool({
+            name: 'execute_script',
+            description:
+                'Execute a script and get a result. Max duration: 5mins.\n\n' +
+                docText,
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    script: { type: 'string', description: 'JavaScript code to execute' },
+                },
+                required: ['script'],
+            },
+            callback: async ({ script }) => {
+                let execution: WorkflowExecution;
+                try {
+                    execution = await this._executeScript(script, 5 * 60);
+                } catch (err: any) {
+                    return { status: 'error', message: err.message || String(err) };
+                }
+                const result = {
+                    status: execution.result?.status ?? 'error',
+                    message: execution.result?.message,
+                    debugLog: null,
+                };
+                if (result.status !== 'ok') {
+                    try { result.debugLog = await this._readExecutionLog(execution.id); } catch { }
+                }
+                return result;
+            },
+        });
+    }
+
+    protected override async _startMcpServer(): Promise<void> {
+        if (this.mcpServer.isRunning) return;
+        this.registerMcpTools();
+        await this.mcpServer.start(DEFAULT_MCP_PORT, modules.config.VERSION);
+    }
+
+    protected override async _stopMcpServer(): Promise<void> {
+        await this.mcpServer.stop();
+    }
+
+    protected override async _getMcpServerInfo(): Promise<McpServerInfo> {
+        return {
+            isRunning: this.mcpServer.isRunning,
+            port: this.mcpServer.isRunning ? this.mcpServer.port : null,
+            url: this.mcpServer.isRunning ? `http://127.0.0.1:${this.mcpServer.port}` : null,
+        };
     }
 }

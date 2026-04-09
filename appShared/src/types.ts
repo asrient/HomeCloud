@@ -25,6 +25,7 @@ export interface GenericDataChannel {
 export type SimpleSchema = {
     type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null' | 'stream' | 'date';
     title?: string;
+    typeName?: string;
     description?: string;
     properties?: { [key: string]: SimpleSchema };
     required?: string[];
@@ -64,6 +65,8 @@ export const Sch = {
     Enum: (...values: any[]): SimpleSchema => ({ enum: values }),
     OneOf: (...schemas: SimpleSchema[]): SimpleSchema => ({ oneOf: schemas }),
     Nullable: (schema: SimpleSchema): SimpleSchema => ({ ...schema, nullable: true }),
+    Name: (name: string, schema: SimpleSchema): SimpleSchema => ({ ...schema, title: name }),
+    Typed: (typeName: string, schema: SimpleSchema): SimpleSchema => ({ ...schema, typeName }),
 };
 
 export function enumValues(e: object): any[] {
@@ -122,11 +125,11 @@ export type DeviceInfo = {
     formFactor: DeviceFormType;
 };
 
-export const DeviceInfoSchema = Sch.Object({
+export const DeviceInfoSchema = Sch.Typed('DeviceInfo', Sch.Object({
     os: Sch.Enum(...enumValues(OSType)),
     osFlavour: Sch.NullableString,
     formFactor: Sch.Enum(...enumValues(DeviceFormType)),
-}, ['os', 'formFactor']);
+}, ['os', 'formFactor']));
 
 export enum OptionalType {
     Required = "required",
@@ -188,13 +191,13 @@ export type PeerInfo = {
     iconKey: string | null;
 }
 
-export const PeerInfoSchema = Sch.Object({
+export const PeerInfoSchema = Sch.Typed('PeerInfo', Sch.Object({
     deviceName: Sch.String,
     fingerprint: Sch.String,
     version: Sch.String,
     deviceInfo: DeviceInfoSchema,
     iconKey: Sch.NullableString,
-}, ['deviceName', 'fingerprint', 'version', 'deviceInfo']);
+}, ['deviceName', 'fingerprint', 'version', 'deviceInfo']));
 
 export type BonjourTxt = {
     ver: string;
@@ -251,7 +254,7 @@ export type RemoteItem = {
     thumbnail: string | null;
 }
 
-export const RemoteItemSchema = Sch.Object({
+export const RemoteItemSchema = Sch.Typed('RemoteItem', Sch.Object({
     name: Sch.String,
     path: Sch.String,
     type: Sch.Enum('file', 'directory'),
@@ -261,7 +264,7 @@ export const RemoteItemSchema = Sch.Object({
     mimeType: Sch.NullableString,
     etag: Sch.NullableString,
     thumbnail: Sch.NullableString,
-}, ['name', 'path', 'type']);
+}, ['name', 'path', 'type']));
 
 export type Disk = {
     type: 'internal' | 'external';
@@ -271,13 +274,13 @@ export type Disk = {
     free: number;
 }
 
-export const DiskSchema = Sch.Object({
+export const DiskSchema = Sch.Typed('Disk', Sch.Object({
     type: Sch.Enum('internal', 'external'),
     path: Sch.String,
     name: Sch.String,
     size: Sch.Number,
     free: Sch.Number,
-}, ['type', 'path', 'name', 'size', 'free']);
+}, ['type', 'path', 'name', 'size', 'free']));
 
 export type FileContent = {
     name: string;
@@ -285,11 +288,11 @@ export type FileContent = {
     stream: ReadableStream;
 };
 
-export const FileContentSchema = Sch.Object({
+export const FileContentSchema = Sch.Typed('FileContent', Sch.Object({
     name: Sch.String,
     mime: Sch.String,
     stream: Sch.Stream,
-}, ['name', 'mime', 'stream']);
+}, ['name', 'mime', 'stream']));
 
 export type PreviewOptions = {
     supportsHeic?: boolean;
@@ -304,10 +307,10 @@ export type PinnedFolder = {
     name: string;
 }
 
-export const PinnedFolderSchema = Sch.Object({
+export const PinnedFolderSchema = Sch.Typed('PinnedFolder', Sch.Object({
     path: Sch.String,
     name: Sch.String,
-}, ['path', 'name']);
+}, ['path', 'name']));
 
 export type ConnectionInfo = {
     fingerprint: string;
@@ -329,12 +332,12 @@ export type GetPhotosParams = {
     ascending: boolean,
 };
 
-export const GetPhotosParamsSchema = Sch.Object({
+export const GetPhotosParamsSchema = Sch.Typed('GetPhotosParams', Sch.Object({
     cursor: Sch.NullableString,
     limit: Sch.Integer,
     sortBy: Sch.String,
     ascending: Sch.Boolean,
-}, ['cursor', 'limit', 'sortBy', 'ascending']);
+}, ['cursor', 'limit', 'sortBy', 'ascending']));
 
 export type Photo = {
     id: string;
@@ -347,7 +350,7 @@ export type Photo = {
     width: number | null;
 }
 
-export const PhotoSchema = Sch.Object({
+export const PhotoSchema = Sch.Typed('Photo', Sch.Object({
     id: Sch.String,
     fileId: Sch.String,
     mimeType: Sch.String,
@@ -356,7 +359,7 @@ export const PhotoSchema = Sch.Object({
     duration: Sch.NullableNumber,
     height: Sch.NullableNumber,
     width: Sch.NullableNumber,
-}, ['id', 'fileId', 'mimeType', 'capturedOn', 'addedOn', 'duration', 'height', 'width']);
+}, ['id', 'fileId', 'mimeType', 'capturedOn', 'addedOn', 'duration', 'height', 'width']));
 
 export type GetPhotosResponse = {
     photos: Photo[];
@@ -364,21 +367,21 @@ export type GetPhotosResponse = {
     hasMore?: boolean;
 };
 
-export const GetPhotosResponseSchema = Sch.Object({
+export const GetPhotosResponseSchema = Sch.Typed('GetPhotosResponse', Sch.Object({
     photos: Sch.Array(PhotoSchema),
     nextCursor: Sch.NullableString,
     hasMore: Sch.Boolean,
-}, ['photos']);
+}, ['photos']));
 
 export type DeletePhotosResponse = {
     deleteCount: number,
     deletedIds: string[],
 };
 
-export const DeletePhotosResponseSchema = Sch.Object({
+export const DeletePhotosResponseSchema = Sch.Typed('DeletePhotosResponse', Sch.Object({
     deleteCount: Sch.Number,
     deletedIds: Sch.StringArray,
-}, ['deleteCount', 'deletedIds']);
+}, ['deleteCount', 'deletedIds']));
 
 export type PhotoLibraryLocation = {
     id: string;
@@ -386,11 +389,11 @@ export type PhotoLibraryLocation = {
     location: string;
 }
 
-export const PhotoLibraryLocationSchema = Sch.Object({
+export const PhotoLibraryLocationSchema = Sch.Typed('PhotoLibraryLocation', Sch.Object({
     id: Sch.String,
     name: Sch.String,
     location: Sch.String,
-}, ['id', 'name', 'location']);
+}, ['id', 'name', 'location']));
 
 export type WebcInit = {
     fingerprint: string;
@@ -430,12 +433,12 @@ export type AudioPlaybackInfo = {
     isPlaying: boolean;
 }
 
-export const AudioPlaybackInfoSchema = Sch.Object({
+export const AudioPlaybackInfoSchema = Sch.Typed('AudioPlaybackInfo', Sch.Object({
     trackName: Sch.String,
     artistName: Sch.String,
     albumName: Sch.String,
     isPlaying: Sch.Boolean,
-}, ['trackName', 'isPlaying']);
+}, ['trackName', 'isPlaying']));
 
 export type BatteryInfo = {
     level: number; // 0 to 1
@@ -443,11 +446,11 @@ export type BatteryInfo = {
     isLowPowerMode?: boolean;
 }
 
-export const BatteryInfoSchema = Sch.Object({
+export const BatteryInfoSchema = Sch.Typed('BatteryInfo', Sch.Object({
     level: { type: 'number', minimum: 0, maximum: 1 },
     isCharging: Sch.Boolean,
     isLowPowerMode: Sch.Boolean,
-}, ['level', 'isCharging']);
+}, ['level', 'isCharging']));
 
 export type ScreenLockStatus = 'locked' | 'unlocked' | 'not-supported';
 
@@ -465,7 +468,7 @@ export type ClipboardContent = {
     files?: ClipboardFile[];
 }
 
-export const ClipboardContentSchema = Sch.Object({
+export const ClipboardContentSchema = Sch.Typed('ClipboardContent', Sch.Object({
     type: Sch.Enum('text', 'link', 'html', 'rtf', 'image', 'filePath'),
     content: Sch.String,
     files: Sch.Array(Sch.Object({
@@ -473,7 +476,7 @@ export const ClipboardContentSchema = Sch.Object({
         path: Sch.String,
         cut: Sch.Boolean,
     }, ['path'])),
-}, ['type', 'content']);
+}, ['type', 'content']));
 
 export type FileFilter = {
     name: string;
@@ -487,12 +490,12 @@ export type RemoteAppInfo = {
     location?: string;
 }
 
-export const RemoteAppInfoSchema = Sch.Object({
+export const RemoteAppInfoSchema = Sch.Typed('RemoteAppInfo', Sch.Object({
     name: Sch.String,
     id: Sch.String,
     iconPath: Sch.NullableString,
     location: Sch.String,
-}, ['name', 'id']);
+}, ['name', 'id']));
 
 export type StreamingSessionInfo = {
     stream: ReadableStream<Uint8Array>;
@@ -554,7 +557,7 @@ export type RemoteAppWindowActionPayload = {
     modifiers?: string[]; // e.g. ["shift", "cmd", "alt", "ctrl"]
 }
 
-export const RemoteAppWindowActionPayloadSchema = Sch.Object({
+export const RemoteAppWindowActionPayloadSchema = Sch.Typed('RemoteAppWindowActionPayload', Sch.Object({
     action: Sch.Enum(...enumValues(RemoteAppWindowAction)),
     x: Sch.Number,
     y: Sch.Number,
@@ -565,7 +568,7 @@ export const RemoteAppWindowActionPayloadSchema = Sch.Object({
     newWidth: Sch.Number,
     newHeight: Sch.Number,
     modifiers: Sch.StringArray,
-}, ['action']);
+}, ['action']));
 
 export enum WorkflowColor {
     Red = "red",
@@ -583,22 +586,22 @@ export type WorkflowTrigger = {
     createdAt: Date;
 }
 
-export const WorkflowTriggerSchema = Sch.Object({
+export const WorkflowTriggerSchema = Sch.Typed('WorkflowTrigger', Sch.Object({
     id: Sch.String,
     type: Sch.Enum('schedule', 'signal'),
     data: Sch.String,
     createdAt: Sch.Date,
-}, ['id', 'type', 'data', 'createdAt']);
+}, ['id', 'type', 'data', 'createdAt']));
 
 export type WorkflowTriggerCreateRequest = {
     type: WorkflowTrigger['type'];
     data: string;
 }
 
-export const WorkflowTriggerCreateRequestSchema = Sch.Object({
+export const WorkflowTriggerCreateRequestSchema = Sch.Typed('WorkflowTriggerCreateRequest', Sch.Object({
     type: Sch.Enum('schedule', 'signal'),
     data: Sch.String,
-}, ['type', 'data']);
+}, ['type', 'data']));
 
 export type WorkflowTriggerUpdatePayload = {
     id: string;
@@ -606,11 +609,11 @@ export type WorkflowTriggerUpdatePayload = {
     data?: string;
 }
 
-export const WorkflowTriggerUpdatePayloadSchema = Sch.Object({
+export const WorkflowTriggerUpdatePayloadSchema = Sch.Typed('WorkflowTriggerUpdatePayload', Sch.Object({
     id: Sch.String,
     type: Sch.Enum('schedule', 'signal'),
     data: Sch.String,
-}, ['id']);
+}, ['id']));
 
 export type WorkflowInputField = {
     name: string;
@@ -639,7 +642,7 @@ export type WorkflowConfig = {
     maxExecTimeSecs?: number;
 }
 
-export const WorkflowConfigSchema = Sch.Object({
+export const WorkflowConfigSchema = Sch.Typed('WorkflowConfig', Sch.Object({
     id: Sch.String,
     name: Sch.String,
     description: Sch.String,
@@ -658,7 +661,7 @@ export const WorkflowConfigSchema = Sch.Object({
     }, ['name', 'type'])),
     permissions: Sch.Object({ secrets: Sch.Enum('read', 'write') }),
     maxExecTimeSecs: Sch.Number,
-}, ['id', 'name', 'author', 'version', 'isEnabled', 'createdAt', 'updatedAt', 'inputFields']);
+}, ['id', 'name', 'author', 'version', 'isEnabled', 'createdAt', 'updatedAt', 'inputFields']));
 
 export type WorkflowUpdatePayload = {
     id: string;
@@ -671,7 +674,7 @@ export type WorkflowUpdatePayload = {
     maxExecTimeSecs?: number;
 }
 
-export const WorkflowUpdatePayloadSchema = Sch.Object({
+export const WorkflowUpdatePayloadSchema = Sch.Typed('WorkflowUpdatePayload', Sch.Object({
     id: Sch.String,
     name: Sch.String,
     description: Sch.String,
@@ -688,17 +691,17 @@ export const WorkflowUpdatePayloadSchema = Sch.Object({
         secrets: Sch.Enum('read', 'write'),
     }),
     maxExecTimeSecs: Sch.Number,
-}, ['id']);
+}, ['id']));
 
 export type WorkflowCreateRequest = {
     name: string;
     description?: string;
 }
 
-export const WorkflowCreateRequestSchema = Sch.Object({
+export const WorkflowCreateRequestSchema = Sch.Typed('WorkflowCreateRequest', Sch.Object({
     name: Sch.String,
     description: Sch.String,
-}, ['name']);
+}, ['name']));
 
 export type WorkflowInputs = {
     [key: string]: string | number | boolean;
@@ -721,10 +724,10 @@ export type WorkflowExecutionResult = {
     message?: string;
 }
 
-export const WorkflowExecutionResultSchema = Sch.Object({
+export const WorkflowExecutionResultSchema = Sch.Typed('WorkflowExecutionResult', Sch.Object({
     status: Sch.Enum('ok', 'error', 'timeout', 'cancelled'),
     message: Sch.String,
-}, ['status']);
+}, ['status']));
 
 export type WorkflowExecution = {
     id: string;
@@ -737,7 +740,7 @@ export type WorkflowExecution = {
     endedAt?: Date;
 }
 
-export const WorkflowExecutionSchema = Sch.Object({
+export const WorkflowExecutionSchema = Sch.Typed('WorkflowExecution', Sch.Object({
     id: Sch.String,
     workflowId: Sch.NullableString,
     script: Sch.String,
@@ -746,7 +749,7 @@ export const WorkflowExecutionSchema = Sch.Object({
     result: WorkflowExecutionResultSchema,
     startedAt: Sch.Date,
     endedAt: Sch.Date,
-}, ['id', 'startedAt']);
+}, ['id', 'startedAt']));
 
 export type ListWorkflowsParams = {
     sortBy?: 'name' | 'createdAt' | 'updatedAt';
@@ -754,11 +757,11 @@ export type ListWorkflowsParams = {
     isEnabled?: boolean;
 }
 
-export const ListWorkflowsParamsSchema = Sch.Object({
+export const ListWorkflowsParamsSchema = Sch.Typed('ListWorkflowsParams', Sch.Object({
     sortBy: Sch.Enum('name', 'createdAt', 'updatedAt'),
     sortDirection: Sch.Enum('asc', 'desc'),
     isEnabled: Sch.Boolean,
-});
+}));
 
 export type ListWorkflowExecutionsParams = {
     workflowId?: string;
@@ -769,19 +772,35 @@ export type ListWorkflowExecutionsParams = {
     offset?: number;
 }
 
-export const ListWorkflowExecutionsParamsSchema = Sch.Object({
+export const ListWorkflowExecutionsParamsSchema = Sch.Typed('ListWorkflowExecutionsParams', Sch.Object({
     workflowId: Sch.String,
     status: Sch.Enum('ok', 'error', 'timeout', 'cancelled'),
     sortBy: Sch.Enum('startedAt', 'endedAt'),
     sortDirection: Sch.Enum('asc', 'desc'),
     limit: Sch.Integer,
     offset: Sch.Integer,
-});
+}));
 
 export type ListTriggersParams = {
     workflowId?: string;
 }
 
-export const ListTriggersParamsSchema = Sch.Object({
+export const ListTriggersParamsSchema = Sch.Typed('ListTriggersParams', Sch.Object({
     workflowId: Sch.String,
-});
+}));
+
+// MCP
+
+export const MCP_AUTO_START_PREF_KEY = 'mcpAutoStart';
+
+export type McpServerInfo = {
+    isRunning: boolean;
+    port: number | null;
+    url: string | null;
+}
+
+export const McpServerInfoSchema = Sch.Typed('McpServerInfo', Sch.Object({
+    isRunning: Sch.Boolean,
+    port: Sch.NullableNumber,
+    url: Sch.NullableString,
+}, ['isRunning', 'port', 'url']));

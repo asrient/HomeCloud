@@ -25,31 +25,31 @@ export abstract class PhotosService extends Service {
     async getLocations(): Promise<PhotoLibraryLocation[]> { return this._getLocations(); }
 
     @exposed @info("Get a photo library location by ID")
-    @input(Sch.String)
+    @input(Sch.Name('id', Sch.String))
     @output(Sch.Nullable(PhotoLibraryLocationSchema))
     @wfApi
     async getLocation(id: string): Promise<PhotoLibraryLocation | null> { return this._getLocation(id); }
 
     @exposed @info("Register a new photo library location")
     @wfApi
-    @input(Sch.String, Sch.String)
+    @input(Sch.Name('name', Sch.String), Sch.Name('location', Sch.String))
     @output(PhotoLibraryLocationSchema)
     async addLocation(name: string, location: string): Promise<PhotoLibraryLocation> { return this._addLocation(name, location); }
 
     @exposed @info("Remove a photo library location")
     @wfApi
-    @input(Sch.String)
+    @input(Sch.Name('id', Sch.String))
     async removeLocation(id: string): Promise<void> { return this._removeLocation(id); }
 
     @exposed @info("Delete photos from a library")
     @wfApi
-    @input(Sch.String, Sch.StringArray)
+    @input(Sch.Name('libraryId', Sch.String), Sch.Name('ids', Sch.StringArray))
     @output(DeletePhotosResponseSchema)
     public async deletePhotos(libraryId: string, ids: string[]): Promise<DeletePhotosResponse> { return this._deletePhotos(libraryId, ids); }
 
     @exposed @info("Get photos from a library with pagination")
     @wfApi
-    @input(Sch.String, GetPhotosParamsSchema)
+    @input(Sch.Name('libraryId', Sch.String), Sch.Name('params', GetPhotosParamsSchema))
     @output(GetPhotosResponseSchema)
     public async getPhotos(libraryId: string, params: GetPhotosParams): Promise<GetPhotosResponse> { return this._getPhotos(libraryId, params); }
 

@@ -80,7 +80,7 @@ export abstract class FilesService extends Service {
 
     @exposed @info("Move or copy files between devices or directories")
     @wfApi
-    @input(Sch.NullableString, Sch.String, Sch.StringArray, Sch.Boolean)
+    @input(Sch.Name('remoteFingerprint', Sch.NullableString), Sch.Name('remoteFolderId', Sch.String), Sch.Name('localFilePaths', Sch.StringArray), Sch.Name('deleteSource', Sch.Boolean))
     @output(Sch.Array(RemoteItemSchema))
     public async move(remoteFingerprint: string | null, remoteFolderId: string, localFilePaths: string[], deleteSource = false): Promise<RemoteItem[]> {
         // make sure remoteFingerprint is accessible
@@ -114,13 +114,13 @@ export abstract class FilesService extends Service {
 
     @exposed @info("Download files from a device")
     @wfApi
-    @input(Sch.NullableString, Sch.StringArray)
+    @input(Sch.Name('remoteFingerprint', Sch.NullableString), Sch.Name('remotePaths', Sch.StringArray))
     public async download(remoteFingerprint: string | null, remotePaths: string[]): Promise<void> {
         return this._download(remoteFingerprint, remotePaths);
     }
 
     @exposed @info("Get a preview of a file's content")
-    @input(Sch.String, Sch.Optional(PreviewOptionsSchema))
+    @input(Sch.Name('filePath', Sch.String), Sch.Name('opts', Sch.Optional(PreviewOptionsSchema)))
     @output(FileContentSchema)
     public async getPreview(filePath: string, opts?: PreviewOptions): Promise<FileContent> {
         return this._getPreview(filePath, opts);
@@ -191,7 +191,7 @@ export abstract class FilesService extends Service {
 
     @exposed @info("Open a file on a local or remote device")
     @wfApi
-    @input(Sch.NullableString, Sch.String)
+    @input(Sch.Name('deviceFingerprint', Sch.NullableString), Sch.Name('path', Sch.String))
     public async openFile(deviceFingerprint: string | null, path: string): Promise<void> {
         if (deviceFingerprint === null) {
             // its a local file, just open it.
@@ -212,7 +212,7 @@ export abstract class FilesService extends Service {
 
     @exposed @info("Pin a folder for quick access")
     @wfApi
-    @input(Sch.String, Sch.Optional(Sch.String))
+    @input(Sch.Name('path', Sch.String), Sch.Name('name', Sch.Optional(Sch.String)))
     @output(PinnedFolderSchema)
     public async addPinnedFolder(path: string, name?: string): Promise<PinnedFolder> {
         const pinnedFolders = await this.listPinnedFolders();
@@ -233,7 +233,7 @@ export abstract class FilesService extends Service {
 
     @exposed @info("Unpin a bookmarked folder")
     @wfApi
-    @input(Sch.String)
+    @input(Sch.Name('path', Sch.String))
     public async removePinnedFolder(path: string): Promise<void> {
         const pinnedFolders = await this.listPinnedFolders();
         const pin = pinnedFolders.find(folder => folder.path === path);

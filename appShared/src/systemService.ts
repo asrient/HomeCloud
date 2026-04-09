@@ -59,7 +59,7 @@ export abstract class SystemService extends Service {
 
     @exposed @info("Set volume level (0-1)")
     @wfApi
-    @input({ type: 'number', minimum: 0, maximum: 1 })
+    @input(Sch.Name('level', { type: 'number', minimum: 0, maximum: 1 }))
     public async setVolumeLevel(level: number): Promise<void> { return this._setVolumeLevel(level); }
 
     @exposed @info("Get battery level and charging status")
@@ -81,12 +81,12 @@ export abstract class SystemService extends Service {
 
     @exposed @info("Open a URL in the default browser")
     @wfApi
-    @input(Sch.String)
+    @input(Sch.Name('url', Sch.String))
     public async openUrl(url: string) { return this._openUrl(url); }
 
     @exposed @info("Open a file with the default application")
     @wfApi
-    @input(Sch.String)
+    @input(Sch.Name('filePath', Sch.String))
     public async openFile(filePath: string) { return this._openFile(filePath); }
 
     @exposed @info("Lock the device screen")
@@ -112,7 +112,7 @@ export abstract class SystemService extends Service {
 
     @exposed @info("Read clipboard content")
     @wfApi
-    @input(Sch.Optional(Sch.String))
+    @input(Sch.Name('mimeType', Sch.Optional(Sch.String)))
     public async readClipboard(mimeType?: string): Promise<ClipboardContent | null> { return this._readClipboard(mimeType); }
 
     // --- Protected methods (override these in subclasses) ---

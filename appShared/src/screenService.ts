@@ -22,7 +22,7 @@ export class ScreenService extends Service {
 
     @exposed @info("List installed applications")
     @wfApi
-    @input(Sch.Optional(Sch.Boolean))
+    @input(Sch.Name('force', Sch.Optional(Sch.Boolean)))
     @output(Sch.Array(RemoteAppInfoSchema))
     public async getInstalledApps(force?: boolean): Promise<RemoteAppInfo[]> { return this._getInstalledApps(force); }
     
@@ -33,22 +33,22 @@ export class ScreenService extends Service {
     
     @exposed @info("Launch an application by ID")
     @wfApi
-    @input(Sch.String)
+    @input(Sch.Name('appId', Sch.String))
     public async launchApp(appId: string): Promise<void> { return this._launchApp(appId); }
     
     @exposed @info("Quit a running application by ID")
     @wfApi
-    @input(Sch.String)
+    @input(Sch.Name('appId', Sch.String))
     public async quitApp(appId: string): Promise<void> { return this._quitApp(appId); }
     
     @exposed @info("Get an application's icon as base64")
-    @input(Sch.String)
+    @input(Sch.Name('appId', Sch.String))
     @output(Sch.NullableString)
     public async getAppIcon(appId: string): Promise<string | null> { return this._getAppIcon(appId); }
     
     @exposed @info("Perform an UI action on the screen")
     @wfApi
-    @input(RemoteAppWindowActionPayloadSchema)
+    @input(Sch.Name('payload', RemoteAppWindowActionPayloadSchema))
     public async performAction(payload: RemoteAppWindowActionPayload): Promise<void> { return this._performAction(payload); }
     
     @exposed @info("Capture a screenshot of the entire screen")
@@ -64,7 +64,7 @@ export class ScreenService extends Service {
     public async stopStreamingSession(): Promise<void> { return this._stopStreamingSession(); }
     
     @exposed @info("Adjust streaming FPS and quality")
-    @input(Sch.Optional(Sch.Number), Sch.Optional(Sch.Number))
+    @input(Sch.Name('fps', Sch.Optional(Sch.Number)), Sch.Name('quality', Sch.Optional(Sch.Number)))
     public async streamControl(fps?: number, quality?: number): Promise<void> { return this._streamControl(fps, quality); }
     
     @exposed @info("Check if screen recording permission is granted")
