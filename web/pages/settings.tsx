@@ -1,6 +1,6 @@
 import { PageBar, PageContent } from "@/components/pagePrimatives";
-import { FormContainer, Section, Line } from '@/components/formPrimatives'
-import { buildPageConfig, getOSIconUrl, isWindows } from '@/lib/utils'
+import { FormContainer, Section, Line, LineLink } from '@/components/formPrimatives'
+import { buildPageConfig, getOSIconUrl, isWindows, cn } from '@/lib/utils'
 import Head from 'next/head'
 import Image from 'next/image'
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
@@ -8,8 +8,17 @@ import ConfirmModal from '@/components/confirmModal'
 import TextModal from '@/components/textModal'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { ThemedIconName, ConnectionType } from "@/lib/enums";
-import { PeerInfo, PhotoLibraryLocation, McpServerInfo } from "shared/types";
+import { PeerInfo, PhotoLibraryLocation, McpServerInfo, AgentConfig, AgentStatus } from "shared/types";
 import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { useAccountState } from "@/components/hooks/useAccountState";
 import { useAppState } from "@/components/hooks/useAppState";
@@ -31,6 +40,11 @@ function Page() {
   const [ifaceStatuses, setIfaceStatuses] = useState<{ type: ConnectionType; enabled: boolean }[]>([]);
   const [mcpInfo, setMcpInfo] = useState<McpServerInfo | null>(null);
   const [mcpLoading, setMcpLoading] = useState(false);
+  const [agentConfig, setAgentConfigState] = useState<AgentConfig | null>(null);
+  const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
+  const [agentPresets, setAgentPresets] = useState<AgentConfig[]>([]);
+  const [agentModalOpen, setAgentModalOpen] = useState(false);
+  const [agentForm, setAgentForm] = useState<{ name: string; command: string; args: string; addWorkflowMcp: boolean }>({ name: '', command: '', args: '', addWorkflowMcp: false });
 
   useEffect(() => {
     const localSc = window.modules.getLocalServiceController();
@@ -41,7 +55,11 @@ function Page() {
     setCheckForUpdates(updatesPref !== false);
     setIfaceStatuses(localSc.net.getConnectionInterfaceStatuses());
     // MCP
-    localSc.workflow.getMcpServerInfo().then(setMcpInfo).catch(() => {});
+    localSc.workflow.getMcpServerInfo().then(setMcpInfo).catch(() => { });
+    // Agent
+    localSc.agent.getAgentConfig().then(setAgentConfigState).catch(() => { });
+    localSc.agent.getStatus().then(setAgentStatus).catch(() => { });
+    localSc.agent.getAgentConfigPresets().then(setAgentPresets).catch(() => { });
   }, []);
 
   const updateWinrtDgram = useCallback(async (val: boolean) => {
@@ -85,6 +103,70 @@ function Page() {
       setMcpLoading(false);
     }
   }, [refreshMcpInfo]);
+
+  const handleSetAgent = useCallback(async (config: AgentConfig) => {
+    try {
+      const localSc = window.modules.getLocalServiceController();
+      await localSc.agent.setAgentConfig(config);
+      setAgentConfigState(config);
+      const status = await localSc.agent.getStatus();
+      setAgentStatus(status);
+    } catch (e) {
+      console.error('Failed to set agent config:', e);
+    }
+  }, []);
+
+  const handleRemoveAgent = useCallback(async () => {
+    try {
+      const localSc = window.modules.getLocalServiceController();
+      await localSc.agent.removeAgentConfig();
+      setAgentConfigState(null);
+      const status = await localSc.agent.getStatus();
+      setAgentStatus(status);
+    } catch (e) {
+      console.error('Failed to remove agent config:', e);
+    }
+  }, []);
+
+  const handleSaveAgent = useCallback(async () => {
+    if (!agentForm.name || !agentForm.command) return;
+    const config: AgentConfig = {
+      name: agentForm.name,
+      command: agentForm.command,
+      args: agentForm.args.split(/\s+/).filter(Boolean),
+      addWorkflowMcp: agentForm.addWorkflowMcp,
+    };
+    await handleSetAgent(config);
+    setAgentModalOpen(false);
+  }, [agentForm, handleSetAgent]);
+
+  const handleRemoveAgentFromModal = useCallback(async () => {
+    await handleRemoveAgent();
+    setAgentModalOpen(false);
+  }, [handleRemoveAgent]);
+
+  const openAgentModal = useCallback(() => {
+    if (agentConfig) {
+      setAgentForm({
+        name: agentConfig.name,
+        command: agentConfig.command,
+        args: agentConfig.args.join(' '),
+        addWorkflowMcp: agentConfig.addWorkflowMcp ?? false,
+      });
+    } else {
+      setAgentForm({ name: '', command: '', args: '', addWorkflowMcp: false });
+    }
+    setAgentModalOpen(true);
+  }, [agentConfig]);
+
+  const applyPreset = useCallback((preset: AgentConfig) => {
+    setAgentForm({
+      name: preset.name,
+      command: preset.command,
+      args: preset.args.join(' '),
+      addWorkflowMcp: agentForm.addWorkflowMcp,
+    });
+  }, [agentForm.addWorkflowMcp]);
 
   const connectionInterfaceLabels: Record<string, string> = {
     [ConnectionType.LOCAL]: 'Local Network',
@@ -250,8 +332,86 @@ function Page() {
               ))}
             </Section>
           )}
-          <Section title="MCP Server" footer="Allow AI agents access your devices via the Model Context Protocol.">
-            <Line title='Allow MCP connections'>
+          <Section title="Artificial Intelligence" footer="Allow any AI agent access your devices via the Model Context Protocol.">
+            <Dialog open={agentModalOpen} onOpenChange={setAgentModalOpen}>
+              <Line title="AI Agent">
+                <DialogTrigger>
+                  <LineLink text={agentConfig ? agentConfig.name : 'Setup'} color={agentConfig ? 'default' : 'blue'} />
+                </DialogTrigger>
+              </Line>
+              <DialogContent className="sm:max-w-[26rem]">
+                <DialogHeader>
+                  <DialogTitle>Setup AI Agent</DialogTitle>
+                  <DialogDescription>
+                    Add a ACP compatible AI Agent to HomeCloud.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-wrap gap-1.5 my-1">
+                  {agentPresets.map((preset) => (
+                    <Button
+                      key={preset.name}
+                      variant={agentForm.name === preset.name ? 'default' : 'outline'}
+                      size="sm"
+                      className="rounded-full text-xs h-7"
+                      onClick={() => applyPreset(preset)}
+                    >
+                      {preset.name}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-muted-foreground">Name</label>
+                    <Input
+                      placeholder="e.g. GitHub Copilot"
+                      value={agentForm.name}
+                      onChange={(e) => setAgentForm(prev => ({ ...prev, name: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-muted-foreground">Command</label>
+                    <Input
+                      placeholder="e.g. copilot"
+                      value={agentForm.command}
+                      onChange={(e) => setAgentForm(prev => ({ ...prev, command: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-muted-foreground">Arguments</label>
+                    <Input
+                      placeholder="e.g. --acp"
+                      value={agentForm.args}
+                      onChange={(e) => setAgentForm(prev => ({ ...prev, args: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-sm">Provide workflow tools</span>
+                    <Switch
+                      checked={agentForm.addWorkflowMcp}
+                      onCheckedChange={(val) => setAgentForm(prev => ({ ...prev, addWorkflowMcp: val }))}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <div>
+                    {agentConfig && (
+                      <Button variant="ghost" className="text-red-500" size="sm" onClick={handleRemoveAgentFromModal}>
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => setAgentModalOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleSaveAgent} disabled={!agentForm.name || !agentForm.command}>
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Line title='Allow access to HomeCloud'>
               <div className="flex items-center gap-2">
                 {mcpInfo?.isRunning && (
                   <span className="text-xs text-muted-foreground font-mono">

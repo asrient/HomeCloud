@@ -804,3 +804,157 @@ export const McpServerInfoSchema = Sch.Typed('McpServerInfo', Sch.Object({
     port: Sch.NullableNumber,
     url: Sch.NullableString,
 }, ['isRunning', 'port', 'url']));
+
+
+// ─── Agent Types ─────────────────────────────────────────────────────────────
+
+export type AgentConfig = {
+    name: string;
+    command: string;
+    args: string[];
+    env?: { name: string; value: string }[];
+    addWorkflowMcp?: boolean;
+}
+
+export type AgentInfo = {
+    name: string;
+    title?: string;
+    version: string;
+}
+
+export type ChatStatus = 'idle' | 'working' | 'asking' | 'error';
+
+export type ChatInfo = {
+    chatId: string;
+    title?: string | null;
+    cwd: string;
+    status: ChatStatus;
+    updatedAt?: string | null;
+}
+
+export type AgentContentBlock =
+    | { type: 'text'; text: string }
+    | { type: 'image'; data: string; mimeType: string }
+    | { type: 'resource_link'; name: string; uri: string; mimeType?: string | null }
+    | { type: 'resource'; resource: { uri: string; text?: string; blob?: string; mimeType?: string | null } };
+
+export type AgentStopReason = 'end_turn' | 'max_tokens' | 'max_turn_requests' | 'refusal' | 'cancelled';
+
+export type AgentToolCallStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+
+export type AgentToolCall = {
+    toolCallId: string;
+    title: string;
+    kind?: string;
+    status?: AgentToolCallStatus;
+}
+
+export type AgentPlanEntry = {
+    content: string;
+    priority: 'high' | 'medium' | 'low';
+    status: 'pending' | 'in_progress' | 'completed';
+}
+
+export type AgentMessage = {
+    role: 'user' | 'assistant';
+    content: AgentContentBlock[];
+    thoughts?: AgentContentBlock[];
+    toolCalls?: AgentToolCall[];
+    plan?: AgentPlanEntry[];
+    stopReason?: AgentStopReason;
+}
+
+export type AgentChatUpdate =
+    | { kind: 'agent_message_chunk'; content: AgentContentBlock }
+    | { kind: 'agent_thought_chunk'; content: AgentContentBlock }
+    | { kind: 'tool_call'; } & AgentToolCall
+    | { kind: 'tool_call_update'; } & AgentToolCall
+    | { kind: 'plan'; entries: AgentPlanEntry[] }
+    | { kind: 'chat_info_update'; title?: string | null; updatedAt?: string | null };
+
+export type AgentPermissionOption = {
+    optionId: string;
+    name: string;
+    kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always';
+}
+
+export type AgentPermissionRequest = {
+    chatId: string;
+    toolCall: AgentToolCall;
+    options: AgentPermissionOption[];
+}
+
+export type AgentConnectionStatus = 'disconnected' | 'connecting' | 'initializing' | 'ready' | 'error';
+
+export type AgentStatus = {
+    connectionStatus: AgentConnectionStatus;
+    agentInfo?: AgentInfo | null;
+    error?: string | null;
+}
+
+export type ChatConfigOption = {
+    key: string;
+    name: string;
+    currentValue: string;
+    values: { value: string; name: string }[];
+}
+
+// ─── Schemas ─────────────────────────────────────────────────────────────────
+
+export const AgentConfigSchema: SimpleSchema = Sch.Typed('AgentConfig', Sch.Object({
+    name: Sch.String,
+    command: Sch.String,
+    args: Sch.StringArray,
+    env: Sch.Optional(Sch.Array(Sch.Object({ name: Sch.String, value: Sch.String }))),
+    addWorkflowMcp: Sch.Optional(Sch.Boolean),
+}));
+
+export const ChatInfoSchema: SimpleSchema = Sch.Typed('ChatInfo', Sch.Object({
+    chatId: Sch.String,
+    title: Sch.NullableString,
+    cwd: Sch.String,
+    status: Sch.Enum('idle', 'working', 'asking', 'error'),
+    updatedAt: Sch.NullableString,
+}));
+
+export const AgentStatusSchema: SimpleSchema = Sch.Typed('AgentStatus', Sch.Object({
+    connectionStatus: Sch.Enum('disconnected', 'connecting', 'initializing', 'ready', 'error'),
+    agentInfo: Sch.Optional(Sch.Any),
+    error: Sch.NullableString,
+}));
+
+export const ChatConfigOptionSchema: SimpleSchema = Sch.Typed('ChatConfigOption', Sch.Object({
+    key: Sch.String,
+    name: Sch.String,
+    currentValue: Sch.String,
+    values: Sch.Array(Sch.Object({ value: Sch.String, name: Sch.String })),
+}));
+
+export const AgentContentBlockSchema: SimpleSchema = Sch.Typed('AgentContentBlock', Sch.OneOf(
+    Sch.Object({ type: Sch.Enum('text'), text: Sch.String }),
+    Sch.Object({ type: Sch.Enum('image'), data: Sch.String, mimeType: Sch.String }),
+    Sch.Object({ type: Sch.Enum('resource_link'), name: Sch.String, uri: Sch.String, mimeType: Sch.NullableString }),
+    Sch.Object({ type: Sch.Enum('resource'), resource: Sch.Object({ uri: Sch.String, text: Sch.Optional(Sch.String), blob: Sch.Optional(Sch.String), mimeType: Sch.NullableString }) }),
+));
+
+export const AgentToolCallSchema: SimpleSchema = Sch.Typed('AgentToolCall', Sch.Object({
+    toolCallId: Sch.String,
+    title: Sch.String,
+    kind: Sch.Optional(Sch.String),
+    status: Sch.Optional(Sch.Enum('pending', 'in_progress', 'completed', 'failed')),
+}));
+
+export const AgentPlanEntrySchema: SimpleSchema = Sch.Typed('AgentPlanEntry', Sch.Object({
+    content: Sch.String,
+    priority: Sch.Enum('high', 'medium', 'low'),
+    status: Sch.Enum('pending', 'in_progress', 'completed'),
+}));
+
+export const AgentMessageSchema: SimpleSchema = Sch.Typed('AgentMessage', Sch.Object({
+    role: Sch.Enum('user', 'assistant'),
+    content: Sch.Array(AgentContentBlockSchema),
+    thoughts: Sch.Optional(Sch.Array(AgentContentBlockSchema)),
+    toolCalls: Sch.Optional(Sch.Array(AgentToolCallSchema)),
+    plan: Sch.Optional(Sch.Array(AgentPlanEntrySchema)),
+    stopReason: Sch.Optional(Sch.Enum('end_turn', 'max_tokens', 'max_turn_requests', 'refusal', 'cancelled')),
+}));

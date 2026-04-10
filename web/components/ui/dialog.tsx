@@ -113,7 +113,7 @@ const DialogDescription = React.forwardRef<
   <DialogPrimitive.Description
     ref={ref}
     className={cn("text-sm text-muted-foreground",
-      isMacosTheme() && 'font-medium',
+      isMacosTheme() && 'font-normal',
       className)}
     {...props}
   />

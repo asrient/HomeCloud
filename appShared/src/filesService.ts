@@ -204,14 +204,12 @@ export abstract class FilesService extends Service {
     }
 
     @exposed @info("List all pinned/bookmarked folders")
-    @wfApi
     @output(Sch.Array(PinnedFolderSchema))
     public async listPinnedFolders(): Promise<PinnedFolder[]> {
         return this.store.getItem(PINNED_FOLDERS_KEY) || [];
     }
 
     @exposed @info("Pin a folder for quick access")
-    @wfApi
     @input(Sch.Name('path', Sch.String), Sch.Name('name', Sch.Optional(Sch.String)))
     @output(PinnedFolderSchema)
     public async addPinnedFolder(path: string, name?: string): Promise<PinnedFolder> {
@@ -232,7 +230,6 @@ export abstract class FilesService extends Service {
     }
 
     @exposed @info("Unpin a bookmarked folder")
-    @wfApi
     @input(Sch.Name('path', Sch.String))
     public async removePinnedFolder(path: string): Promise<void> {
         const pinnedFolders = await this.listPinnedFolders();
