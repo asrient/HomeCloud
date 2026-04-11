@@ -1,9 +1,10 @@
 import { SidebarSectionView, SidebarView } from "./sidebarPrimatives";
 import { ContextMenuArea } from "@/components/contextMenuArea";
 import { ContextMenuItem, SidebarItem, SidebarSection } from "@/lib/types";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useAppState } from "../hooks/useAppState";
+import { useAgentConfig } from "../hooks/useAgent";
 import { useFolder, usePinnedFolders } from "../hooks/useFolders";
 import { getDefaultIcon, pinnedFolderToRemoteItem } from "@/lib/fileUtils";
 import { buildNextUrl, folderViewUrl } from '@/lib/urls';
@@ -91,7 +92,7 @@ const FilesSection = ({
     const handleContextMenuClick = useCallback((id: string) => {
         const item = rightClickedItemRef.current;
         if (!item) return;
-        
+
         switch (id) {
             case 'open':
                 openItemDirect(item);
@@ -202,6 +203,29 @@ export function DevSection() {
     );
 }
 
+function TopSection({ fingerprint }: { fingerprint: string | null }) {
+    const { config: agentConfig } = useAgentConfig(fingerprint);
+
+    const section: SidebarSection = {
+        items: [{
+            title: 'Home',
+            icon: ThemedIconName.Home,
+            href: buildNextUrl('/'),
+            key: 'home'
+        }]
+    };
+
+    if (agentConfig) {
+        section.items.push({
+            title: agentConfig.name,
+            href: buildNextUrl('/agent'),
+            icon: ThemedIconName.AI,
+            key: 'agent',
+        });
+    }
+    return <SidebarSectionView section={section} />;
+}
+
 export function AppSidebar() {
     const { selectedFingerprint } = useAppState();
     const isDev = useMemo(() => {
@@ -210,18 +234,7 @@ export function AppSidebar() {
 
     return (
         <SidebarView>
-            <SidebarSectionView
-                section={
-                    {
-                        items: [{
-                            title: 'Home',
-                            icon: ThemedIconName.Home,
-                            href: buildNextUrl('/'),
-                            key: 'home'
-                        }]
-                    }
-                } />
-
+            <TopSection fingerprint={selectedFingerprint} />
             <PhotosSection fingerprint={selectedFingerprint} />
             <FilesSection fingerprint={selectedFingerprint} />
             {isDev && <DevSection />}

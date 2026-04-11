@@ -10,7 +10,6 @@ import {
     AgentPermissionOption,
     AgentPermissionRequest,
     AgentStopReason,
-    ChatStatus,
 } from './types';
 
 const AGENT_CONFIG_KEY = 'agentConfig';
@@ -61,7 +60,7 @@ export class AgentService extends Service {
     // ── Signals ──
 
     public statusSignal = new Signal<[AgentStatus]>({ isExposed: true, isAllowAll: false });
-    public chatStatusSignal = new Signal<[string, ChatStatus]>({ isExposed: true, isAllowAll: false });
+    public chatInfoSignal = new Signal<[ChatInfo]>({ isExposed: true, isAllowAll: false });
     public messageStreamSignal = new Signal<[string, AgentChatUpdate]>({ isExposed: true, isAllowAll: false });
     public permissionRequestSignal = new Signal<[AgentPermissionRequest]>({ isExposed: true, isAllowAll: false });
 

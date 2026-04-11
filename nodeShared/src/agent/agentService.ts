@@ -20,11 +20,14 @@ type ActiveTurn = {
     pendingMessage: AgentMessage;
 };
 
+type ChatMeta = { title?: string | null; cwd: string; updatedAt?: string | null };
+
 export default class NodeAgentService extends AgentService {
     private client: AcpClient | null = null;
     private activeTurns = new Map<string, ActiveTurn>();
     private chatsDir: string = '';
     private sessionConfigs = new Map<string, any[]>();
+    private chatMeta = new Map<string, ChatMeta>();
 
     // ── Lifecycle ──
 
@@ -49,7 +52,7 @@ export default class NodeAgentService extends AgentService {
 
         client.on('exit', async () => {
             for (const chatId of this.activeTurns.keys()) {
-                this.chatStatusSignal.dispatch(chatId, 'error');
+                this.emitChatInfo(chatId, 'error');
             }
             this.rejectAllPermissions();
             this.activeTurns.clear();
@@ -60,10 +63,10 @@ export default class NodeAgentService extends AgentService {
             switch (method) {
                 case 'session/request_permission': {
                     const { sessionId, toolCall, options } = params;
-                    this.chatStatusSignal.dispatch(sessionId, 'asking');
+                    this.emitChatInfo(sessionId, 'asking');
                     const permResult = await this.handlePermissionRequest(sessionId, toolCall, options);
                     if (this.activeTurns.has(sessionId)) {
-                        this.chatStatusSignal.dispatch(sessionId, 'working');
+                        this.emitChatInfo(sessionId, 'working');
                     }
                     return permResult;
                 }
@@ -81,11 +84,12 @@ export default class NodeAgentService extends AgentService {
 
     protected override _onStop(): void {
         for (const chatId of this.activeTurns.keys()) {
-            this.chatStatusSignal.dispatch(chatId, 'idle');
+            this.emitChatInfo(chatId, 'idle');
         }
         this.destroyClient();
         this.activeTurns.clear();
         this.sessionConfigs.clear();
+        this.chatMeta.clear();
         this.statusSignal.dispatch({ connectionStatus: 'disconnected' });
     }
 
@@ -105,7 +109,9 @@ export default class NodeAgentService extends AgentService {
         const result = await this.requireClient().request('session/new', { cwd: resolvedCwd, mcpServers });
         const chatId = result.sessionId as string;
         if (result.configOptions) this.sessionConfigs.set(chatId, result.configOptions);
-        const info: ChatInfo = { chatId, title: null, cwd: resolvedCwd, status: 'idle', updatedAt: new Date().toISOString() };
+        const meta: ChatMeta = { title: null, cwd: resolvedCwd, updatedAt: new Date().toISOString() };
+        this.chatMeta.set(chatId, meta);
+        const info: ChatInfo = { chatId, ...meta, status: 'idle' };
         await this.writeChatFile(chatId, []);
         return info;
     }
@@ -113,13 +119,11 @@ export default class NodeAgentService extends AgentService {
     protected override async _listChats(): Promise<ChatInfo[]> {
         if (!this.client?.capabilities?.sessionCapabilities?.list) return [];
         const result = await this.requireClient().request('session/list', {});
-        return (result.sessions ?? []).map((s: any) => ({
-            chatId: s.sessionId,
-            title: s.title ?? null,
-            cwd: s.cwd,
-            status: this.getChatStatus(s.sessionId),
-            updatedAt: s.updatedAt ?? null,
-        }));
+        return (result.sessions ?? []).map((s: any) => {
+            const meta: ChatMeta = { title: s.title ?? null, cwd: s.cwd, updatedAt: s.updatedAt ?? null };
+            this.chatMeta.set(s.sessionId, meta);
+            return { chatId: s.sessionId, ...meta, status: this.getChatStatus(s.sessionId) };
+        });
     }
 
     protected override async _getChat(chatId: string): Promise<ChatInfo | null> {
@@ -158,7 +162,7 @@ export default class NodeAgentService extends AgentService {
         // Start accumulating assistant message
         const pendingMessage: AgentMessage = { role: 'assistant', content: [], toolCalls: [], thoughts: [] };
         this.activeTurns.set(chatId, { pendingMessage });
-        this.chatStatusSignal.dispatch(chatId, 'working');
+        this.emitChatInfo(chatId, 'working');
 
         // Send prompt
         const result = await this.requireClient().request('session/prompt', {
@@ -177,7 +181,7 @@ export default class NodeAgentService extends AgentService {
             await this.appendMessage(chatId, turn.pendingMessage);
             this.activeTurns.delete(chatId);
         }
-        this.chatStatusSignal.dispatch(chatId, 'idle');
+        this.emitChatInfo(chatId, 'idle');
 
         return { stopReason: result.stopReason };
     }
@@ -187,7 +191,7 @@ export default class NodeAgentService extends AgentService {
         // Per ACP spec: client MUST respond to pending permission requests with cancelled
         this.cancelPendingPermission(chatId);
         this.client.notify('session/cancel', { sessionId: chatId });
-        this.chatStatusSignal.dispatch(chatId, 'idle');
+        this.emitChatInfo(chatId, 'idle');
     }
 
     // ── Chat Config ──
@@ -254,6 +258,16 @@ export default class NodeAgentService extends AgentService {
         // Update stored config if agent pushes config changes
         if (update.sessionUpdate === 'config_option_update' && update.configOptions) {
             this.sessionConfigs.set(chatId, update.configOptions);
+        }
+
+        // Update chat metadata on title/timestamp changes
+        if (update.sessionUpdate === 'session_info_update') {
+            const meta = this.chatMeta.get(chatId);
+            if (meta) {
+                if (update.title !== undefined) meta.title = update.title;
+                if (update.updatedAt !== undefined) meta.updatedAt = update.updatedAt;
+                this.emitChatInfo(chatId);
+            }
         }
 
         // Dispatch live stream signal (skip user_message_chunk — only used during replay)
@@ -399,6 +413,18 @@ export default class NodeAgentService extends AgentService {
         if (!this.activeTurns.has(chatId)) return 'idle';
         if (this.hasPendingPermission(chatId)) return 'asking';
         return 'working';
+    }
+
+    private emitChatInfo(chatId: string, status?: ChatStatus): void {
+        const meta = this.chatMeta.get(chatId);
+        const info: ChatInfo = {
+            chatId,
+            title: meta?.title ?? null,
+            cwd: meta?.cwd ?? '',
+            status: status ?? this.getChatStatus(chatId),
+            updatedAt: meta?.updatedAt ?? null,
+        };
+        this.chatInfoSignal.dispatch(info);
     }
 
     private async getDefaultCwd(): Promise<string> {

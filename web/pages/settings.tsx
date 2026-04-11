@@ -15,7 +15,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { ThemedIconName, ConnectionType } from "@/lib/enums";
 import { PeerInfo, PhotoLibraryLocation, McpServerInfo, AgentConfig, AgentStatus } from "shared/types";
@@ -55,11 +54,11 @@ function Page() {
     setCheckForUpdates(updatesPref !== false);
     setIfaceStatuses(localSc.net.getConnectionInterfaceStatuses());
     // MCP
-    localSc.workflow.getMcpServerInfo().then(setMcpInfo).catch(() => { });
+    localSc.workflow.getMcpServerInfo().then(setMcpInfo).catch(console.error);
     // Agent
-    localSc.agent.getAgentConfig().then(setAgentConfigState).catch(() => { });
-    localSc.agent.getStatus().then(setAgentStatus).catch(() => { });
-    localSc.agent.getAgentConfigPresets().then(setAgentPresets).catch(() => { });
+    localSc.agent.getAgentConfig().then(setAgentConfigState).catch(console.error);
+    localSc.agent.getStatus().then(setAgentStatus).catch(console.error);
+    localSc.agent.getAgentConfigPresets().then(setAgentPresets).catch(console.error);
   }, []);
 
   const updateWinrtDgram = useCallback(async (val: boolean) => {
@@ -332,12 +331,10 @@ function Page() {
               ))}
             </Section>
           )}
-          <Section title="Artificial Intelligence" footer="Allow any AI agent access your devices via the Model Context Protocol.">
+          <Section title="Artificial Intelligence" footer="Allow AI agents access your devices via the Model Context Protocol.">
             <Dialog open={agentModalOpen} onOpenChange={setAgentModalOpen}>
               <Line title="AI Agent">
-                <DialogTrigger>
-                  <LineLink text={agentConfig ? agentConfig.name : 'Setup'} color={agentConfig ? 'default' : 'blue'} />
-                </DialogTrigger>
+                <LineLink onClick={openAgentModal} text={agentConfig ? agentConfig.name : 'Setup'} color={agentConfig ? 'default' : 'blue'} />
               </Line>
               <DialogContent className="sm:max-w-[26rem]">
                 <DialogHeader>

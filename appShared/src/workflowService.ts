@@ -38,6 +38,15 @@ export abstract class WorkflowService extends Service {
 
     @serviceStartMethod
     public async start() {
+        try {
+            const localSc = modules.getLocalServiceController();
+            const autoStart = localSc.app.getUserPreference(MCP_AUTO_START_PREF_KEY);
+            if (autoStart) {
+                await this._startMcpServer();
+            }
+        } catch (err: any) {
+            console.error('[WorkflowService] Failed to auto-start MCP server:', err.message);
+        }
     }
 
     @serviceStopMethod

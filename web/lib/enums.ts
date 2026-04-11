@@ -41,6 +41,7 @@ export enum ThemedIconName {
     Tool = 'Tool',
     Home = 'Home',
     Apps = 'Apps',
+    AI = 'AI',
 }
 
 export enum ConnectionType {
