@@ -1,6 +1,6 @@
 import { PageBar, PageContent } from "@/components/pagePrimatives";
-import { FormContainer, Section, Line, LineLink } from '@/components/formPrimatives'
-import { buildPageConfig, getOSIconUrl, isWindows, cn } from '@/lib/utils'
+import { FormContainer, Section, Line } from '@/components/formPrimatives'
+import { buildPageConfig, isWindows } from '@/lib/utils'
 import Head from 'next/head'
 import Image from 'next/image'
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
@@ -8,28 +8,22 @@ import ConfirmModal from '@/components/confirmModal'
 import TextModal from '@/components/textModal'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { Input } from '@/components/ui/input'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { ThemedIconName, ConnectionType } from "@/lib/enums";
-import { PeerInfo, PhotoLibraryLocation, McpServerInfo, AgentConfig, AgentStatus } from "shared/types";
+import { PeerInfo } from "shared/types";
 import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { useAccountState } from "@/components/hooks/useAccountState";
 import { useAppState } from "@/components/hooks/useAppState";
 import { getAppName } from '@/lib/utils';
-import { Folder, Plus, X, MoreHorizontal, ExternalLink, Trash2 } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 import { DeviceIcon } from '@/components/DeviceIcon';
 import { UserPreferences } from "@/lib/types";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useNavigation } from '@/components/hooks/useNavigation';
+import AISettingsSection from '@/components/settings/AISection';
+import PhotoLibrariesSection from '@/components/settings/PhotoLibrariesSection';
+import DeviceSettingsDialog from '@/components/settings/DeviceSettingsDialog';
 
 function Page() {
-  const [photoLibraries, setPhotoLibraries] = useState<PhotoLibraryLocation[]>([]);
   const [autoStartEnabled, setAutoStartEnabled] = useState<boolean | null>(null);
   const [autoStartDisabled, setAutoStartDisabled] = useState(false);
   const { openDialog } = useOnboardingStore();
@@ -37,13 +31,7 @@ function Page() {
   const [autoConnectMobile, setAutoConnectMobile] = useState(true);
   const [checkForUpdates, setCheckForUpdates] = useState(true);
   const [ifaceStatuses, setIfaceStatuses] = useState<{ type: ConnectionType; enabled: boolean }[]>([]);
-  const [mcpInfo, setMcpInfo] = useState<McpServerInfo | null>(null);
-  const [mcpLoading, setMcpLoading] = useState(false);
-  const [agentConfig, setAgentConfigState] = useState<AgentConfig | null>(null);
-  const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
-  const [agentPresets, setAgentPresets] = useState<AgentConfig[]>([]);
-  const [agentModalOpen, setAgentModalOpen] = useState(false);
-  const [agentForm, setAgentForm] = useState<{ name: string; command: string; args: string; addWorkflowMcp: boolean }>({ name: '', command: '', args: '', addWorkflowMcp: false });
+  const [settingsFingerprint, setSettingsFingerprint] = useState<string | null>(null);
 
   useEffect(() => {
     const localSc = window.modules.getLocalServiceController();
@@ -53,13 +41,32 @@ function Page() {
     const updatesPref = localSc.app.getUserPreference(UserPreferences.CHECK_FOR_UPDATES);
     setCheckForUpdates(updatesPref !== false);
     setIfaceStatuses(localSc.net.getConnectionInterfaceStatuses());
-    // MCP
-    localSc.workflow.getMcpServerInfo().then(setMcpInfo).catch(console.error);
-    // Agent
-    localSc.agent.getAgentConfig().then(setAgentConfigState).catch(console.error);
-    localSc.agent.getStatus().then(setAgentStatus).catch(console.error);
-    localSc.agent.getAgentConfigPresets().then(setAgentPresets).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    const fetchAutoStartStatus = async () => {
+      const localSc = window.modules.getLocalServiceController();
+      const enabled = await localSc.app.isAutoStartEnabled();
+      if (enabled !== null) {
+        setAutoStartEnabled(enabled);
+      }
+    };
+    fetchAutoStartStatus();
+  }, []);
+
+  const handleAutoStartToggle = async (checked: boolean) => {
+    setAutoStartDisabled(true);
+    try {
+      const localSc = window.modules.getLocalServiceController();
+      await localSc.app.setAutoStart(checked);
+      setAutoStartEnabled(checked);
+    } catch (e) {
+      console.error('Failed to toggle auto-start:', e);
+    }
+    finally {
+      setAutoStartDisabled(false);
+    }
+  };
 
   const updateWinrtDgram = useCallback(async (val: boolean) => {
     const localSc = window.modules.getLocalServiceController();
@@ -79,94 +86,6 @@ function Page() {
     setCheckForUpdates(val);
   }, []);
 
-  const refreshMcpInfo = useCallback(async () => {
-    const localSc = window.modules.getLocalServiceController();
-    const info = await localSc.workflow.getMcpServerInfo();
-    setMcpInfo(info);
-    return info;
-  }, []);
-
-  const handleMcpToggle = useCallback(async (start: boolean) => {
-    setMcpLoading(true);
-    try {
-      const localSc = window.modules.getLocalServiceController();
-      if (start) {
-        await localSc.workflow.startMcpServer();
-      } else {
-        await localSc.workflow.stopMcpServer();
-      }
-      await refreshMcpInfo();
-    } catch (e) {
-      console.error('Failed to toggle MCP server:', e);
-    } finally {
-      setMcpLoading(false);
-    }
-  }, [refreshMcpInfo]);
-
-  const handleSetAgent = useCallback(async (config: AgentConfig) => {
-    try {
-      const localSc = window.modules.getLocalServiceController();
-      await localSc.agent.setAgentConfig(config);
-      setAgentConfigState(config);
-      const status = await localSc.agent.getStatus();
-      setAgentStatus(status);
-    } catch (e) {
-      console.error('Failed to set agent config:', e);
-    }
-  }, []);
-
-  const handleRemoveAgent = useCallback(async () => {
-    try {
-      const localSc = window.modules.getLocalServiceController();
-      await localSc.agent.removeAgentConfig();
-      setAgentConfigState(null);
-      const status = await localSc.agent.getStatus();
-      setAgentStatus(status);
-    } catch (e) {
-      console.error('Failed to remove agent config:', e);
-    }
-  }, []);
-
-  const handleSaveAgent = useCallback(async () => {
-    if (!agentForm.name || !agentForm.command) return;
-    const config: AgentConfig = {
-      name: agentForm.name,
-      command: agentForm.command,
-      args: agentForm.args.split(/\s+/).filter(Boolean),
-      addWorkflowMcp: agentForm.addWorkflowMcp,
-    };
-    await handleSetAgent(config);
-    setAgentModalOpen(false);
-  }, [agentForm, handleSetAgent]);
-
-  const handleRemoveAgentFromModal = useCallback(async () => {
-    await handleRemoveAgent();
-    setAgentModalOpen(false);
-  }, [handleRemoveAgent]);
-
-  const openAgentModal = useCallback(() => {
-    if (agentConfig) {
-      setAgentForm({
-        name: agentConfig.name,
-        command: agentConfig.command,
-        args: agentConfig.args.join(' '),
-        addWorkflowMcp: agentConfig.addWorkflowMcp ?? false,
-      });
-    } else {
-      setAgentForm({ name: '', command: '', args: '', addWorkflowMcp: false });
-    }
-    setAgentModalOpen(true);
-  }, [agentConfig]);
-
-  const applyPreset = useCallback((preset: AgentConfig) => {
-    setAgentForm({
-      name: preset.name,
-      command: preset.command,
-      args: preset.args.join(' '),
-      addWorkflowMcp: agentForm.addWorkflowMcp,
-    });
-  }, [agentForm.addWorkflowMcp]);
-
   const connectionInterfaceLabels: Record<string, string> = {
     [ConnectionType.LOCAL]: 'Local Network',
     [ConnectionType.WEB]: 'Web Connect',
@@ -177,69 +96,6 @@ function Page() {
     const localSc = window.modules.getLocalServiceController();
     await localSc.net.setConnectionInterfaceEnabled(type, enabled);
   }, []);
-
-  const fetchPhotoLibraries = useCallback(async () => {
-    try {
-      const locations = await window.modules.getLocalServiceController().photos.getLocations();
-      setPhotoLibraries(locations);
-    } catch (e) {
-      console.error('Failed to fetch photo libraries:', e);
-    }
-  }, []);
-
-  useEffect(() => {
-    const fetchAutoStartStatus = async () => {
-      const localSc = window.modules.getLocalServiceController();
-      // Check if auto-start is supported (returns null if not)
-      const enabled = await localSc.app.isAutoStartEnabled();
-      if (enabled !== null) {
-        setAutoStartEnabled(enabled);
-      }
-    };
-    fetchPhotoLibraries();
-    fetchAutoStartStatus();
-  }, [fetchPhotoLibraries]);
-
-  const handleAutoStartToggle = async (checked: boolean) => {
-    setAutoStartDisabled(true);
-    try {
-      const localSc = window.modules.getLocalServiceController();
-      await localSc.app.setAutoStart(checked);
-      setAutoStartEnabled(checked);
-    } catch (e) {
-      console.error('Failed to toggle auto-start:', e);
-    }
-    finally {
-      setAutoStartDisabled(false);
-    }
-  };
-
-  const handleAddPhotoLibrary = async () => {
-    try {
-      const localSc = window.modules.getLocalServiceController();
-      const result = await localSc.files.openFilePicker(false, true, undefined, 'Select Library Folder', 'Select');
-      if (result && result.length > 0) {
-        const selectedPath = result[0].path;
-        const rawName = selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Library';
-        let folderName: string;
-        try { folderName = decodeURIComponent(rawName); } catch { folderName = rawName; }
-        await localSc.photos.addLocation(folderName, selectedPath);
-        await fetchPhotoLibraries();
-      }
-    } catch (e) {
-      console.error('Failed to add photo library:', e);
-    }
-  };
-
-  const handleRemovePhotoLibrary = async (id: string) => {
-    try {
-      const localSc = window.modules.getLocalServiceController();
-      await localSc.photos.removeLocation(id);
-      await fetchPhotoLibraries();
-    } catch (e) {
-      console.error('Failed to remove photo library:', e);
-    }
-  };
 
   const { isLinked, accountEmail } = useAccountState();
   const { peers, deviceInfo } = useAppState();
@@ -331,129 +187,8 @@ function Page() {
               ))}
             </Section>
           )}
-          <Section title="Artificial Intelligence" footer="Allow AI agents access your devices via the Model Context Protocol.">
-            <Dialog open={agentModalOpen} onOpenChange={setAgentModalOpen}>
-              <Line title="AI Agent">
-                <LineLink onClick={openAgentModal} text={agentConfig ? agentConfig.name : 'Setup'} color={agentConfig ? 'default' : 'blue'} />
-              </Line>
-              <DialogContent className="sm:max-w-[26rem]">
-                <DialogHeader>
-                  <DialogTitle>Setup AI Agent</DialogTitle>
-                  <DialogDescription>
-                    Add a ACP compatible AI Agent to HomeCloud.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-wrap gap-1.5 my-1">
-                  {agentPresets.map((preset) => (
-                    <Button
-                      key={preset.name}
-                      variant={agentForm.name === preset.name ? 'default' : 'outline'}
-                      size="sm"
-                      className="rounded-full text-xs h-7"
-                      onClick={() => applyPreset(preset)}
-                    >
-                      {preset.name}
-                    </Button>
-                  ))}
-                </div>
-                <div className="flex flex-col gap-2.5">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-muted-foreground">Name</label>
-                    <Input
-                      placeholder="e.g. GitHub Copilot"
-                      value={agentForm.name}
-                      onChange={(e) => setAgentForm(prev => ({ ...prev, name: e.target.value }))}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-muted-foreground">Command</label>
-                    <Input
-                      placeholder="e.g. copilot"
-                      value={agentForm.command}
-                      onChange={(e) => setAgentForm(prev => ({ ...prev, command: e.target.value }))}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-muted-foreground">Arguments</label>
-                    <Input
-                      placeholder="e.g. --acp"
-                      value={agentForm.args}
-                      onChange={(e) => setAgentForm(prev => ({ ...prev, args: e.target.value }))}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-sm">Provide workflow tools</span>
-                    <Switch
-                      checked={agentForm.addWorkflowMcp}
-                      onCheckedChange={(val) => setAgentForm(prev => ({ ...prev, addWorkflowMcp: val }))}
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between pt-2">
-                  <div>
-                    {agentConfig && (
-                      <Button variant="ghost" className="text-red-500" size="sm" onClick={handleRemoveAgentFromModal}>
-                        Delete
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => setAgentModalOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button size="sm" onClick={handleSaveAgent} disabled={!agentForm.name || !agentForm.command}>
-                      Save
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-            <Line title='Allow access to HomeCloud'>
-              <div className="flex items-center gap-2">
-                {mcpInfo?.isRunning && (
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {mcpInfo.url}
-                  </span>
-                )}
-                <Switch
-                  checked={mcpInfo?.isRunning ?? false}
-                  onCheckedChange={handleMcpToggle}
-                  disabled={mcpLoading}
-                />
-              </div>
-            </Line>
-          </Section>
-          <Section title="Photo Libraries">
-            {photoLibraries.map((library) => (
-              <Line key={library.id} title={
-                <div className="flex items-center">
-                  <Folder className="w-7 h-7 mr-2 text-foreground/70" />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{library.name}</span>
-                    <span className="text-xs text-foreground/50">{library.location}</span>
-                  </div>
-                </div>
-              }>
-                <ConfirmModal
-                  title='Remove Photo Library'
-                  description={`Are you sure you want to remove "${library.name}" from your photo libraries?`}
-                  onConfirm={() => handleRemovePhotoLibrary(library.id)}
-                  buttonVariant='destructive'
-                  buttonText='Remove'
-                >
-                  <Button variant='ghost' className='text-red-500' size='icon'>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </ConfirmModal>
-              </Line>
-            ))}
-            <Line>
-              <Button variant='ghost' className="text-primary" size='sm' onClick={handleAddPhotoLibrary}>
-                <Plus className="w-4 h-4 mr-1" />
-                Add Photo Library
-              </Button>
-            </Line>
-          </Section>
+          <AISettingsSection fingerprint={null} />
+          <PhotoLibrariesSection fingerprint={null} />
           {isLinked && peers.length > 0 && (
             <Section title="Linked Devices">
               {peers.map((peer: PeerInfo) => (
@@ -483,6 +218,12 @@ function Page() {
                       <DropdownMenuItem onClick={() => openDevicePage(peer.fingerprint)}>
                         Open device
                       </DropdownMenuItem>
+                      {peer.deviceInfo && ['desktop', 'laptop', 'server'].includes(peer.deviceInfo.formFactor) && (
+                        <DropdownMenuItem onClick={() => setSettingsFingerprint(peer.fingerprint)}>
+                          Settings
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
                       <ConfirmModal
                         title='Remove Device'
                         description={`Are you sure you want to remove "${peer.deviceName}" from your account?`}
@@ -567,6 +308,14 @@ function Page() {
           </div>
         </FormContainer>
       </PageContent>
+      {settingsFingerprint && (
+        <DeviceSettingsDialog
+          fingerprint={settingsFingerprint}
+          peer={peers.find(p => p.fingerprint === settingsFingerprint) ?? null}
+          open={!!settingsFingerprint}
+          onOpenChange={(open) => { if (!open) setSettingsFingerprint(null); }}
+        />
+      )}
     </>
   )
 }
