@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Square, ShieldQuestion, ArrowUp, Check, CircleDashed, CircleX } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 // ── Message bubble ──
 
@@ -22,10 +24,14 @@ function MessageBubble({ message }: { message: AgentMessage }) {
         <div className={cn('flex select-text',
             isUser ? 'justify-end' : 'justify-start')}>
             <div className={cn(
-                ' px-3 py-2.5 text-sm whitespace-pre-wrap break-words max-w-[80%]',
-                isUser && 'bg-secondary/50 text-secondary-foreground rounded-xl'
+                ' px-3 py-2.5 text-sm break-words max-w-[80%]',
+                isUser ? 'bg-secondary/50 text-secondary-foreground rounded-xl whitespace-pre-wrap' : 'prose prose-sm dark:prose-invert prose-p:my-1 prose-pre:my-2 prose-ul:my-1 prose-ol:my-1 prose-headings:my-2 prose-li:my-0 max-w-none'
             )}>
-                {textContent || <span className="text-muted-foreground italic">{'(non-text content)'}</span>}
+                {textContent ? (
+                    isUser ? textContent : <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
+                ) : (
+                    <span className="text-muted-foreground italic">{'(non-text content)'}</span>
+                )}
 
                 {/* Tool calls */}
                 {message.toolCalls && message.toolCalls.length > 0 && (
