@@ -28,6 +28,7 @@ export default class NodeAgentService extends AgentService {
     private chatsDir: string = '';
     private sessionConfigs = new Map<string, any[]>();
     private chatMeta = new Map<string, ChatMeta>();
+    private unreadChats = new Set<string>();
 
     // ── Lifecycle ──
 
@@ -63,7 +64,6 @@ export default class NodeAgentService extends AgentService {
             switch (method) {
                 case 'session/request_permission': {
                     const { sessionId, toolCall, options } = params;
-                    this.emitChatInfo(sessionId, 'asking');
                     const permResult = await this.handlePermissionRequest(sessionId, toolCall, options);
                     if (this.activeTurns.has(sessionId)) {
                         this.emitChatInfo(sessionId, 'working');
@@ -111,7 +111,7 @@ export default class NodeAgentService extends AgentService {
         if (result.configOptions) this.sessionConfigs.set(chatId, result.configOptions);
         const meta: ChatMeta = { title: null, cwd: resolvedCwd, updatedAt: new Date().toISOString() };
         this.chatMeta.set(chatId, meta);
-        const info: ChatInfo = { chatId, ...meta, status: 'idle' };
+        const info: ChatInfo = { chatId, ...meta, isUnread: false, status: 'idle' };
         await this.writeChatFile(chatId, []);
         return info;
     }
@@ -122,7 +122,13 @@ export default class NodeAgentService extends AgentService {
         return (result.sessions ?? []).map((s: any) => {
             const meta: ChatMeta = { title: s.title ?? null, cwd: s.cwd, updatedAt: s.updatedAt ?? null };
             this.chatMeta.set(s.sessionId, meta);
-            return { chatId: s.sessionId, ...meta, status: this.getChatStatus(s.sessionId) };
+            const status = this.getChatStatus(s.sessionId);
+            return {
+                chatId: s.sessionId, ...meta,
+                isUnread: this.unreadChats.has(s.sessionId),
+                status,
+                pendingPermission: status === 'asking' ? this.getPendingPermissionRequest(s.sessionId) : null,
+            };
         });
     }
 
@@ -168,7 +174,7 @@ export default class NodeAgentService extends AgentService {
         const result = await this.requireClient().request('session/prompt', {
             sessionId: chatId,
             prompt: content,
-        });
+        }, null);
 
         // Finalize assistant message
         const turn = this.activeTurns.get(chatId);
@@ -181,6 +187,7 @@ export default class NodeAgentService extends AgentService {
             await this.appendMessage(chatId, turn.pendingMessage);
             this.activeTurns.delete(chatId);
         }
+        this.unreadChats.add(chatId);
         this.emitChatInfo(chatId, 'idle');
 
         return { stopReason: result.stopReason };
@@ -192,6 +199,12 @@ export default class NodeAgentService extends AgentService {
         this.cancelPendingPermission(chatId);
         this.client.notify('session/cancel', { sessionId: chatId });
         this.emitChatInfo(chatId, 'idle');
+    }
+
+    protected override async _markRead(chatId: string): Promise<void> {
+        if (this.unreadChats.delete(chatId)) {
+            this.emitChatInfo(chatId);
+        }
     }
 
     // ── Chat Config ──
@@ -415,16 +428,26 @@ export default class NodeAgentService extends AgentService {
         return 'working';
     }
 
-    private emitChatInfo(chatId: string, status?: ChatStatus): void {
+    private buildChatInfoObj(chatId: string, status?: ChatStatus): ChatInfo {
         const meta = this.chatMeta.get(chatId);
-        const info: ChatInfo = {
+        const resolvedStatus = status ?? this.getChatStatus(chatId);
+        return {
             chatId,
             title: meta?.title ?? null,
             cwd: meta?.cwd ?? '',
-            status: status ?? this.getChatStatus(chatId),
+            status: resolvedStatus,
+            isUnread: this.unreadChats.has(chatId),
+            pendingPermission: resolvedStatus === 'asking' ? this.getPendingPermissionRequest(chatId) : null,
             updatedAt: meta?.updatedAt ?? null,
         };
-        this.chatInfoSignal.dispatch(info);
+    }
+
+    private emitChatInfo(chatId: string, status?: ChatStatus): void {
+        this.chatInfoSignal.dispatch(this.buildChatInfoObj(chatId, status));
+    }
+
+    protected override _buildChatInfo(chatId: string): ChatInfo {
+        return this.buildChatInfoObj(chatId);
     }
 
     private async getDefaultCwd(): Promise<string> {

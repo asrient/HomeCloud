@@ -9,16 +9,14 @@ export function shortId(): string {
 
 import {
     WorkflowConfig,
-    WorkflowCreateRequest,
+    WorkflowSavePayload,
     WorkflowExecution,
     WorkflowExecutionResult,
     WorkflowInputField,
     WorkflowInputs,
-    WorkflowPermissions,
     WorkflowTrigger,
     WorkflowTriggerCreateRequest,
     WorkflowTriggerUpdatePayload,
-    WorkflowUpdatePayload,
     WorkflowColor,
     ListWorkflowsParams,
     ListWorkflowExecutionsParams,
@@ -84,12 +82,10 @@ class WorkflowDB {
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 description TEXT,
-                author TEXT NOT NULL DEFAULT '',
-                version TEXT NOT NULL DEFAULT '1.0.0',
                 is_enabled INTEGER NOT NULL DEFAULT 1,
                 color TEXT,
+                script_path TEXT NOT NULL DEFAULT '',
                 input_fields TEXT NOT NULL DEFAULT '[]',
-                permissions TEXT,
                 max_exec_time_secs INTEGER,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -118,6 +114,7 @@ class WorkflowDB {
                 trigger_id TEXT,
                 inputs_json TEXT,
                 result_json TEXT,
+                log_file_path TEXT,
                 started_at TEXT NOT NULL,
                 ended_at TEXT
             )
@@ -138,12 +135,10 @@ type ConfigRow = {
     id: string;
     name: string;
     description: string | null;
-    author: string;
-    version: string;
     is_enabled: number;
     color: string | null;
+    script_path: string;
     input_fields: string;
-    permissions: string | null;
     max_exec_time_secs: number | null;
     created_at: string;
     updated_at: string;
@@ -163,6 +158,7 @@ type ExecutionRow = {
     trigger_id: string | null;
     inputs_json: string | null;
     result_json: string | null;
+    log_file_path: string | null;
     started_at: string;
     ended_at: string | null;
 };
@@ -172,12 +168,10 @@ function rowToWorkflowConfig(row: ConfigRow): WorkflowConfig {
         id: row.id,
         name: row.name,
         description: row.description ?? undefined,
-        author: row.author,
-        version: row.version,
         isEnabled: row.is_enabled === 1,
         color: (row.color as WorkflowColor) ?? undefined,
+        scriptPath: row.script_path,
         inputFields: JSON.parse(row.input_fields) as WorkflowInputField[],
-        permissions: row.permissions ? JSON.parse(row.permissions) as WorkflowPermissions : undefined,
         maxExecTimeSecs: row.max_exec_time_secs ?? undefined,
         createdAt: new Date(row.created_at),
         updatedAt: new Date(row.updated_at),
@@ -201,6 +195,7 @@ function rowToWorkflowExecution(row: ExecutionRow): WorkflowExecution {
         triggerId: row.trigger_id ?? undefined,
         inputs: row.inputs_json ? JSON.parse(row.inputs_json) as WorkflowInputs : undefined,
         result: row.result_json ? JSON.parse(row.result_json) as WorkflowExecutionResult : undefined,
+        logFilePath: row.log_file_path ?? undefined,
         startedAt: new Date(row.started_at),
         endedAt: row.ended_at ? new Date(row.ended_at) : undefined,
     };
@@ -256,22 +251,23 @@ export class WorkflowRepository {
         return rows.map(rowToWorkflowConfig);
     }
 
-    async createWorkflow(data: WorkflowCreateRequest): Promise<WorkflowConfig> {
+    async createWorkflow(data: WorkflowSavePayload & { name: string; scriptPath: string }): Promise<WorkflowConfig> {
         const id = shortId();
         const now = new Date().toISOString();
 
         await this.db.run(
-            `INSERT INTO workflow_configs (id, name, description, author, version, is_enabled, input_fields, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, data.name, data.description ?? null, modules.config.DEVICE_NAME, '1.0.0', 1,
-                '[]', now, now]
+            `INSERT INTO workflow_configs (id, name, description, is_enabled, color, script_path, input_fields, max_exec_time_secs, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, data.name, data.description ?? null, data.isEnabled === false ? 0 : 1,
+                data.color ?? null, data.scriptPath, JSON.stringify(data.inputFields ?? []),
+                data.maxExecTimeSecs ?? null, now, now]
         );
 
         return this.getWorkflow(id);
     }
 
-    async updateWorkflow(data: WorkflowUpdatePayload): Promise<WorkflowConfig> {
-        const existing = await this.getWorkflow(data.id);
+    async updateWorkflow(id: string, data: WorkflowSavePayload): Promise<WorkflowConfig> {
+        await this.getWorkflow(id);
         const now = new Date().toISOString();
 
         const fields: string[] = ['updated_at = ?'];
@@ -281,14 +277,14 @@ export class WorkflowRepository {
         if (data.description !== undefined) { fields.push('description = ?'); params.push(data.description); }
         if (data.isEnabled !== undefined) { fields.push('is_enabled = ?'); params.push(data.isEnabled ? 1 : 0); }
         if (data.color !== undefined) { fields.push('color = ?'); params.push(data.color); }
+        if (data.scriptPath !== undefined) { fields.push('script_path = ?'); params.push(data.scriptPath); }
         if (data.inputFields !== undefined) { fields.push('input_fields = ?'); params.push(JSON.stringify(data.inputFields)); }
         if (data.maxExecTimeSecs !== undefined) { fields.push('max_exec_time_secs = ?'); params.push(data.maxExecTimeSecs); }
-        if (data.permissions !== undefined) { fields.push('permissions = ?'); params.push(JSON.stringify(data.permissions)); }
 
-        params.push(data.id);
+        params.push(id);
         await this.db.run(`UPDATE workflow_configs SET ${fields.join(', ')} WHERE id = ?`, params);
 
-        return this.getWorkflow(data.id);
+        return this.getWorkflow(id);
     }
 
     async deleteWorkflow(id: string): Promise<void> {
@@ -308,6 +304,12 @@ export class WorkflowRepository {
     // --- Triggers ---
 
     async createTrigger(data: WorkflowTriggerCreateRequest): Promise<WorkflowTrigger> {
+        // Dedup: reuse existing trigger with same type+data
+        const existing = await this.db.get<TriggerRow>(
+            'SELECT * FROM triggers WHERE type = ? AND data = ?', [data.type, data.data]
+        );
+        if (existing) return rowToTrigger(existing);
+
         const id = shortId();
         const now = new Date().toISOString();
         await this.db.run(
@@ -389,16 +391,16 @@ export class WorkflowRepository {
 
     async createExecution(
         workflowId: string | null,
-        opts?: { script?: string; triggerId?: string; inputs?: WorkflowInputs },
+        opts?: { script?: string; triggerId?: string; inputs?: WorkflowInputs; logFilePath?: string },
     ): Promise<WorkflowExecution> {
         const id = shortId();
         const now = new Date().toISOString();
 
         await this.db.run(
-            `INSERT INTO workflow_executions (id, workflow_id, script, trigger_id, inputs_json, started_at)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO workflow_executions (id, workflow_id, script, trigger_id, inputs_json, log_file_path, started_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [id, workflowId, opts?.script ?? null, opts?.triggerId ?? null,
-                opts?.inputs ? JSON.stringify(opts.inputs) : null, now]
+                opts?.inputs ? JSON.stringify(opts.inputs) : null, opts?.logFilePath ?? null, now]
         );
 
         return this.getExecution(id);

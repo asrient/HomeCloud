@@ -281,3 +281,50 @@ export function formatDate(dateStr?: string | null) {
   if (diffHrs < 24) return `${diffHrs}h ago`;
   return d.toLocaleDateString();
 }
+
+export function cronToHuman(cron: string): string {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length < 5) return cron;
+  const [min, hour, dom, mon, dow] = parts;
+
+  // Every minute
+  if (min === '*' && hour === '*' && dom === '*' && mon === '*' && dow === '*') return 'Every minute';
+
+  // Every N minutes
+  if (min.startsWith('*/') && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
+    const n = parseInt(min.slice(2));
+    return n === 1 ? 'Every minute' : `Every ${n} minutes`;
+  }
+
+  // Every N hours
+  if (min === '0' && hour.startsWith('*/') && dom === '*' && mon === '*' && dow === '*') {
+    const n = parseInt(hour.slice(2));
+    return n === 1 ? 'Every hour' : `Every ${n} hours`;
+  }
+
+  // Every hour at :MM
+  if (!min.includes('*') && !min.includes('/') && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
+    return `Every hour at :${min.padStart(2, '0')}`;
+  }
+
+  // Daily at HH:MM
+  if (!min.includes('*') && !hour.includes('*') && dom === '*' && mon === '*' && dow === '*') {
+    return `Daily at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  }
+
+  // Weekly on specific day
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  if (!min.includes('*') && !hour.includes('*') && dom === '*' && mon === '*' && dow !== '*' && !dow.includes(',')) {
+    const dayIdx = parseInt(dow);
+    const dayName = dayNames[dayIdx] ?? dow;
+    return `Every ${dayName} at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  }
+
+  // Monthly on specific day
+  if (!min.includes('*') && !hour.includes('*') && dom !== '*' && mon === '*' && dow === '*') {
+    const suffix = dom === '1' ? 'st' : dom === '2' ? 'nd' : dom === '3' ? 'rd' : 'th';
+    return `Monthly on the ${dom}${suffix} at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  }
+
+  return cron;
+}

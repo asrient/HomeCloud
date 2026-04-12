@@ -36,15 +36,16 @@ export class WorkflowExecutor {
 
         const logsDir = path.join(this.workflowsDir, 'Logs');
         await fsp.mkdir(logsDir, { recursive: true });
+        const logFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.log`;
+        const logFilePath = path.join(logsDir, logFileName);
 
-        const execution = await this.repo.createExecution(config.id, { inputs, triggerId });
-        const logFilePath = path.join(logsDir, `${execution.id}.log`);
+        const execution = await this.repo.createExecution(config.id, { inputs, triggerId, logFilePath });
         this.onExecutionStart?.(execution);
 
         const timeoutSecs = config.maxExecTimeSecs ?? maxWaitSec ?? DEFAULT_MAX_EXEC_SECS;
 
         return this.runWorker(execution, {
-            scriptPath: path.join(this.workflowsDir, 'Scripts', `${config.id}.js`),
+            scriptPath: config.scriptPath,
             scriptContent: null,
             context,
             logFilePath,
@@ -60,9 +61,10 @@ export class WorkflowExecutor {
 
         const logsDir = path.join(this.workflowsDir, 'Logs');
         await fsp.mkdir(logsDir, { recursive: true });
+        const logFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.log`;
+        const logFilePath = path.join(logsDir, logFileName);
 
-        const execution = await this.repo.createExecution(null, { script });
-        const logFilePath = path.join(logsDir, `${execution.id}.log`);
+        const execution = await this.repo.createExecution(null, { script, logFilePath });
         this.onExecutionStart?.(execution);
 
         const timeoutSecs = maxWaitSec ?? DEFAULT_MAX_EXEC_SECS;

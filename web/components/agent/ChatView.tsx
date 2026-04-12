@@ -191,16 +191,18 @@ export function ChatView({ deviceFingerprint, chatId, className }: {
                     {messages.map((msg, i) => (
                         <MessageBubble key={i} message={msg} />
                     ))}
-
-                    {/* Permission prompt */}
-                    {pendingPermission && (
-                        <PermissionPrompt
-                            permission={pendingPermission}
-                            onRespond={respondToPermission}
-                        />
-                    )}
                 </div>
             </ScrollArea>
+
+            {/* Permission prompt — outside scroll area so always visible */}
+            {pendingPermission && (
+                <div className="px-4 pb-2">
+                    <PermissionPrompt
+                        permission={pendingPermission}
+                        onRespond={respondToPermission}
+                    />
+                </div>
+            )}
 
             {/* Status */}
             <StatusBar status={status} />

@@ -223,6 +223,12 @@ function TopSection({ fingerprint }: { fingerprint: string | null }) {
             key: 'agent',
         });
     }
+    section.items.push({
+        title: 'Workflows',
+        href: buildNextUrl('/workflows'),
+        icon: ThemedIconName.Workflows,
+        key: 'workflows',
+    });
     return <SidebarSectionView section={section} />;
 }
 

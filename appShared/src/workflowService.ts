@@ -5,10 +5,9 @@ import {
     MCP_AUTO_START_PREF_KEY,
     McpServerInfo,
     McpServerInfoSchema,
+    SignalEvent,
     WorkflowConfig,
     WorkflowConfigSchema,
-    WorkflowCreateRequest,
-    WorkflowCreateRequestSchema,
     WorkflowExecution,
     WorkflowExecutionSchema,
     WorkflowInputs,
@@ -19,8 +18,8 @@ import {
     WorkflowTriggerCreateRequestSchema,
     WorkflowTriggerUpdatePayload,
     WorkflowTriggerUpdatePayloadSchema,
-    WorkflowUpdatePayload,
-    WorkflowUpdatePayloadSchema,
+    WorkflowSavePayload,
+    WorkflowSavePayloadSchema,
     ListWorkflowsParams,
     ListWorkflowsParamsSchema,
     ListWorkflowExecutionsParams,
@@ -32,6 +31,7 @@ import {
 export abstract class WorkflowService extends Service {
     public executionStartSignal = new Signal<[WorkflowExecution]>({ isExposed: true, isAllowAll: false });
     public executionEndSignal = new Signal<[WorkflowExecution]>({ isExposed: true, isAllowAll: false });
+    public workflowSignal = new Signal<[SignalEvent, WorkflowConfig]>({ isExposed: true, isAllowAll: false });
     public init() {
         this._init();
     }
@@ -58,15 +58,6 @@ export abstract class WorkflowService extends Service {
     @exposed @info("Check if workflow engine is available") @output(Sch.Boolean)
     public async isAvailable(): Promise<boolean> { return this._isAvailable(); }
 
-    @exposed @info("Read a workflow's JavaScript source code")
-    @wfApi
-    @input(Sch.Name('workflowId', Sch.String)) @output(Sch.String)
-    public async readScript(workflowId: string): Promise<string> { return this._readScript(workflowId); }
-
-    @exposed @info("Update a workflow's JavaScript source code") @input(Sch.Name('workflowId', Sch.String), Sch.Name('script', Sch.String))
-    @wfApi
-    public async writeScript(workflowId: string, script: string): Promise<void> { return this._writeScript(workflowId, script); }
-
     @exposed @info("List all workflow configurations") @input(Sch.Name('params', Sch.Optional(ListWorkflowsParamsSchema))) @output(Sch.Array(WorkflowConfigSchema))
     @wfApi
     public async listWorkflows(params?: ListWorkflowsParams): Promise<WorkflowConfig[]> { return this._listWorkflows(params); }
@@ -75,17 +66,29 @@ export abstract class WorkflowService extends Service {
     @wfApi
     public async getWorkflowConfig(workflowId: string): Promise<WorkflowConfig> { return this._getWorkflowConfig(workflowId); }
 
-    @exposed @info("Create a new workflow") @input(Sch.Name('data', WorkflowCreateRequestSchema)) @output(WorkflowConfigSchema)
+    @exposed @info("Create a new workflow") @input(Sch.Name('name', Sch.String), Sch.Name('dir', Sch.Optional(Sch.String))) @output(WorkflowConfigSchema)
     @wfApi
-    public async createWorkflow(data: WorkflowCreateRequest): Promise<WorkflowConfig> { return this._createWorkflow(data); }
+    public async createWorkflow(name: string, dir?: string): Promise<WorkflowConfig> {
+        const config = await this._createWorkflow(name, dir);
+        this.workflowSignal.dispatch(SignalEvent.ADD, config);
+        return config;
+    }
 
-    @exposed @info("Update a workflow's configuration") @input(Sch.Name('data', WorkflowUpdatePayloadSchema)) @output(WorkflowConfigSchema)
+    @exposed @info("Update a workflow's configuration") @input(Sch.Name('id', Sch.String), Sch.Name('data', WorkflowSavePayloadSchema)) @output(WorkflowConfigSchema)
     @wfApi
-    public async updateWorkflow(data: WorkflowUpdatePayload): Promise<WorkflowConfig> { return this._updateWorkflow(data); }
+    public async updateWorkflow(id: string, data: WorkflowSavePayload): Promise<WorkflowConfig> {
+        const config = await this._updateWorkflow(id, data);
+        this.workflowSignal.dispatch(SignalEvent.UPDATE, config);
+        return config;
+    }
 
     @exposed @info("Delete a workflow and its script and logs") @input(Sch.Name('workflowId', Sch.String))
     @wfApi
-    public async deleteWorkflow(workflowId: string): Promise<void> { return this._deleteWorkflow(workflowId); }
+    public async deleteWorkflow(workflowId: string): Promise<void> {
+        const config = await this._getWorkflowConfig(workflowId);
+        await this._deleteWorkflow(workflowId);
+        this.workflowSignal.dispatch(SignalEvent.REMOVE, config);
+    }
 
     @exposed @info("Execute a workflow by ID with given inputs") @input(Sch.Name('workflowId', Sch.String), Sch.Name('inputs', WorkflowInputsSchema), Sch.Name('maxWaitSec', Sch.Optional(Sch.Number))) @output(WorkflowExecutionSchema)
     @wfApi
@@ -131,10 +134,6 @@ export abstract class WorkflowService extends Service {
     @wfApi
     public async listWorkflowExecutions(params?: ListWorkflowExecutionsParams): Promise<WorkflowExecution[]> { return this._listWorkflowExecutions(params); }
 
-    @exposed @info("Read the console output log of an execution") @input(Sch.Name('executionId', Sch.String)) @output(Sch.String)
-    @wfApi
-    public async readExecutionLog(executionId: string): Promise<string> { return this._readExecutionLog(executionId); }
-
     @exposed @info("List all stored secret key names") @output(Sch.StringArray)
     public async listSecretKeys(): Promise<string[]> { return this._listSecretKeys(); }
 
@@ -167,12 +166,10 @@ export abstract class WorkflowService extends Service {
     // --- Protected methods (override these in subclasses) ---
 
     protected async _isAvailable(): Promise<boolean> { return false; }
-    protected async _readScript(workflowId: string): Promise<string> { throw new Error('Not implemented'); }
-    protected async _writeScript(workflowId: string, script: string): Promise<void> { throw new Error('Not implemented'); }
     protected async _listWorkflows(params?: ListWorkflowsParams): Promise<WorkflowConfig[]> { return []; }
     protected async _getWorkflowConfig(workflowId: string): Promise<WorkflowConfig> { throw new Error('Not implemented'); }
-    protected async _createWorkflow(data: WorkflowCreateRequest): Promise<WorkflowConfig> { throw new Error('Not implemented'); }
-    protected async _updateWorkflow(data: WorkflowUpdatePayload): Promise<WorkflowConfig> { throw new Error('Not implemented'); }
+    protected async _createWorkflow(name: string, dir?: string): Promise<WorkflowConfig> { throw new Error('Not implemented'); }
+    protected async _updateWorkflow(id: string, data: WorkflowSavePayload): Promise<WorkflowConfig> { throw new Error('Not implemented'); }
     protected async _deleteWorkflow(workflowId: string): Promise<void> { throw new Error('Not implemented'); }
     protected async _executeWorkflow(workflowId: string, inputs: WorkflowInputs, maxWaitSec?: number): Promise<WorkflowExecution> { throw new Error('Not implemented'); }
     protected async _executeScript(script: string, maxWaitSec?: number): Promise<WorkflowExecution> { throw new Error('Not implemented'); }
@@ -185,7 +182,6 @@ export abstract class WorkflowService extends Service {
     protected async _linkTrigger(workflowId: string, triggerId: string): Promise<void> { throw new Error('Not implemented'); }
     protected async _unlinkTrigger(workflowId: string, triggerId: string): Promise<void> { throw new Error('Not implemented'); }
     protected async _listWorkflowExecutions(params?: ListWorkflowExecutionsParams): Promise<WorkflowExecution[]> { throw new Error('Not implemented'); }
-    protected async _readExecutionLog(executionId: string): Promise<string> { throw new Error('Not implemented'); }
     protected async _listSecretKeys(): Promise<string[]> { return []; }
     protected async _setSecret(key: string, value: string): Promise<void> { throw new Error('Not implemented'); }
     protected async _deleteSecret(key: string): Promise<void> { throw new Error('Not implemented'); }

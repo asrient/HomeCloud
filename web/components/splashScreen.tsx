@@ -8,6 +8,11 @@ import { cn, isWin11Theme } from '@/lib/utils';
 
 const SplashScreen = () => {
     const { appError } = useAppState();
+    const [showBg, setShowBg] = useState(false);
+
+    useEffect(() => {
+        setShowBg(!isWin11Theme());
+    }, []);
 
     return (<>
         <Head>
@@ -16,7 +21,7 @@ const SplashScreen = () => {
             </title>
         </Head>
         <div className={cn('w-full h-full min-h-screen p-4 flex flex-col justify-center items-center app-dragable',
-            !isWin11Theme() && 'bg-background')}>
+            showBg && 'bg-background')}>
             <div>
                 <Image src='/icons/icon.png' priority alt='HomeCloud logo' width={appError ? 90 : 130} height={appError ? 90 : 130} />
             </div>

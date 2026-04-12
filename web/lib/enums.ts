@@ -42,6 +42,7 @@ export enum ThemedIconName {
     Home = 'Home',
     Apps = 'Apps',
     AI = 'AI',
+    Workflows = 'Workflows',
 }
 
 export enum ConnectionType {
@@ -66,4 +67,13 @@ export enum RemoteAppWindowAction {
     DragStart = "dragStart",
     DragMove = "dragMove",
     DragEnd = "dragEnd",
+}
+
+export enum WorkflowColor {
+    Red = "red",
+    Green = "green",
+    Blue = "blue",
+    Yellow = "yellow",
+    Purple = "purple",
+    Cyan = "cyan"
 }

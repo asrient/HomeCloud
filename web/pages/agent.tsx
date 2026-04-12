@@ -48,11 +48,12 @@ function Page() {
         const working: ChatInfo[] = [];
         const attention: ChatInfo[] = [];
         for (const chat of chats) {
-            switch (chat.status) {
-                case 'idle': idle.push(chat); break;
-                case 'working': working.push(chat); break;
-                case 'asking':
-                case 'error': attention.push(chat); break;
+            if (chat.isUnread || chat.status === 'asking' || chat.status === 'error') {
+                attention.push(chat);
+            } else if (chat.status === 'working') {
+                working.push(chat);
+            } else {
+                idle.push(chat);
             }
         }
         return { idle, working, attention };
@@ -91,11 +92,10 @@ function Page() {
             </PageBar>
             <PageContent>
                 <div className="h-full flex">
-                    <KanbanColumn title="Idle" chats={columns.idle} onChatClick={openChat} border />
+                    <KanbanColumn title="Inactive" chats={columns.idle} onChatClick={openChat} border />
                     <KanbanColumn title="In Progress" chats={columns.working} onChatClick={openChat} border />
-                    <KanbanColumn title="Needs Attention" chats={columns.attention} onChatClick={openChat} />
+                    <KanbanColumn title="Review" chats={columns.attention} onChatClick={openChat} />
                 </div>
-
                 <ChatDialog
                     chat={selectedChat}
                     deviceFingerprint={selectedFingerprint}

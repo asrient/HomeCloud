@@ -92,9 +92,9 @@ export class AcpClient extends EventEmitter {
         }
     }
 
-    async request(method: string, params: any): Promise<any> {
+    async request(method: string, params: any, timeout?: number | null): Promise<any> {
         this.ensureReady();
-        return this.sendRequest(method, params);
+        return this.sendRequest(method, params, timeout);
     }
 
     notify(method: string, params: any): void {
@@ -193,19 +193,21 @@ export class AcpClient extends EventEmitter {
         this._capabilities = result.agentCapabilities ?? {};
     }
 
-    private sendRequest(method: string, params: any): Promise<any> {
+    private sendRequest(method: string, params: any, timeoutMs?: number | null): Promise<any> {
         return new Promise((resolve, reject) => {
             const id = this.nextRequestId++;
             const msg: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
             this.pendingRequests.set(id, { resolve, reject });
             this.write(msg);
 
+            if (timeoutMs === null) return;
+
             const timeout = setTimeout(() => {
                 if (this.pendingRequests.has(id)) {
                     this.pendingRequests.delete(id);
                     reject(new Error(`Request ${method} timed out`));
                 }
-            }, 120_000);
+            }, timeoutMs ?? 120_000);
 
             const original = this.pendingRequests.get(id)!;
             this.pendingRequests.set(id, {

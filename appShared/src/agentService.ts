@@ -1,4 +1,4 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, info, input, output } from './servicePrimatives';
+import { Service, serviceStartMethod, serviceStopMethod, exposed, info, input, output, wfApi } from './servicePrimatives';
 import Signal from './signals';
 import ConfigStorage from './storage';
 import {
@@ -25,6 +25,7 @@ export const agentPresets: AgentConfig[] = [
 type PendingPermission = {
     resolve: (result: { outcome: { outcome: string; optionId?: string } }) => void;
     reject: (reason: any) => void;
+    request: AgentPermissionRequest;
 };
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -62,7 +63,6 @@ export class AgentService extends Service {
     public statusSignal = new Signal<[AgentStatus]>({ isExposed: true, isAllowAll: false });
     public chatInfoSignal = new Signal<[ChatInfo]>({ isExposed: true, isAllowAll: false });
     public messageStreamSignal = new Signal<[string, AgentChatUpdate]>({ isExposed: true, isAllowAll: false });
-    public permissionRequestSignal = new Signal<[AgentPermissionRequest]>({ isExposed: true, isAllowAll: false });
 
     // ── Config ──
 
@@ -108,20 +108,24 @@ export class AgentService extends Service {
     // ── Chats ──
 
     @exposed @info("Start a new chat")
+    @wfApi
     @input(Sch.Name('cwd', Sch.Optional(Sch.String)))
     @output(ChatInfoSchema)
     public async newChat(cwd?: string): Promise<ChatInfo> { return this._newChat(cwd); }
 
     @exposed @info("List all chats")
+    @wfApi
     @output(Sch.Array(ChatInfoSchema))
     public async listChats(): Promise<ChatInfo[]> { return this._listChats(); }
 
     @exposed @info("Get chat info by ID")
+    @wfApi
     @input(Sch.Name('chatId', Sch.String))
     @output(Sch.Nullable(ChatInfoSchema))
     public async getChat(chatId: string): Promise<ChatInfo | null> { return this._getChat(chatId); }
 
     @exposed @info("Get all messages in a chat")
+    @wfApi
     @input(Sch.Name('chatId', Sch.String))
     @output(Sch.Array(AgentMessageSchema))
     public async getChatMessages(chatId: string): Promise<AgentMessage[]> { return this._getChatMessages(chatId); }
@@ -129,17 +133,20 @@ export class AgentService extends Service {
     // ── Chat Config ──
 
     @exposed @info("Get configurable options for a chat (model, mode, etc.)")
+    @wfApi
     @input(Sch.Name('chatId', Sch.String))
     @output(Sch.Array(ChatConfigOptionSchema))
     public async getChatConfig(chatId: string): Promise<ChatConfigOption[]> { return this._getChatConfig(chatId); }
 
     @exposed @info("Set a config option for a chat")
+    @wfApi
     @input(Sch.Name('chatId', Sch.String), Sch.Name('key', Sch.String), Sch.Name('value', Sch.String))
     public async setChatConfig(chatId: string, key: string, value: string): Promise<void> { return this._setChatConfig(chatId, key, value); }
 
     // ── Messages ──
 
     @exposed @info("Send a text message to a chat")
+    @wfApi
     @input(Sch.Name('chatId', Sch.String), Sch.Name('text', Sch.String))
     @output(Sch.Object({ stopReason: Sch.String }))
     public async sendMessage(chatId: string, text: string): Promise<{ stopReason: AgentStopReason }> {
@@ -147,6 +154,7 @@ export class AgentService extends Service {
     }
 
     @exposed @info("Send a message with rich content to a chat")
+    @wfApi
     @input(Sch.Name('chatId', Sch.String), Sch.Name('content', Sch.Array(AgentContentBlockSchema)))
     @output(Sch.Object({ stopReason: Sch.String }))
     public async sendMessageWithContent(chatId: string, content: AgentContentBlock[]): Promise<{ stopReason: AgentStopReason }> {
@@ -154,8 +162,13 @@ export class AgentService extends Service {
     }
 
     @exposed @info("Cancel an ongoing message generation")
+    @wfApi
     @input(Sch.Name('chatId', Sch.String))
     public async cancelMessage(chatId: string): Promise<void> { return this._cancelMessage(chatId); }
+
+    @exposed @info("Mark a chat as read")
+    @input(Sch.Name('chatId', Sch.String))
+    public async markRead(chatId: string): Promise<void> { return this._markRead(chatId); }
 
     // ── Permissions ──
 
@@ -172,10 +185,26 @@ export class AgentService extends Service {
     // ── Permission handling (called by subclass) ──
 
     protected handlePermissionRequest(chatId: string, toolCall: AgentToolCall, options: AgentPermissionOption[]): Promise<{ outcome: { outcome: string; optionId?: string } }> {
-        this.permissionRequestSignal.dispatch({ chatId, toolCall, options });
-        return new Promise((resolve, reject) => {
-            this.pendingPermissions.set(chatId, { resolve, reject });
+        const request: AgentPermissionRequest = { chatId, toolCall, options };
+        const promise = new Promise<{ outcome: { outcome: string; optionId?: string } }>((resolve, reject) => {
+            this.pendingPermissions.set(chatId, { resolve, reject, request });
         });
+        // Dispatch chatInfoSignal after storing, so pendingPermission is included
+        this.chatInfoSignal.dispatch(this._buildChatInfo(chatId));
+        return promise;
+    }
+
+    /** Build a ChatInfo for the given chatId. Override in subclass to provide full data. */
+    protected _buildChatInfo(chatId: string): ChatInfo {
+        return {
+            chatId,
+            title: null,
+            cwd: '',
+            status: this.hasPendingPermission(chatId) ? 'asking' : 'idle',
+            isUnread: false,
+            pendingPermission: this.getPendingPermissionRequest(chatId),
+            updatedAt: null,
+        };
     }
 
     protected rejectAllPermissions(): void {
@@ -201,6 +230,10 @@ export class AgentService extends Service {
         return this.pendingPermissions.has(chatId);
     }
 
+    protected getPendingPermissionRequest(chatId: string): AgentPermissionRequest | null {
+        return this.pendingPermissions.get(chatId)?.request ?? null;
+    }
+
     // ── Abstract methods (implemented per platform) ──
 
     protected async _onStart(config: AgentConfig): Promise<void> { }
@@ -212,6 +245,7 @@ export class AgentService extends Service {
     protected async _getChatMessages(chatId: string): Promise<AgentMessage[]> { return []; }
     protected async _sendMessage(chatId: string, content: AgentContentBlock[]): Promise<{ stopReason: AgentStopReason }> { throw new Error('Not supported.'); }
     protected async _cancelMessage(chatId: string): Promise<void> { }
+    protected async _markRead(chatId: string): Promise<void> { }
     protected async _getChatConfig(chatId: string): Promise<ChatConfigOption[]> { return []; }
     protected async _setChatConfig(chatId: string, key: string, value: string): Promise<void> { }
 }

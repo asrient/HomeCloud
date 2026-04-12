@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     AgentConfig, AgentStatus, ChatInfo, ChatStatus, AgentMessage,
     AgentChatUpdate, AgentPermissionRequest, ChatConfigOption, AgentContentBlock,
@@ -128,11 +128,17 @@ export function useChat(deviceFingerprint: string | null, chatId: string | null)
     const scRef = useRef<ServiceController | null>(null);
     const chatIdRef = useRef<string | null>(chatId);
     const chatInfoRef = useRef<SignalNodeRef<[ChatInfo], string> | null>(null);
-    const permRef = useRef<SignalNodeRef<[AgentPermissionRequest], string> | null>(null);
     const streamRef = useRef<SignalNodeRef<[string, AgentChatUpdate], string> | null>(null);
 
     // Keep chatIdRef in sync for stable callbacks
     chatIdRef.current = chatId;
+
+    // Auto-mark as read when chat is open and new unread arrives
+    useEffect(() => {
+        if (chatInfo?.isUnread && chatInfo.status !== 'asking' && scRef.current) {
+            scRef.current.agent.markRead(chatInfo.chatId).catch(() => { });
+        }
+    }, [chatInfo?.isUnread, chatInfo?.chatId, chatInfo?.status]);
 
     const load = useCallback(async (sc: ServiceController, shouldAbort: () => boolean) => {
         scRef.current = sc;
@@ -153,6 +159,7 @@ export function useChat(deviceFingerprint: string | null, chatId: string | null)
         setChatInfo(info);
         setMessages(msgs);
         setStatus(info?.status ?? 'idle');
+        setPendingPermission(info?.pendingPermission ?? null);
         setConfigOptions(config);
     }, [chatId]);
 
@@ -161,15 +168,17 @@ export function useChat(deviceFingerprint: string | null, chatId: string | null)
             if (info.chatId !== chatIdRef.current) return;
             setChatInfo(info);
             setStatus(info.status);
+            // Use pendingPermission from chatInfo
+            if (info.pendingPermission) {
+                setPendingPermission(info.pendingPermission);
+            } else if (info.status !== 'asking') {
+                setPendingPermission(null);
+            }
             if (info.status === 'idle') {
                 sc.agent.getChatMessages(info.chatId).then(msgs => {
                     if (chatIdRef.current === info.chatId) setMessages(msgs);
                 }).catch(() => { });
             }
-        });
-        permRef.current = sc.agent.permissionRequestSignal.add((req: AgentPermissionRequest) => {
-            if (req.chatId !== chatIdRef.current) return;
-            setPendingPermission(req);
         });
         streamRef.current = sc.agent.messageStreamSignal.add((_id: string, _update: AgentChatUpdate) => {
             // Service accumulates; we refresh on chatInfo → idle.
@@ -178,7 +187,6 @@ export function useChat(deviceFingerprint: string | null, chatId: string | null)
 
     const clearSignals = useCallback((sc: ServiceController) => {
         if (chatInfoRef.current) { sc.agent.chatInfoSignal.detach(chatInfoRef.current); chatInfoRef.current = null; }
-        if (permRef.current) { sc.agent.permissionRequestSignal.detach(permRef.current); permRef.current = null; }
         if (streamRef.current) { sc.agent.messageStreamSignal.detach(streamRef.current); streamRef.current = null; }
     }, []);
 

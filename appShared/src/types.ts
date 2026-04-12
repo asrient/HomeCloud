@@ -623,22 +623,16 @@ export type WorkflowInputField = {
     isRequired?: boolean;
 }
 
-export type WorkflowPermissions = {
-    secrets?: 'read' | 'write';
-}
-
 export type WorkflowConfig = {
     id: string;
     name: string;
     description?: string;
-    author: string;
-    version: string;
     isEnabled: boolean;
     color?: WorkflowColor;
+    scriptPath: string;
     createdAt: Date;
     updatedAt: Date;
     inputFields: WorkflowInputField[];
-    permissions?: WorkflowPermissions;
     maxExecTimeSecs?: number;
 }
 
@@ -646,10 +640,9 @@ export const WorkflowConfigSchema = Sch.Typed('WorkflowConfig', Sch.Object({
     id: Sch.String,
     name: Sch.String,
     description: Sch.String,
-    author: Sch.String,
-    version: Sch.String,
     isEnabled: Sch.Boolean,
     color: Sch.Enum(...enumValues(WorkflowColor)),
+    scriptPath: Sch.String,
     createdAt: Sch.Date,
     updatedAt: Sch.Date,
     inputFields: Sch.Array(Sch.Object({
@@ -659,27 +652,25 @@ export const WorkflowConfigSchema = Sch.Typed('WorkflowConfig', Sch.Object({
         defaultValue: Sch.OneOf(Sch.String, Sch.Number, Sch.Boolean),
         isRequired: Sch.Boolean,
     }, ['name', 'type'])),
-    permissions: Sch.Object({ secrets: Sch.Enum('read', 'write') }),
     maxExecTimeSecs: Sch.Number,
-}, ['id', 'name', 'author', 'version', 'isEnabled', 'createdAt', 'updatedAt', 'inputFields']));
+}, ['id', 'name', 'isEnabled', 'scriptPath', 'createdAt', 'updatedAt', 'inputFields']));
 
-export type WorkflowUpdatePayload = {
-    id: string;
+export type WorkflowSavePayload = {
     name?: string;
     description?: string;
     isEnabled?: boolean;
     color?: WorkflowColor;
+    scriptPath?: string;
     inputFields?: WorkflowInputField[];
-    permissions?: WorkflowPermissions;
     maxExecTimeSecs?: number;
 }
 
-export const WorkflowUpdatePayloadSchema = Sch.Typed('WorkflowUpdatePayload', Sch.Object({
-    id: Sch.String,
+export const WorkflowSavePayloadSchema = Sch.Typed('WorkflowSavePayload', Sch.Object({
     name: Sch.String,
     description: Sch.String,
     isEnabled: Sch.Boolean,
     color: Sch.Enum(...enumValues(WorkflowColor)),
+    scriptPath: Sch.String,
     inputFields: Sch.Array(Sch.Object({
         name: Sch.String,
         type: Sch.Enum('string', 'number', 'boolean', 'select'),
@@ -687,21 +678,8 @@ export const WorkflowUpdatePayloadSchema = Sch.Typed('WorkflowUpdatePayload', Sc
         defaultValue: Sch.OneOf(Sch.String, Sch.Number, Sch.Boolean),
         isRequired: Sch.Boolean,
     }, ['name', 'type'])),
-    permissions: Sch.Object({
-        secrets: Sch.Enum('read', 'write'),
-    }),
     maxExecTimeSecs: Sch.Number,
-}, ['id']));
-
-export type WorkflowCreateRequest = {
-    name: string;
-    description?: string;
-}
-
-export const WorkflowCreateRequestSchema = Sch.Typed('WorkflowCreateRequest', Sch.Object({
-    name: Sch.String,
-    description: Sch.String,
-}, ['name']));
+}));
 
 export type WorkflowInputs = {
     [key: string]: string | number | boolean;
@@ -736,6 +714,7 @@ export type WorkflowExecution = {
     triggerId?: string;
     inputs?: WorkflowInputs;
     result?: WorkflowExecutionResult;
+    logFilePath?: string;
     startedAt: Date;
     endedAt?: Date;
 }
@@ -747,6 +726,7 @@ export const WorkflowExecutionSchema = Sch.Typed('WorkflowExecution', Sch.Object
     triggerId: Sch.String,
     inputs: WorkflowInputsSchema,
     result: WorkflowExecutionResultSchema,
+    logFilePath: Sch.String,
     startedAt: Sch.Date,
     endedAt: Sch.Date,
 }, ['id', 'startedAt']));
@@ -829,6 +809,8 @@ export type ChatInfo = {
     title?: string | null;
     cwd: string;
     status: ChatStatus;
+    isUnread: boolean;
+    pendingPermission?: AgentPermissionRequest | null;
     updatedAt?: string | null;
 }
 
@@ -914,6 +896,19 @@ export const ChatInfoSchema: SimpleSchema = Sch.Typed('ChatInfo', Sch.Object({
     title: Sch.NullableString,
     cwd: Sch.String,
     status: Sch.Enum('idle', 'working', 'asking', 'error'),
+    isUnread: Sch.Boolean,
+    pendingPermission: Sch.Nullable(Sch.Object({
+        chatId: Sch.String,
+        toolCall: Sch.Object({
+            toolCallId: Sch.String,
+            title: Sch.String,
+        }),
+        options: Sch.Array(Sch.Object({
+            optionId: Sch.String,
+            name: Sch.String,
+            kind: Sch.Enum('allow_once', 'allow_always', 'reject_once', 'reject_always'),
+        })),
+    })),
     updatedAt: Sch.NullableString,
 }));
 

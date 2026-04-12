@@ -37,17 +37,11 @@ export class WorkerInterface {
 
     async getSecret(key: string): Promise<string | null> {
         if (!this.#repo) throw new Error('Secrets not available');
-        if (!this.#config?.permissions?.secrets) {
-            throw new Error('No secret read permission');
-        }
         return this.#repo.getSecret(key);
     }
 
     async setSecret(key: string, value: string): Promise<void> {
         if (!this.#repo) throw new Error('Secrets not available');
-        if (this.#config?.permissions?.secrets !== 'write') {
-            throw new Error('No secret write permission');
-        }
         return this.#repo.setSecret(key, value);
     }
 

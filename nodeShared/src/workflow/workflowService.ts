@@ -1,17 +1,18 @@
 import path from 'path';
+import os from 'os';
 import fsp from 'fs/promises';
 import { Cron } from 'croner';
 import { WorkflowService } from 'shared/workflowService';
 import {
     McpServerInfo,
+    WorkflowColor,
     WorkflowConfig,
-    WorkflowCreateRequest,
+    WorkflowSavePayload,
     WorkflowExecution,
     WorkflowInputs,
     WorkflowTrigger,
     WorkflowTriggerCreateRequest,
     WorkflowTriggerUpdatePayload,
-    WorkflowUpdatePayload,
     ListWorkflowsParams,
     ListWorkflowExecutionsParams,
     ListTriggersParams,
@@ -72,18 +73,6 @@ export default class NodeWorkflowService extends WorkflowService {
         return true;
     }
 
-    protected override async _readScript(workflowId: string): Promise<string> {
-        const scriptPath = path.join(this.workflowsDir, 'Scripts', `${workflowId}.js`);
-        return fsp.readFile(scriptPath, 'utf-8');
-    }
-
-    protected override async _writeScript(workflowId: string, script: string): Promise<void> {
-        await this.repo.getWorkflow(workflowId);
-        const scriptPath = path.join(this.workflowsDir, 'Scripts', `${workflowId}.js`);
-        await fsp.writeFile(scriptPath, script, 'utf-8');
-        await this.repo.touchUpdatedAt(workflowId);
-    }
-
     protected override async _listWorkflows(params?: ListWorkflowsParams): Promise<WorkflowConfig[]> {
         return this.repo.listWorkflows(params);
     }
@@ -92,29 +81,45 @@ export default class NodeWorkflowService extends WorkflowService {
         return this.repo.getWorkflow(workflowId);
     }
 
-    protected override async _createWorkflow(data: WorkflowCreateRequest): Promise<WorkflowConfig> {
-        const config = await this.repo.createWorkflow(data);
-        const scriptsDir = path.join(this.workflowsDir, 'Scripts');
-        await fsp.mkdir(scriptsDir, { recursive: true });
-        await fsp.writeFile(path.join(scriptsDir, `${config.id}.js`), DEFAULT_SCRIPT_TEMPLATE, 'utf-8');
+    private safeName(name: string): string {
+        return name.replace(/[^a-zA-Z0-9_\-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+    }
+
+    protected override async _createWorkflow(name: string, dir?: string): Promise<WorkflowConfig> {
+        const baseDir = dir || path.join(os.homedir(), 'Workflows');
+        const scriptPath = path.join(baseDir, this.safeName(name), 'workflow.js');
+        const colors = Object.values(WorkflowColor);
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const config = await this.repo.createWorkflow({ name, scriptPath, color });
+        // Write default template if file doesn't exist yet
+        try {
+            await fsp.access(config.scriptPath);
+        } catch {
+            await fsp.mkdir(path.dirname(config.scriptPath), { recursive: true });
+            await fsp.writeFile(config.scriptPath, DEFAULT_SCRIPT_TEMPLATE, 'utf-8');
+        }
         return config;
     }
 
-    protected override async _updateWorkflow(data: WorkflowUpdatePayload): Promise<WorkflowConfig> {
-        return this.repo.updateWorkflow(data);
+    protected override async _updateWorkflow(id: string, data: WorkflowSavePayload): Promise<WorkflowConfig> {
+        return this.repo.updateWorkflow(id, data);
     }
 
     protected override async _deleteWorkflow(workflowId: string): Promise<void> {
         await this.executor.cancelExecution(workflowId).catch(() => { });
         await this.repo.deleteWorkflow(workflowId);
-        const scriptPath = path.join(this.workflowsDir, 'Scripts', `${workflowId}.js`);
-        await fsp.unlink(scriptPath).catch(() => { });
     }
 
     protected override async _executeWorkflow(workflowId: string, inputs: WorkflowInputs, maxWaitSec?: number): Promise<WorkflowExecution> {
         const config = await this.repo.getWorkflow(workflowId);
         if (!config.isEnabled) {
             throw new Error(`Workflow '${config.name}' is disabled`);
+        }
+        // Verify script file exists before execution
+        try {
+            await fsp.access(config.scriptPath);
+        } catch {
+            throw new Error(`Script file not found: ${config.scriptPath}`);
         }
         return this.executor.executeWorkflow(config, inputs, maxWaitSec);
     }
@@ -133,11 +138,6 @@ export default class NodeWorkflowService extends WorkflowService {
 
     protected override async _listWorkflowExecutions(params?: ListWorkflowExecutionsParams): Promise<WorkflowExecution[]> {
         return this.repo.listExecutions(params);
-    }
-
-    protected override async _readExecutionLog(executionId: string): Promise<string> {
-        const logPath = path.join(this.workflowsDir, 'Logs', `${executionId}.log`);
-        return fsp.readFile(logPath, 'utf-8').catch(() => '');
     }
 
     protected override async _listSecretKeys(): Promise<string[]> {
@@ -279,10 +279,10 @@ export default class NodeWorkflowService extends WorkflowService {
                 const result = {
                     status: execution.result?.status ?? 'error',
                     message: execution.result?.message,
-                    debugLog: null,
+                    debugLog: null as string | null,
                 };
-                if (result.status !== 'ok') {
-                    try { result.debugLog = await this._readExecutionLog(execution.id); } catch { }
+                if (result.status !== 'ok' && execution.logFilePath) {
+                    try { result.debugLog = await fsp.readFile(execution.logFilePath, 'utf-8'); } catch { }
                 }
                 return result;
             },
