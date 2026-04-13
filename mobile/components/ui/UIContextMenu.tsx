@@ -43,6 +43,8 @@ export type UIContextMenuProps<T = unknown> = {
     dropdownMenuMode?: boolean;
     /** Custom style for the container */
     style?: StyleProp<ViewStyle>;
+    /** Background color of the preview (iOS). Set to match content background. */
+    previewBackgroundColor?: string;
 };
 
 /**
@@ -173,6 +175,7 @@ export function UIContextMenu<T = unknown>({
     disabled = false,
     dropdownMenuMode = false,
     style,
+    previewBackgroundColor,
 }: UIContextMenuProps<T>) {
     const convertedActions = useMemo(() => {
         return actions.map(convertToContextMenuAction);
@@ -204,6 +207,7 @@ export function UIContextMenu<T = unknown>({
             onPreviewPress={onPreviewPress}
             disabled={disabled}
             dropdownMenuMode={dropdownMenuMode}
+            previewBackgroundColor={previewBackgroundColor}
             style={style}
         >
             {children}

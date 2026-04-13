@@ -321,6 +321,20 @@ export class RPCController {
         return obj;
     }
 
+    /**
+     * Check if a dotted path (e.g. 'agent.listChats', 'files.fs.readDir')
+     * resolves to an exposed method on this controller.
+     */
+    @exposed
+    isAvailable(path: string): boolean {
+        try {
+            const { obj, funcName } = this.getCallable(`services.${path}`);
+            return getMethodInfo(obj[funcName]).isExposed;
+        } catch {
+            return false;
+        }
+    }
+
     getCallable(fqn: string): { obj: any, funcName: string } {
         // Get the callable function from the object
         // get the parent object of the function

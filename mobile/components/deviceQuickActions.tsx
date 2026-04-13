@@ -409,6 +409,30 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                 flow: 'row',
                 boxes: [
                     {
+                        type: 'half',
+                        icon: 'bolt.fill',
+                        title: 'Workflows',
+                        subtitle: 'Automations',
+                        onPress: () => onNavigate(`/device/${routeFingerprint}/workflows`),
+                    },
+                ]
+            },
+            {
+                flow: 'row',
+                boxes: [
+                    {
+                        type: 'half',
+                        icon: 'bubble.left.and.text.bubble.right.fill',
+                        title: 'Agent',
+                        subtitle: 'AI assistant',
+                        onPress: () => onNavigate(`/agent?fingerprint=${routeFingerprint}`),
+                    },
+                ]
+            },
+            {
+                flow: 'row',
+                boxes: [
+                    {
                         type: 'full',
                         content: <DisksBox fingerprint={deviceFingerprint} />,
                         contentHeight: 140,

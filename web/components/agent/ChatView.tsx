@@ -1,14 +1,15 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/components/hooks/useAgent';
-import { AgentMessage, AgentContentBlock, ChatStatus, AgentPermissionRequest } from 'shared/types';
+import { AgentMessage, AgentContentBlock, ChatStatus, AgentPermissionRequest, ChatConfigOption } from 'shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Square, ShieldQuestion, ArrowUp, Check, CircleDashed, CircleX } from 'lucide-react';
+import { Square, ShieldQuestion, ArrowUp, Check, CircleDashed, CircleX, ChevronDown } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 // ── Message bubble ──
 
@@ -27,10 +28,15 @@ function MessageBubble({ message }: { message: AgentMessage }) {
                 ' px-3 py-2.5 text-sm break-words max-w-[80%]',
                 isUser ? 'bg-secondary/50 text-secondary-foreground rounded-xl whitespace-pre-wrap' : 'prose prose-sm dark:prose-invert prose-p:my-1 prose-pre:my-2 prose-ul:my-1 prose-ol:my-1 prose-headings:my-2 prose-li:my-0 max-w-none'
             )}>
-                {textContent ? (
-                    isUser ? textContent : <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
-                ) : (
-                    <span className="text-muted-foreground italic">{'(non-text content)'}</span>
+
+                {/* Thoughts (collapsed) */}
+                {message.thoughts && message.thoughts.length > 0 && (
+                    <div className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">
+                        {message.thoughts
+                            .filter((b): b is Extract<AgentContentBlock, { type: 'text' }> => b.type === 'text')
+                            .map(b => b.text)
+                            .join('')}
+                    </div>
                 )}
 
                 {/* Tool calls */}
@@ -56,18 +62,13 @@ function MessageBubble({ message }: { message: AgentMessage }) {
                     </div>
                 )}
 
-                {/* Thoughts (collapsed) */}
-                {message.thoughts && message.thoughts.length > 0 && (
-                    <details className="mt-2 text-xs text-muted-foreground">
-                        <summary className="cursor-pointer select-none">Thoughts</summary>
-                        <div className="mt-1 whitespace-pre-wrap">
-                            {message.thoughts
-                                .filter((b): b is Extract<AgentContentBlock, { type: 'text' }> => b.type === 'text')
-                                .map(b => b.text)
-                                .join('')}
-                        </div>
-                    </details>
+                {textContent ? (
+                    isUser ? textContent : <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
+                ) : (
+                    <span className="text-muted-foreground italic">{'(non-text content)'}</span>
                 )}
+
+
             </div>
         </div>
     );
@@ -104,7 +105,7 @@ function PermissionPrompt({ permission, onRespond }: {
         <div className="border border-primary/30 rounded-sm p-4">
             <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
                 <ShieldQuestion className="w-3 h-3" />
-                    Agent is requesting permission to:
+                Agent is requesting permission to:
             </div>
             <div className="flex items-center gap-2 text-xs font-normal mb-3">
 
@@ -137,7 +138,8 @@ export function ChatView({ deviceFingerprint, chatId, className }: {
 }) {
     const {
         messages, status, isLoading, pendingPermission,
-        sendMessage, cancelMessage, respondToPermission,
+        configOptions, sendMessage, cancelMessage,
+        respondToPermission, setChatConfig,
     } = useChat(deviceFingerprint, chatId);
 
     const [input, setInput] = useState('');
@@ -192,7 +194,7 @@ export function ChatView({ deviceFingerprint, chatId, className }: {
                         <div className="text-sm text-muted-foreground text-center py-8">Loading...</div>
                     )}
                     {!isLoading && messages.length === 0 && (
-                        <div className="text-sm text-muted-foreground text-center py-8">No messages yet. Start a conversation.</div>
+                        <div className="text-sm text-muted-foreground text-center py-8">Ready when you are.</div>
                     )}
                     {messages.map((msg, i) => (
                         <MessageBubble key={i} message={msg} />
@@ -214,24 +216,51 @@ export function ChatView({ deviceFingerprint, chatId, className }: {
             <StatusBar status={status} />
 
             {/* Input */}
-            <div className="border-t border-border/40 p-2 flex items-center gap-1">
-                <Textarea
-                    ref={inputRef}
-                    value={input}
-                    onChange={e => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Type a message..."
-                    disabled={status === 'working' || status === 'asking'}
-                    className="flex-1 max-h-32 min-h-[2.5rem] border-none resize-none focus:ring-0 focus-visible:ring-0"
-                />
-                {status === 'working' ? (
-                    <Button size="icon" variant="ghost" onClick={cancelMessage} title="Cancel">
-                        <Square className="w-4 h-4" />
-                    </Button>
-                ) : (
-                    <Button size="icon" variant="link" onClick={handleSend} disabled={!input.trim() || status === 'asking'} title="Send">
-                        <ArrowUp className="w-4 h-4" />
-                    </Button>
+            <div className="border-t border-border/40 p-2 flex flex-col gap-1">
+                <div className="flex items-center gap-1">
+                    <Textarea
+                        ref={inputRef}
+                        value={input}
+                        onChange={e => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Type a message..."
+                        disabled={status === 'working' || status === 'asking'}
+                        className="flex-1 max-h-32 min-h-[2.5rem] border-none resize-none focus:ring-0 focus-visible:ring-0"
+                    />
+                    {status === 'working' ? (
+                        <Button size="icon" variant="ghost" onClick={cancelMessage} title="Cancel">
+                            <Square className="w-4 h-4" />
+                        </Button>
+                    ) : (
+                        <Button size="icon" variant="link" onClick={handleSend} disabled={!input.trim() || status === 'asking'} title="Send">
+                            <ArrowUp className="w-4 h-4" />
+                        </Button>
+                    )}
+                </div>
+                {configOptions.length > 0 && (
+                    <div className="flex items-center gap-1 px-1">
+                        {configOptions.map(opt => (
+                            <DropdownMenu key={opt.key}>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground gap-1">
+                                        {opt.values.find(v => v.value === opt.currentValue)?.name ?? opt.currentValue}
+                                        <ChevronDown className="w-3 h-3" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                    {opt.values.map(v => (
+                                        <DropdownMenuItem
+                                            key={v.value}
+                                            onClick={() => setChatConfig(opt.key, v.value)}
+                                            className={cn(v.value === opt.currentValue && 'font-semibold')}
+                                        >
+                                            {v.name}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        ))}
+                    </div>
                 )}
             </div>
         </div>

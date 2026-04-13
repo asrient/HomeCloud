@@ -102,7 +102,7 @@ export function EditWorkflowDialog({
                     <DialogHeader>
                         <DialogTitle>Edit Workflow</DialogTitle>
                     </DialogHeader>
-                    <div className="flex flex-col gap-4 py-2 overflow-y-auto flex-1">
+                    <div className="flex flex-col gap-4 py-2 px-3 overflow-y-auto flex-1">
                         <div className="flex flex-col gap-1.5">
                             <Label htmlFor="edit-wf-name">Name</Label>
                             <Input id="edit-wf-name" value={name} onChange={e => setName(e.target.value)} />

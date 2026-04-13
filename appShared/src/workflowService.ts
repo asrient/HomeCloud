@@ -28,7 +28,7 @@ import {
     ListTriggersParamsSchema,
 } from './types';
 
-export abstract class WorkflowService extends Service {
+export class WorkflowService extends Service {
     public executionStartSignal = new Signal<[WorkflowExecution]>({ isExposed: true, isAllowAll: false });
     public executionEndSignal = new Signal<[WorkflowExecution]>({ isExposed: true, isAllowAll: false });
     public workflowSignal = new Signal<[SignalEvent, WorkflowConfig]>({ isExposed: true, isAllowAll: false });

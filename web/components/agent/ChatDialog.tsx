@@ -26,8 +26,8 @@ export function ChatDialog({ chat, deviceFingerprint, onClose }: {
                         deviceFingerprint={deviceFingerprint}
                         chatId={chat.chatId}
                         className={
-                            isWin11Theme() ? "h-[calc(85vh-3rem)]" :
-                                "h-[calc(85vh-2rem)]"
+                            isWin11Theme() ? "h-[calc(85vh-3.5rem)]" :
+                                "h-[calc(85vh-3rem)]"
                         }
                     />
                 )}

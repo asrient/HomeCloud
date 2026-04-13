@@ -108,6 +108,16 @@ export default function RootLayout() {
               sheetGrabberVisible: true,
               sheetExpandsWhenScrolledToEdge: true,
             }} />
+            <Stack.Screen name="agent" options={{
+              headerBackButtonDisplayMode: 'minimal',
+              headerShadowVisible: false,
+              headerTransparent: isGlassEnabled,
+            }} />
+            <Stack.Screen name="agent-chat" options={{
+              headerBackButtonDisplayMode: 'minimal',
+              headerShadowVisible: false,
+              headerTransparent: isGlassEnabled,
+            }} />
           </Stack.Protected>
           <Stack.Protected guard={!isOnboarded}>
             <Stack.Screen name="welcome" options={{ headerShown: false }} />
