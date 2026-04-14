@@ -186,7 +186,7 @@ async function getConfig(): Promise<ServerConfigType> {
         IS_STORE_DISTRIBUTION: false,
         SECRET_KEY: secretKey,
         VERSION: process.env.npm_package_version || '0.0.1',
-        DEVICE_NAME: getDeviceName(),
+        DEVICE_NAME: process.env.DEVICE_NAME || getDeviceName(),
         PUBLIC_KEY_PEM: publicKeyPem,
         PRIVATE_KEY_PEM: privateKeyPem,
         FINGERPRINT: cryptoModule.getFingerprintFromPem(publicKeyPem),

@@ -23,7 +23,6 @@ RUN npm install --production --install-links
 COPY server/dist ./dist
 
 EXPOSE 7736/tcp
-EXPOSE 7736/udp
 
 VOLUME ["/data"]
 
