@@ -1,0 +1,13 @@
+{
+  "name": "@asrient/create-homecloud-creds",
+  "version": "0.0.1",
+  "description": "Generate credentials for HomeCloud Server",
+  "bin": "index.js",
+  "license": "MIT",
+  "author": "Asrient",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/asrient/HomeCloud.git",
+    "directory": "serverCreds"
+  }
+}

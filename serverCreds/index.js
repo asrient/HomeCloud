@@ -188,26 +188,22 @@ async function main() {
     console.log('\n=== Passphrase (save this — required to start the server) ===');
     console.log(passphrase.trim());
 
-    console.log('\n--- Output Options ---');
-    const choice = await ask('(1) Write to file  (2) Show as base64\nChoose [1/2]: ');
+    console.log('\n--- Output ---');
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const resolved = path.resolve('./creds.json');
+    fs.writeFileSync(resolved, credsJson, 'utf-8');
+    console.log(`Credentials written to ${resolved}`);
+    console.log(`\nSet these env vars to run the server:`);
+    console.log(`  PASSPHRASE=${passphrase.trim()}`);
+    console.log(`  CREDS_PATH=path/to/creds.json`);
 
-    if (choice.trim() === '1') {
-        const filePath = await ask('File path [./hc-creds.json]: ');
-        const outPath = filePath.trim() || './hc-creds.json';
-        const fs = require('node:fs');
-        const path = require('node:path');
-        const resolved = path.resolve(outPath);
-        fs.writeFileSync(resolved, credsJson, 'utf-8');
-        console.log(`\nCredentials written to ${resolved}`);
-        console.log(`\nSet these env vars to run the server:`);
-        console.log(`  PASSPHRASE=${passphrase.trim()}`);
-        console.log(`  CREDS_PATH=${resolved}`);
-    } else {
+    const wantBase64 = await ask('\nAlso copy as base64? [y/N]: ');
+    if (wantBase64.trim().toLowerCase() === 'y') {
         const base64 = Buffer.from(credsJson).toString('base64');
         console.log('\n=== Base64 Credentials (copy this) ===');
         console.log(base64);
-        console.log(`\nSet these env vars to run the server:`);
-        console.log(`  PASSPHRASE=${passphrase.trim()}`);
+        console.log(`\nUse this instead of CREDS_PATH:`);
         console.log(`  CREDS_BASE64=<the base64 string above>`);
     }
 
