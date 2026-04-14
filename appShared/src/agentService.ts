@@ -10,6 +10,7 @@ import {
     AgentPermissionOption,
     AgentPermissionRequest,
     AgentStopReason,
+    SignalEvent,
 } from './types';
 
 const AGENT_CONFIG_KEY = 'agentConfig';
@@ -48,6 +49,7 @@ export class AgentService extends Service {
                 await this._onStart(config);
             } catch (err: any) {
                 console.error('[AgentService] Failed to auto-connect:', err.message);
+                this.dispatchAgentUpdate(SignalEvent.ERROR, { connectionStatus: 'error', error: err.message });
             }
         }
     }
@@ -60,9 +62,13 @@ export class AgentService extends Service {
 
     // ── Signals ──
 
-    public statusSignal = new Signal<[AgentStatus]>({ isExposed: true, isAllowAll: false });
+    public agentSignal = new Signal<[SignalEvent, { status: AgentStatus; config: AgentConfig | null }]>({ isExposed: true, isAllowAll: false });
     public chatInfoSignal = new Signal<[ChatInfo]>({ isExposed: true, isAllowAll: false });
     public messageStreamSignal = new Signal<[string, AgentChatUpdate]>({ isExposed: true, isAllowAll: false });
+
+    protected dispatchAgentUpdate(event: SignalEvent, status: AgentStatus) {
+        this.agentSignal.dispatch(event, { status, config: this.getAgentConfigSync() });
+    }
 
     // ── Config ──
 
@@ -73,10 +79,12 @@ export class AgentService extends Service {
         await this.store.save();
         this._onStop();
         this.rejectAllPermissions();
+        this.dispatchAgentUpdate(SignalEvent.ADD, { connectionStatus: 'connecting' });
         try {
             await this._onStart(config);
         } catch (err: any) {
             console.error('[AgentService] Failed to connect after config change:', err.message);
+            this.dispatchAgentUpdate(SignalEvent.ERROR, { connectionStatus: 'error', error: err.message });
         }
     }
 
@@ -92,7 +100,7 @@ export class AgentService extends Service {
         await this.store.save();
         this._onStop();
         this.rejectAllPermissions();
-        this.statusSignal.dispatch(await this._getStatus());
+        this.dispatchAgentUpdate(SignalEvent.REMOVE, await this._getStatus());
     }
 
     // ── Status ──

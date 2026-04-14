@@ -3,6 +3,7 @@ import { twMerge } from "tailwind-merge"
 import { PageUIConfig } from "./types";
 import { OSType, UITheme } from "./enums";
 import { DeviceInfo } from "shared/types";
+import ServiceController from "shared/controller";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -80,6 +81,18 @@ export function printFingerprint(fingerprint: string, full = false) {
     return fingerprint;
   }
   return `$${fingerprint.slice(0, 8)}`;
+}
+
+/**
+ * Check if a service endpoint is available on a service controller.
+ * Handles the case where sc.isAvailable() itself doesn't exist (older peers).
+ */
+export async function isServiceAvailable(sc: ServiceController, path: string): Promise<boolean> {
+  try {
+    return await sc.isAvailable(path);
+  } catch {
+    return false;
+  }
 }
 
 export async function getServiceController(fingerprint: string | null) {

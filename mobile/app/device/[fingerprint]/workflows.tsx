@@ -4,9 +4,10 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { UIText } from '@/components/ui/UIText';
+import { UIPagePlaceholder } from '@/components/ui/UIPagePlaceholder';
 import { WorkflowCard } from '@/components/WorkflowCard';
 import { RunWorkflowModal } from '@/components/RunWorkflowModal';
-import { useWorkflows } from '@/hooks/useWorkflows';
+import { useWorkflows, useWorkflowsAvailable } from '@/hooks/useWorkflows';
 import { useWorkflowActions } from '@/hooks/useWorkflowActions';
 import { isGlassEnabled, getBottomPadding } from '@/lib/utils';
 import { WorkflowConfig } from 'shared/types';
@@ -35,6 +36,7 @@ export default function WorkflowsScreen() {
         return Math.floor(available / numColumns);
     }, [screenWidth, numColumns]);
 
+    const { available: workflowsAvailable, isLoading: availLoading } = useWorkflowsAvailable(deviceFingerprint);
     const { workflows, runningExecutions, isLoading, reload } = useWorkflows(deviceFingerprint);
     const { handleRun, handleViewScript, runModalProps } = useWorkflowActions(deviceFingerprint);
 
@@ -64,12 +66,10 @@ export default function WorkflowsScreen() {
                     <RefreshControl refreshing={isLoading} onRefresh={reload} />
                 }
             >
-                {workflows.length === 0 && !isLoading ? (
-                    <View style={styles.emptyContainer}>
-                        <UIText color="textSecondary" size="md">
-                            No workflows yet.
-                        </UIText>
-                    </View>
+                {!availLoading && !workflowsAvailable ? (
+                    <UIPagePlaceholder title="Workflows not available" detail="This device does not support workflows." />
+                ) : workflows.length === 0 && !isLoading ? (
+                    <UIPagePlaceholder title="No workflows yet" detail="Create a workflow to automate tasks on this device." />
                 ) : (
                     <View style={styles.grid}>
                         {workflows.map(wf => (
@@ -99,10 +99,5 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: GAP,
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 60,
     },
 });

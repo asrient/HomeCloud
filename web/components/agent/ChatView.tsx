@@ -10,6 +10,23 @@ import { Textarea } from '../ui/textarea';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { getLocalServiceController } from '@/lib/utils';
+
+const markdownComponents = {
+    a: ({ href, children }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+        <Button
+            variant="link"
+            className="p-0 h-auto"
+            onClick={() => {
+                if (href) {
+                    getLocalServiceController().system.openUrl(href).catch(console.error);
+                }
+            }}
+        >
+            {children}
+        </Button>
+    ),
+};
 
 // ── Message bubble ──
 
@@ -63,10 +80,10 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: AgentM
                 )}
 
                 {textContent ? (
-                    isUser ? textContent : <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
-                ) : (
+                    isUser ? textContent : <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{textContent}</ReactMarkdown>
+                ) : !message.toolCalls?.length && !message.thoughts?.length ? (
                     <span className="text-muted-foreground italic">{'(non-text content)'}</span>
-                )}
+                ) : null}
 
 
             </div>
@@ -84,7 +101,7 @@ function StatusBar({ status }: { status: ChatStatus }) {
         error: 'Error occurred',
     };
     const colors: Record<string, string> = {
-        working: 'text-blue-500',
+        working: 'text-primary',
         asking: 'text-amber-500',
         error: 'text-red-500',
     };
@@ -151,13 +168,17 @@ export function ChatView({ deviceFingerprint, chatId, className }: {
         bottomRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
     }, []);
 
-    // Scroll to end on first load
+    // Scroll to end on load and during streaming
     useEffect(() => {
-        if (!hasScrolledRef.current && messages.length > 0 && !isLoading) {
-            hasScrolledRef.current = true;
-            setTimeout(() => scrollToBottom(), 100);
+        if (messages.length > 0 && !isLoading) {
+            if (!hasScrolledRef.current) {
+                hasScrolledRef.current = true;
+                setTimeout(() => scrollToBottom(), 100);
+            } else if (status === 'working') {
+                scrollToBottom();
+            }
         }
-    }, [messages.length, isLoading, scrollToBottom]);
+    }, [messages, isLoading, status, scrollToBottom]);
 
     // Focus input on mount
     useEffect(() => {

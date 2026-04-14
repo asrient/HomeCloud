@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { View, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { UIText } from '@/components/ui/UIText';
+import { UIPagePlaceholder } from '@/components/ui/UIPagePlaceholder';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAgentConfig, useChatList } from '@/hooks/useAgent';
@@ -73,8 +74,9 @@ export default function AgentScreen() {
     const bottomPadding = getBottomPadding(insets.bottom);
     const headerHeight = useHeaderHeight();
 
-    const { config } = useAgentConfig(deviceFingerprint);
+    const { config, status } = useAgentConfig(deviceFingerprint);
     const { chats, isLoading, newChat } = useChatList(deviceFingerprint);
+    const isReady = status.connectionStatus === 'ready';
 
     const title = config?.name ?? 'Agent';
 
@@ -135,34 +137,51 @@ export default function AgentScreen() {
                     headerTransparent: isGlassEnabled,
                 }}
             />
-            <FlashList
-                data={listData}
-                getItemType={(item) => item.type}
-                keyExtractor={(item, i) => item.type === 'chat' ? item.chat.chatId : `header-${i}`}
-                renderItem={({ item }) => {
-                    if (item.type === 'header') {
-                        return (
-                            <View style={styles.sectionHeader}>
-                                <UIText type="subtitle">{item.title}</UIText>
-                            </View>
-                        );
+            {status.connectionStatus !== 'ready' ? (
+                <UIPagePlaceholder
+                    title={
+                        !config ? 'No agent configured' :
+                        status.connectionStatus === 'error' ? 'Agent connection failed' :
+                        status.connectionStatus === 'connecting' || status.connectionStatus === 'initializing' ? 'Connecting to agent...' :
+                        'Agent disconnected'
                     }
-                    return <ChatListItem chat={item.chat} onPress={() => openChat(item.chat)} />;
-                }}
-                contentContainerStyle={{ paddingBottom: bottomPadding + 20, paddingTop: isGlassEnabled ? headerHeight : 0 }}
-                scrollIndicatorInsets={isGlassEnabled ? { top: headerHeight } : undefined}
-                ListEmptyComponent={
-                    isLoading ? (
-                        <View style={styles.emptyContainer}>
-                            <ActivityIndicator />
-                        </View>
-                    ) : (
-                        <View style={styles.emptyContainer}>
-                            <UIText color="textSecondary">No chats yet</UIText>
-                        </View>
-                    )
-                }
-            />
+                    detail={
+                        !config ? 'Set up an agent in Settings to get started.' :
+                        status.connectionStatus === 'error' ? (status.error || 'An unknown error occurred.') :
+                        status.connectionStatus === 'connecting' || status.connectionStatus === 'initializing' ? `Setting up ${config.name || 'agent'}.` :
+                        `${config.name || 'Agent'} is not running.`
+                    }
+                />
+            ) : (
+                <FlashList
+                    data={listData}
+                    getItemType={(item) => item.type}
+                    keyExtractor={(item, i) => item.type === 'chat' ? item.chat.chatId : `header-${i}`}
+                    renderItem={({ item }) => {
+                        if (item.type === 'header') {
+                            return (
+                                <View style={styles.sectionHeader}>
+                                    <UIText type="subtitle">{item.title}</UIText>
+                                </View>
+                            );
+                        }
+                        return <ChatListItem chat={item.chat} onPress={() => openChat(item.chat)} />;
+                    }}
+                    contentContainerStyle={{ paddingBottom: bottomPadding + 20, paddingTop: isGlassEnabled ? headerHeight : 0 }}
+                    scrollIndicatorInsets={isGlassEnabled ? { top: headerHeight } : undefined}
+                    ListEmptyComponent={
+                        isLoading ? (
+                            <View style={styles.emptyContainer}>
+                                <ActivityIndicator />
+                            </View>
+                        ) : (
+                            <View style={styles.emptyContainer}>
+                                <UIText color="textSecondary">No chats yet</UIText>
+                            </View>
+                        )
+                    }
+                />
+            )}
         </View>
     );
 }

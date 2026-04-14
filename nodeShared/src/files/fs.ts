@@ -123,7 +123,7 @@ export default class LocalFsDriver extends FsDriver {
   protected override async _updateFile(id: string, file: FileContent): Promise<RemoteItem> {
     id = this.normalizePath(id);
     file.name = this.pathToFilename(id);
-    return this.writeFile(this.pathToParentFolder(id), file);
+    return this._writeFile(this.pathToParentFolder(id), file);
   }
 
   
@@ -144,7 +144,7 @@ export default class LocalFsDriver extends FsDriver {
   protected override async _moveDir(id: string, destParentId: string, newDirName: string, deleteSource: boolean): Promise<RemoteItem> {
     id = this.normalizePath(id);
     destParentId = this.normalizePath(destParentId);
-    return this.moveFile(id, destParentId, newDirName, deleteSource);
+    return this._moveFile(id, destParentId, newDirName, deleteSource);
   }
 
   

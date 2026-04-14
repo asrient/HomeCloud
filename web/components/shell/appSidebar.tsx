@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useAppState } from "../hooks/useAppState";
 import { useAgentConfig } from "../hooks/useAgent";
+import { useWorkflowsAvailable } from "../hooks/useWorkflows";
 import { useFolder, usePinnedFolders } from "../hooks/useFolders";
 import { getDefaultIcon, pinnedFolderToRemoteItem } from "@/lib/fileUtils";
 import { buildNextUrl, folderViewUrl } from '@/lib/urls';
@@ -205,6 +206,7 @@ export function DevSection() {
 
 function TopSection({ fingerprint }: { fingerprint: string | null }) {
     const { config: agentConfig } = useAgentConfig(fingerprint);
+    const { available: workflowsAvailable } = useWorkflowsAvailable(fingerprint);
 
     const section: SidebarSection = {
         items: [{
@@ -223,12 +225,14 @@ function TopSection({ fingerprint }: { fingerprint: string | null }) {
             key: 'agent',
         });
     }
-    section.items.push({
-        title: 'Workflows',
-        href: buildNextUrl('/workflows'),
-        icon: ThemedIconName.Workflows,
-        key: 'workflows',
-    });
+    if (workflowsAvailable) {
+        section.items.push({
+            title: 'Workflows',
+            href: buildNextUrl('/workflows'),
+            icon: ThemedIconName.Workflows,
+            key: 'workflows',
+        });
+    }
     return <SidebarSectionView section={section} />;
 }
 

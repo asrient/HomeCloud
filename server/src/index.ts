@@ -29,6 +29,40 @@ import crypto from "node:crypto";
 import { env } from "node:process";
 import { ServerConfigType } from "./types";
 
+// ── CLI argument parsing ─────────────────────────────────────────────────────
+
+function parseArgs(argv: string[]): Record<string, string> {
+    const args: Record<string, string> = {};
+    const aliases: Record<string, string> = {
+        '-p': '--passphrase',
+        '-c': '--creds',
+        '-d': '--data-dir',
+        '-n': '--name',
+    };
+    for (let i = 2; i < argv.length; i++) {
+        let key = argv[i];
+        if (aliases[key]) key = aliases[key];
+        if (key.startsWith('--')) {
+            const name = key.slice(2);
+            const next = argv[i + 1];
+            if (next && !next.startsWith('-')) {
+                args[name] = next;
+                i++;
+            } else {
+                args[name] = '';
+            }
+        }
+    }
+    return args;
+}
+
+const cliArgs = parseArgs(process.argv);
+
+/** Returns the CLI arg if provided, otherwise falls back to the env var. */
+function option(argName: string, envName: string): string | undefined {
+    return cliArgs[argName] ?? env[envName] ?? undefined;
+}
+
 console.log(`
   ___ ___                       _________ .__                   .___
  /   |   \  ____   _____   ____ \_   ___ \|  |   ____  __ __  __| _/
@@ -41,41 +75,36 @@ console.log(`
 
 `);
 
-const API_SERVER_URL = process.env.API_SERVER_URL || 'https://homecloudapi.asrient.com';
+const API_SERVER_URL = option('api-url', 'API_SERVER_URL') || 'https://homecloudapi.asrient.com';
 const WS_SERVER_URL = deriveWsUrl(API_SERVER_URL);
 
-const TCP_PORT = process.env.TCP_PORT ? parseInt(process.env.TCP_PORT) : 7736;
+const TCP_PORT = parseInt(option('port', 'TCP_PORT') || '7736');
 
 const cryptoModule = new CryptoImpl();
 
 function getDataDir(): string {
-    if (process.env.HC_DATA_DIR) {
-        return process.env.HC_DATA_DIR;
-    }
-    const home = os.homedir();
-    return path.join(home, '.hcServerData');
+    return option('data-dir', 'HC_DATA_DIR') || path.join(os.homedir(), '.hcServerData');
 }
 
 function getCacheDir(): string {
-    if (process.env.HC_CACHE_DIR) {
-        return process.env.HC_CACHE_DIR;
-    }
-    return path.join(os.tmpdir(), 'hcServerCache');
+    return option('cache-dir', 'HC_CACHE_DIR') || path.join(os.tmpdir(), 'hcServerCache');
 }
 
 async function getCreds(passphrase: string): Promise<{ privateKeyPem: string; publicKeyPem: string; accountId: string; secretKey: string }> {
     let raw: string;
 
-    if (process.env.CREDS_PATH) {
-        const credsPath = process.env.CREDS_PATH;
+    const credsPath = option('creds', 'CREDS_PATH');
+    const credsBase64 = option('creds-base64', 'CREDS_BASE64');
+
+    if (credsPath) {
         if (!fs.existsSync(credsPath)) {
             throw new Error(`Credentials file not found: ${credsPath}`);
         }
         raw = fs.readFileSync(credsPath, 'utf-8');
-    } else if (process.env.CREDS_BASE64) {
-        raw = Buffer.from(process.env.CREDS_BASE64, 'base64').toString('utf-8');
+    } else if (credsBase64) {
+        raw = Buffer.from(credsBase64, 'base64').toString('utf-8');
     } else {
-        throw new Error('Either CREDS_PATH or CREDS_BASE64 must be set.');
+        throw new Error('Credentials required: use --creds <path> or --creds-base64 <data> (env: CREDS_PATH or CREDS_BASE64)');
     }
 
     let parsed: { publicPem: string; encrytPrivatePem: { iv: string; payload: string }; salt: string; accountId: string };
@@ -171,10 +200,10 @@ async function getConfig(): Promise<ServerConfigType> {
         fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    const passphrase = env.PASSPHRASE;
+    const passphrase = option('passphrase', 'PASSPHRASE');
 
     if (!passphrase) {
-        throw new Error('PASSPHRASE is missing.');
+        throw new Error('Passphrase required: use --passphrase <value> or -p <value> (env: PASSPHRASE)');
     }
 
     const { privateKeyPem, publicKeyPem, accountId, secretKey } = await getCreds(passphrase);
@@ -186,7 +215,7 @@ async function getConfig(): Promise<ServerConfigType> {
         IS_STORE_DISTRIBUTION: false,
         SECRET_KEY: secretKey,
         VERSION: process.env.npm_package_version || '0.0.1',
-        DEVICE_NAME: process.env.DEVICE_NAME || getDeviceName(),
+        DEVICE_NAME: option('name', 'DEVICE_NAME') || getDeviceName(),
         PUBLIC_KEY_PEM: publicKeyPem,
         PRIVATE_KEY_PEM: privateKeyPem,
         FINGERPRINT: cryptoModule.getFingerprintFromPem(publicKeyPem),

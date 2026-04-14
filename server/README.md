@@ -15,10 +15,10 @@ This links your server to your HomeCloud account and creates a `creds.json` file
 ### 2. Run the server
 
 ```bash
-npx @asrient/homecloud-server
+npx @asrient/homecloud-server -p your-passphrase -c ./creds.json
 ```
 
-With environment variables:
+Or with environment variables:
 
 ```bash
 PASSPHRASE=your-passphrase CREDS_PATH=./creds.json npx @asrient/homecloud-server
@@ -49,16 +49,20 @@ docker run -d --network host \
   asrient/homecloud-server
 ```
 
-## Environment Variables
+## Options
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `PASSPHRASE` | Yes | Passphrase used when generating credentials |
-| `CREDS_PATH` | One of these | Path to the `creds.json` file |
-| `CREDS_BASE64` | One of these | Base64-encoded credentials string |
-| `DEVICE_NAME` | No | Display name for this server (default: OS hostname) |
-| `HC_DATA_DIR` | No | Data directory (default: `./data`) |
-| `HC_CACHE_DIR` | No | Cache directory (default: system temp) |
+All options can be passed as CLI arguments or environment variables. CLI arguments take precedence.
+
+| CLI arg | Short | Env var | Required | Description |
+|---------|-------|---------|----------|-------------|
+| `--passphrase` | `-p` | `PASSPHRASE` | Yes | Passphrase used when generating credentials |
+| `--creds` | `-c` | `CREDS_PATH` | One of these | Path to the `creds.json` file |
+| `--creds-base64` | | `CREDS_BASE64` | One of these | Base64-encoded credentials string |
+| `--name` | `-n` | `DEVICE_NAME` | No | Display name for this server (default: OS hostname) |
+| `--data-dir` | `-d` | `HC_DATA_DIR` | No | Data directory (default: `~/.hcServerData`) |
+| `--cache-dir` | | `HC_CACHE_DIR` | No | Cache directory (default: system temp) |
+| `--port` | | `TCP_PORT` | No | TCP port for P2P connections (default: 7736) |
+| `--api-url` | | `API_SERVER_URL` | No | API server URL |
 
 ## Ports
 

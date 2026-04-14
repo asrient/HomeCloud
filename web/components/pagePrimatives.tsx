@@ -85,6 +85,15 @@ export function PageContent({ children, className, onDrop }: { children: React.R
     )
 }
 
+export function PagePlaceholder({ title, detail }: { title: string; detail: string }) {
+    return (
+        <div className="h-full flex flex-col items-center justify-center gap-2 text-center p-8">
+            <div className="text-base font-medium text-foreground">{title}</div>
+            <div className="text-sm text-muted-foreground max-w-sm">{detail}</div>
+        </div>
+    );
+}
+
 interface MenuButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     selected?: boolean;
 }

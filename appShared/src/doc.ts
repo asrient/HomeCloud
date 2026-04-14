@@ -19,7 +19,10 @@ export function generateServicesDoc(sc: object, prefix = null, filter = (key: st
         try {
             const service = sc[key];
             if (service && typeof service === 'object') {
-                doc[key] = generateServicesDoc(service, fqn);
+                const sub = generateServicesDoc(service, fqn, filter);
+                if (Object.keys(sub).length > 0) {
+                    doc[key] = sub;
+                }
             } else if (typeof service === 'function') {
                 const methodInfo = getMethodInfo(service);
                 const docEntry: ServiceDoc = {

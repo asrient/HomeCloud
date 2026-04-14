@@ -179,15 +179,15 @@ class DesktopSystemService extends SystemService {
         return getDriveDetails();
     }
 
-    protected async _openUrl(url: string): Promise<void> {
+    protected override async _openUrl(url: string): Promise<void> {
         await shell.openExternal(url);
     }
 
-    protected async _openFile(filePath: string): Promise<void> {
+    protected override async _openFile(filePath: string): Promise<void> {
         await shell.openPath(filePath);
     }
 
-    protected async _lockScreen(): Promise<void> {
+    protected override async _lockScreen(): Promise<void> {
         const os = process.platform;
         console.log('[lockScreen] platform:', os);
         if (os === 'darwin') {
@@ -214,7 +214,7 @@ class DesktopSystemService extends SystemService {
         }
     }
 
-    public async _getScreenLockStatus(): Promise<ScreenLockStatus> {
+    protected override async _getScreenLockStatus(): Promise<ScreenLockStatus> {
         const os = process.platform;
         try {
             if (os === 'darwin') {
@@ -270,7 +270,7 @@ class DesktopSystemService extends SystemService {
         }
     }
 
-    public async _readClipboard(type?: ClipboardContentType): Promise<ClipboardContent | null> {
+    protected override async _readClipboard(type?: ClipboardContentType): Promise<ClipboardContent | null> {
         let availableFormats = clipboard.availableFormats();
         const isTypeAllowed = (type_: string): boolean => {
             return !type || type === type_;
@@ -319,23 +319,23 @@ class DesktopSystemService extends SystemService {
         return null;
     }
 
-    public async _canControlVolumeLevel(): Promise<boolean> {
+    protected override async _canControlVolumeLevel(): Promise<boolean> {
         return true;
     }
 
-    public async _getVolumeLevel(): Promise<number> {
+    protected override async _getVolumeLevel(): Promise<number> {
         return volumeDriver.getVolume();
     }
 
-    public async _setVolumeLevel(level: number): Promise<void> {
+    protected override async _setVolumeLevel(level: number): Promise<void> {
         return volumeDriver.setVolume(level);
     }
 
-    public async _canControlAudioPlayback(): Promise<boolean> {
+    protected override async _canControlAudioPlayback(): Promise<boolean> {
         return process.platform === 'win32' || process.platform === 'darwin' || process.platform === 'linux';
     }
 
-    public async _getAudioPlaybackInfo(): Promise<AudioPlaybackInfo | null> {
+    protected override async _getAudioPlaybackInfo(): Promise<AudioPlaybackInfo | null> {
         if (process.platform === 'win32') {
             // console.log('Fetching audio playback info on Windows');
             try {
@@ -357,7 +357,7 @@ class DesktopSystemService extends SystemService {
         throw new Error("Not supported.");
     }
 
-    public async _pauseAudioPlayback(): Promise<void> {
+    protected override async _pauseAudioPlayback(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.pauseAudioPlayback();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
@@ -368,7 +368,7 @@ class DesktopSystemService extends SystemService {
         throw new Error("Not supported.");
     }
 
-    public async _playAudioPlayback(): Promise<void> {
+    protected override async _playAudioPlayback(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.playAudioPlayback();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
@@ -380,15 +380,15 @@ class DesktopSystemService extends SystemService {
     }
 
     // Battery info
-    public async _getBatteryInfo(): Promise<BatteryInfo> {
+    protected override async _getBatteryInfo(): Promise<BatteryInfo> {
         return getBatteryInfo();
     }
 
-    public async _canGetBatteryInfo(): Promise<boolean> {
+    protected override async _canGetBatteryInfo(): Promise<boolean> {
         return true;
     }
 
-    public async _nextAudioTrack(): Promise<void> {
+    protected override async _nextAudioTrack(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.nextAudioTrack();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
@@ -399,7 +399,7 @@ class DesktopSystemService extends SystemService {
         throw new Error("Not supported.");
     }
 
-    public async _previousAudioTrack(): Promise<void> {
+    protected override async _previousAudioTrack(): Promise<void> {
         if (process.platform === 'win32') {
             return mediaControlWin.previousAudioTrack();
         } else if (process.platform === 'darwin' && this.macPlaybackWatcher) {
@@ -411,7 +411,7 @@ class DesktopSystemService extends SystemService {
     }
 
     // Disks
-    public async _listDisks(): Promise<Disk[]> {
+    protected override async _listDisks(): Promise<Disk[]> {
         if (process.platform === 'win32') {
             const drives = await this.getWindowsDrives();
             return drives.map(drive => {

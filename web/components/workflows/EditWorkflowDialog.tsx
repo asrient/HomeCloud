@@ -44,8 +44,8 @@ function InputFieldRow({ field, onChange, onRemove }: {
     return (
         <div className="flex flex-col gap-2 border-b border-border/50 py-2.5">
             <div className="flex items-center gap-2">
-                <label className="flex flex-1 items-center gap-1.5 text-xs text-muted-foreground">
-                    Name:
+                <label className="flex flex-1 items-center gap-1.5 text-xs">
+                    <span className='text-muted-foreground'>Name:</span>
                     <Input
                         value={field.name}
                         onChange={e => onChange({ ...field, name: e.target.value })}
@@ -68,8 +68,8 @@ function InputFieldRow({ field, onChange, onRemove }: {
                 </button>
             </div>
             <div className="flex items-center justify-between gap-2">
-                <label className="flex flex-1 items-center gap-1.5 text-xs text-muted-foreground">
-                    Default:
+                <label className="flex flex-1 items-center gap-1.5 text-xs">
+                    <span className='text-muted-foreground'>Default:</span>
                     {field.type === 'boolean' && (
                         <Select
                             value={field.defaultValue === true ? 'true' : field.defaultValue === false ? 'false' : 'unset'}
@@ -110,7 +110,7 @@ function InputFieldRow({ field, onChange, onRemove }: {
                         />
                     )}
                 </label>
-                <label className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+                <label className="flex items-center gap-1.5 text-xs shrink-0 text-muted-foreground">
                     <Switch
                         checked={field.isRequired ?? false}
                         onCheckedChange={v => onChange({ ...field, isRequired: v })}
@@ -203,7 +203,7 @@ export function EditWorkflowDialog({
     return (
         <>
             <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-                <DialogContent className="sm:max-w-[28rem] max-h-[75vh] flex flex-col">
+                <DialogContent className="w-[28rem] max-h-[75vh] flex flex-col">
                     <DialogHeader>
                         <DialogTitle>Edit Workflow</DialogTitle>
                     </DialogHeader>
@@ -328,7 +328,7 @@ export function EditWorkflowDialog({
                         <p className="text-sm text-destructive px-2 pb-1">{saveError}</p>
                     )}
                     <DialogFooter>
-                        <Button variant="destructive" size="platform" onClick={handleDelete} className="mr-auto">
+                        <Button variant="ghost" size="platform" onClick={handleDelete} className="mr-auto text-red-500">
                             Delete
                         </Button>
                         <Button variant="secondary" size="platform" onClick={onClose}>Cancel</Button>

@@ -12,6 +12,8 @@ import { UITextInput } from "./ui/UITextInput";
 import Slider from '@react-native-community/slider';
 import { DisksGrid } from "./disksGrid";
 import { useAppsAvailable, useTerminalAvailable } from "@/hooks/useApps";
+import { useWorkflowsAvailable } from "@/hooks/useWorkflows";
+import { useAgentConfig } from "@/hooks/useAgent";
 import { getLocalServiceController, getServiceController, isIos } from "@/lib/utils";
 
 import { UIIcon } from "./ui/UIIcon";
@@ -204,6 +206,8 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
     const { batteryInfo, isLoading: isBatteryLoading } = useBatteryInfo(deviceFingerprint);
     const { available: appsAvailable } = useAppsAvailable(deviceFingerprint);
     const { available: terminalAvailable } = useTerminalAvailable(deviceFingerprint);
+    const { available: workflowsAvailable } = useWorkflowsAvailable(deviceFingerprint);
+    const { config: agentConfig } = useAgentConfig(deviceFingerprint);
     const { lockStatus, lockScreen } = useScreenLock(deviceFingerprint);
 
     const batteryIcon = useMemo(() => {
@@ -384,47 +388,35 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                     },
                 ]
             },
-            ...(appsAvailable ? [{
+            {
                 flow: 'row',
                 boxes: [
                     {
-                        type: 'half',
+                        type: 'small',
                         icon: 'display',
-                        title: 'Screen',
-                        subtitle: 'Remote desktop',
+                        isCircular: true,
                         disabled: !appsAvailable,
                         onPress: () => onNavigate(`/screen-control?fingerprint=${routeFingerprint}`),
                     },
-                    ...(terminalAvailable ? [{
-                        type: 'half' as const,
-                        icon: 'terminal.fill' as const,
-                        title: 'Terminal',
-                        subtitle: 'Remote shell',
+                    {
+                        type: 'small',
+                        icon: 'terminal.fill',
+                        isCircular: true,
                         disabled: !terminalAvailable,
                         onPress: () => onNavigate(`/terminal?fingerprint=${routeFingerprint}`),
-                    }] : []),
-                ]
-            }] as BentoGroup[] : []),
-            {
-                flow: 'row',
-                boxes: [
+                    },
                     {
-                        type: 'half',
+                        type: 'small',
                         icon: 'bolt.fill',
-                        title: 'Workflows',
-                        subtitle: 'Automations',
+                        isCircular: true,
+                        disabled: !workflowsAvailable,
                         onPress: () => onNavigate(`/device/${routeFingerprint}/workflows`),
                     },
-                ]
-            },
-            {
-                flow: 'row',
-                boxes: [
                     {
-                        type: 'half',
+                        type: 'small',
                         icon: 'bubble.left.and.text.bubble.right.fill',
-                        title: 'Agent',
-                        subtitle: 'AI assistant',
+                        isCircular: true,
+                        disabled: !agentConfig,
                         onPress: () => onNavigate(`/agent?fingerprint=${routeFingerprint}`),
                     },
                 ]

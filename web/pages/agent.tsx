@@ -1,4 +1,4 @@
-import { PageBar, PageContent, MenuButton, MenuGroup } from "@/components/pagePrimatives";
+import { PageBar, PageContent, PagePlaceholder, MenuButton, MenuGroup } from "@/components/pagePrimatives";
 import { buildPageConfig, cn } from '@/lib/utils'
 import Head from 'next/head'
 import { useState, useMemo, useCallback } from 'react'
@@ -35,13 +35,22 @@ function KanbanColumn({ title, chats, onChatClick, border }: {
     );
 }
 
+function getAgentPlaceholder(status: AgentStatus, config: AgentConfig | null): { title: string; detail: string } | null {
+    if (!config) return { title: 'No agent configured', detail: 'Set up an agent in Settings to get started.' };
+    if (status.connectionStatus === 'error') return { title: 'Agent connection failed', detail: status.error || 'An unknown error occurred.' };
+    if (status.connectionStatus === 'connecting' || status.connectionStatus === 'initializing') return { title: 'Connecting to agent...', detail: `Setting up ${config.name || 'agent'}.` };
+    if (status.connectionStatus === 'disconnected') return { title: 'Agent disconnected', detail: `${config.name || 'Agent'} is not running.` };
+    return null;
+}
+
 function Page() {
     const { selectedFingerprint } = useAppState();
-    const { config } = useAgentConfig(selectedFingerprint);
+    const { config, status } = useAgentConfig(selectedFingerprint);
     const { chats, newChat } = useChatList(selectedFingerprint);
     const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
     const [showNewChat, setShowNewChat] = useState(false);
     const title = config?.name ?? 'Agent';
+    const placeholder = getAgentPlaceholder(status, config);
 
     const columns = useMemo(() => {
         const idle: ChatInfo[] = [];
@@ -91,22 +100,26 @@ function Page() {
                 </MenuGroup>
             </PageBar>
             <PageContent>
-                <div className="h-full flex">
-                    <KanbanColumn title="Inactive" chats={columns.idle} onChatClick={openChat} border />
-                    <KanbanColumn title="In Progress" chats={columns.working} onChatClick={openChat} border />
-                    <KanbanColumn title="Review" chats={columns.attention} onChatClick={openChat} />
-                </div>
-                <ChatDialog
-                    chat={selectedChat}
-                    deviceFingerprint={selectedFingerprint}
-                    onClose={() => setSelectedChatId(null)}
-                />
-                <NewChatDialog
-                    open={showNewChat}
-                    onClose={() => setShowNewChat(false)}
-                    onCreate={handleNewChat}
-                    fingerprint={selectedFingerprint}
-                />
+                {placeholder ? (
+                    <PagePlaceholder {...placeholder} />
+                ) : (<>
+                    <div className="h-full flex">
+                        <KanbanColumn title="Inactive" chats={columns.idle} onChatClick={openChat} border />
+                        <KanbanColumn title="In Progress" chats={columns.working} onChatClick={openChat} border />
+                        <KanbanColumn title="Review" chats={columns.attention} onChatClick={openChat} />
+                    </div>
+                    <ChatDialog
+                        chat={selectedChat}
+                        deviceFingerprint={selectedFingerprint}
+                        onClose={() => setSelectedChatId(null)}
+                    />
+                    <NewChatDialog
+                        open={showNewChat}
+                        onClose={() => setShowNewChat(false)}
+                        onCreate={handleNewChat}
+                        fingerprint={selectedFingerprint}
+                    />
+                </>)}
             </PageContent>
         </>
     )

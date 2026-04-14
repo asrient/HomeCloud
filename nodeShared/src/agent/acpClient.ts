@@ -131,6 +131,7 @@ export class AcpClient extends EventEmitter {
             this.process = spawn(config.command, config.args, {
                 stdio: ['pipe', 'pipe', 'pipe'],
                 env,
+                shell: process.platform === 'win32',
             });
 
             const onError = (err: Error) => {

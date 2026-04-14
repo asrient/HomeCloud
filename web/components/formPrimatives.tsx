@@ -50,19 +50,19 @@ export function Line({ children, title }: {
     )
 }
 
-export function LineLink({ text, color, onClick }: {
+export function LineLink({ text, type, onClick }: {
     text: string,
-    color?: 'blue' | 'red' | 'default',
+    type?: 'danger' | 'primary' | 'default',
     onClick?: () => void,
 }) {
 
     let textColor = 'text-foreground/70';
 
-    switch (color) {
-        case 'blue':
-            textColor = 'text-blue-500';
+    switch (type) {
+        case 'primary':
+            textColor = 'text-primary';
             break;
-        case 'red':
+        case 'danger':
             textColor = 'text-red-500';
             break;
         default:

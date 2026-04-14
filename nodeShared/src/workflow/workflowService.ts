@@ -299,6 +299,10 @@ export default class NodeWorkflowService extends WorkflowService {
         await this.mcpServer.stop();
     }
 
+    protected override async _getScriptingGuide(): Promise<string> {
+        return getScriptingDocMarkdown();
+    }
+
     protected override async _getMcpServerInfo(): Promise<McpServerInfo> {
         return {
             isRunning: this.mcpServer.isRunning,

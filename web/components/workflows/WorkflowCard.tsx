@@ -1,4 +1,4 @@
-import { cn, getLocalServiceController } from '@/lib/utils';
+import { cn, getLocalServiceController, isWin11Theme } from '@/lib/utils';
 import { WorkflowColor, WorkflowConfig, WorkflowExecution } from 'shared/types';
 import { Play } from 'lucide-react';
 import LoadingIcon from '@/components/ui/loadingIcon';
@@ -69,53 +69,57 @@ export function WorkflowCard({
 
     return (
         <ContextMenuArea onMenuOpen={menuItems} onMenuItemClick={handleMenuClick}>
-        <div
-            className={cn(
-                'group relative rounded-3xl p-4 cursor-default select-none',
-                'flex flex-col justify-between h-[6.5rem] min-w-0',
-                'transition-all duration-150',
-                bg,
-                'hover:brightness-110 active:scale-[0.97]',
-                'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-            )}
-            onClick={onClick}
-        >
-            {/* Top row: status / play */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                    {isRunning && (
-                        <div className="flex items-center gap-1 text-white/90 text-xs font-medium">
-                            <LoadingIcon size="sm" className="text-white/90" />
-                            <span>Running</span>
+            <div
+                className={cn(
+                    'group relative p-4 cursor-default select-none',
+                    'flex flex-col justify-between h-[6.5rem] min-w-0',
+                    'transition-all duration-150',
+                    bg,
+                    isWin11Theme() ? 'rounded-lg' : 'rounded-3xl',
+                    'hover:brightness-110 active:scale-[0.97]',
+                    'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                )}
+                onClick={onClick}
+            >
+                {/* Top row: status / play */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                        {isRunning && (
+                            <div className="flex items-center gap-1 text-white/90 text-xs font-medium">
+                                <LoadingIcon size="sm" className="text-white/90" />
+                                <span>Running</span>
+                            </div>
+                        )}
+                    </div>
+                    {/* Play button — visible on hover */}
+                    <button
+                        className={cn(
+                            'rounded-full p-1.5 bg-white/20 text-white',
+                            'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
+                            'hover:bg-white/30 active:bg-white/40',
+                        )}
+                        onClick={handlePlay}
+                        title="Run workflow"
+                    >
+                        <Play size={14} fill="currentColor" />
+                    </button>
+                </div>
+
+                {/* Bottom: name + description */}
+                <div className="min-w-0">
+                    <div className={cn(
+                        "text-white text-sm leading-tight truncate",
+                        isWin11Theme() ? 'font-medium' : 'font-semibold'
+                    )}>
+                        {workflow.name}
+                    </div>
+                    {workflow.description && (
+                        <div className="text-white/70 text-xs mt-0.5 truncate">
+                            {workflow.description}
                         </div>
                     )}
                 </div>
-                {/* Play button — visible on hover */}
-                <button
-                    className={cn(
-                        'rounded-full p-1.5 bg-white/20 text-white',
-                        'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
-                        'hover:bg-white/30 active:bg-white/40',
-                    )}
-                    onClick={handlePlay}
-                    title="Run workflow"
-                >
-                    <Play size={14} fill="currentColor" />
-                </button>
             </div>
-
-            {/* Bottom: name + description */}
-            <div className="min-w-0">
-                <div className="text-white font-semibold text-sm leading-tight truncate">
-                    {workflow.name}
-                </div>
-                {workflow.description && (
-                    <div className="text-white/70 text-xs mt-0.5 truncate">
-                        {workflow.description}
-                    </div>
-                )}
-            </div>
-        </div>
         </ContextMenuArea>
     );
 }

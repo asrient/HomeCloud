@@ -93,6 +93,14 @@ function ExecutionRow({ exec }: { exec: WorkflowExecution }) {
                                 <span className="text-foreground break-words overflow-hidden select-text">{exec.result.message}</span>
                             </>
                         )}
+                        {exec.inputs && Object.keys(exec.inputs).length > 0 && (
+                            <>
+                                <span>Inputs</span>
+                                <span className="text-foreground break-words overflow-hidden select-text">
+                                    {Object.entries(exec.inputs).map(([k, v]) => `${k}: ${v}`).join(', ')}
+                                </span>
+                            </>
+                        )}
                     </div>
                     {exec.logFilePath && (
                         <Button variant="default" size="sm" className="text-xs h-7 px-2" onClick={handleOpenLog}>

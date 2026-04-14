@@ -12,6 +12,7 @@ import {
     ChatStatus,
     ChatConfigOption,
     AgentChatUpdate,
+    SignalEvent,
 } from 'shared/types';
 import { AgentService } from 'shared/agentService';
 import { AcpClient } from './acpClient';
@@ -42,7 +43,8 @@ export default class NodeAgentService extends AgentService {
         const client = new AcpClient();
 
         client.on('status', async () => {
-            this.statusSignal.dispatch(await this._getStatus());
+            const status = await this._getStatus();
+            this.dispatchAgentUpdate(status.connectionStatus === 'error' ? SignalEvent.ERROR : SignalEvent.UPDATE, status);
         });
 
         client.on('notification', (method: string, params: any) => {
@@ -57,7 +59,7 @@ export default class NodeAgentService extends AgentService {
             }
             this.rejectAllPermissions();
             this.activeTurns.clear();
-            this.statusSignal.dispatch(await this._getStatus());
+            this.dispatchAgentUpdate(SignalEvent.ERROR, await this._getStatus());
         });
 
         client.onRequest(async (method, params) => {
@@ -90,7 +92,7 @@ export default class NodeAgentService extends AgentService {
         this.activeTurns.clear();
         this.sessionConfigs.clear();
         this.chatMeta.clear();
-        this.statusSignal.dispatch({ connectionStatus: 'disconnected' });
+        this.dispatchAgentUpdate(SignalEvent.UPDATE, { connectionStatus: 'disconnected' });
     }
 
     protected override async _getStatus(): Promise<AgentStatus> {

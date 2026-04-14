@@ -130,9 +130,9 @@ function MessageBubble({ message, onSelectText }: { message: AgentMessage; onSel
                             {textContent}
                         </Markdown>
                     )
-                ) : (
+                ) : !message.toolCalls?.length && !message.thoughts?.length ? (
                     <UIText size="sm" color="textSecondary" style={{ fontStyle: 'italic' }}>{'(non-text content)'}</UIText>
-                )}
+                ) : null}
 
                 {!isUser && textContent ? (
                     <View style={styles.bubbleActions}>
@@ -223,14 +223,18 @@ export default function AgentChatScreen() {
         return () => { showSub.remove(); hideSub.remove(); };
     }, []);
 
-    // Scroll to end on first load
+    // Scroll to end on load and during streaming
     const hasScrolledRef = useRef(false);
     useEffect(() => {
-        if (!hasScrolledRef.current && messages.length > 0 && !isLoading) {
-            hasScrolledRef.current = true;
-            setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 200);
+        if (messages.length > 0 && !isLoading) {
+            if (!hasScrolledRef.current) {
+                hasScrolledRef.current = true;
+                setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 200);
+            } else if (status === 'working') {
+                listRef.current?.scrollToEnd({ animated: false });
+            }
         }
-    }, [messages.length, isLoading]);
+    }, [messages, isLoading, status]);
 
     const handleSend = useCallback(() => {
         const text = input.trim();

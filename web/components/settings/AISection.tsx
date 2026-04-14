@@ -135,7 +135,7 @@ export default function AISettingsSection({ fingerprint }: AISettingsSectionProp
     <Section title="Artificial Intelligence" footer="Allow AI agents access your devices via the Model Context Protocol.">
       <Dialog open={agentModalOpen} onOpenChange={setAgentModalOpen}>
         <Line title="AI Agent">
-          <LineLink onClick={openAgentModal} text={loading ? '...' : (agentConfig ? agentConfig.name : 'Setup')} color={agentConfig ? 'default' : 'blue'} />
+          <LineLink onClick={openAgentModal} text={loading ? '...' : (agentConfig ? agentConfig.name : 'Setup')} type={agentConfig ? 'default' : 'primary'} />
         </Line>
         <DialogContent className="sm:max-w-[26rem]" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogHeader>

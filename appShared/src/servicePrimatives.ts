@@ -326,7 +326,7 @@ export class RPCController {
      * resolves to an exposed method on this controller.
      */
     @exposed
-    isAvailable(path: string): boolean {
+    async isAvailable(path: string): Promise<boolean> {
         try {
             const { obj, funcName } = this.getCallable(`services.${path}`);
             return getMethodInfo(obj[funcName]).isExposed;

@@ -1,6 +1,7 @@
 import { OSType } from "@/lib/types";
 import { DeviceInfo } from "shared/types";
 import { Platform } from "react-native";
+import ServiceController from "shared/controller";
 import MobileServiceController from "./serviceController";
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 
@@ -17,6 +18,18 @@ export function printFingerprint(fingerprint: string, full = false) {
     return fingerprint;
   }
   return `$${fingerprint.slice(0, 8)}`;
+}
+
+/**
+ * Check if a service endpoint is available on a service controller.
+ * Handles the case where sc.isAvailable() itself doesn't exist (older peers).
+ */
+export async function isServiceAvailable(sc: ServiceController, path: string): Promise<boolean> {
+  try {
+    return await sc.isAvailable(path);
+  } catch {
+    return false;
+  }
 }
 
 export async function getServiceController(fingerprint: string | null) {

@@ -7,6 +7,23 @@ import ServiceController from 'shared/controller';
 import { SignalNodeRef } from 'shared/signals';
 import { useResource } from './useResource';
 import { SignalEvent } from '@/lib/types';
+import { isServiceAvailable } from '@/lib/utils';
+
+// ── useWorkflowsAvailable ────────────────────────────────────────────────────
+
+export function useWorkflowsAvailable(deviceFingerprint: string | null) {
+    const [available, setAvailable] = useState<boolean | null>(null);
+
+    const load = useCallback(async (sc: ServiceController, shouldAbort: () => boolean) => {
+        const result = await isServiceAvailable(sc, 'workflow.listWorkflows');
+        if (shouldAbort()) return;
+        setAvailable(result);
+    }, []);
+
+    const { isLoading } = useResource({ deviceFingerprint, load });
+
+    return { available, isLoading };
+}
 
 // ── useWorkflows ──────────────────────────────────────────────────────────────
 // Lists all workflows + tracks running executions via signals.

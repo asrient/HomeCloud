@@ -171,6 +171,10 @@ export class WorkflowService extends Service {
     @output(McpServerInfoSchema)
     public async getMcpServerInfo(): Promise<McpServerInfo> { return this._getMcpServerInfo(); }
 
+    @exposed @info("Get workflow scripting guide as markdown")
+    @output(Sch.String)
+    public async getScriptingGuide(): Promise<string> { return this._getScriptingGuide(); }
+
     // --- Validation ---
 
     private _validateInputFields(fields: WorkflowInputField[]): void {
@@ -241,6 +245,7 @@ export class WorkflowService extends Service {
     protected async _listSecretKeys(): Promise<string[]> { return []; }
     protected async _setSecret(key: string, value: string): Promise<void> { throw new Error('Not implemented'); }
     protected async _deleteSecret(key: string): Promise<void> { throw new Error('Not implemented'); }
+    protected async _getScriptingGuide(): Promise<string> { return ''; }
     protected async _startMcpServer(): Promise<void> { throw new Error('Not supported.'); }
     protected async _stopMcpServer(): Promise<void> { throw new Error('Not supported.'); }
     protected async _getMcpServerInfo(): Promise<McpServerInfo> { return { isRunning: false, port: null, url: null }; }

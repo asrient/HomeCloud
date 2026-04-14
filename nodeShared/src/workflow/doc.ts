@@ -77,19 +77,25 @@ function buildServiceSegments(tree: ServiceDocTree, fqnPrefix = ''): WfDocSegmen
     for (const [key, value] of Object.entries(tree)) {
         const doc = value as ServiceDoc;
         if (doc.__doctype__ === 'function' && doc.fqn) {
+            // Make sure description ends with a period for better formatting in markdown
+            if (doc.description && !doc.description.endsWith('.')) {
+                doc.description += '.';
+            }
             segments.push({
                 title: doc.fqn!.split('.').pop()!,
-                description: `${doc.description || ''}\n${methodToSignature(doc)}`,
+                description: `- ${doc.description || ''}\n- ${methodToSignature(doc)}`,
             });
         } else if (!doc.__doctype__) {
             // Sub-service (e.g. fs under files)
             const childFqn = fqnPrefix ? `${fqnPrefix}.${key}` : key;
             const children = buildServiceSegments(value as ServiceDocTree, childFqn);
-            segments.push({
-                title: key,
-                description: `Namespace: ${childFqn}`,
-                children,
-            });
+            if (children.length > 0) {
+                segments.push({
+                    title: key,
+                    description: `Namespace: ${childFqn}`,
+                    children,
+                });
+            }
         }
     }
     return segments;
@@ -121,25 +127,26 @@ export function getScriptingDoc(): WfDocSegment {
     // Force schemaToTs to run on all output schemas so named types are collected
     const typeDefsDescription = namedTypes.size > 0
         ? Array.from(namedTypes.entries())
-            .map(([name, def]) => `type ${name} = ${def}`)
+            .map(([name, def]) => `- type ${name} = ${def}`)
             .join('\n')
         : 'No named types.';
 
     cachedDoc = {
-        title: 'Scripting Guide',
+        title: 'HomeCloud Scripting API',
         description: [
+            'HomeCloud is a remote-control and automation platform for user devices and AI harnesses.',
             'Scripts are JavaScript code with access to standard Node.js APIs and a set of special globals.',
-            '- exit(success: boolean, message?: string) — End the script with a result, always call this when done.',
+            '- exit(success: boolean, message?: string) - End the script with a result, always call this when done.',
             '',
             '- The global `ctx` object contains execution context:',
-            '   ctx.inputs: { [key: string]: string | number | boolean } — Input values passed when executing the workflow',
-            '   ctx.config?: WorkflowConfig — The workflow configuration (null for ad-hoc scripts)',
-            '   ctx.trigger?: WorkflowTrigger — The trigger that started this execution (if any)',
-            '   ctx.host: PeerInfo — Info about the device running this workflow',
+            '   ctx.inputs: { [key: string]: string | number | boolean } - Input values passed when executing the workflow',
+            '   ctx.config?: WorkflowConfig - The workflow configuration (null for ad-hoc scripts)',
+            '   ctx.trigger?: WorkflowTrigger - The trigger that started this execution (if any)',
+            '   ctx.host: PeerInfo - Info about the device running this workflow',
             '',
             '- Secrets:',
-            '   getSecret(key: string): Promise<string | null> — Read a stored secret',
-            '   setSecret(key: string, value: string): Promise<void> — Store a secret',
+            '   getSecret(key: string): Promise<string | null> - Read a stored secret',
+            '   setSecret(key: string, value: string): Promise<void> - Store a secret',
             '',
             '- Device APIs using a service controller:',
             '   const local = getServiceController(null);         // this device',
