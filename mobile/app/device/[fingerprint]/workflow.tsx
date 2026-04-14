@@ -3,26 +3,16 @@ import { View, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'reac
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { WorkflowColor, WorkflowExecution } from 'shared/types';
+import { WorkflowExecution } from 'shared/types';
 import { UIText } from '@/components/ui/UIText';
 import { UIIcon } from '@/components/ui/UIIcon';
+import { RunWorkflowModal } from '@/components/RunWorkflowModal';
+import { workflowColorMap, defaultWorkflowColor } from '@/components/WorkflowCard';
 import { useWorkflowDetail } from '@/hooks/useWorkflows';
+import { useWorkflowActions } from '@/hooks/useWorkflowActions';
 import { useManagedLoading } from '@/hooks/useManagedLoading';
-import { cronToHuman, getBottomPadding, getLocalServiceController, isGlassEnabled } from '@/lib/utils';
+import { cronToHuman, getBottomPadding, getLocalServiceController } from '@/lib/utils';
 import { useThemeColor } from '@/hooks/useThemeColor';
-
-// ── Colors ───────────────────────────────────────────────────────────────────
-
-const colorMap: Record<WorkflowColor, string> = {
-    red: '#ef4444',
-    green: '#22c55e',
-    blue: '#3b82f6',
-    yellow: '#eab308',
-    purple: '#a855f7',
-    cyan: '#06b6d4',
-};
-
-const defaultColor = '#0ea5e9';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -175,28 +165,14 @@ export default function WorkflowDetailScreen() {
     const insets = useSafeAreaInsets();
     const bottomPadding = getBottomPadding(insets.bottom);
     const headerHeight = useHeaderHeight();
-    const { withLoading } = useManagedLoading();
 
     const deviceFingerprint = fingerprint === 'local' ? null : fingerprint;
     const workflowId = id || null;
 
-    const { config, executions, triggers, isLoading, reload, executeWorkflow } = useWorkflowDetail(deviceFingerprint, workflowId);
+    const { config, executions, triggers, isLoading } = useWorkflowDetail(deviceFingerprint, workflowId);
+    const { handleRun, handleViewScript, runModalProps } = useWorkflowActions(deviceFingerprint);
 
-    const bg = config?.color ? colorMap[config.color] : defaultColor;
-
-    const handleRun = useCallback(async () => {
-        await withLoading(async () => {
-            await executeWorkflow({});
-        }, { title: 'Starting workflow…', errorTitle: 'Failed to run workflow', delay: 500 });
-    }, [executeWorkflow, withLoading]);
-
-    const handleViewScript = useCallback(async () => {
-        if (!config) return;
-        await withLoading(async () => {
-            const localSc = getLocalServiceController();
-            await localSc.files.openFile(deviceFingerprint, config.scriptPath);
-        }, { title: 'Opening script…', errorTitle: 'Could not open script', delay: 0 });
-    }, [config, deviceFingerprint, withLoading]);
+    const bg = config?.color ? workflowColorMap[config.color] : defaultWorkflowColor;
 
     const triggerLabel = triggers.length > 0
         ? triggers.map(t => cronToHuman(t.data)).join(', ')
@@ -240,8 +216,8 @@ export default function WorkflowDetailScreen() {
 
                     {/* Action buttons */}
                     <View style={styles.actionRow}>
-                        <GlassButton icon="play.fill" label="Run" onPress={handleRun} />
-                        <GlassButton icon="chevron.left.forwardslash.chevron.right" label="Script" onPress={handleViewScript} />
+                        <GlassButton icon="play.fill" label="Run" onPress={() => config && handleRun(config)} />
+                        <GlassButton icon="chevron.left.forwardslash.chevron.right" label="Script" onPress={() => config && handleViewScript(config)} />
                     </View>
                 </View>
 
@@ -269,6 +245,7 @@ export default function WorkflowDetailScreen() {
                     )}
                 </View>
             </ScrollView>
+            <RunWorkflowModal {...runModalProps} />
         </View>
     );
 }

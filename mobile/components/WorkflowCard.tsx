@@ -4,7 +4,7 @@ import { WorkflowConfig, WorkflowColor } from 'shared/types';
 import { UIText } from './ui/UIText';
 import { UIContextMenu, UIContextMenuAction } from './ui/UIContextMenu';
 
-const colorMap: Record<WorkflowColor, string> = {
+export const workflowColorMap: Record<WorkflowColor, string> = {
     red: '#ef4444',
     green: '#22c55e',
     blue: '#3b82f6',
@@ -13,7 +13,7 @@ const colorMap: Record<WorkflowColor, string> = {
     cyan: '#06b6d4',
 };
 
-const defaultColor = '#0ea5e9';
+export const defaultWorkflowColor = '#0ea5e9';
 
 export function WorkflowCard({
     workflow,
@@ -28,7 +28,7 @@ export function WorkflowCard({
     onRun?: () => void;
     onViewScript?: () => void;
 }) {
-    const bg = workflow.color ? colorMap[workflow.color] : defaultColor;
+    const bg = workflow.color ? workflowColorMap[workflow.color] : defaultWorkflowColor;
 
     const menuActions = useMemo((): UIContextMenuAction[] => [
         { id: 'run', title: 'Run Now', icon: 'play.fill' },

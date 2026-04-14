@@ -9,6 +9,7 @@ import { WorkflowCard } from "@/components/workflows/WorkflowCard";
 import { WorkflowDetailsDialog } from "@/components/workflows/WorkflowDetailsDialog";
 import { EditWorkflowDialog } from "@/components/workflows/EditWorkflowDialog";
 import { NewWorkflowDialog } from "@/components/workflows/NewWorkflowDialog";
+import { RunWorkflowDialog } from "@/components/workflows/RunWorkflowDialog";
 import ConfirmModal from "@/components/confirmModal";
 import { WorkflowConfig } from "shared/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,6 +23,7 @@ function Page() {
     const [editWorkflowId, setEditWorkflowId] = useState<string | null>(null);
     const [deleteWorkflow, setDeleteWorkflow] = useState<WorkflowConfig | null>(null);
     const [showNewDialog, setShowNewDialog] = useState(false);
+    const [runWorkflow, setRunWorkflow] = useState<WorkflowConfig | null>(null);
 
     const detailWorkflow = useMemo(
         () => workflows.find(w => w.id === detailWorkflowId) ?? null,
@@ -33,6 +35,19 @@ function Page() {
     );
 
     const { executions, triggers } = useWorkflowDetail(selectedFingerprint, detailWorkflowId);
+
+    const handleRun = useCallback(async (wf: WorkflowConfig) => {
+        if (wf.inputFields && wf.inputFields.length > 0) {
+            setRunWorkflow(wf);
+        } else {
+            try {
+                const sc = await getServiceController(selectedFingerprint);
+                await sc.workflow.executeWorkflow(wf.id, {});
+            } catch (err: any) {
+                console.error('Failed to execute workflow:', err);
+            }
+        }
+    }, [selectedFingerprint]);
 
     const handleCreate = useCallback(async (name: string, dir?: string) => {
         try {
@@ -72,6 +87,7 @@ function Page() {
                                     fingerprint={selectedFingerprint}
                                     isRunning={runningExecutions.has(wf.id)}
                                     onClick={() => setDetailWorkflowId(wf.id)}
+                                    onRun={() => handleRun(wf)}
                                     onEdit={() => setEditWorkflowId(wf.id)}
                                     onDelete={() => setDeleteWorkflow(wf)}
                                 />
@@ -88,6 +104,7 @@ function Page() {
                     isRunning={detailWorkflowId ? runningExecutions.has(detailWorkflowId) : false}
                     open={detailWorkflow !== null}
                     onClose={() => setDetailWorkflowId(null)}
+                    onRun={() => { if (detailWorkflow) handleRun(detailWorkflow); }}
                     onEdit={() => {
                         if (!detailWorkflowId) return;
                         setDetailWorkflowId(null);
@@ -105,6 +122,12 @@ function Page() {
                     onClose={() => setShowNewDialog(false)}
                     onCreate={handleCreate}
                     fingerprint={selectedFingerprint}
+                />
+                <RunWorkflowDialog
+                    workflow={runWorkflow}
+                    fingerprint={selectedFingerprint}
+                    open={runWorkflow !== null}
+                    onClose={() => setRunWorkflow(null)}
                 />
                 <ConfirmModal
                     title={`Delete "${deleteWorkflow?.name}"?`}

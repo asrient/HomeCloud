@@ -26,6 +26,7 @@ import {
     ListWorkflowExecutionsParamsSchema,
     ListTriggersParams,
     ListTriggersParamsSchema,
+    WorkflowInputField,
 } from './types';
 
 export class WorkflowService extends Service {
@@ -77,6 +78,9 @@ export class WorkflowService extends Service {
     @exposed @info("Update a workflow's configuration") @input(Sch.Name('id', Sch.String), Sch.Name('data', WorkflowSavePayloadSchema)) @output(WorkflowConfigSchema)
     @wfApi
     public async updateWorkflow(id: string, data: WorkflowSavePayload): Promise<WorkflowConfig> {
+        if (data.inputFields) {
+            this._validateInputFields(data.inputFields);
+        }
         const config = await this._updateWorkflow(id, data);
         this.workflowSignal.dispatch(SignalEvent.UPDATE, config);
         return config;
@@ -92,7 +96,11 @@ export class WorkflowService extends Service {
 
     @exposed @info("Execute a workflow by ID with given inputs") @input(Sch.Name('workflowId', Sch.String), Sch.Name('inputs', WorkflowInputsSchema), Sch.Name('maxWaitSec', Sch.Optional(Sch.Number))) @output(WorkflowExecutionSchema)
     @wfApi
-    public async executeWorkflow(workflowId: string, inputs: WorkflowInputs, maxWaitSec?: number): Promise<WorkflowExecution> { return this._executeWorkflow(workflowId, inputs, maxWaitSec); }
+    public async executeWorkflow(workflowId: string, inputs: WorkflowInputs, maxWaitSec?: number): Promise<WorkflowExecution> {
+        const config = await this._getWorkflowConfig(workflowId);
+        this._validateInputs(config, inputs);
+        return this._executeWorkflow(workflowId, inputs, maxWaitSec);
+    }
 
     @exposed @info("Execute an ad-hoc JavaScript script") @input(Sch.Name('script', Sch.String), Sch.Name('maxWaitSec', Sch.Optional(Sch.Number))) @output(WorkflowExecutionSchema)
     @wfApi
@@ -162,6 +170,54 @@ export class WorkflowService extends Service {
     @exposed @info("Get MCP server status and connection info")
     @output(McpServerInfoSchema)
     public async getMcpServerInfo(): Promise<McpServerInfo> { return this._getMcpServerInfo(); }
+
+    // --- Validation ---
+
+    private _validateInputFields(fields: WorkflowInputField[]): void {
+        const seen = new Set<string>();
+        for (const field of fields) {
+            const name = field.name.trim();
+            if (!name) {
+                throw new Error('Input field name cannot be empty');
+            }
+            if (seen.has(name)) {
+                throw new Error(`Duplicate input field name: "${name}"`);
+            }
+            seen.add(name);
+            if (field.type === 'select' && (!field.options || field.options.filter(o => o.trim()).length === 0)) {
+                throw new Error(`Select field "${name}" must have at least one option`);
+            }
+        }
+    }
+
+    private _validateInputs(config: WorkflowConfig, inputs: WorkflowInputs): void {
+        if (!config.inputFields || config.inputFields.length === 0) return;
+        for (const field of config.inputFields) {
+            const value = inputs[field.name];
+            const hasValue = value !== undefined && value !== null && value !== '';
+            if (field.isRequired && !hasValue) {
+                throw new Error(`Missing required input: "${field.name}"`);
+            }
+            if (!hasValue) continue;
+            switch (field.type) {
+                case 'number':
+                    if (typeof value !== 'number' && isNaN(Number(value))) {
+                        throw new Error(`Input "${field.name}" must be a number`);
+                    }
+                    break;
+                case 'boolean':
+                    if (typeof value !== 'boolean' && value !== 'true' && value !== 'false') {
+                        throw new Error(`Input "${field.name}" must be a boolean`);
+                    }
+                    break;
+                case 'select':
+                    if (field.options && !field.options.includes(String(value))) {
+                        throw new Error(`Input "${field.name}" must be one of: ${field.options.join(', ')}`);
+                    }
+                    break;
+            }
+        }
+    }
 
     // --- Protected methods (override these in subclasses) ---
 

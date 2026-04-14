@@ -4,7 +4,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { WorkflowColor } from 'shared/types';
 import { Play, Pencil, Clock, LucideIcon, SquareFunction } from 'lucide-react';
-import { cn, cronToHuman, getLocalServiceController, getServiceController } from '@/lib/utils';
+import { cn, cronToHuman, getLocalServiceController } from '@/lib/utils';
 import { ExecutionList } from './ExecutionList';
 
 const colorMap: Record<WorkflowColor, string> = {
@@ -39,6 +39,7 @@ export function WorkflowDetailsDialog({
     isRunning,
     open,
     onClose,
+    onRun,
     onEdit,
 }: {
     workflow: WorkflowConfig | null;
@@ -48,18 +49,9 @@ export function WorkflowDetailsDialog({
     isRunning?: boolean;
     open: boolean;
     onClose: () => void;
+    onRun: () => void;
     onEdit: () => void;
 }) {
-    const handlePlay = useCallback(async () => {
-        if (!workflow) return;
-        try {
-            const sc = await getServiceController(fingerprint);
-            await sc.workflow.executeWorkflow(workflow.id, {});
-        } catch (err: any) {
-            console.error('Failed to execute workflow:', err);
-        }
-    }, [fingerprint, workflow]);
-
     const handleOpenScript = useCallback(async () => {
         if (!workflow) return;
         try {
@@ -92,7 +84,7 @@ export function WorkflowDetailsDialog({
                         </p>
                     )}
                     <div className="flex gap-2 mt-3 py-3">
-                        <GlassButton icon={Play} label="Run" onClick={handlePlay} fillIcon />
+                        <GlassButton icon={Play} label="Run" onClick={onRun} fillIcon />
                         <GlassButton icon={Pencil} label="Edit" onClick={onEdit} />
                         <GlassButton icon={SquareFunction} label="Script" onClick={handleOpenScript} />
                     </div>

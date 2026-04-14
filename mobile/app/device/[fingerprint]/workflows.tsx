@@ -5,9 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { UIText } from '@/components/ui/UIText';
 import { WorkflowCard } from '@/components/WorkflowCard';
+import { RunWorkflowModal } from '@/components/RunWorkflowModal';
 import { useWorkflows } from '@/hooks/useWorkflows';
-import { isGlassEnabled, getBottomPadding, getLocalServiceController, getServiceController } from '@/lib/utils';
-import { useManagedLoading } from '@/hooks/useManagedLoading';
+import { useWorkflowActions } from '@/hooks/useWorkflowActions';
+import { isGlassEnabled, getBottomPadding } from '@/lib/utils';
 import { WorkflowConfig } from 'shared/types';
 
 const CARD_MIN_WIDTH = 155;
@@ -35,7 +36,7 @@ export default function WorkflowsScreen() {
     }, [screenWidth, numColumns]);
 
     const { workflows, runningExecutions, isLoading, reload } = useWorkflows(deviceFingerprint);
-    const { withLoading } = useManagedLoading();
+    const { handleRun, handleViewScript, runModalProps } = useWorkflowActions(deviceFingerprint);
 
     const handleCardPress = useCallback((wf: WorkflowConfig) => {
         router.push({
@@ -43,20 +44,6 @@ export default function WorkflowsScreen() {
             params: { fingerprint, id: wf.id },
         } as any);
     }, [fingerprint, router]);
-
-    const handleRun = useCallback(async (wf: WorkflowConfig) => {
-        await withLoading(async () => {
-            const sc = await getServiceController(deviceFingerprint);
-            await sc.workflow.executeWorkflow(wf.id, {});
-        }, { title: 'Starting workflow…', errorTitle: 'Failed to run workflow', delay: 500 });
-    }, [deviceFingerprint, withLoading]);
-
-    const handleViewScript = useCallback(async (wf: WorkflowConfig) => {
-        await withLoading(async () => {
-            const localSc = getLocalServiceController();
-            await localSc.files.openFile(deviceFingerprint, wf.scriptPath);
-        }, { title: 'Opening script…', errorTitle: 'Could not open script', delay: 0 });
-    }, [deviceFingerprint, withLoading]);
 
     return (
         <View style={{ flex: 1 }}>
@@ -99,6 +86,7 @@ export default function WorkflowsScreen() {
                     </View>
                 )}
             </ScrollView>
+            <RunWorkflowModal {...runModalProps} />
         </View>
     );
 }

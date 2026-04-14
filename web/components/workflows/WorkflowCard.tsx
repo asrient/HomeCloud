@@ -1,4 +1,4 @@
-import { cn, getLocalServiceController, getServiceController } from '@/lib/utils';
+import { cn, getLocalServiceController } from '@/lib/utils';
 import { WorkflowColor, WorkflowConfig, WorkflowExecution } from 'shared/types';
 import { Play } from 'lucide-react';
 import LoadingIcon from '@/components/ui/loadingIcon';
@@ -22,6 +22,7 @@ export function WorkflowCard({
     fingerprint,
     isRunning,
     onClick,
+    onRun,
     onEdit,
     onDelete,
 }: {
@@ -29,6 +30,7 @@ export function WorkflowCard({
     fingerprint: string | null;
     isRunning?: boolean;
     onClick?: () => void;
+    onRun?: () => void;
     onEdit?: () => void;
     onDelete?: () => void;
 }) {
@@ -36,13 +38,8 @@ export function WorkflowCard({
 
     const handlePlay = useCallback(async (e?: React.MouseEvent) => {
         e?.stopPropagation();
-        try {
-            const sc = await getServiceController(fingerprint);
-            await sc.workflow.executeWorkflow(workflow.id, {});
-        } catch (err: any) {
-            console.error('Failed to execute workflow:', err);
-        }
-    }, [fingerprint, workflow.id]);
+        onRun?.();
+    }, [onRun]);
 
     const handleOpenScript = useCallback(async () => {
         try {
@@ -62,14 +59,13 @@ export function WorkflowCard({
     ], []);
 
     const handleMenuClick = useCallback((id: string) => {
-        console.log('[WorkflowCard] menu click:', id);
         switch (id) {
-            case 'run': handlePlay(); break;
+            case 'run': onRun?.(); break;
             case 'edit': onEdit?.(); break;
             case 'script': handleOpenScript(); break;
             case 'delete': onDelete?.(); break;
         }
-    }, [handlePlay, onEdit, handleOpenScript, onDelete]);
+    }, [onRun, onEdit, handleOpenScript, onDelete]);
 
     return (
         <ContextMenuArea onMenuOpen={menuItems} onMenuItemClick={handleMenuClick}>

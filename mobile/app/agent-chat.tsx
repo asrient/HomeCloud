@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    View, StyleSheet, Keyboard, TextInput, Modal,
+    View, StyleSheet, Keyboard, TextInput, Modal, FlatList,
     Platform, ActivityIndicator, Linking,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -18,7 +18,6 @@ import { AgentMessage, AgentContentBlock, ChatStatus, AgentPermissionRequest } f
 import { isGlassEnabled } from '@/lib/utils';
 import * as Clipboard from 'expo-clipboard';
 import Markdown from 'react-native-markdown-display';
-import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ── Action button (reusable for bubble actions) ──
@@ -196,7 +195,7 @@ function ChatStatusBar({ status }: { status: ChatStatus }) {
 export default function AgentChatScreen() {
     const { fingerprint, chatId } = useLocalSearchParams<{ fingerprint: string; chatId: string }>();
     const deviceFingerprint = fingerprint === 'local' ? null : (fingerprint ?? null);
-    const listRef = useRef<FlashListRef<AgentMessage>>(null);
+    const listRef = useRef<FlatList<AgentMessage>>(null);
     const headerHeight = useHeaderHeight();
     const insets = useSafeAreaInsets();
 
@@ -276,8 +275,8 @@ export default function AgentChatScreen() {
                 }}
             />
 
-            {/* Messages — starts from top, scrolls down */}
-            <FlashList
+            {/* Messages */}
+            <FlatList
                 ref={listRef}
                 data={messages}
                 keyExtractor={(_, i) => String(i)}
@@ -391,7 +390,6 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
     },
     inputBar: {
-        backgroundColor: 'transparent',
         paddingHorizontal: 10,
         paddingTop: 6,
     },

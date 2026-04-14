@@ -35,7 +35,7 @@ jobs:
         working-directory: ./appShared
         run: |
           npm install
-          npm run build
+          npm run tsc
       -
         name: Build nodeShared
         working-directory: ./nodeShared

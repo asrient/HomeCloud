@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, memo } from 'react';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/components/hooks/useAgent';
 import { AgentMessage, AgentContentBlock, ChatStatus, AgentPermissionRequest, ChatConfigOption } from 'shared/types';
@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 
 // ── Message bubble ──
 
-function MessageBubble({ message }: { message: AgentMessage }) {
+const MessageBubble = memo(function MessageBubble({ message }: { message: AgentMessage }) {
     const isUser = message.role === 'user';
 
     const textContent = message.content
@@ -72,7 +72,7 @@ function MessageBubble({ message }: { message: AgentMessage }) {
             </div>
         </div>
     );
-}
+});
 
 // ── Status indicator ──
 
@@ -143,28 +143,21 @@ export function ChatView({ deviceFingerprint, chatId, className }: {
     } = useChat(deviceFingerprint, chatId);
 
     const [input, setInput] = useState('');
-    const scrollRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const hasScrolledRef = useRef(false);
+    const bottomRef = useRef<HTMLDivElement>(null);
 
-    // For demo purposes, simulate a pending permission
-    // pendingPermission = {
-    //     chatId,
-    //     toolCall: {
-    //         toolCallId: 'demo-tool-call',
-    //         title: 'Access your calendar',
-    //     },
-    //     options: [
-    //         { optionId: 'allow_calendar', name: 'Allow', kind: 'allow_once' },
-    //         { optionId: 'deny_calendar', name: 'Deny', kind: 'reject_once' },
-    //     ],
-    // }
+    const scrollToBottom = useCallback(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
+    }, []);
 
-    // Auto-scroll to bottom on new messages
+    // Scroll to end on first load
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        if (!hasScrolledRef.current && messages.length > 0 && !isLoading) {
+            hasScrolledRef.current = true;
+            setTimeout(() => scrollToBottom(), 100);
         }
-    }, [messages, status, pendingPermission]);
+    }, [messages.length, isLoading, scrollToBottom]);
 
     // Focus input on mount
     useEffect(() => {
@@ -176,7 +169,8 @@ export function ChatView({ deviceFingerprint, chatId, className }: {
         if (!text || status === 'working') return;
         setInput('');
         sendMessage(text);
-    }, [input, status, sendMessage]);
+        setTimeout(() => scrollToBottom(), 100);
+    }, [input, status, sendMessage, scrollToBottom]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -189,7 +183,7 @@ export function ChatView({ deviceFingerprint, chatId, className }: {
         <div className={cn("flex flex-col overflow-hidden", className)}>
             {/* Messages */}
             <ScrollArea className="flex-1 px-4 h-0">
-                <div ref={scrollRef} className="space-y-1 py-4">
+                <div className="space-y-1 py-4">
                     {isLoading && messages.length === 0 && (
                         <div className="text-sm text-muted-foreground text-center py-8">Loading...</div>
                     )}
@@ -199,6 +193,7 @@ export function ChatView({ deviceFingerprint, chatId, className }: {
                     {messages.map((msg, i) => (
                         <MessageBubble key={i} message={msg} />
                     ))}
+                    <div ref={bottomRef} />
                 </div>
             </ScrollArea>
 

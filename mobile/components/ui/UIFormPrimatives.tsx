@@ -211,6 +211,7 @@ const styles = StyleSheet.create({
     },
     lineTitle: {
         flex: 1,
+        minWidth: 60,
     },
     lineRight: {
         flexDirection: 'row',

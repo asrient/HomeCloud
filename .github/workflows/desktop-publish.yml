@@ -50,7 +50,6 @@ jobs:
         working-directory: ./desktop
         run: |
           TAG=${GITHUB_REF#refs/tags/}
-          TAG=${TAG#v}
           TAG=${TAG#desktop-v}
           PKG_VERSION=$(node -p "require('./package.json').version")
           if [ "$TAG" != "$PKG_VERSION" ]; then
@@ -91,6 +90,7 @@ jobs:
           echo "Apple signing certificate imported"
 
       - name: Package desktop app
+        if: github.event_name == 'workflow_dispatch'
         run: npx electron-forge package --arch=${{ matrix.arch }}
         working-directory: ./desktop
         env:
