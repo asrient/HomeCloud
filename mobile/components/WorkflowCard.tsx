@@ -31,9 +31,9 @@ export function WorkflowCard({
     const bg = workflow.color ? workflowColorMap[workflow.color] : defaultWorkflowColor;
 
     const menuActions = useMemo((): UIContextMenuAction[] => [
-        { id: 'run', title: 'Run Now', icon: 'play.fill' },
+        ...(workflow.isEnabled ? [{ id: 'run', title: 'Run Now', icon: 'play.fill' } as UIContextMenuAction] : []),
         { id: 'script', title: 'View Script', icon: 'doc.text' },
-    ], []);
+    ], [workflow.isEnabled]);
 
     const handleMenuAction = (id: string) => {
         switch (id) {
@@ -54,6 +54,7 @@ export function WorkflowCard({
                 style={({ pressed }) => [
                     styles.card,
                     { backgroundColor: bg },
+                    !workflow.isEnabled && { opacity: 0.7 },
                     pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
                 ]}
             >
@@ -69,6 +70,11 @@ export function WorkflowCard({
                 </View>
 
                 <View style={styles.bottomRow}>
+                    {!workflow.isEnabled && (
+                        <UIText style={styles.disabledLabel} size="xs" font="semibold">
+                            DISABLED
+                        </UIText>
+                    )}
                     <UIText
                         style={styles.nameText}
                         font="semibold"
@@ -120,5 +126,10 @@ const styles = StyleSheet.create({
     descText: {
         color: 'rgba(255,255,255,0.7)',
         marginTop: 2,
+    },
+    disabledLabel: {
+        color: 'rgba(255,255,255,0.6)',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
     },
 });

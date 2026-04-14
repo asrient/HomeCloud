@@ -165,22 +165,29 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // Execute the script
-(async () => {
-    try {
-        if (scriptPath) {
-            require(scriptPath);
-        } else if (scriptContent) {
-            const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-            await new AsyncFunction(scriptContent)();
-        }
-    } catch (err) {
-        if (!hasExited) {
-            hasExited = true;
-            const result = { status: 'error', message: err.message || String(err) };
-            writeLog('ERROR', ['Script error:', err.stack || err.message || String(err)]);
-            if (logStream) logStream.end();
-            parentPort.postMessage({ type: 'result', result });
-            process.exit(1);
-        }
+let tmpFile = null;
+try {
+    let targetPath = scriptPath;
+    if (!targetPath && scriptContent) {
+        tmpFile = path.join(require('os').tmpdir(), `hc-script-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.js`);
+        fs.writeFileSync(tmpFile, scriptContent, 'utf-8');
+        targetPath = tmpFile;
     }
-})();
+    if (targetPath) {
+        require(targetPath);
+    }
+} catch (err) {
+    if (!hasExited) {
+        hasExited = true;
+        const result = { status: 'error', message: err.message || String(err) };
+        writeLog('ERROR', ['Script error:', err.stack || err.message || String(err)]);
+        if (logStream) logStream.end();
+        parentPort.postMessage({ type: 'result', result });
+        process.exit(1);
+    }
+}
+
+// Clean up temp file on exit
+process.on('exit', () => {
+    if (tmpFile) { try { fs.unlinkSync(tmpFile); } catch { } }
+});

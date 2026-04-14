@@ -46,16 +46,19 @@ function formatDuration(start: Date | string, end?: Date | string): string {
 
 // ── Glass Button ─────────────────────────────────────────────────────────────
 
-function GlassButton({ icon, label, onPress }: {
+function GlassButton({ icon, label, onPress, disabled }: {
     icon: React.ComponentProps<typeof UIIcon>['name'];
     label: string;
     onPress: () => void;
+    disabled?: boolean;
 }) {
     return (
         <Pressable
             onPress={onPress}
+            disabled={disabled}
             style={({ pressed }) => [
                 styles.glassButton,
+                disabled && { opacity: 0.5 },
                 pressed && { opacity: 0.7 },
             ]}
         >
@@ -197,6 +200,11 @@ export default function WorkflowDetailScreen() {
                 <View style={{ backgroundColor: bg, height: 500, position: 'absolute', top: -500, left: 0, right: 0 }} />
                 {/* Colored header */}
                 <View style={[styles.header, { backgroundColor: bg, paddingTop: headerHeight + 12 }]}>
+                    {config && !config.isEnabled && (
+                        <UIText style={styles.disabledLabel} size="xs" font="semibold">
+                            DISABLED
+                        </UIText>
+                    )}
                     <UIText style={styles.headerName} font="bold" size="xl" numberOfLines={2}>
                         {config?.name || 'Workflow'}
                     </UIText>
@@ -205,7 +213,7 @@ export default function WorkflowDetailScreen() {
                             {config.description}
                         </UIText>
                     ) : null}
-                    {triggerLabel ? (
+                    {config?.isEnabled && triggerLabel ? (
                         <View style={styles.triggerRow}>
                             <UIIcon name="clock" size={13} color="rgba(255,255,255,0.8)" />
                             <UIText style={styles.triggerText} size="xs">
@@ -216,7 +224,7 @@ export default function WorkflowDetailScreen() {
 
                     {/* Action buttons */}
                     <View style={styles.actionRow}>
-                        <GlassButton icon="play.fill" label="Run" onPress={() => config && handleRun(config)} />
+                        <GlassButton icon="play.fill" label="Run" onPress={() => config && handleRun(config)} disabled={!config?.isEnabled} />
                         <GlassButton icon="chevron.left.forwardslash.chevron.right" label="Script" onPress={() => config && handleViewScript(config)} />
                     </View>
                 </View>
@@ -272,6 +280,12 @@ const styles = StyleSheet.create({
     },
     triggerText: {
         color: 'rgba(255,255,255,0.8)',
+    },
+    disabledLabel: {
+        color: 'rgba(255,255,255,0.6)',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+        marginBottom: 2,
     },
     actionRow: {
         flexDirection: 'row',

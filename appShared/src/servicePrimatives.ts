@@ -140,6 +140,8 @@ export function assertServiceRunning(target: any, methodName: string, descriptor
 }
 
 export class Service {
+    static serviceDescription: string = '';
+
     private isRunning: boolean = false;
     private isInitialized: boolean = false;
     private static instance: Service | null = null;
@@ -319,20 +321,6 @@ export class RPCController {
             }
         }
         return obj;
-    }
-
-    /**
-     * Check if a dotted path (e.g. 'agent.listChats', 'files.fs.readDir')
-     * resolves to an exposed method on this controller.
-     */
-    @exposed
-    async isAvailable(path: string): Promise<boolean> {
-        try {
-            const { obj, funcName } = this.getCallable(`services.${path}`);
-            return getMethodInfo(obj[funcName]).isExposed;
-        } catch {
-            return false;
-        }
     }
 
     getCallable(fqn: string): { obj: any, funcName: string } {

@@ -21,12 +21,11 @@ export function printFingerprint(fingerprint: string, full = false) {
 }
 
 /**
- * Check if a service endpoint is available on a service controller.
- * Handles the case where sc.isAvailable() itself doesn't exist (older peers).
+ * Check if a service method is available on a service controller.
  */
 export async function isServiceAvailable(sc: ServiceController, path: string): Promise<boolean> {
   try {
-    return await sc.isAvailable(path);
+    return await sc.app.isMethodAvailable(path);
   } catch {
     return false;
   }

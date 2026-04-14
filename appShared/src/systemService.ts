@@ -4,6 +4,8 @@ import Signal from "./signals";
 
 
 export abstract class SystemService extends Service {
+    static serviceDescription = 'Device info, audio playback, volume, clipboard, battery, screen lock, and disk management.';
+
     public init() {
         this._init();
     }

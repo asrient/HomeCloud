@@ -18,13 +18,14 @@ const colorMap: Record<WorkflowColor, string> = {
 
 const defaultColor = 'bg-sky-500';
 
-function GlassButton({ icon: Icon, label, onClick, fillIcon }: { icon: LucideIcon; label: string; onClick: () => void; fillIcon?: boolean }) {
+function GlassButton({ icon: Icon, label, onClick, fillIcon, disabled }: { icon: LucideIcon; label: string; onClick: () => void; fillIcon?: boolean; disabled?: boolean }) {
     return (
         <Button
             size="sm"
             variant="secondary"
-            className="bg-white/20 hover:bg-white/30 text-white border-0"
+            className={cn("bg-white/20 hover:bg-white/30 text-white border-0", disabled && "opacity-50 pointer-events-none")}
             onClick={onClick}
+            disabled={disabled}
         >
             <Icon size={14} fill={fillIcon ? 'currentColor' : 'none'} className="mr-1" /> {label}
         </Button>
@@ -70,21 +71,24 @@ export function WorkflowDetailsDialog({
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
             <DialogContent className="sm:max-w-[32rem] h-[35rem] max-h-[75vh] p-0 overflow-hidden gap-0 flex flex-col">
                 {/* Header with color bg */}
-                <div className={cn('px-5 pt-5 pb-4 text-white', bg)}>
+                <div className={cn('px-5 pt-8 pb-4 text-white', bg)}>
                     <div className="min-w-0 flex-1">
+                        {!workflow.isEnabled && (
+                            <div className="text-white/60 text-[10px] font-medium uppercase tracking-wider mb-0.5">Disabled</div>
+                        )}
                         <h2 className="text-lg font-semibold leading-tight truncate">{workflow.name}</h2>
                         {workflow.description && (
                             <p className="text-white/70 text-sm mt-0.5 line-clamp-2">{workflow.description}</p>
                         )}
                     </div>
-                    {triggers.length > 0 && (
+                    {workflow.isEnabled && triggers.length > 0 && (
                         <p className="text-white/80 text-xs mt-2 flex items-center gap-1">
                             <Clock size={12} />
                             {triggers.map(t => cronToHuman(t.data)).join(', ')}
                         </p>
                     )}
                     <div className="flex gap-2 mt-3 py-3">
-                        <GlassButton icon={Play} label="Run" onClick={onRun} fillIcon />
+                        <GlassButton icon={Play} label="Run" onClick={onRun} fillIcon disabled={!workflow.isEnabled} />
                         <GlassButton icon={Pencil} label="Edit" onClick={onEdit} />
                         <GlassButton icon={SquareFunction} label="Script" onClick={handleOpenScript} />
                     </div>

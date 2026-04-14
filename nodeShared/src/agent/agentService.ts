@@ -30,6 +30,7 @@ export default class NodeAgentService extends AgentService {
     private sessionConfigs = new Map<string, any[]>();
     private chatMeta = new Map<string, ChatMeta>();
     private unreadChats = new Set<string>();
+    private replayPromises = new Map<string, Promise<AgentMessage[]>>();
 
     // ── Lifecycle ──
 
@@ -92,6 +93,10 @@ export default class NodeAgentService extends AgentService {
         this.activeTurns.clear();
         this.sessionConfigs.clear();
         this.chatMeta.clear();
+        // Note: in-flight replay promises will reject naturally when they try
+        // to use the destroyed client. We just clear the map so new callers
+        // after restart don't join stale promises.
+        this.replayPromises.clear();
         this.dispatchAgentUpdate(SignalEvent.UPDATE, { connectionStatus: 'disconnected' });
     }
 
@@ -139,22 +144,33 @@ export default class NodeAgentService extends AgentService {
         return chats.find(c => c.chatId === chatId) ?? null;
     }
 
-    protected override async _getChatMessages(chatId: string): Promise<AgentMessage[]> {
-        // Check local file first
+    private async ensureSessionLoaded(chatId: string): Promise<AgentMessage[]> {
+        // Already have local file — no replay needed
         const existing = await this.readChatFile(chatId);
-        if (existing) {
-            const turn = this.activeTurns.get(chatId);
-            return turn ? [...existing, turn.pendingMessage] : existing;
-        }
+        if (existing) return existing;
 
         // No local file — replay from agent if supported
         if (!this.client?.capabilities?.loadSession) throw new Error('Chat history not available');
 
+        // If a replay is already in progress, wait for it
+        const inflight = this.replayPromises.get(chatId);
+        if (inflight) return inflight;
+
+        // Start replay and track the promise so concurrent callers share it
         const chatInfo = await this._getChat(chatId);
         if (!chatInfo) return [];
 
-        const messages = await this.replaySession(chatId, chatInfo.cwd);
-        return messages;
+        const promise = this.replaySession(chatId, chatInfo.cwd).finally(() => {
+            this.replayPromises.delete(chatId);
+        });
+        this.replayPromises.set(chatId, promise);
+        return promise;
+    }
+
+    protected override async _getChatMessages(chatId: string): Promise<AgentMessage[]> {
+        const messages = await this.ensureSessionLoaded(chatId);
+        const turn = this.activeTurns.get(chatId);
+        return turn ? [...messages, turn.pendingMessage] : messages;
     }
 
     // ── Messages ──
@@ -212,6 +228,10 @@ export default class NodeAgentService extends AgentService {
     // ── Chat Config ──
 
     protected override async _getChatConfig(chatId: string): Promise<ChatConfigOption[]> {
+        // Ensure session is loaded so sessionConfigs is populated
+        if (!this.sessionConfigs.has(chatId)) {
+            await this.ensureSessionLoaded(chatId).catch(() => {});
+        }
         const acpOpts = this.sessionConfigs.get(chatId);
         if (!acpOpts) return [];
         return acpOpts.filter((o: any) => o.type === 'select').map((o: any) => {

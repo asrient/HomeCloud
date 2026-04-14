@@ -30,6 +30,8 @@ import {
 } from './types';
 
 export class WorkflowService extends Service {
+    static serviceDescription = 'Workflow automation — create, run, schedule, and manage scripts.';
+
     public executionStartSignal = new Signal<[WorkflowExecution]>({ isExposed: true, isAllowAll: false });
     public executionEndSignal = new Signal<[WorkflowExecution]>({ isExposed: true, isAllowAll: false });
     public workflowSignal = new Signal<[SignalEvent, WorkflowConfig]>({ isExposed: true, isAllowAll: false });

@@ -2,6 +2,8 @@ import { Service, serviceStartMethod, serviceStopMethod, exposed, info, input, o
 import { Sch } from "./types";
 
 export abstract class ThumbService extends Service {
+    static serviceDescription = 'Thumbnail generation for files and photos.';
+
     public init() {
         this._init();
     }

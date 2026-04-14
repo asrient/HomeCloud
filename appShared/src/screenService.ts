@@ -10,6 +10,8 @@ import {
 } from './types';
 
 export class ScreenService extends Service {
+    static serviceDescription = 'Screen capture, remote control, app management, and live streaming.';
+
     public init() {
         this._init();
     }

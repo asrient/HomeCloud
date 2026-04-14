@@ -30,6 +30,8 @@ enum WebSocketAction {
 }
 
 export class AccountService extends Service {
+    static serviceDescription = 'Account authentication and session management.';
+
     private httpClient: HttpClientCompat;
     private webSocket: WsClientCompat;
     protected store: ConfigStorage;

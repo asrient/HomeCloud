@@ -17,9 +17,9 @@ export function ChatDialog({ chat, deviceFingerprint, onClose }: {
         <Dialog open={!!chat} onOpenChange={(open) => { if (!open) onClose(); }}>
             <DialogContent className="w-[90vw] max-w-[45rem] max-h-[85vh] p-0 gap-0">
                 <DialogHeader className={
-                    isWin11Theme() ? "px-6 py-4" : "px-4 py-2"
+                    isWin11Theme() ? "px-6 py-4 overflow-hidden" : "px-4 py-2 overflow-hidden"
                 }>
-                    <DialogTitle>{chat?.title || 'Chat'}</DialogTitle>
+                    <DialogTitle className="truncate min-w-0">{chat?.title || 'Chat'}</DialogTitle>
                 </DialogHeader>
                 {chat && (
                     <ChatView

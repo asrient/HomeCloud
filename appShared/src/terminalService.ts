@@ -2,6 +2,8 @@ import { Service, exposed, info, input, output } from './servicePrimatives';
 import { Sch, TerminalSessionInfo, TerminalSessionInfoSchema } from './types';
 
 export class TerminalService extends Service {
+    static serviceDescription = 'Remote terminal sessions.';
+
     public init() {
         this._init();
     }

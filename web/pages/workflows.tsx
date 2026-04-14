@@ -160,7 +160,7 @@ function Page() {
                         <div className="flex-1 overflow-y-auto min-h-0">
                             <div className="prose prose-sm dark:prose-invert max-w-none pr-4 select-text">
                                 {guideMarkdown ? (
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]} breaks>{guideMarkdown}</ReactMarkdown>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{guideMarkdown}</ReactMarkdown>
                                 ) : (
                                     <p className="text-muted-foreground">Loading...</p>
                                 )}

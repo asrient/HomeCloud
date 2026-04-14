@@ -4,6 +4,7 @@
  *
  * Handles JSON-RPC 2.0 over HTTP POST with JSON responses.
  * Supports: initialize, notifications/initialized, tools/list, tools/call, ping.
+ * Tools: execute_script (run JS on device), get_api_doc (full API reference).
  *
  * Loosely coupled: consumers register tools via registerTool().
  */

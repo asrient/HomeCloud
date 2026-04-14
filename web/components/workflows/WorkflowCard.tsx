@@ -51,12 +51,12 @@ export function WorkflowCard({
     }, [workflow.scriptPath]);
 
     const menuItems = useCallback((): ContextMenuItem[] => [
-        { id: 'run', label: 'Run now' },
+        ...(!workflow.isEnabled ? [] : [{ id: 'run', label: 'Run now' }]),
         { id: 'edit', label: 'Edit workflow' },
         { id: 'script', label: 'View script' },
         { id: 'sep', type: 'separator' },
         { id: 'delete', label: 'Delete' },
-    ], []);
+    ], [workflow.isEnabled]);
 
     const handleMenuClick = useCallback((id: string) => {
         switch (id) {
@@ -76,6 +76,7 @@ export function WorkflowCard({
                     'transition-all duration-150',
                     bg,
                     isWin11Theme() ? 'rounded-lg' : 'rounded-3xl',
+                    !workflow.isEnabled && 'opacity-70',
                     'hover:brightness-110 active:scale-[0.97]',
                     'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                 )}
@@ -91,22 +92,27 @@ export function WorkflowCard({
                             </div>
                         )}
                     </div>
-                    {/* Play button — visible on hover */}
-                    <button
-                        className={cn(
-                            'rounded-full p-1.5 bg-white/20 text-white',
-                            'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
-                            'hover:bg-white/30 active:bg-white/40',
-                        )}
-                        onClick={handlePlay}
-                        title="Run workflow"
-                    >
-                        <Play size={14} fill="currentColor" />
-                    </button>
+                    {/* Play button — visible on hover, hidden when disabled */}
+                    {workflow.isEnabled && (
+                        <button
+                            className={cn(
+                                'rounded-full p-1.5 bg-white/20 text-white',
+                                'opacity-0 group-hover:opacity-100 transition-opacity duration-150',
+                                'hover:bg-white/30 active:bg-white/40',
+                            )}
+                            onClick={handlePlay}
+                            title="Run workflow"
+                        >
+                            <Play size={14} fill="currentColor" />
+                        </button>
+                    )}
                 </div>
 
                 {/* Bottom: name + description */}
                 <div className="min-w-0">
+                    {!workflow.isEnabled && (
+                        <div className="text-white/60 text-[10px] font-medium uppercase tracking-wider">Disabled</div>
+                    )}
                     <div className={cn(
                         "text-white text-sm leading-tight truncate",
                         isWin11Theme() ? 'font-medium' : 'font-semibold'

@@ -20,7 +20,7 @@ import {
 import { WorkflowRepository } from './repository';
 import { WorkflowExecutor } from './executor';
 import { McpHttpServer } from './mcpServer';
-import { getScriptingDocMarkdown } from './doc';
+import { getMcpHeaderDocMd, getMcpServiceListDocMd, getFullDocMd, getServiceDocMd, getServiceNames } from './doc';
 
 const DEFAULT_MCP_PORT = 9637;
 
@@ -255,13 +255,11 @@ export default class NodeWorkflowService extends WorkflowService {
     // --- MCP Server ---
 
     private registerMcpTools(): void {
-        const docText = getScriptingDocMarkdown();
-
         this.mcpServer.registerTool({
             name: 'execute_script',
             description:
-                'Execute a script and get a result. Max duration: 5mins.\n\n' +
-                docText,
+                'Execute a JavaScript script on this HomeCloud device. Max duration: 5 mins.\n\n' +
+                getMcpHeaderDocMd(),
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -287,6 +285,28 @@ export default class NodeWorkflowService extends WorkflowService {
                 return result;
             },
         });
+
+        this.mcpServer.registerTool({
+            name: 'get_api_doc',
+            description: getMcpServiceListDocMd(),
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    service: {
+                        type: 'string',
+                        description: 'Service name to get docs for (e.g. "files", "system", "screen").',
+                    },
+                },
+                required: ['service'],
+            },
+            callback: async ({ service }) => {
+                const md = getServiceDocMd(service);
+                if (!md) {
+                    return `Unknown service "${service}". Available: ${getServiceNames().join(', ')}`;
+                }
+                return md;
+            },
+        });
     }
 
     protected override async _startMcpServer(): Promise<void> {
@@ -300,7 +320,7 @@ export default class NodeWorkflowService extends WorkflowService {
     }
 
     protected override async _getScriptingGuide(): Promise<string> {
-        return getScriptingDocMarkdown();
+        return getFullDocMd();
     }
 
     protected override async _getMcpServerInfo(): Promise<McpServerInfo> {

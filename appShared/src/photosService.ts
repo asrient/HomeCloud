@@ -5,6 +5,8 @@ import Signal from "./signals";
 
 
 export abstract class PhotosService extends Service {
+    static serviceDescription = 'Photo library access, search, and management.';
+
     protected store: ConfigStorage;
 
     protected PH_LIBS_KEY = "libraries";

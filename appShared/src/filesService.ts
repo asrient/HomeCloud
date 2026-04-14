@@ -9,6 +9,8 @@ const PINNED_FOLDERS_KEY = "pinnedFolders";
 const SHARE_CACHE_DIRNAME = "ShareCache";
 
 export abstract class FilesService extends Service {
+    static serviceDescription = 'File system operations — browse, read, write, and manage files and folders.';
+
     protected store: ConfigStorage;
 
     public async init() {

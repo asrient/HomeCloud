@@ -1,4 +1,4 @@
-import { Service, serviceStartMethod, serviceStopMethod, exposed, info, input, output, allowAll, withContext, wfApi } from "./servicePrimatives";
+import { Service, serviceStartMethod, serviceStopMethod, exposed, info, input, output, allowAll, withContext, wfApi, getMethodInfo } from "./servicePrimatives";
 import { MethodContext, MethodInfo, Sch, PeerInfo, PeerInfoSchema, StoreNames, SignalEvent, NativeButtonConfig, CON_IFACE_PREF_KEY, MCP_AUTO_START_PREF_KEY } from "./types";
 import ConfigStorage from "./storage";
 import { getIconKey } from "./utils";
@@ -8,6 +8,8 @@ import { helpLinks, HelpLinkType } from "./helpLinks";
 const USER_PREF_PREFIX = 'upref.';
 
 export class AppService extends Service {
+    static serviceDescription = 'Device pairing, peer discovery, and user preferences.';
+
     protected store: ConfigStorage;
     protected allowPairing: boolean = true;
 
@@ -145,6 +147,21 @@ export class AppService extends Service {
     public async setOnboarded(onboarded = true) {
         this.store.setItem('onboarded', onboarded);
         await this.store.save();
+    }
+
+    @exposed
+    @wfApi
+    @info("Check if a service method is available on this device.")
+    @input(Sch.Name('path', Sch.String))
+    @output(Sch.Boolean)
+    public async isMethodAvailable(path: string): Promise<boolean> {
+        try {
+            const sc = modules.getLocalServiceController();
+            const { obj, funcName } = sc.getCallable(`services.${path}`);
+            return getMethodInfo(obj[funcName]).isExposed;
+        } catch {
+            return false;
+        }
     }
 
     @wfApi
