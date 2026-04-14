@@ -1,6 +1,6 @@
 {
   "name": "@asrient/create-homecloud-creds",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Generate credentials for HomeCloud Server",
   "bin": "index.js",
   "license": "MIT",

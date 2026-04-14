@@ -1,6 +1,6 @@
 {
   "name": "@asrient/homecloud-server",
-  "version": "0.0.2",
+  "version": "0.0.1",
   "main": "dist/index.js",
   "bin": {
     "homecloud-server": "./bin/server.js"
