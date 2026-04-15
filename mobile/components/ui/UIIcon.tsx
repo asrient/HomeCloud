@@ -96,6 +96,13 @@ const MAPPING = {
   'display': 'desktop-windows',
   'terminal.fill': 'terminal',
   'lock.fill': 'lock',
+  'clock': 'schedule',
+  'clock.fill': 'schedule',
+  'nosign': 'block',
+  'doc.text': 'description',
+  'bolt.fill': 'bolt',
+  'sparkles.2': 'auto-awesome',
+  'command': 'keyboard-command',
 } as IconMapping;
 
 /**

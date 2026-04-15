@@ -4,34 +4,33 @@ This guide walks you through installing HomeCloud, setting up your account, and 
 
 ## Install
 
-### Desktop (macOS, Windows, Linux)
+### Desktop (macOS, Windows)
 
-1. Go to the [GitHub Releases page](https://github.com/asrient/HomeCloud/releases/latest/).
-2. Download the installer for your platform:
-   - **macOS** — `.dmg` file (available for Intel and Apple Silicon)
-   - **Windows** — `.exe` installer
-   - **Linux** — `.deb` package
-3. Open the installer and follow the on-screen instructions.
+Go to the [Downloads page](https://asrient.com/homecloud/download) and install the app for your platform, available for macOS, Windows. Linux coming soon.
 
 ### Mobile (Android, iOS)
 
-Coming soon to Google Play and the App Store.
+Download from Google Play or the App Store - [downloads page](https://asrient.com/homecloud/download).
+
+### Server
+
+[Server Setup](Help/server-setup) - Self-host a HomeCloud Server.
 
 ## Create Your Account
 
-HomeCloud requires an account for secure device linking and pairing. It's easy to create your account with just your email, and in case you're worried, we don't like getting spam mails and we will never spam your inbox either.
+HomeCloud requires an account for secure device linking and pairing. It's free and easy to create your account with just your email.
 
 You can skip login if you want, but an account is needed for device pairing.
 
 ## Add More Devices
 
-To connect another device, simply install HomeCloud and **sign in with the same email**. The new device will automatically appear under "My Devices" on all your devices.
+To connect another device, install HomeCloud on your new device and **sign in with the same email**. The new device will automatically appear under "My Devices" on all your devices.
 
 ## Staying Connected
 
 ### On the Same Network (Home/Office WiFi)
 
-When your devices are on the same WiFi network, they find each other **automatically** using local network discovery. No internet connection is needed — everything happens directly between your devices over your local network.
+When your devices are on the same WiFi network, they find each other **automatically** using local network discovery. No internet connection is needed, everything happens directly between your devices over your local network.
 
 On iOS, you may see a prompt asking to allow HomeCloud to find devices on your local network, tap **Allow**.
 
@@ -45,11 +44,11 @@ Remote connections happen automatically in the background. As long as both devic
 
 Once your devices are connected, you can:
 
-- **Browse files** on any connected device — open, download, or transfer them
-- **View photos** from any device's photo library or camera roll
-- **Control media playback** — play, pause, skip, and adjust volume on your desktop from your phone
-- **Share your clipboard** — copy on one device, paste on another
-- **Send files and links** — instantly share content between devices with no size limits
+- **Browse files** on any connected device - open, download, or transfer them.
+- **View photos** from your phone's gallery on your PC.
+- **Control media playback** - play, pause, skip, and adjust volume on your desktop from your phone.
+- **Share your clipboard** - copy on one device, paste on another.
+- **Send files and links** - instantly share content between devices with no size limits.
 
 ## FAQ
 

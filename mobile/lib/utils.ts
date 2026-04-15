@@ -1,6 +1,7 @@
 import { OSType } from "@/lib/types";
 import { DeviceInfo } from "shared/types";
 import { Platform } from "react-native";
+import ServiceController from "shared/controller";
 import MobileServiceController from "./serviceController";
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 
@@ -17,6 +18,17 @@ export function printFingerprint(fingerprint: string, full = false) {
     return fingerprint;
   }
   return `$${fingerprint.slice(0, 8)}`;
+}
+
+/**
+ * Check if a service method is available on a service controller.
+ */
+export async function isMethodAvailable(sc: ServiceController, path: string): Promise<boolean> {
+  try {
+    return await sc.app.isMethodAvailable(path);
+  } catch {
+    return false;
+  }
 }
 
 export async function getServiceController(fingerprint: string | null) {
@@ -63,6 +75,38 @@ export const formatFileSize = (bytes?: number) => {
 
 
 export const isIos = Platform.OS === 'ios';
+
+export function cronToHuman(cron: string): string {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length < 5) return cron;
+  const [min, hour, dom, mon, dow] = parts;
+  if (min === '*' && hour === '*' && dom === '*' && mon === '*' && dow === '*') return 'Every minute';
+  if (min.startsWith('*/') && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
+    const n = parseInt(min.slice(2));
+    return n === 1 ? 'Every minute' : `Every ${n} minutes`;
+  }
+  if (min === '0' && hour.startsWith('*/') && dom === '*' && mon === '*' && dow === '*') {
+    const n = parseInt(hour.slice(2));
+    return n === 1 ? 'Every hour' : `Every ${n} hours`;
+  }
+  if (!min.includes('*') && !min.includes('/') && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
+    return `Every hour at :${min.padStart(2, '0')}`;
+  }
+  if (!min.includes('*') && !hour.includes('*') && dom === '*' && mon === '*' && dow === '*') {
+    return `Daily at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  }
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  if (!min.includes('*') && !hour.includes('*') && dom === '*' && mon === '*' && dow !== '*' && !dow.includes(',')) {
+    const dayIdx = parseInt(dow);
+    const dayName = dayNames[dayIdx] ?? dow;
+    return `Every ${dayName} at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  }
+  if (!min.includes('*') && !hour.includes('*') && dom !== '*' && mon === '*' && dow === '*') {
+    const suffix = dom === '1' ? 'st' : dom === '2' ? 'nd' : dom === '3' ? 'rd' : 'th';
+    return `Monthly on the ${dom}${suffix} at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  }
+  return cron;
+}
 
 /** iOS always supports HEIC; Android supports it natively from API 29 (Android 10+) */
 export const supportsHeic = isIos || (Platform.OS === 'android' && (Platform.Version as number) >= 29);

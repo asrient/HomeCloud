@@ -1,10 +1,10 @@
 import os from "os";
-import { WebcInterface } from "shared/webcInterface";
+import NodeWebcInterface from "nodeShared/webcInterface";
 import { DatagramCompat } from "shared/compat";
 import { filterValidBonjourIps } from "shared/utils";
-import { createBestDatagram } from "../desktopCompat";
+import { createBestDatagram } from "../dgramCompat";
 
-export default class DesktopWebcInterface extends WebcInterface {
+export default class DesktopWebcInterface extends NodeWebcInterface {
     createDatagramSocket(): DatagramCompat {
         return createBestDatagram();
     }

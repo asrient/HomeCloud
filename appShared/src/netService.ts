@@ -58,6 +58,7 @@ class ServiceControllerProxyFactory {
 }
 
 export class NetService extends Service {
+    static serviceDescription = 'Networking, peer connections, and relay management.';
 
     private serviceControllerProxyFactory = new ServiceControllerProxyFactory();
 

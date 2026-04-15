@@ -1,27 +1,95 @@
-import { ProxyHandlers, MethodInfo, SignalMetadata } from './types';
+import { ProxyHandlers, MethodInfo, SimpleSchema } from './types';
 import Signal from './signals';
+import { validateSchema } from './utils';
 
 export function exposed(target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor): PropertyDescriptor {
-    descriptor.value.__isExposed = true; // Mark the method as exposed
+    if (!descriptor.value.__meta) descriptor.value.__meta = {};
+    descriptor.value.__meta.isExposed = true;
     return descriptor;
 }
 
 export function allowAll(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
-    descriptor.value.__allowAll = true; // Mark the method as exposed
+    if (!descriptor.value.__meta) descriptor.value.__meta = {};
+    descriptor.value.__meta.isAllowAll = true;
     return descriptor;
 }
 
 // Marks that the method should receive MethodContext as the first argument
 export function withContext(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
-    descriptor.value.__withContext = true;
+    if (!descriptor.value.__meta) descriptor.value.__meta = {};
+    descriptor.value.__meta.passContext = true;
     return descriptor;
 }
 
+export function info(description: string) {
+    return function (target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+        if (!descriptor.value.__meta) descriptor.value.__meta = {};
+        descriptor.value.__meta.info = description;
+        return descriptor;
+    };
+}
+
+export function wfApi(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+    if (!descriptor.value.__meta) descriptor.value.__meta = {};
+    descriptor.value.__meta.isWfApi = true;
+    return descriptor;
+}
+
+export function input(...schemas: SimpleSchema[]) {
+    return function (target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+        const originalMethod = descriptor.value;
+        descriptor.value = function (this: any, ...args: any[]) {
+            for (let i = 0; i < schemas.length; i++) {
+                const s = schemas[i];
+                if (args[i] === undefined) {
+                    if (s.optional) continue;
+                    throw new Error(`Validation error in ${methodName}: arg[${i}] is required`);
+                }
+                if (args[i] === null) {
+                    if (s.nullable) continue;
+                    throw new Error(`Validation error in ${methodName}: arg[${i}] is null but not nullable`);
+                }
+                const err = validateSchema(args[i], s, `arg[${i}]`);
+                if (err) {
+                    throw new Error(`Validation error in ${methodName}: ${err}`);
+                }
+            }
+            return originalMethod.call(this, ...args);
+        };
+        // Preserve decorator metadata
+        descriptor.value.__meta = { ...originalMethod.__meta, inputSchema: schemas };
+        return descriptor;
+    };
+}
+
+export function output(outputSchema: SimpleSchema) {
+    return function (target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
+        const originalMethod = descriptor.value;
+        descriptor.value = async function (this: any, ...args: any[]) {
+            const result = await originalMethod.call(this, ...args);
+            const err = validateSchema(result, outputSchema, 'output');
+            if (err) {
+                console.warn(`[${methodName}] Output schema mismatch: ${err}`);
+            }
+            return result;
+        };
+        // Preserve decorator metadata
+        descriptor.value.__meta = { ...originalMethod.__meta, outputSchema };
+        return descriptor;
+    };
+}
+
 export function getMethodInfo(method: any): MethodInfo {
-    const isExposed = method.__isExposed === true;
-    const isAllowAll = method.__allowAll === true;
-    const passContext = method.__withContext === true;
-    return { isExposed, isAllowAll, passContext };
+    const meta = method?.__meta;
+    return {
+        isExposed: meta?.isExposed === true,
+        isAllowAll: meta?.isAllowAll === true,
+        passContext: meta?.passContext === true,
+        inputSchema: meta?.inputSchema ?? null,
+        outputSchema: meta?.outputSchema ?? null,
+        info: meta?.info ?? null,
+        isWfApi: meta?.isWfApi === true,
+    };
 }
 
 export function serviceStartMethod(target: any, methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor {
@@ -72,6 +140,8 @@ export function assertServiceRunning(target: any, methodName: string, descriptor
 }
 
 export class Service {
+    static serviceDescription: string = '';
+
     private isRunning: boolean = false;
     private isInitialized: boolean = false;
     private static instance: Service | null = null;
@@ -161,7 +231,7 @@ export class RPCControllerProxy {
                         if (name.startsWith("constructor")) {
                             return target[prop](...args);
                         }
-                        if (target[prop].__isExposed) {
+                        if (target[prop].__meta?.isExposed) {
                             if (!this.handlers || !this.handlers.methodCall) {
                                 throw new Error(`Remote service is not available.`);
                             }

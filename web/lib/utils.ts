@@ -3,6 +3,7 @@ import { twMerge } from "tailwind-merge"
 import { PageUIConfig } from "./types";
 import { OSType, UITheme } from "./enums";
 import { DeviceInfo } from "shared/types";
+import ServiceController from "shared/controller";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -80,6 +81,17 @@ export function printFingerprint(fingerprint: string, full = false) {
     return fingerprint;
   }
   return `$${fingerprint.slice(0, 8)}`;
+}
+
+/**
+ * Check if a service method is available on a service controller.
+ */
+export async function isMethodAvailable(sc: ServiceController, path: string): Promise<boolean> {
+  try {
+    return await sc.app.isMethodAvailable(path);
+  } catch {
+    return false;
+  }
 }
 
 export async function getServiceController(fingerprint: string | null) {
@@ -267,4 +279,65 @@ export function formatFileSize(bytes: number | null | undefined): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+export function formatDate(dateStr?: string | null) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHrs = Math.floor(diffMins / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  return d.toLocaleDateString();
+}
+
+export function cronToHuman(cron: string): string {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length < 5) return cron;
+  const [min, hour, dom, mon, dow] = parts;
+
+  // Every minute
+  if (min === '*' && hour === '*' && dom === '*' && mon === '*' && dow === '*') return 'Every minute';
+
+  // Every N minutes
+  if (min.startsWith('*/') && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
+    const n = parseInt(min.slice(2));
+    return n === 1 ? 'Every minute' : `Every ${n} minutes`;
+  }
+
+  // Every N hours
+  if (min === '0' && hour.startsWith('*/') && dom === '*' && mon === '*' && dow === '*') {
+    const n = parseInt(hour.slice(2));
+    return n === 1 ? 'Every hour' : `Every ${n} hours`;
+  }
+
+  // Every hour at :MM
+  if (!min.includes('*') && !min.includes('/') && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
+    return `Every hour at :${min.padStart(2, '0')}`;
+  }
+
+  // Daily at HH:MM
+  if (!min.includes('*') && !hour.includes('*') && dom === '*' && mon === '*' && dow === '*') {
+    return `Daily at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  }
+
+  // Weekly on specific day
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  if (!min.includes('*') && !hour.includes('*') && dom === '*' && mon === '*' && dow !== '*' && !dow.includes(',')) {
+    const dayIdx = parseInt(dow);
+    const dayName = dayNames[dayIdx] ?? dow;
+    return `Every ${dayName} at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  }
+
+  // Monthly on specific day
+  if (!min.includes('*') && !hour.includes('*') && dom !== '*' && mon === '*' && dow === '*') {
+    const suffix = dom === '1' ? 'st' : dom === '2' ? 'nd' : dom === '3' ? 'rd' : 'th';
+    return `Monthly on the ${dom}${suffix} at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  }
+
+  return cron;
 }

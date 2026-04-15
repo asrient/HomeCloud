@@ -118,6 +118,9 @@ function FunctionConsole({ doc, name, serviceController
               <li>Exposed: {methodInfo.isExposed ? 'Yes' : 'No'}</li>
               <li>Allow All: {methodInfo.isAllowAll ? 'Yes' : 'No'}</li>
               <li>Pass Context: {methodInfo.passContext ? 'Yes' : 'No'}</li>
+              <li>Workflow API: {methodInfo.isWfApi ? 'Yes' : 'No'}</li>
+              <li>Input Schema: {methodInfo.inputSchema ? JSON.stringify(methodInfo.inputSchema) : 'None'}</li>
+              <li>Output Schema: {methodInfo.outputSchema ? JSON.stringify(methodInfo.outputSchema) : 'None'}</li>
             </>
           )}
         </ul>
@@ -172,6 +175,11 @@ function ServiceFragment({
                   {
                     methodInfo && methodInfo.isExposed && (
                       <span className='text-green-500 text-xs ml-2 border border-green-500 px-1 rounded-md'>Exposed</span>
+                    )
+                  }
+                  {
+                    methodInfo && methodInfo.isWfApi && (
+                      <span className='text-purple-500 text-xs ml-2 border border-purple-500 px-1 rounded-md'>Workflow</span>
                     )
                   }
                   {

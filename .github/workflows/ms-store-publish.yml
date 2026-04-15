@@ -17,7 +17,6 @@ jobs:
         working-directory: ./desktop
         run: |
           TAG=${GITHUB_REF#refs/tags/}
-          TAG=${TAG#v}
           TAG=${TAG#desktop-v}
           PKG_VERSION=$(node -p "require('./package.json').version")
           if [ "$TAG" != "$PKG_VERSION" ]; then

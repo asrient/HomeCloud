@@ -1,5 +1,6 @@
 import { cn, isMacosTheme } from "@/lib/utils"
 import { ChevronRightIcon } from "@heroicons/react/24/outline"
+import { Button } from "./ui/button"
 
 export function Section({ title, footer, children }: {
     title?: string,
@@ -49,18 +50,19 @@ export function Line({ children, title }: {
     )
 }
 
-export function LineLink({ text, color }: {
+export function LineLink({ text, type, onClick }: {
     text: string,
-    color?: 'blue' | 'red' | 'default',
+    type?: 'danger' | 'primary' | 'default',
+    onClick?: () => void,
 }) {
 
     let textColor = 'text-foreground/70';
 
-    switch (color) {
-        case 'blue':
-            textColor = 'text-blue-500';
+    switch (type) {
+        case 'primary':
+            textColor = 'text-primary';
             break;
-        case 'red':
+        case 'danger':
             textColor = 'text-red-500';
             break;
         default:
@@ -68,11 +70,9 @@ export function LineLink({ text, color }: {
     }
 
     return (
-        <div className={cn('flex items-center justify-end hover:bg-secondary p-1 rounded-md select-none text-xs', textColor)}>
+        <Button variant={'ghost'} size={'sm'} onClick={onClick} className={cn('flex items-center justify-end hover:bg-secondary select-none text-xs', textColor)}>
             <span>{text}</span>
             <ChevronRightIcon className='h-4 w-4 ml-1' />
-        </div>
+        </Button>
     )
 }
-
-//export function 

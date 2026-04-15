@@ -34,6 +34,7 @@ function SidebarItemView({ item, isMatch, onRightClick, onClick, isParent, isRef
     return (<Link href={item.href || ''} onContextMenu={onRightClick_} onClick={onClick_}>
         <Button variant={isMatch ? 'secondary' : 'ghost'}
             disabled={item.isDisabled || isRefreshing}
+            useGlass={false}
             className={cn(
                 isMatch && "bg-foreground/10",
                 isMatch && isWin11Theme() ? 'win11-selected' : 'border-none',

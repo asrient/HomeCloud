@@ -1,0 +1,39 @@
+{
+  "name": "@asrient/homecloud-server",
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "bin": {
+    "homecloud-server": "./bin/server.js"
+  },
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "release": "node scripts/release.js"
+  },
+  "bundleDependencies": [
+    "shared",
+    "nodeShared"
+  ],
+  "ownDependencies": [
+    "dotenv"
+  ],
+  "dependencies": {
+    "bonjour-service": "^1.2.1",
+    "dotenv": "^17.3.1",
+    "exifreader": "^4.26.0",
+    "mediainfo.js": "^0.3.7",
+    "mime": "^3.0.0",
+    "nodeShared": "../nodeShared/dist",
+    "sequelize": "^6.32.1",
+    "shared": "../appShared/dist",
+    "sqlite3": "^5.1.6",
+    "croner": "^10.0.1",
+    "comlink": "^4.4.2",
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.8.3"
+  }
+}

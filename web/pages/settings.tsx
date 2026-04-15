@@ -1,6 +1,6 @@
 import { PageBar, PageContent } from "@/components/pagePrimatives";
 import { FormContainer, Section, Line } from '@/components/formPrimatives'
-import { buildPageConfig, getOSIconUrl, isWindows } from '@/lib/utils'
+import { buildPageConfig, isWindows } from '@/lib/utils'
 import Head from 'next/head'
 import Image from 'next/image'
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
@@ -9,19 +9,21 @@ import TextModal from '@/components/textModal'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { ThemedIconName, ConnectionType } from "@/lib/enums";
-import { PeerInfo, PhotoLibraryLocation } from "shared/types";
+import { PeerInfo } from "shared/types";
 import { useOnboardingStore } from "@/components/hooks/useOnboardingStore";
 import { useAccountState } from "@/components/hooks/useAccountState";
 import { useAppState } from "@/components/hooks/useAppState";
 import { getAppName } from '@/lib/utils';
-import { Folder, Plus, X, MoreHorizontal, ExternalLink, Trash2 } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 import { DeviceIcon } from '@/components/DeviceIcon';
 import { UserPreferences } from "@/lib/types";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useNavigation } from '@/components/hooks/useNavigation';
+import AISettingsSection from '@/components/settings/AISection';
+import PhotoLibrariesSection from '@/components/settings/PhotoLibrariesSection';
+import DeviceSettingsDialog from '@/components/settings/DeviceSettingsDialog';
 
 function Page() {
-  const [photoLibraries, setPhotoLibraries] = useState<PhotoLibraryLocation[]>([]);
   const [autoStartEnabled, setAutoStartEnabled] = useState<boolean | null>(null);
   const [autoStartDisabled, setAutoStartDisabled] = useState(false);
   const { openDialog } = useOnboardingStore();
@@ -29,6 +31,7 @@ function Page() {
   const [autoConnectMobile, setAutoConnectMobile] = useState(true);
   const [checkForUpdates, setCheckForUpdates] = useState(true);
   const [ifaceStatuses, setIfaceStatuses] = useState<{ type: ConnectionType; enabled: boolean }[]>([]);
+  const [settingsFingerprint, setSettingsFingerprint] = useState<string | null>(null);
 
   useEffect(() => {
     const localSc = window.modules.getLocalServiceController();
@@ -39,6 +42,31 @@ function Page() {
     setCheckForUpdates(updatesPref !== false);
     setIfaceStatuses(localSc.net.getConnectionInterfaceStatuses());
   }, []);
+
+  useEffect(() => {
+    const fetchAutoStartStatus = async () => {
+      const localSc = window.modules.getLocalServiceController();
+      const enabled = await localSc.app.isAutoStartEnabled();
+      if (enabled !== null) {
+        setAutoStartEnabled(enabled);
+      }
+    };
+    fetchAutoStartStatus();
+  }, []);
+
+  const handleAutoStartToggle = async (checked: boolean) => {
+    setAutoStartDisabled(true);
+    try {
+      const localSc = window.modules.getLocalServiceController();
+      await localSc.app.setAutoStart(checked);
+      setAutoStartEnabled(checked);
+    } catch (e) {
+      console.error('Failed to toggle auto-start:', e);
+    }
+    finally {
+      setAutoStartDisabled(false);
+    }
+  };
 
   const updateWinrtDgram = useCallback(async (val: boolean) => {
     const localSc = window.modules.getLocalServiceController();
@@ -68,69 +96,6 @@ function Page() {
     const localSc = window.modules.getLocalServiceController();
     await localSc.net.setConnectionInterfaceEnabled(type, enabled);
   }, []);
-
-  const fetchPhotoLibraries = useCallback(async () => {
-    try {
-      const locations = await window.modules.getLocalServiceController().photos.getLocations();
-      setPhotoLibraries(locations);
-    } catch (e) {
-      console.error('Failed to fetch photo libraries:', e);
-    }
-  }, []);
-
-  useEffect(() => {
-    const fetchAutoStartStatus = async () => {
-      const localSc = window.modules.getLocalServiceController();
-      // Check if auto-start is supported (returns null if not)
-      const enabled = await localSc.app.isAutoStartEnabled();
-      if (enabled !== null) {
-        setAutoStartEnabled(enabled);
-      }
-    };
-    fetchPhotoLibraries();
-    fetchAutoStartStatus();
-  }, [fetchPhotoLibraries]);
-
-  const handleAutoStartToggle = async (checked: boolean) => {
-    setAutoStartDisabled(true);
-    try {
-      const localSc = window.modules.getLocalServiceController();
-      await localSc.app.setAutoStart(checked);
-      setAutoStartEnabled(checked);
-    } catch (e) {
-      console.error('Failed to toggle auto-start:', e);
-    }
-    finally {
-      setAutoStartDisabled(false);
-    }
-  };
-
-  const handleAddPhotoLibrary = async () => {
-    try {
-      const localSc = window.modules.getLocalServiceController();
-      const result = await localSc.files.openFilePicker(false, true, undefined, 'Select Library Folder', 'Select');
-      if (result && result.length > 0) {
-        const selectedPath = result[0].path;
-        const rawName = selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'Library';
-        let folderName: string;
-        try { folderName = decodeURIComponent(rawName); } catch { folderName = rawName; }
-        await localSc.photos.addLocation(folderName, selectedPath);
-        await fetchPhotoLibraries();
-      }
-    } catch (e) {
-      console.error('Failed to add photo library:', e);
-    }
-  };
-
-  const handleRemovePhotoLibrary = async (id: string) => {
-    try {
-      const localSc = window.modules.getLocalServiceController();
-      await localSc.photos.removeLocation(id);
-      await fetchPhotoLibraries();
-    } catch (e) {
-      console.error('Failed to remove photo library:', e);
-    }
-  };
 
   const { isLinked, accountEmail } = useAccountState();
   const { peers, deviceInfo } = useAppState();
@@ -222,37 +187,8 @@ function Page() {
               ))}
             </Section>
           )}
-          <Section title="Photo Libraries">
-            {photoLibraries.map((library) => (
-              <Line key={library.id} title={
-                <div className="flex items-center">
-                  <Folder className="w-7 h-7 mr-2 text-foreground/70" />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{library.name}</span>
-                    <span className="text-xs text-foreground/50">{library.location}</span>
-                  </div>
-                </div>
-              }>
-                <ConfirmModal
-                  title='Remove Photo Library'
-                  description={`Are you sure you want to remove "${library.name}" from your photo libraries?`}
-                  onConfirm={() => handleRemovePhotoLibrary(library.id)}
-                  buttonVariant='destructive'
-                  buttonText='Remove'
-                >
-                  <Button variant='ghost' className='text-red-500' size='icon'>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </ConfirmModal>
-              </Line>
-            ))}
-            <Line>
-              <Button variant='ghost' className="text-primary" size='sm' onClick={handleAddPhotoLibrary}>
-                <Plus className="w-4 h-4 mr-1" />
-                Add Photo Library
-              </Button>
-            </Line>
-          </Section>
+          <AISettingsSection fingerprint={null} />
+          <PhotoLibrariesSection fingerprint={null} />
           {isLinked && peers.length > 0 && (
             <Section title="Linked Devices">
               {peers.map((peer: PeerInfo) => (
@@ -282,6 +218,12 @@ function Page() {
                       <DropdownMenuItem onClick={() => openDevicePage(peer.fingerprint)}>
                         Open device
                       </DropdownMenuItem>
+                      {peer.deviceInfo && ['desktop', 'laptop', 'server'].includes(peer.deviceInfo.formFactor) && (
+                        <DropdownMenuItem onClick={() => setSettingsFingerprint(peer.fingerprint)}>
+                          Settings
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
                       <ConfirmModal
                         title='Remove Device'
                         description={`Are you sure you want to remove "${peer.deviceName}" from your account?`}
@@ -366,6 +308,14 @@ function Page() {
           </div>
         </FormContainer>
       </PageContent>
+      {settingsFingerprint && (
+        <DeviceSettingsDialog
+          fingerprint={settingsFingerprint}
+          peer={peers.find(p => p.fingerprint === settingsFingerprint) ?? null}
+          open={!!settingsFingerprint}
+          onOpenChange={(open) => { if (!open) setSettingsFingerprint(null); }}
+        />
+      )}
     </>
   )
 }

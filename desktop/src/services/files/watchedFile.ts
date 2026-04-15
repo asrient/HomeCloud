@@ -1,10 +1,10 @@
 import path from "path";
 import fs from "fs";
-import { getPartionedTmpDir } from "../../utils";
+import { getPartionedTmpDir } from "nodeShared/utils";
 import { watch, FSWatcher } from 'chokidar';
 import ServiceController from "shared/controller";
 import { getServiceController } from "shared/utils";
-import { getFileContent } from "./fileUtils";
+import { getFileContent } from "nodeShared/files/fileUtils";
 
 async function prepareTmpDir() {
     const uuid = modules.crypto.uuid();

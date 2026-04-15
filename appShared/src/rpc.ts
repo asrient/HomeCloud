@@ -142,10 +142,15 @@ export class RPCPeer {
         return this.isTargetReady && this.isTargetAuthenticated;
     }
 
+    private static readonly UNDEF_TOKEN = '__rpc_undef__';
+
     private stringify(obj: any) {
         const streams: LocalStream[] = [];
 
         const encoded = JSON.stringify(obj, (_, v) => {
+            if (v === undefined) {
+                return RPCPeer.UNDEF_TOKEN;
+            }
             if (v instanceof ReadableStream) {
                 const id = this.nextStreamId++;
                 streams.push({ id, stream: v });
@@ -419,6 +424,9 @@ export class RPCPeer {
     private parseJson(text: string) {
         try {
             return JSON.parse(text, (_, v) => {
+                if (v === RPCPeer.UNDEF_TOKEN) {
+                    return undefined;
+                }
                 if (!!v && v.__rpc_stream_id__ && typeof v.__rpc_stream_id__ === 'number') {
                     const id = v.__rpc_stream_id__;
                     const stream = new ReadableStream<Uint8Array>({

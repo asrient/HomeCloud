@@ -1,0 +1,65 @@
+name: Server npm Publish
+
+on:
+  push:
+    tags: [ "server-v*" ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify version matches tag
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        working-directory: ./server
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          TAG=${TAG#server-v}
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG_VERSION" ]; then
+            echo "::error::Tag ($TAG) does not match server/package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Version verified: $PKG_VERSION"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Build appShared
+        working-directory: ./appShared
+        run: |
+          npm install
+          npm run tsc
+
+      - name: Build nodeShared
+        working-directory: ./nodeShared
+        run: |
+          npm install
+          npm run tsc
+
+      - name: Build server
+        working-directory: ./server
+        run: |
+          npm install
+          npm run build
+
+      - name: Publish to npm
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        working-directory: ./server
+        run: npm publish --access public
+
+      # For manual runs, just verify the pack works
+      - name: Verify pack
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: ./server
+        run: npm pack --dry-run

@@ -10,6 +10,8 @@ import { PhotosService } from "./photosService";
 import { AccountService } from "./accountService";
 import { ScreenService } from "./screenService";
 import { TerminalService } from "./terminalService";
+import { WorkflowService } from "./workflowService";
+import { AgentService } from "./agentService";
 
 export default class ServiceController extends RPCController {
     private static localInstance: RPCController | null = null;
@@ -22,6 +24,8 @@ export default class ServiceController extends RPCController {
     public account: AccountService;
     public screen: ScreenService;
     public terminal: TerminalService;
+    public workflow: WorkflowService;
+    public agent: AgentService;
 
     public readyState: boolean = false;
     public readyStateSignal = new Signal<[boolean]>();
