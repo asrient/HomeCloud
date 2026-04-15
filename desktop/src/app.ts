@@ -23,9 +23,29 @@ import { getDeviceName } from 'nodeShared/deviceInfo';
 const isDev = !!env && env.NODE_ENV === 'development';
 
 const cryptoModule = new CryptoImpl();
+const UNENCRYPTED_PREFIX = 'plaintext:';
 
 export function isDevMode() {
   return isDev;
+}
+
+function encryptForStorage(data: string): Buffer {
+  try {
+    if (safeStorage.isEncryptionAvailable()) {
+      return safeStorage.encryptString(data);
+    }
+  } catch (error) {
+    console.warn('[App] Failed to encrypt value with safeStorage. Falling back to plaintext storage.', error);
+  }
+  return Buffer.from(`${UNENCRYPTED_PREFIX}${data}`, 'utf8');
+}
+
+function decryptFromStorage(data: Buffer): string {
+  const text = data.toString('utf8');
+  if (text.startsWith(UNENCRYPTED_PREFIX)) {
+    return text.substring(UNENCRYPTED_PREFIX.length);
+  }
+  return safeStorage.decryptString(data);
 }
 
 function createOrGetSecretKey(dataDir: string) {
@@ -33,15 +53,22 @@ function createOrGetSecretKey(dataDir: string) {
   if (!fs.existsSync(secretKeyPath)) {
     console.log("[App] Secret key not found. Creating a new one.");
     const secretKey = cryptoModule.generateRandomKey();
-    const encrypted = safeStorage.encryptString(secretKey);
+    const encrypted = encryptForStorage(secretKey);
     fs.mkdirSync(path.dirname(secretKeyPath), { recursive: true });
     fs.writeFileSync(secretKeyPath, encrypted);
     console.log("[App] Secret key created.");
     return secretKey;
   }
   const text = fs.readFileSync(secretKeyPath);
-  const decrypted = safeStorage.decryptString(text);
-  return decrypted;
+  try {
+    const decrypted = decryptFromStorage(text);
+    return decrypted;
+  } catch (error) {
+    console.warn('[App] Failed to decrypt secret key. Regenerating a new secret key.', error);
+    const secretKey = cryptoModule.generateRandomKey();
+    fs.writeFileSync(secretKeyPath, encryptForStorage(secretKey));
+    return secretKey;
+  }
 }
 
 async function getOrGenerateKeys(dataDir: string) {
@@ -50,8 +77,8 @@ async function getOrGenerateKeys(dataDir: string) {
   if (!fs.existsSync(privateKeyPath) || !fs.existsSync(publicKeyPath)) {
     console.log("[App] Key pair not found. Generating a new one.");
     const { privateKey, publicKey } = await cryptoModule.generateKeyPair();
-    const privateKeyEncrypted = safeStorage.encryptString(privateKey);
-    const publicKeyEncrypted = safeStorage.encryptString(publicKey);
+    const privateKeyEncrypted = encryptForStorage(privateKey);
+    const publicKeyEncrypted = encryptForStorage(publicKey);
     fs.writeFileSync(privateKeyPath, privateKeyEncrypted);
     fs.writeFileSync(publicKeyPath, publicKeyEncrypted);
     console.log("[App] Key pair generated.");
@@ -59,12 +86,20 @@ async function getOrGenerateKeys(dataDir: string) {
   }
   const privateKeyText = fs.readFileSync(privateKeyPath);
   const publicKeyText = fs.readFileSync(publicKeyPath);
-  const privateKey = safeStorage.decryptString(privateKeyText);
-  const publicKey = safeStorage.decryptString(publicKeyText);
-  return {
-    privateKeyPem: privateKey,
-    publicKeyPem: publicKey,
-  };
+  try {
+    const privateKey = decryptFromStorage(privateKeyText);
+    const publicKey = decryptFromStorage(publicKeyText);
+    return {
+      privateKeyPem: privateKey,
+      publicKeyPem: publicKey,
+    };
+  } catch (error) {
+    console.warn('[App] Failed to decrypt key pair. Regenerating a new key pair.', error);
+    const { privateKey, publicKey } = await cryptoModule.generateKeyPair();
+    fs.writeFileSync(privateKeyPath, encryptForStorage(privateKey));
+    fs.writeFileSync(publicKeyPath, encryptForStorage(publicKey));
+    return { privateKeyPem: privateKey, publicKeyPem: publicKey };
+  }
 }
 
 async function getConfig() {
