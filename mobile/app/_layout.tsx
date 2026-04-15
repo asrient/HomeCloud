@@ -6,6 +6,7 @@ import { setupFileLogger } from '@/lib/logger';
 setupFileLogger();
 
 import { ThemeProvider } from '@react-navigation/native';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
@@ -86,6 +87,7 @@ export default function RootLayout() {
   }
 
   return (
+    <KeyboardProvider>
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <ThemeProvider value={theme}>
         <Stack>
@@ -142,5 +144,6 @@ export default function RootLayout() {
         <LoadingModal />
       </ThemeProvider>
     </View>
+    </KeyboardProvider>
   );
 }

@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, View, ViewStyle, useWindowDimensions } fr
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRefresh } from '@/hooks/useRefresh';
 import { formatFileSize, getLocalServiceController, getServiceController, printFingerprint } from '@/lib/utils';
 import { FlashList } from "@shopify/flash-list";
 import { ThumbnailCheckbox } from './ThumbnailCheckbox';
@@ -384,6 +385,7 @@ export type FilesGridProps = GridPropsCommon & {
     items: FileRemoteItem[];
     isLoading: boolean;
     error: string | null;
+    onRefresh?: () => void;
 }
 
 export type FolderFilesGridProps = GridPropsCommon & {
@@ -398,7 +400,8 @@ export type PinnedFoldersGridProps = GridPropsCommon & {
     hideEmpty?: boolean;
 }
 
-export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error, disablePreview, viewMode = 'grid', disableContextMenu, sortBy, onQuickAction, selectKind, selectedItems }: FilesGridProps) {
+export function FilesGrid({ items, headerComponent, footerComponent, selectMode, onSelect, onDeselect, onPreview, isLoading, error, disablePreview, viewMode = 'grid', disableContextMenu, sortBy, onQuickAction, selectKind, selectedItems, onRefresh }: FilesGridProps) {
+    const { refreshing, onRefresh: handleRefresh } = useRefresh(onRefresh ?? (() => {}), isLoading);
     const [internalRenderKey, setInternalRenderKey] = useState(0);
     const router = useRouter();
     const { width: screenWidth } = useWindowDimensions();
@@ -555,7 +558,9 @@ export function FilesGrid({ items, headerComponent, footerComponent, selectMode,
                 keyExtractor={(item) => item.deviceFingerprint ? printFingerprint(item.deviceFingerprint) + '|' + item.path : item.path}
                 numColumns={viewMode === 'grid' ? gridColumns : 1}
                 key={`${viewMode}-${gridColumns}`} // Force remount when switching between grid/list or column count changes
-                refreshing={isLoading}
+                refreshing={refreshing}
+                onRefresh={onRefresh ? handleRefresh : undefined}
+
                 renderItem={renderItem}
                 ListEmptyComponent={
                     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>

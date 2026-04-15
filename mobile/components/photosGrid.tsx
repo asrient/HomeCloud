@@ -1,9 +1,10 @@
 import { PhotosFetchOptions, PhotoView, PhotosQuickAction } from '@/lib/types';
 import { usePhotos } from '@/hooks/usePhotos';
+import { useRefresh } from '@/hooks/useRefresh';
 import { ActivityIndicator, Pressable, View, useWindowDimensions } from 'react-native';
 import { UIText } from './ui/UIText';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getServiceController } from '@/lib/utils';
 import { FlashList } from "@shopify/flash-list";
 import { ThumbnailCheckbox } from './ThumbnailCheckbox';
@@ -175,7 +176,10 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
     onPreviewPhoto?: (photo: PhotoView) => void;
     onQuickAction?: (action: PhotosQuickAction) => void;
 }) {
-    const { photos, isLoading, error, load, hasMore, setPhotos } = usePhotos(fetchOpts);
+    const { photos, isLoading, error, load, hasMore, setPhotos, reload } = usePhotos(fetchOpts);
+    const { refreshing, onRefresh } = useRefresh(reload, isLoading);
+    const photosRef = useRef(photos);
+    photosRef.current = photos;
     const [renderKey, setRenderKey] = useState(0);
     const [previewIndex, setPreviewIndex] = useState<number | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -199,8 +203,6 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
     }, [deletedIds, setPhotos]);
 
     const handlePhotoPress = useCallback((photo: PhotoView) => {
-        // Handle photo press based on selectMode
-        console.log('Photo pressed:', photo.id, 'selectMode:', selectMode);
         if (selectMode) {
             if (photo.isSelected) {
                 onSelectPhoto && onSelectPhoto(photo);
@@ -208,15 +210,15 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
                 onDeselectPhoto && onDeselectPhoto(photo);
             }
         } else {
-            // Open preview modal
-            const index = photos.findIndex(p => p.id === photo.id);
+            // Open preview modal — use ref to avoid stale closure from FlashList cell recycling
+            const index = photosRef.current.findIndex(p => p.id === photo.id);
             if (index !== -1) {
                 setPreviewIndex(index);
                 setIsPreviewOpen(true);
             }
             onPreviewPhoto && onPreviewPhoto(photo);
         }
-    }, [selectMode, onSelectPhoto, onDeselectPhoto, onPreviewPhoto, photos]);
+    }, [selectMode, onSelectPhoto, onDeselectPhoto, onPreviewPhoto]);
 
     const handleClosePreview = useCallback((finalIndex?: number) => {
         setIsPreviewOpen(false);
@@ -245,7 +247,8 @@ export function PhotosGrid({ fetchOpts, headerComponent, selectMode, onSelectPho
                 keyExtractor={(item) => item.id}
                 numColumns={gridColumns}
                 key={gridColumns}
-                refreshing={isLoading}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
                 renderItem={({ item }) => (
                     <View style={{ flex: 1 / gridColumns, aspectRatio: 1, margin: 1 }}>
                         <PhotoThumbnail item={item} isSelectMode={selectMode} onPress={handlePhotoPress} onQuickAction={onQuickAction} />

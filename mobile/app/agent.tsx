@@ -8,6 +8,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAgentConfig, useChatList } from '@/hooks/useAgent';
 import { ChatInfo } from 'shared/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRefresh } from '@/hooks/useRefresh';
 import { getBottomPadding, isGlassEnabled } from '@/lib/utils';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { FlashList } from '@shopify/flash-list';
@@ -75,7 +76,8 @@ export default function AgentScreen() {
     const headerHeight = useHeaderHeight();
 
     const { config, status } = useAgentConfig(deviceFingerprint);
-    const { chats, isLoading, newChat } = useChatList(deviceFingerprint);
+    const { chats, isLoading, newChat, reload } = useChatList(deviceFingerprint);
+    const { refreshing, onRefresh } = useRefresh(reload, isLoading);
 
     const title = config?.name ?? 'Agent';
 
@@ -155,6 +157,8 @@ export default function AgentScreen() {
                 <FlashList
                     data={listData}
                     getItemType={(item) => item.type}
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
                     keyExtractor={(item, i) => item.type === 'chat' ? item.chat.chatId : `header-${i}`}
                     renderItem={({ item }) => {
                         if (item.type === 'header') {

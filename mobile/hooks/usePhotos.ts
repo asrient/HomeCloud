@@ -136,6 +136,11 @@ export const usePhotos = (fetchOpts: PhotosFetchOptions | null) => {
         load();
     }, [fetchOpts, load, reset]);
 
+    const reload = useCallback(() => {
+        currentLibHashRef.current = null;
+        reset();
+    }, [reset]);
+
     return {
         photos,
         setPhotos,
@@ -143,5 +148,6 @@ export const usePhotos = (fetchOpts: PhotosFetchOptions | null) => {
         isLoading,
         error,
         load,
+        reload,
     }
 }

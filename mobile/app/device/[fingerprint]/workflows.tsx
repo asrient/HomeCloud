@@ -3,13 +3,13 @@ import { View, StyleSheet, useWindowDimensions, RefreshControl, ScrollView } fro
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { UIText } from '@/components/ui/UIText';
 import { UIPagePlaceholder } from '@/components/ui/UIPagePlaceholder';
 import { WorkflowCard } from '@/components/WorkflowCard';
 import { RunWorkflowModal } from '@/components/RunWorkflowModal';
 import { useWorkflows, useWorkflowsAvailable } from '@/hooks/useWorkflows';
 import { useWorkflowActions } from '@/hooks/useWorkflowActions';
 import { isGlassEnabled, getBottomPadding } from '@/lib/utils';
+import { useRefresh } from '@/hooks/useRefresh';
 import { WorkflowConfig } from 'shared/types';
 
 const CARD_MIN_WIDTH = 155;
@@ -38,6 +38,7 @@ export default function WorkflowsScreen() {
 
     const { available: workflowsAvailable, isLoading: availLoading } = useWorkflowsAvailable(deviceFingerprint);
     const { workflows, runningExecutions, isLoading, reload } = useWorkflows(deviceFingerprint);
+    const { refreshing, onRefresh } = useRefresh(reload, isLoading);
     const { handleRun, handleViewScript, runModalProps } = useWorkflowActions(deviceFingerprint);
 
     const handleCardPress = useCallback((wf: WorkflowConfig) => {
@@ -63,7 +64,7 @@ export default function WorkflowsScreen() {
                     isGlassEnabled && { paddingTop: headerHeight + 8 },
                 ]}
                 refreshControl={
-                    <RefreshControl refreshing={isLoading} onRefresh={reload} />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
             >
                 {!availLoading && !workflowsAvailable ? (

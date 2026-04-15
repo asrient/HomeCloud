@@ -37,6 +37,7 @@ export function useWorkflowActions(deviceFingerprint: string | null) {
         if (runWorkflow) executeWithInputs(runWorkflow, inputs).catch(err => {
             console.error('Failed to run workflow with inputs:', err);
         });
+        setRunWorkflow(null);
     }, [runWorkflow, executeWithInputs]);
 
     return {

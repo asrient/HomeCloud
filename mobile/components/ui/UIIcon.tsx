@@ -103,6 +103,7 @@ const MAPPING = {
   'bolt.fill': 'bolt',
   'sparkles.2': 'auto-awesome',
   'command': 'keyboard-command',
+  'slider.horizontal.3': 'tune',
 } as IconMapping;
 
 /**

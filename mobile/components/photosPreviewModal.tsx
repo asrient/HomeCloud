@@ -1,11 +1,10 @@
-import { StyleSheet, Modal, Dimensions, ActivityIndicator, View } from 'react-native';
+import { StyleSheet, Modal, Dimensions, ActivityIndicator, View, FlatList } from 'react-native';
 import { PhotosQuickAction, PhotoView } from '@/lib/types';
 import { UIText } from './ui/UIText';
 import { Directory, Paths, File } from 'expo-file-system/next';
 import { getServiceController, isIos, supportsHeic } from '@/lib/utils';
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { FlashList } from "@shopify/flash-list";
 import { Image } from 'expo-image';
 import Animated, {
     useSharedValue,
@@ -372,7 +371,7 @@ function PhotoItem({ photo, isActive, isFocused, showControls, onTap, onClose }:
 
 export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuickAction }: PhotosPreviewModalProps) {
     const [currentIndex, setCurrentIndex] = useState(startIndex);
-    const flashListRef = useRef<any>(null);
+    const flatListRef = useRef<FlatList<PhotoView>>(null);
     const [viewableIndices, setViewableIndices] = useState<Set<number>>(new Set([startIndex]));
     const [showUI, setShowUI] = useState(true);
     const colorScheme = useColorScheme();
@@ -384,16 +383,14 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuic
             clearCache();
             setCurrentIndex(startIndex);
             setViewableIndices(new Set([startIndex]));
-
-            // Scroll to start index when modal opens
-            setTimeout(() => {
-                flashListRef.current?.scrollToIndex({
-                    index: startIndex,
-                    animated: false,
-                });
-            }, 100);
         }
     }, [isOpen, startIndex]);
+
+    const getItemLayout = useCallback((_: any, index: number) => ({
+        length: SCREEN_WIDTH,
+        offset: SCREEN_WIDTH * index,
+        index,
+    }), []);
 
     const exitPreview = useCallback(() => {
         clearCache();
@@ -406,30 +403,27 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuic
     }, []);
 
     const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
-        if (viewableItems.length > 0) {
-            const newIndices = new Set<number>();
-            viewableItems.forEach((item: any) => {
-                if (item.index !== null && item.index !== undefined) {
-                    newIndices.add(item.index);
-                    // Preload adjacent photos
-                    if (item.index > 0) newIndices.add(item.index - 1);
-                    if (item.index < photos.length - 1) newIndices.add(item.index + 1);
-                }
-            });
-            setViewableIndices(newIndices);
+        if (viewableItems.length === 0) return;
 
-            // Update current index to the first viewable item
-            const firstViewable = viewableItems[0];
-            if (firstViewable?.index !== null && firstViewable?.index !== undefined) {
-                const newIndex = firstViewable.index;
-                setCurrentIndex((prevIndex) => {
-                    // Show UI when swiping to a new photo
-                    if (prevIndex !== newIndex) {
-                        setShowUI(true);
-                    }
-                    return newIndex;
-                });
+        const newIndices = new Set<number>();
+        viewableItems.forEach((item: any) => {
+            if (item.index !== null && item.index !== undefined) {
+                newIndices.add(item.index);
+                if (item.index > 0) newIndices.add(item.index - 1);
+                if (item.index < photos.length - 1) newIndices.add(item.index + 1);
             }
+        });
+        setViewableIndices(newIndices);
+
+        const firstViewable = viewableItems[0];
+        if (firstViewable?.index !== null && firstViewable?.index !== undefined) {
+            const newIndex = firstViewable.index;
+            setCurrentIndex((prevIndex) => {
+                if (prevIndex !== newIndex) {
+                    setShowUI(true);
+                }
+                return newIndex;
+            });
         }
     }, [photos.length]);
 
@@ -468,11 +462,13 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuic
                     }
 
                     {/* Photo gallery */}
-                    <FlashList
-                        ref={flashListRef}
+                    <FlatList
+                        ref={flatListRef}
                         data={photos}
                         horizontal
                         pagingEnabled
+                        initialScrollIndex={startIndex}
+                        getItemLayout={getItemLayout}
                         showsHorizontalScrollIndicator={false}
                         keyExtractor={(item) => item.id}
                         renderItem={({ item, index }) => (
@@ -480,7 +476,7 @@ export function PhotosPreviewModal({ photos, startIndex, isOpen, onClose, onQuic
                                 photo={item}
                                 onTap={handleTap}
                                 onClose={exitPreview}
-                                isActive={viewableIndices.has(index!)}
+                                isActive={viewableIndices.has(index)}
                                 isFocused={currentIndex === index}
                                 showControls={showUI}
                             />

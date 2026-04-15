@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-    View, StyleSheet, Keyboard, TextInput, Modal, FlatList,
-    Platform, ActivityIndicator, Linking, LayoutChangeEvent,
+    View, StyleSheet, FlatList,
+    ActivityIndicator, Linking,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { UIText } from '@/components/ui/UIText';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
@@ -11,6 +12,7 @@ import { UITextInput } from '@/components/ui/UITextInput';
 import { UIButton } from '@/components/ui/UIButton';
 import { UIView } from '@/components/ui/UIView';
 import { UIIcon, IconSymbolName } from '@/components/ui/UIIcon';
+import { UIPageSheet } from '@/components/ui/UIPageSheet';
 import { UIContextMenu } from '@/components/ui/UIContextMenu';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useChat } from '@/hooks/useAgent';
@@ -19,6 +21,13 @@ import { isGlassEnabled } from '@/lib/utils';
 import * as Clipboard from 'expo-clipboard';
 import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+    KeyboardAvoidingView,
+    KeyboardController,
+    AndroidSoftInputModes,
+    useReanimatedKeyboardAnimation,
+} from 'react-native-keyboard-controller';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 // ── Action button (reusable for bubble actions) ──
 
@@ -46,24 +55,17 @@ function ActionButton({ icon, label, onPress }: { icon: IconSymbolName; label: s
 // ── Text selection modal ──
 
 function TextSelectionModal({ text, visible, onClose }: { text: string; visible: boolean; onClose: () => void }) {
-    const bgColor = useThemeColor({}, 'background');
-    const textColor = useThemeColor({}, 'text');
-    const insets = useSafeAreaInsets();
-
     return (
-        <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-            <View style={{ flex: 1, backgroundColor: bgColor }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingVertical: 10 }}>
-                    <UIButton type="link" title="Done" onPress={onClose} />
-                </View>
-                <TextInput
-                    value={text}
-                    editable={false}
-                    multiline
-                    style={{ flex: 1, color: textColor, fontSize: 16, lineHeight: 24, padding: 16, paddingBottom: insets.bottom + 20, textAlignVertical: 'top' }}
-                />
-            </View>
-        </Modal>
+        <UIPageSheet isOpen={visible} title='Select Text' onClose={onClose}>
+            <UITextInput
+                value={text}
+                variant='plain'
+                multiline
+                showSoftInputOnFocus={false}
+                caretHidden
+                style={{ flex: 1, padding: 16, paddingBottom: 20, textAlignVertical: 'top' }}
+            />
+        </UIPageSheet>
     );
 }
 
@@ -124,7 +126,7 @@ function MessageBubble({ message, onSelectText }: { message: AgentMessage; onSel
                 )}
                 {textContent ? (
                     isUser ? (
-                        <UIText style={{ color: '#fff', fontSize: 16, lineHeight: 24 }}>{textContent}</UIText>
+                        <UIText color='highlightText' size='md' font='regular'>{textContent}</UIText>
                     ) : (
                         <Markdown
                             style={markdownStyles}
@@ -198,7 +200,6 @@ function ChatStatusBar({ status }: { status: ChatStatus }) {
 export default function AgentChatScreen() {
     const { fingerprint, chatId } = useLocalSearchParams<{ fingerprint: string; chatId: string }>();
     const deviceFingerprint = fingerprint === 'local' ? null : (fingerprint ?? null);
-    const listRef = useRef<FlatList<AgentMessage>>(null);
     const headerHeight = useHeaderHeight();
     const insets = useSafeAreaInsets();
 
@@ -209,72 +210,32 @@ export default function AgentChatScreen() {
     } = useChat(deviceFingerprint, chatId ?? null);
 
     const [input, setInput] = useState('');
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [selectText, setSelectText] = useState<string | null>(null);
+    const { progress: kbProgress } = useReanimatedKeyboardAnimation();
+    const inputBarAnimatedStyle = useAnimatedStyle(() => ({
+        paddingBottom: (1 - kbProgress.value) * insets.bottom + 6,
+    }));
 
-    // Scroll tracking: use content size and layout to reliably scroll to end
-    const contentHeightRef = useRef(0);
-    const layoutHeightRef = useRef(0);
-    const isNearBottomRef = useRef(true);
+    // On Android, switch to adjustResize for this screen only so the keyboard
+    // resizes the view instead of panning (which hides the header).
+    useFocusEffect(
+        useCallback(() => {
+            KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_RESIZE);
+            return () => KeyboardController.setDefaultMode();
+        }, []),
+    );
 
-    const scrollToEnd = useCallback((animated = false) => {
-        const offset = contentHeightRef.current - layoutHeightRef.current;
-        if (offset > 0) {
-            listRef.current?.scrollToOffset({ offset, animated });
-        }
-    }, []);
-
-    const handleContentSizeChange = useCallback((_w: number, h: number) => {
-        contentHeightRef.current = h;
-        if (isNearBottomRef.current) {
-            scrollToEnd();
-        }
-    }, [scrollToEnd]);
-
-    const handleLayout = useCallback((e: LayoutChangeEvent) => {
-        layoutHeightRef.current = e.nativeEvent.layout.height;
-    }, []);
-
-    const handleScroll = useCallback((e: any) => {
-        const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-        const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
-        isNearBottomRef.current = distanceFromBottom < 100;
-    }, []);
-
-    // Track keyboard height
-    useEffect(() => {
-        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-        const showSub = Keyboard.addListener(showEvent, (e) => {
-            setKeyboardHeight(e.endCoordinates.height);
-            setTimeout(() => scrollToEnd(true), 100);
-        });
-        const hideSub = Keyboard.addListener(hideEvent, () => {
-            setKeyboardHeight(0);
-        });
-        return () => { showSub.remove(); hideSub.remove(); };
-    }, [scrollToEnd]);
-
-    // Scroll to end on initial load
-    const hasScrolledRef = useRef(false);
-    useEffect(() => {
-        if (messages.length > 0 && !isLoading && !hasScrolledRef.current) {
-            hasScrolledRef.current = true;
-            setTimeout(() => scrollToEnd(), 200);
-        }
-    }, [messages, isLoading, scrollToEnd]);
+    // Inverted FlatList: newest message at index 0 → renders at visual bottom
+    const invertedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
     const handleSend = useCallback(() => {
         const text = input.trim();
         if (!text || status === 'working') return;
         setInput('');
         sendMessage(text);
-        isNearBottomRef.current = true;
-        setTimeout(() => scrollToEnd(true), 200);
-    }, [input, status, sendMessage, scrollToEnd]);
+    }, [input, status, sendMessage]);
 
     const title = chatInfo?.title || 'Chat';
-    const bottomPadding = keyboardHeight > 0 ? keyboardHeight : insets.bottom;
 
     const configMenuActions = configOptions.map(opt => ({
         id: opt.key,
@@ -287,7 +248,11 @@ export default function AgentChatScreen() {
     }));
 
     return (
-        <View style={styles.container}>
+        <KeyboardAvoidingView
+            style={styles.container}
+            behavior="padding"
+            keyboardVerticalOffset={headerHeight}
+        >
             <Stack.Screen
                 options={{
                     title,
@@ -310,15 +275,11 @@ export default function AgentChatScreen() {
 
             {/* Messages */}
             <FlatList
-                ref={listRef}
-                data={messages}
+                data={invertedMessages}
+                inverted
                 keyExtractor={(_, i) => String(i)}
                 renderItem={({ item }) => <MessageBubble message={item} onSelectText={setSelectText} />}
-                contentContainerStyle={{ paddingHorizontal: 14, paddingTop: isGlassEnabled ? headerHeight : 8, paddingBottom: 8 }}
-                onContentSizeChange={handleContentSizeChange}
-                onLayout={handleLayout}
-                onScroll={handleScroll}
-                scrollEventThrottle={64}
+                contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 14, paddingBottom: isGlassEnabled ? headerHeight : 8, paddingTop: 8 }}
                 ListEmptyComponent={
                     isLoading ? (
                         <View style={styles.emptyContainer}><ActivityIndicator /></View>
@@ -341,7 +302,7 @@ export default function AgentChatScreen() {
             <ChatStatusBar status={status} />
 
             {/* Input bar */}
-            <View style={[styles.inputBar, { paddingBottom: bottomPadding + 6 }]}>
+            <Animated.View style={[styles.inputBar, inputBarAnimatedStyle]}>
                 <UIView useGlass themeColor="backgroundTertiary" style={styles.inputWrapper}>
                     <UITextInput
                         variant="plain"
@@ -365,9 +326,9 @@ export default function AgentChatScreen() {
                         />
                     )}
                 </UIView>
-            </View>
+            </Animated.View>
             <TextSelectionModal text={selectText ?? ''} visible={!!selectText} onClose={() => setSelectText(null)} />
-        </View>
+        </KeyboardAvoidingView>
     );
 }
 
@@ -446,9 +407,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 0,
     },
     emptyContainer: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingTop: 60,
     },
     bubbleActions: {
         flexDirection: 'row',
