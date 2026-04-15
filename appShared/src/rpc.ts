@@ -142,7 +142,7 @@ export class RPCPeer {
         return this.isTargetReady && this.isTargetAuthenticated;
     }
 
-    private static readonly UNDEF_TOKEN = '__undef__';
+    private static readonly UNDEF_TOKEN = '__rpc_undef__';
 
     private stringify(obj: any) {
         const streams: LocalStream[] = [];

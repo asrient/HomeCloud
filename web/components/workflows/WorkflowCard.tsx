@@ -44,11 +44,11 @@ export function WorkflowCard({
     const handleOpenScript = useCallback(async () => {
         try {
             const sc = getLocalServiceController();
-            await sc.system.openFile(workflow.scriptPath);
+            await sc.files.openFile(fingerprint, workflow.scriptPath);
         } catch (err: any) {
             console.error('Failed to open script:', err);
         }
-    }, [workflow.scriptPath]);
+    }, [workflow.scriptPath, fingerprint]);
 
     const menuItems = useCallback((): ContextMenuItem[] => [
         ...(!workflow.isEnabled ? [] : [{ id: 'run', label: 'Run now' }]),

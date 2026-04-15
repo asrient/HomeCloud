@@ -2,8 +2,8 @@ import { FilesService } from "shared/filesService";
 import LocalFsDriver from "./fs";
 import path from "path";
 import fs from "fs/promises";
+import { constants } from "fs";
 import { getServiceController } from "shared/utils";
-import { FileFilter, RemoteItem } from "shared/types";
 
 const DEFAULT_PINS_KEY = "defaultPinsAdded";
 
@@ -87,7 +87,7 @@ export default class NodeFilesService extends FilesService {
       // Deduplicate filename
       while (true) {
         try {
-          await fs.access(filePath, fs.constants.F_OK);
+          await fs.access(filePath, constants.F_OK);
           const ext = path.extname(fileName);
           const base = path.basename(fileName, ext);
           filePath = path.join(localDir, `${base} (${counter})${ext}`);

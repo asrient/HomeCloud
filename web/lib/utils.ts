@@ -284,6 +284,7 @@ export function formatFileSize(bytes: number | null | undefined): string {
 export function formatDate(dateStr?: string | null) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '';
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60000);

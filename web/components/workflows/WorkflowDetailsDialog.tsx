@@ -57,11 +57,11 @@ export function WorkflowDetailsDialog({
         if (!workflow) return;
         try {
             const sc = getLocalServiceController();
-            await sc.system.openFile(workflow.scriptPath);
+            await sc.files.openFile(fingerprint, workflow.scriptPath);
         } catch (err: any) {
             console.error('Failed to open script:', err);
         }
-    }, [workflow]);
+    }, [workflow, fingerprint]);
 
     if (!workflow) return null;
 

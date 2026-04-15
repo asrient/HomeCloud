@@ -4,7 +4,7 @@ import { serviceStartMethod, serviceStopMethod } from "shared/servicePrimatives"
 import { Buffer } from "buffer";
 
 export default abstract class NodeThumbService extends ThumbService {
-  private generator: ThumbGenerator;
+  private generator: ThumbGenerator | null = null;
 
   abstract createGenerator(): ThumbGenerator | null;
 
