@@ -7,7 +7,7 @@ services:
       - "7736:7736/tcp"
       - "7736:7736/udp"
     volumes:
-      - ${HC_DATA_PATH:-~/HomeCloud}:/data
+      - ${HC_DATA_PATH:-${HOME}/HomeCloud}:/data
     environment:
       - HC_DATA_DIR=/data
       - HC_CACHE_DIR=/tmp/hcServerCache
