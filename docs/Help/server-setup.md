@@ -1,23 +1,20 @@
 # Server Setup
 
-Run HomeCloud as a headless server — access your files, photos, and devices from anywhere without needing a desktop or mobile app running.
+Run HomeCloud as a headless server: access your files, photos, and devices from anywhere.
 
 ## What is HomeCloud Server?
 
 HomeCloud Server runs as a headless peer on your network. Once linked to your account, your other HomeCloud devices (desktop app, mobile app) can:
 
-- Browse and transfer files
-- Access photos
-- Control media playback
-- Share clipboard
-- Use the terminal remotely
-
-All connections are peer-to-peer — your data never passes through a cloud server.
+- Browse and store files.
+- Backup your photos to the server.
+- Use the terminal remotely.
+- Run automations and AI agents in background.
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 18 or later (for npx usage), **or** [Docker](https://www.docker.com/)
-- A HomeCloud account (sign up through the desktop or mobile app)
+- [Node.js](https://nodejs.org/) 20 or later (for npx usage), **or** [Docker](https://www.docker.com/).
+- A HomeCloud account (sign up through the desktop or mobile app).
 
 ## Step 1: Generate Credentials
 
@@ -27,7 +24,7 @@ Before running the server, you need to link it to your HomeCloud account. Run th
 npx @asrient/create-homecloud-creds
 ```
 
-This will walk you through signing in and produce a `creds.json` file. Keep this file safe — it contains the keys that identify your server to your account.
+This will walk you through signing in and produce a `creds.json` file. Keep this file safe, it contains the keys that identify your server to your account.
 
 ## Step 2: Run the Server
 
@@ -85,7 +82,7 @@ All options can be passed as CLI arguments or environment variables. CLI argumen
 
 ## Ports
 
-- **7736/tcp** — P2P connections and local network discovery
+- **7736/tcp**: P2P connections and local network discovery
 
 Make sure this port is accessible if you want other devices on your local network to discover the server automatically.
 
@@ -97,11 +94,11 @@ Make sure this port is accessible if you want other devices on your local networ
 - If using Docker, make sure you're using `--network host`.
 
 **Can I run the server on a Raspberry Pi?**
-- Yes. As long as Node.js 18+ is available, the server runs on any platform including ARM devices like Raspberry Pi.
+- Yes. As long as Node.js 20+ is available, the server runs on any platform including ARM devices like Raspberry Pi.
 
 **How do I update the server?**
 - If using npx, it pulls the latest version automatically. You can also run `npx @asrient/homecloud-server@latest` to be explicit.
 - If using Docker, pull the latest image: `docker pull asrient/homecloud-server` and recreate the container.
 
 **Is the server always reachable remotely?**
-- Yes, as long as the server is online and signed into your account, your other devices can reach it over the internet using peer-to-peer connections — even across different networks.
+- Yes, as long as the server is online and signed into your account, your other devices can reach it over the internet using peer-to-peer connections even across different networks.

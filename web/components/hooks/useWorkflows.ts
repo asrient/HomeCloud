@@ -9,7 +9,7 @@ import ServiceController from 'shared/controller';
 import { SignalNodeRef } from 'shared/signals';
 import { useResource } from './useResource';
 import { SignalEvent } from '@/lib/enums';
-import { isServiceAvailable } from '@/lib/utils';
+import { isMethodAvailable } from '@/lib/utils';
 
 // ── useWorkflowsAvailable ────────────────────────────────────────────────────
 
@@ -17,9 +17,15 @@ export function useWorkflowsAvailable(deviceFingerprint: string | null) {
     const [available, setAvailable] = useState<boolean | null>(null);
 
     const load = useCallback(async (sc: ServiceController, shouldAbort: () => boolean) => {
-        const result = await isServiceAvailable(sc, 'workflow.listWorkflows');
+        const result = await isMethodAvailable(sc, 'workflow.isAvailable');
         if (shouldAbort()) return;
-        setAvailable(result);
+        if (!result) {
+            setAvailable(false);
+            return;
+        }
+        const isSupported = await sc.workflow.isAvailable();
+        if (shouldAbort()) return;
+        setAvailable(isSupported);
     }, []);
 
     const { isLoading } = useResource({ deviceFingerprint, load });

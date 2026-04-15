@@ -8,7 +8,7 @@ import { helpLinks, HelpLinkType } from "./helpLinks";
 const USER_PREF_PREFIX = 'upref.';
 
 export class AppService extends Service {
-    static serviceDescription = 'Device pairing, peer discovery, and user preferences.';
+    static serviceDescription = 'Paired devices, available capabilities.';
 
     protected store: ConfigStorage;
     protected allowPairing: boolean = true;

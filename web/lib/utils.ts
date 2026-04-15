@@ -86,7 +86,7 @@ export function printFingerprint(fingerprint: string, full = false) {
 /**
  * Check if a service method is available on a service controller.
  */
-export async function isServiceAvailable(sc: ServiceController, path: string): Promise<boolean> {
+export async function isMethodAvailable(sc: ServiceController, path: string): Promise<boolean> {
   try {
     return await sc.app.isMethodAvailable(path);
   } catch {

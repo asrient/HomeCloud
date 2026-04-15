@@ -141,7 +141,7 @@ function getParsedServices(): ParsedServiceEntry[] {
 // --- Internal doc builders ---
 
 const HEADER_LINES = [
-    'HomeCloud is a remote-control and automation platform for user devices and AI harnesses.',
+    'HomeCloud is a remote-control and automation platform for user devices.',
     'Scripts have access to Node.js APIs (cjs) and a set of special APIs.',
     '- exit(success: boolean, message?: string) - End the script with a result, always call this when done.',
     '',
@@ -156,7 +156,7 @@ const HEADER_LINES = [
     ' - setSecret(key: string, value: string): Promise<void> - Store a secret',
     '',
     'Device APIs using a service controller:',
-    ' - const local = getServiceController(null);         // this device',
+    ' - const local = getServiceController(null); // this device',
     ' - const remote = getServiceController(fingerprint); // remote paired device',
     ' - Then call methods directly:',
     ' - const items = await remote.files.fs.readDir("/path");',
@@ -164,7 +164,7 @@ const HEADER_LINES = [
 ];
 
 // Schemas referenced in the header text — resolving them populates the types map
-const HEADER_SCHEMAS: SimpleSchema[] = [WorkflowConfigSchema, WorkflowTriggerSchema, PeerInfoSchema];
+const HEADER_SCHEMAS: SimpleSchema[] = [PeerInfoSchema];
 
 function getHeaderDoc(types: Map<string, string>): string {
     for (const s of HEADER_SCHEMAS) schemaToTs(s, types);
@@ -197,7 +197,8 @@ export function getFullDocMd(): string {
 export function getMcpHeaderDocMd(): string {
     const types = new Map<string, string>();
     let md = `${getHeaderDoc(types)}\n\n`;
-    md += `Use the get_api_doc tool to fetch detailed method signatures for a specific service.\n`;
+    md += `Use get_api_doc tool for specific service details.\n`;
+    md += `Services: ${getServiceNames().join(', ')}\n\n`;
     md += typesToMarkdown(types);
     return md;
 }

@@ -32,7 +32,7 @@ type PendingPermission = {
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export class AgentService extends Service {
-    static serviceDescription = 'AI agent chat sessions and configuration.';
+    static serviceDescription = "Chat with the on-device AI agent";
 
     protected store: ConfigStorage;
     private pendingPermissions = new Map<string, PendingPermission>();

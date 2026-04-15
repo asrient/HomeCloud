@@ -30,7 +30,7 @@ import {
 } from './types';
 
 export class WorkflowService extends Service {
-    static serviceDescription = 'Workflow automation — create, run, schedule, and manage scripts.';
+    static serviceDescription = 'Automations — create, run, schedule, and manage scripts.';
 
     public executionStartSignal = new Signal<[WorkflowExecution]>({ isExposed: true, isAllowAll: false });
     public executionEndSignal = new Signal<[WorkflowExecution]>({ isExposed: true, isAllowAll: false });
@@ -58,7 +58,10 @@ export class WorkflowService extends Service {
 
     // --- Exposed methods (final — do not override) ---
 
-    @exposed @info("Check if workflow engine is available") @output(Sch.Boolean)
+    @exposed 
+    @info("Check if workflow engine is available") 
+    @wfApi
+    @output(Sch.Boolean)
     public async isAvailable(): Promise<boolean> { return this._isAvailable(); }
 
     @exposed @info("List all workflow configurations") @input(Sch.Name('params', Sch.Optional(ListWorkflowsParamsSchema))) @output(Sch.Array(WorkflowConfigSchema))

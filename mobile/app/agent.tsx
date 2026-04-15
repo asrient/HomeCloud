@@ -76,7 +76,6 @@ export default function AgentScreen() {
 
     const { config, status } = useAgentConfig(deviceFingerprint);
     const { chats, isLoading, newChat } = useChatList(deviceFingerprint);
-    const isReady = status.connectionStatus === 'ready';
 
     const title = config?.name ?? 'Agent';
 

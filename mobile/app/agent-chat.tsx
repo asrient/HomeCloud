@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     View, StyleSheet, Keyboard, TextInput, Modal, FlatList,
-    Platform, ActivityIndicator, Linking,
+    Platform, ActivityIndicator, Linking, LayoutChangeEvent,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -75,6 +75,7 @@ function MessageBubble({ message, onSelectText }: { message: AgentMessage; onSel
     const textColor = useThemeColor({}, 'text');
     const codeBgColor = useThemeColor({}, 'backgroundSecondary');
     const linkColor = useThemeColor({}, 'highlight');
+    const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
     const textContent = message.content
         ?.filter((b): b is Extract<AgentContentBlock, { type: 'text' }> => b.type === 'text')
@@ -87,15 +88,17 @@ function MessageBubble({ message, onSelectText }: { message: AgentMessage; onSel
         code_inline: { backgroundColor: codeBgColor, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 8, fontSize: 14 },
         fence: { backgroundColor: codeBgColor, padding: 10, borderRadius: 8, fontSize: 14, marginVertical: 6 },
         code_block: { backgroundColor: codeBgColor, padding: 10, borderRadius: 12, fontSize: 14 },
+        blockquote: { backgroundColor: codeBgColor, borderColor: secondaryTextColor, borderLeftWidth: 3, paddingHorizontal: 12, paddingVertical: 4, marginVertical: 6, borderRadius: 4 },
         heading1: { fontSize: 22, fontWeight: '700' as const, lineHeight: 28, marginTop: 8, marginBottom: 4, color: textColor },
         heading2: { fontSize: 18, fontWeight: '600' as const, lineHeight: 26, marginTop: 6, marginBottom: 4, color: textColor },
         heading3: { fontSize: 16, fontWeight: '600' as const, lineHeight: 24, marginTop: 4, marginBottom: 2, color: textColor },
         link: { color: linkColor },
         list_item: { marginVertical: 2 },
+        hr: { backgroundColor: secondaryTextColor },
         table: { borderColor: codeBgColor },
         tr: { borderBottomColor: codeBgColor },
-        th: { padding: 6, fontWeight: '600' as const },
-        td: { padding: 6 },
+        th: { padding: 6, fontWeight: '600' as const, color: textColor },
+        td: { padding: 6, color: textColor },
     };
 
     return (
@@ -209,40 +212,66 @@ export default function AgentChatScreen() {
     const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [selectText, setSelectText] = useState<string | null>(null);
 
+    // Scroll tracking: use content size and layout to reliably scroll to end
+    const contentHeightRef = useRef(0);
+    const layoutHeightRef = useRef(0);
+    const isNearBottomRef = useRef(true);
+
+    const scrollToEnd = useCallback((animated = false) => {
+        const offset = contentHeightRef.current - layoutHeightRef.current;
+        if (offset > 0) {
+            listRef.current?.scrollToOffset({ offset, animated });
+        }
+    }, []);
+
+    const handleContentSizeChange = useCallback((_w: number, h: number) => {
+        contentHeightRef.current = h;
+        if (isNearBottomRef.current) {
+            scrollToEnd();
+        }
+    }, [scrollToEnd]);
+
+    const handleLayout = useCallback((e: LayoutChangeEvent) => {
+        layoutHeightRef.current = e.nativeEvent.layout.height;
+    }, []);
+
+    const handleScroll = useCallback((e: any) => {
+        const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+        const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+        isNearBottomRef.current = distanceFromBottom < 100;
+    }, []);
+
     // Track keyboard height
     useEffect(() => {
         const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
         const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
         const showSub = Keyboard.addListener(showEvent, (e) => {
             setKeyboardHeight(e.endCoordinates.height);
-            setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+            setTimeout(() => scrollToEnd(true), 100);
         });
         const hideSub = Keyboard.addListener(hideEvent, () => {
             setKeyboardHeight(0);
         });
         return () => { showSub.remove(); hideSub.remove(); };
-    }, []);
+    }, [scrollToEnd]);
 
-    // Scroll to end on load and during streaming
+    // Scroll to end on initial load
     const hasScrolledRef = useRef(false);
     useEffect(() => {
-        if (messages.length > 0 && !isLoading) {
-            if (!hasScrolledRef.current) {
-                hasScrolledRef.current = true;
-                setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 200);
-            } else if (status === 'working') {
-                listRef.current?.scrollToEnd({ animated: false });
-            }
+        if (messages.length > 0 && !isLoading && !hasScrolledRef.current) {
+            hasScrolledRef.current = true;
+            setTimeout(() => scrollToEnd(), 200);
         }
-    }, [messages, isLoading, status]);
+    }, [messages, isLoading, scrollToEnd]);
 
     const handleSend = useCallback(() => {
         const text = input.trim();
         if (!text || status === 'working') return;
         setInput('');
         sendMessage(text);
-        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 200);
-    }, [input, status, sendMessage]);
+        isNearBottomRef.current = true;
+        setTimeout(() => scrollToEnd(true), 200);
+    }, [input, status, sendMessage, scrollToEnd]);
 
     const title = chatInfo?.title || 'Chat';
     const bottomPadding = keyboardHeight > 0 ? keyboardHeight : insets.bottom;
@@ -286,6 +315,10 @@ export default function AgentChatScreen() {
                 keyExtractor={(_, i) => String(i)}
                 renderItem={({ item }) => <MessageBubble message={item} onSelectText={setSelectText} />}
                 contentContainerStyle={{ paddingHorizontal: 14, paddingTop: isGlassEnabled ? headerHeight : 8, paddingBottom: 8 }}
+                onContentSizeChange={handleContentSizeChange}
+                onLayout={handleLayout}
+                onScroll={handleScroll}
+                scrollEventThrottle={64}
                 ListEmptyComponent={
                     isLoading ? (
                         <View style={styles.emptyContainer}><ActivityIndicator /></View>

@@ -1,6 +1,6 @@
 # AI Agent
 
-HomeCloud can connect to an AI coding assistant and let it interact with your devices. Chat with the agent, give it tasks, and let it use HomeCloud's tools to automate work across your devices.
+HomeCloud can connect to an AI assistant and let it interact with your devices. Chat with the agent, give it tasks, and let it use HomeCloud's tools to automate work across your devices.
 
 ## Setting Up an Agent
 
@@ -9,15 +9,7 @@ HomeCloud can connect to an AI coding assistant and let it interact with your de
 
 ### Presets
 
-HomeCloud includes presets for popular AI assistants:
-
-| Agent | Command | Arguments |
-|-------|---------|-----------|
-| GitHub Copilot | `copilot` | `--acp` |
-| Claude Code | `npx` | `-y @anthropic-ai/claude-code --acp` |
-| Gemini CLI | `npx` | `-y @anthropic-ai/claude-code --acp` |
-| Codex CLI | `npx` | `-y @openai/codex --acp` |
-| Augment Code | `npx` | `-y @anthropic-ai/claude-code --acp` |
+HomeCloud includes presets for popular AI assistants including GitHub Copilot, Claude Code, Gemini CLI, Codex CLI.
 
 ### Custom Configuration
 
@@ -29,7 +21,7 @@ HomeCloud includes presets for popular AI assistants:
 | Environment variables | Optional key-value pairs passed to the agent process |
 | Provide workflow tools | Give the agent access to HomeCloud via the [MCP server](mcp-server) |
 
-The agent must support the **ACP (Agent Communication Protocol)** — a JSON-RPC 2.0 protocol over stdio.
+The agent must support the **ACP (Agent Communication Protocol)** - a JSON-RPC 2.0 protocol over stdio.
 
 ## Using the Agent
 
@@ -38,20 +30,9 @@ The agent must support the **ACP (Agent Communication Protocol)** — a JSON-RPC
 1. Go to the **Agent** page.
 2. Click **New Chat**.
 3. Choose a working directory for the chat session.
-4. Start typing your request.
+4. Start the conversation.
 
-Each chat is an independent session with its own context and working directory.
-
-### Chat Interface
-
-The chat view shows:
-
-- **Messages** — Your prompts and the agent's responses (with markdown support)
-- **Thoughts** — The agent's internal reasoning (when provided)
-- **Tool calls** — Actions the agent is taking, with status indicators
-- **Plans** — Step-by-step plans the agent generates
-
-You can cancel an in-progress response at any time.
+Each chat is an independent session that keeps running in the background even when the chat window is closed.
 
 ### Chat Status
 
@@ -65,17 +46,6 @@ Chats are organized by status:
 | Error | Something went wrong |
 
 On the web, chats are displayed in a kanban board layout grouped by these statuses.
-
-### Permissions
-
-When the agent wants to perform a sensitive operation, it will ask for your permission. You'll see a prompt with options:
-
-- **Allow once** — Permit this specific action
-- **Allow always** — Permit this type of action going forward
-- **Reject once** — Deny this specific action
-- **Reject always** — Always deny this type of action
-
-The agent pauses and waits for your decision before proceeding.
 
 ## Workflow Tools
 
@@ -97,8 +67,7 @@ Some agents expose configuration options (like model selection or operation mode
 
 The AI agent feature is available on:
 
-- **Desktop** (macOS, Windows, Linux)
-- **Web** interface
+- **Desktop** (macOS, Windows)
 - **Mobile** (iOS, Android)
 
-The agent process runs on the device where HomeCloud is installed. Mobile and web clients connect to the agent through HomeCloud's service layer.
+The agent process runs on the device where HomeCloud is installed. Mobile and desktop clients connect to the agent through HomeCloud's service layer.

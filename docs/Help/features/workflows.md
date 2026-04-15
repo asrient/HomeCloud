@@ -1,26 +1,24 @@
 # Workflows
 
-Workflows let you automate tasks on your HomeCloud devices using JavaScript. Create scripts that read files, control devices, and run on a schedule — all without writing a full application.
+Workflows let you automate tasks on your HomeCloud devices using JavaScript. Create scripts that read files, control devices, and run on a schedule or anytime manually.
 
 ## Creating a Workflow
 
 1. Go to the **Workflows** page.
-2. Click **New Workflow**.
+2. Click **New Workflow** button.
 3. Enter a name and choose where to save the script.
 4. HomeCloud creates a starter script you can edit right away.
 
-Each workflow is a JavaScript file that runs in an isolated environment with access to HomeCloud's device APIs.
+Each workflow is a JavaScript file that runs in an isolated environment with access to all HomeCloud's device APIs.
 
 ## Editing a Workflow
 
-Click a workflow card to open its settings. You can configure:
+You can configure:
 
-- **Name & description**
-- **Color** — A visual label (red, green, blue, yellow, purple, cyan)
-- **Enabled/disabled** — Disable a workflow without deleting it
-- **Max execution time** — From 30 seconds up to 3 hours (default: 5 minutes)
-- **Input fields** — Define parameters that are prompted when running the workflow
-- **Triggers** — Set up automatic schedules
+- **Enabled/disabled** — Disable a workflow without deleting it, any trigger for the workflow will be paused.
+- **Max execution time** — After this the script run will be stopped and status will be set as timeout.
+- **Input fields** — Define parameters that are prompted when running the workflow, provided values can be accessed in the script.
+- **Triggers** — Set up automatic schedules to run the script.
 
 ## Input Fields
 
@@ -57,7 +55,7 @@ A workflow can have multiple triggers, and the same trigger can be shared across
 
 ### Via AI Agent
 
-If you have the [MCP server](mcp-server) enabled and an AI agent configured, the agent can execute workflow scripts on your behalf.
+If you have the [MCP server](mcp-server) enabled and an AI agent configured, the agent can create and execute workflow scripts on your behalf.
 
 ## Writing Scripts
 
@@ -86,15 +84,14 @@ Always call `exit()` to complete the workflow. If omitted, the script will run u
 ### Device APIs
 
 ```javascript
-const sc = await getServiceController();       // Local device
+const sc = await getServiceController(); // Local device
 const sc = await getServiceController('abc123'); // Remote device by fingerprint
 ```
 
-The service controller gives access to:
+The service controller gives access to various services like:
 
 - **Files** — `sc.files.fs.readDir()`, `sc.files.fs.readFile()`, etc.
-- **System** — `sc.system.deviceInfo()`, storage info, and more
-- **Workflows** — Create, update, and manage other workflows
+- **System** — `sc.system.deviceInfo()`, storage info, and more.
 
 ### Secrets
 
@@ -120,8 +117,6 @@ Each workflow keeps a history of its recent runs (up to 20). For each execution 
 
 View execution history by clicking on a workflow card and opening its details.
 
-## Storage
+## Scripts
 
-- **Scripts** are saved where you choose (typically `~/Workflows/[name]/workflow.js`)
-- **Logs** are stored in `Workflows/Logs/`
-- **Configuration and execution history** are kept in a local SQLite database
+**Scripts** are saved as regular js files where you choose (typically `~/Workflows/[name]/workflow.js`).

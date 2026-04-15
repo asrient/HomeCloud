@@ -1,5 +1,5 @@
 import { PeerInfo } from "shared/types";
-import { Bento, BentoGroup } from "./bento";
+import { Bento } from "./bento";
 import { UIText } from "./ui/UIText";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useBatteryInfo, useClipboard, useMediaPlayback, useScreenLock, useVolume } from "@/hooks/useSystemState";
@@ -407,14 +407,14 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                     },
                     {
                         type: 'small',
-                        icon: 'bolt.fill',
+                        icon: 'command',
                         isCircular: true,
                         disabled: !workflowsAvailable,
                         onPress: () => onNavigate(`/device/${routeFingerprint}/workflows`),
                     },
                     {
                         type: 'small',
-                        icon: 'bubble.left.and.text.bubble.right.fill',
+                        icon: 'sparkles.2',
                         isCircular: true,
                         disabled: !agentConfig,
                         onPress: () => onNavigate(`/agent?fingerprint=${routeFingerprint}`),

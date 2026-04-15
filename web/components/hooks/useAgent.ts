@@ -7,7 +7,7 @@ import {
 import ServiceController from 'shared/controller';
 import { SignalNodeRef } from 'shared/signals';
 import { useResource } from './useResource';
-import { isServiceAvailable } from '@/lib/utils';
+import { isMethodAvailable } from '@/lib/utils';
 
 // ── useAgentAvailable ───────────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ export function useAgentAvailable(deviceFingerprint: string | null) {
     const [available, setAvailable] = useState<boolean | null>(null);
 
     const load = useCallback(async (sc: ServiceController, shouldAbort: () => boolean) => {
-        const result = await isServiceAvailable(sc, 'agent.getAgentConfig');
+        const result = await isMethodAvailable(sc, 'agent.getAgentConfig');
         if (shouldAbort()) return;
         setAvailable(result);
     }, []);
