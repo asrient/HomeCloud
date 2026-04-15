@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, ScrollView } from 'react-native';
 import { WorkflowConfig, WorkflowInputField, WorkflowInputs } from 'shared/types';
-import { UIText } from './ui/UIText';
 import { UITextInput } from './ui/UITextInput';
 import { UIButton } from './ui/UIButton';
+import { UIPageSheet } from './ui/UIPageSheet';
 import { Section, Line, FormContainer } from './ui/UIFormPrimatives';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function buildDefaults(fields: WorkflowInputField[]): WorkflowInputs {
     const inputs: WorkflowInputs = {};
@@ -72,8 +70,6 @@ export function RunWorkflowModal({
     onRun: (inputs: WorkflowInputs) => void;
 }) {
     const [inputs, setInputs] = useState<WorkflowInputs>({});
-    const bgColor = useThemeColor({}, 'background');
-    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         if (workflow && visible) {
@@ -100,55 +96,37 @@ export function RunWorkflowModal({
     });
 
     return (
-        <Modal
-            visible={visible}
-            animationType="slide"
-            presentationStyle="pageSheet"
-            onRequestClose={onClose}>
-            <KeyboardAvoidingView
-                style={[styles.container, { backgroundColor: bgColor }]}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 44 : 0}>
-                <View style={styles.header}>
-                    <UIButton type="secondary" icon="xmark" onPress={onClose} themeColor="text" />
-                    <UIText size="md" font="semibold" numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
-                        {workflow.name}
-                    </UIText>
-                    <UIButton type="secondary" icon="checkmark" onPress={handleRun} disabled={!canRun} themeColor="highlight" />
-                </View>
-                <ScrollView
-                    style={{ flex: 1 }}
-                    keyboardShouldPersistTaps="handled"
-                    contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
-                >
-                    <FormContainer>
-                        <Section title="Run Parameters">
-                            {fields.map(field => (
-                                <InputRow
-                                    key={field.name}
-                                    field={field}
-                                    value={inputs[field.name]}
-                                    onChange={v => setValue(field.name, v)}
-                                />
-                            ))}
-                        </Section>
-                    </FormContainer>
-                </ScrollView>
-            </KeyboardAvoidingView>
-        </Modal>
+        <UIPageSheet
+            isOpen={visible}
+            onClose={onClose}
+            title={workflow.name}
+            headerButtons={
+                <UIButton type="secondary" icon="checkmark" onPress={handleRun} disabled={!canRun} themeColor="highlight" />
+            }
+        >
+            <ScrollView
+                style={{ flex: 1 }}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 20 }}
+            >
+                <FormContainer>
+                    <Section title="Run Parameters">
+                        {fields.map(field => (
+                            <InputRow
+                                key={field.name}
+                                field={field}
+                                value={inputs[field.name]}
+                                onChange={v => setValue(field.name, v)}
+                            />
+                        ))}
+                    </Section>
+                </FormContainer>
+            </ScrollView>
+        </UIPageSheet>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 8,
-    },
     lineInput: {
         flex: 2/3,
         textAlign: 'right',

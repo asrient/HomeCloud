@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent, RefreshControl } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -11,8 +11,10 @@ import { workflowColorMap, defaultWorkflowColor } from '@/components/WorkflowCar
 import { useWorkflowDetail } from '@/hooks/useWorkflows';
 import { useWorkflowActions } from '@/hooks/useWorkflowActions';
 import { useManagedLoading } from '@/hooks/useManagedLoading';
-import { cronToHuman, getBottomPadding, getLocalServiceController } from '@/lib/utils';
+import { cronToHuman, getBottomPadding, getLocalServiceController, isGlassEnabled } from '@/lib/utils';
+import { useRefresh } from '@/hooks/useRefresh';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { UIView } from '@/components/ui/UIView';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -172,10 +174,18 @@ export default function WorkflowDetailScreen() {
     const deviceFingerprint = fingerprint === 'local' ? null : fingerprint;
     const workflowId = id || null;
 
-    const { config, executions, triggers, isLoading } = useWorkflowDetail(deviceFingerprint, workflowId);
+    const { config, executions, triggers, isLoading, reload } = useWorkflowDetail(deviceFingerprint, workflowId);
+    const { refreshing, onRefresh } = useRefresh(reload, isLoading);
     const { handleRun, handleViewScript, runModalProps } = useWorkflowActions(deviceFingerprint);
 
     const bg = config?.color ? workflowColorMap[config.color] : defaultWorkflowColor;
+    const [scrolledPastHeader, setScrolledPastHeader] = useState(false);
+
+    const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        // Show header background once scrolled past the colored area
+        const pastHeader = e.nativeEvent.contentOffset.y > headerHeight + 60;
+        setScrolledPastHeader(prev => prev !== pastHeader ? pastHeader : prev);
+    }, [headerHeight]);
 
     const triggerLabel = triggers.length > 0
         ? triggers.map(t => cronToHuman(t.data)).join(', ')
@@ -185,16 +195,23 @@ export default function WorkflowDetailScreen() {
         <View style={{ flex: 1 }}>
             <Stack.Screen
                 options={{
-                    title: '',
+                    title: scrolledPastHeader ? (config?.name || 'Workflow') : '',
                     headerBackButtonDisplayMode: 'minimal',
                     headerTransparent: true,
-                    headerTintColor: '#ffffff',
+                    headerTintColor: scrolledPastHeader ? undefined : '#ffffff',
+                    headerBackground: scrolledPastHeader && !isGlassEnabled
+                        ? () => <UIView useGlass themeColor="background" style={{ flex: 1 }} />
+                        : undefined,
                 }}
             />
             <ScrollView
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingBottom: bottomPadding + 40 }}
-                refreshControl={undefined}
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
             >
                 {/* Overscroll color extension */}
                 <View style={{ backgroundColor: bg, height: 500, position: 'absolute', top: -500, left: 0, right: 0 }} />

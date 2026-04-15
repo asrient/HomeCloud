@@ -56,7 +56,7 @@ export default function FolderScreen() {
     deviceFingerprint: fingerprint,
   }), [fingerprint]);
 
-  const { remoteItems, isLoading, error, setRemoteItems } = useFolder<FileRemoteItem>(fingerprint, path, mapper);
+  const { remoteItems, isLoading, error, setRemoteItems, reload } = useFolder<FileRemoteItem>(fingerprint, path, mapper);
 
   useEffect(() => {
     setSelectMode(false);
@@ -342,6 +342,7 @@ export default function FolderScreen() {
           items={remoteItems}
           isLoading={isLoading}
           error={error}
+          onRefresh={reload}
           footerComponent={
             <View style={{ paddingHorizontal: 10, paddingVertical: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 120 }}>
               <UIText size="sm" color='textSecondary'>
