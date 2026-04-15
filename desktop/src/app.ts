@@ -24,8 +24,46 @@ const isDev = !!env && env.NODE_ENV === 'development';
 
 const cryptoModule = new CryptoImpl();
 
+class KeychainAccessDeniedError extends Error {
+  constructor() {
+    super('Access to the system keychain was denied. HomeCloud needs keychain access to read encrypted keys. Please allow HomeCloud in system keychain/security settings, then restart the app.');
+    this.name = 'KeychainAccessDeniedError';
+  }
+}
+
 export function isDevMode() {
   return isDev;
+}
+
+function isSafeStorageUnavailableError(error: unknown): boolean {
+  if (error instanceof Error
+    && (error.message.includes('Decryption is not available')
+      || error.message.includes('Encryption is not available'))) {
+    return true;
+  }
+  return !safeStorage.isEncryptionAvailable();
+}
+
+function encryptForStorage(data: string): Buffer {
+  try {
+    return safeStorage.encryptString(data);
+  } catch (error) {
+    if (isSafeStorageUnavailableError(error)) {
+      throw new KeychainAccessDeniedError();
+    }
+    throw error;
+  }
+}
+
+function decryptFromStorage(data: Buffer): string {
+  try {
+    return safeStorage.decryptString(data);
+  } catch (error) {
+    if (isSafeStorageUnavailableError(error)) {
+      throw new KeychainAccessDeniedError();
+    }
+    throw error;
+  }
 }
 
 function createOrGetSecretKey(dataDir: string) {
@@ -33,15 +71,14 @@ function createOrGetSecretKey(dataDir: string) {
   if (!fs.existsSync(secretKeyPath)) {
     console.log("[App] Secret key not found. Creating a new one.");
     const secretKey = cryptoModule.generateRandomKey();
-    const encrypted = safeStorage.encryptString(secretKey);
+    const encrypted = encryptForStorage(secretKey);
     fs.mkdirSync(path.dirname(secretKeyPath), { recursive: true });
     fs.writeFileSync(secretKeyPath, encrypted);
     console.log("[App] Secret key created.");
     return secretKey;
   }
   const text = fs.readFileSync(secretKeyPath);
-  const decrypted = safeStorage.decryptString(text);
-  return decrypted;
+  return decryptFromStorage(text);
 }
 
 async function getOrGenerateKeys(dataDir: string) {
@@ -50,8 +87,8 @@ async function getOrGenerateKeys(dataDir: string) {
   if (!fs.existsSync(privateKeyPath) || !fs.existsSync(publicKeyPath)) {
     console.log("[App] Key pair not found. Generating a new one.");
     const { privateKey, publicKey } = await cryptoModule.generateKeyPair();
-    const privateKeyEncrypted = safeStorage.encryptString(privateKey);
-    const publicKeyEncrypted = safeStorage.encryptString(publicKey);
+    const privateKeyEncrypted = encryptForStorage(privateKey);
+    const publicKeyEncrypted = encryptForStorage(publicKey);
     fs.writeFileSync(privateKeyPath, privateKeyEncrypted);
     fs.writeFileSync(publicKeyPath, publicKeyEncrypted);
     console.log("[App] Key pair generated.");
@@ -59,8 +96,8 @@ async function getOrGenerateKeys(dataDir: string) {
   }
   const privateKeyText = fs.readFileSync(privateKeyPath);
   const publicKeyText = fs.readFileSync(publicKeyPath);
-  const privateKey = safeStorage.decryptString(privateKeyText);
-  const publicKey = safeStorage.decryptString(publicKeyText);
+  const privateKey = decryptFromStorage(privateKeyText);
+  const publicKey = decryptFromStorage(publicKeyText);
   return {
     privateKeyPem: privateKey,
     publicKeyPem: publicKey,
@@ -221,6 +258,17 @@ export function initApp(getDidAppCrash: () => boolean) {
     try {
       await startApp();
     } catch (error) {
+      if (error instanceof KeychainAccessDeniedError) {
+        dialog.showMessageBoxSync({
+          type: 'error',
+          title: app.getName(),
+          message: 'Keychain access is required',
+          detail: error.message,
+          buttons: ['OK'],
+        });
+        app.quit();
+        return;
+      }
       console.error('[App] Error during app initialization:', error);
       showCrashDialogAndQuit(error instanceof Error ? error : new Error(String(error)));
     }
