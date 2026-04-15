@@ -164,6 +164,7 @@ export class AppService extends Service {
         }
     }
 
+    @exposed
     @wfApi
     @info("Get the list of paired devices.")
     @output(Sch.Array(PeerInfoSchema))
