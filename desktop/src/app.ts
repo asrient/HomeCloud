@@ -23,29 +23,47 @@ import { getDeviceName } from 'nodeShared/deviceInfo';
 const isDev = !!env && env.NODE_ENV === 'development';
 
 const cryptoModule = new CryptoImpl();
-const UNENCRYPTED_PREFIX = 'plaintext:';
+
+class KeychainAccessDeniedError extends Error {
+  constructor() {
+    super('Access to the system keychain was denied. HomeCloud needs keychain access to read encrypted keys. Please allow HomeCloud in system keychain/security settings, then restart the app.');
+    this.name = 'KeychainAccessDeniedError';
+  }
+}
 
 export function isDevMode() {
   return isDev;
 }
 
+function isSafeStorageUnavailableError(error: unknown): boolean {
+  if (error instanceof Error
+    && (error.message.includes('Decryption is not available')
+      || error.message.includes('Encryption is not available'))) {
+    return true;
+  }
+  return !safeStorage.isEncryptionAvailable();
+}
+
 function encryptForStorage(data: string): Buffer {
   try {
-    if (safeStorage.isEncryptionAvailable()) {
-      return safeStorage.encryptString(data);
-    }
+    return safeStorage.encryptString(data);
   } catch (error) {
-    console.warn('[App] Failed to encrypt value with safeStorage. Falling back to plaintext storage.', error);
+    if (isSafeStorageUnavailableError(error)) {
+      throw new KeychainAccessDeniedError();
+    }
+    throw error;
   }
-  return Buffer.from(`${UNENCRYPTED_PREFIX}${data}`, 'utf8');
 }
 
 function decryptFromStorage(data: Buffer): string {
-  const text = data.toString('utf8');
-  if (text.startsWith(UNENCRYPTED_PREFIX)) {
-    return text.substring(UNENCRYPTED_PREFIX.length);
+  try {
+    return safeStorage.decryptString(data);
+  } catch (error) {
+    if (isSafeStorageUnavailableError(error)) {
+      throw new KeychainAccessDeniedError();
+    }
+    throw error;
   }
-  return safeStorage.decryptString(data);
 }
 
 function createOrGetSecretKey(dataDir: string) {
@@ -60,15 +78,7 @@ function createOrGetSecretKey(dataDir: string) {
     return secretKey;
   }
   const text = fs.readFileSync(secretKeyPath);
-  try {
-    const decrypted = decryptFromStorage(text);
-    return decrypted;
-  } catch (error) {
-    console.warn('[App] Failed to decrypt secret key. Regenerating a new secret key.', error);
-    const secretKey = cryptoModule.generateRandomKey();
-    fs.writeFileSync(secretKeyPath, encryptForStorage(secretKey));
-    return secretKey;
-  }
+  return decryptFromStorage(text);
 }
 
 async function getOrGenerateKeys(dataDir: string) {
@@ -86,20 +96,12 @@ async function getOrGenerateKeys(dataDir: string) {
   }
   const privateKeyText = fs.readFileSync(privateKeyPath);
   const publicKeyText = fs.readFileSync(publicKeyPath);
-  try {
-    const privateKey = decryptFromStorage(privateKeyText);
-    const publicKey = decryptFromStorage(publicKeyText);
-    return {
-      privateKeyPem: privateKey,
-      publicKeyPem: publicKey,
-    };
-  } catch (error) {
-    console.warn('[App] Failed to decrypt key pair. Regenerating a new key pair.', error);
-    const { privateKey, publicKey } = await cryptoModule.generateKeyPair();
-    fs.writeFileSync(privateKeyPath, encryptForStorage(privateKey));
-    fs.writeFileSync(publicKeyPath, encryptForStorage(publicKey));
-    return { privateKeyPem: privateKey, publicKeyPem: publicKey };
-  }
+  const privateKey = decryptFromStorage(privateKeyText);
+  const publicKey = decryptFromStorage(publicKeyText);
+  return {
+    privateKeyPem: privateKey,
+    publicKeyPem: publicKey,
+  };
 }
 
 async function getConfig() {
@@ -256,6 +258,17 @@ export function initApp(getDidAppCrash: () => boolean) {
     try {
       await startApp();
     } catch (error) {
+      if (error instanceof KeychainAccessDeniedError) {
+        dialog.showMessageBoxSync({
+          type: 'error',
+          title: app.getName(),
+          message: 'Keychain access is required',
+          detail: error.message,
+          buttons: ['OK'],
+        });
+        app.quit();
+        return;
+      }
       console.error('[App] Error during app initialization:', error);
       showCrashDialogAndQuit(error instanceof Error ? error : new Error(String(error)));
     }
