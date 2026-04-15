@@ -8,7 +8,7 @@ import { useAppState } from "@/components/hooks/useAppState";
 import { ChatCard } from "@/components/agent/ChatCard";
 import { ChatDialog } from "@/components/agent/ChatDialog";
 import { NewChatDialog } from "@/components/agent/NewChatDialog";
-import { ChatInfo } from "shared/types";
+import { AgentConfig, AgentStatus, ChatInfo } from "shared/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus } from 'lucide-react';
 
