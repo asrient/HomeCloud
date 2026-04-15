@@ -32,11 +32,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
-
-      - name: Install npm 11
-        run: npm install -g npm@11
 
       - name: Build appShared
         working-directory: ./appShared
