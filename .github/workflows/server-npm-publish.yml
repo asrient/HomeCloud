@@ -35,6 +35,9 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
+      - name: Install npm 11
+        run: npm install -g npm@11
+
       - name: Build appShared
         working-directory: ./appShared
         run: |

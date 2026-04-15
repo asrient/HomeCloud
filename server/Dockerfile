@@ -17,7 +17,7 @@ COPY nodeShared/dist ./nodeShared/dist
 # Copy server package and install deps
 COPY server/package.json server/package-lock.json ./server/
 WORKDIR /app/server
-RUN npm install --production --install-links
+RUN npm install --omit=dev
 
 # Copy built server code
 COPY server/dist ./dist
