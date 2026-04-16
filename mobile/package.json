@@ -1,7 +1,7 @@
 {
   "name": "homecloud",
   "main": "expo-router/entry",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
