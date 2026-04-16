@@ -29,7 +29,7 @@ When this is on, HomeCloud passes the MCP server URL to the agent when creating 
 
 ### Using with External AI Tools
 
-You can also point any MCP-compatible AI tool at the server URL directly. The server uses standard HTTP-based JSON-RPC 2.0, following the MCP 2025-11-25 specification.
+You can also point any MCP-compatible AI tool at the server URL directly.
 
 ## Technical Details
 

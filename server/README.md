@@ -1,8 +1,24 @@
 # @asrient/homecloud-server
 
-Run [HomeCloud](https://github.com/asrient/HomeCloud) as a headless server — access your files, photos, and devices from anywhere without cloud storage.
+Run [HomeCloud](https://github.com/asrient/HomeCloud) as a headless server.
 
 ## Quick Start
+
+Currently we only support Linux. Though it might run on other platforms as well with limited capability we do not currently test or officially support them.
+
+### Prerequisites
+
+On Linux, the server needs a few system packages. On Debian/Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential python3 ffmpegthumbnailer imagemagick
+```
+
+- `build-essential` and `python3` — required to compile the `node-pty` native addon (no prebuilt Linux binary is published).
+- `ffmpegthumbnailer` and/or `imagemagick` — used for generating file thumbnails. If neither is installed, the server still runs but thumbnails will be disabled (a warning is logged). Any one of `ffmpegthumbnailer`, `convert` (ImageMagick), or `gnome-thumbnail-factory` is sufficient.
+
+macOS and Windows users don't need this step — native modules ship with prebuilt binaries and the OS provides thumbnail generation.
 
 ### 1. Generate credentials
 
@@ -77,8 +93,6 @@ HomeCloud Server runs as a headless peer on your network. Once linked to your ac
 - Control media playback
 - Share clipboard
 - Use the terminal remotely
-
-All connections are peer-to-peer — your data never passes through a cloud server.
 
 ## Links
 

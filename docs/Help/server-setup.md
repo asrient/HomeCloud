@@ -1,6 +1,6 @@
 # Server Setup
 
-Run HomeCloud as a headless server: access your files, photos, and devices from anywhere.
+Run HomeCloud as a headless server.
 
 ## What is HomeCloud Server?
 
@@ -13,8 +13,17 @@ HomeCloud Server runs as a headless peer on your network. Once linked to your ac
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 20 or later (for npx usage), **or** [Docker](https://www.docker.com/).
-- A HomeCloud account (sign up through the desktop or mobile app).
+Currently we only support Linux, we do not currently test or officially support other platforms.
+
+The server needs a few system packages. On Debian/Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential python3 ffmpegthumbnailer imagemagick
+```
+
+- `build-essential` and `python3` — required to compile the `node-pty` native addon (no prebuilt Linux binary is published).
+- `ffmpegthumbnailer` and/or `imagemagick` — used for generating file thumbnails. If neither is installed, the server still runs but thumbnails will be disabled (a warning is logged). Any one of `ffmpegthumbnailer`, `convert` (ImageMagick), or `gnome-thumbnail-factory` is sufficient.
 
 ## Step 1: Generate Credentials
 

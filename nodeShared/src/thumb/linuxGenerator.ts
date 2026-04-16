@@ -51,7 +51,12 @@ export default class ThumbGeneratorLinux extends ThumbGenerator {
         }
 
         if (!this.availableTool) {
-            throw new Error('No suitable thumbnail generation tool found.');
+            console.warn(
+                '[Thumbnail] No suitable thumbnail generation tool found. ' +
+                'Thumbnails will be disabled. ' +
+                'Install one of: ffmpegthumbnailer, imagemagick (convert), or gnome-thumbnail-factory ' +
+                'to enable thumbnail generation.'
+            );
         }
     }
 
@@ -100,7 +105,7 @@ export default class ThumbGeneratorLinux extends ThumbGenerator {
             fs.renameSync(tempThumbnailPath, thumbnailPath);
 
             return fs.promises.readFile(thumbnailPath);
-        } catch (error) {
+        } catch (error: any) {
             throw new Error('Failed to generate thumbnail: ' + error.message);
         }
     }
