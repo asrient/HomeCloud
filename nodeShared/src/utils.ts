@@ -67,6 +67,11 @@ export function osInfoString(deviceInfo: DeviceInfo) {
 
 export const execFileAsync = promisify(execFile);
 
+export function getDefaultShell(): string {
+    if (os.platform() === 'win32') return 'powershell.exe';
+    return process.env.SHELL || '/bin/bash';
+}
+
 export function deriveWsUrl(serverUrl: string): string {
     const isSecure = serverUrl.startsWith('https://');
     const url = serverUrl.replace(/^https?:\/\//, isSecure ? 'wss://' : 'ws://');

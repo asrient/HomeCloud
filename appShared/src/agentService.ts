@@ -47,12 +47,10 @@ export class AgentService extends Service {
     public async start() {
         const config = this.getAgentConfigSync();
         if (config) {
-            try {
-                await this._onStart(config);
-            } catch (err: any) {
-                console.error('[AgentService] Failed to auto-connect:', err.message);
+            this._onStart(config).catch(err => {
+                console.error('[AgentService] Failed to auto-start:', err.message);
                 this.dispatchAgentUpdate(SignalEvent.ERROR, { connectionStatus: 'error', error: err.message });
-            }
+            });
         }
     }
 

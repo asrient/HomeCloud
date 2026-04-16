@@ -2,6 +2,7 @@ import { TerminalService } from "shared/terminalService";
 import { TerminalSessionInfo } from "shared/types";
 import * as pty from "node-pty";
 import { platform } from "os";
+import { getDefaultShell } from "../utils";
 
 interface TerminalSession {
     pty: pty.IPty;
@@ -23,11 +24,7 @@ export default class NodeTerminalService extends TerminalService {
     protected override async _startTerminalSession(shell?: string): Promise<TerminalSessionInfo> {
         const sessionId = `term-${++this.nextSessionId}`;
 
-        // Determine shell
-        const defaultShell = platform() === 'win32'
-            ? 'powershell.exe'
-            : (process.env.SHELL || '/bin/bash');
-        const shellPath = shell || defaultShell;
+        const shellPath = shell || getDefaultShell();
 
         // Create ReadableStream for output
         let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;

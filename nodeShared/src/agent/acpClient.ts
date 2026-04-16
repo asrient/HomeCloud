@@ -1,10 +1,12 @@
 import { ChildProcess, spawn } from 'child_process';
 import { EventEmitter } from 'events';
+import { platform } from 'os';
 import {
     AgentConfig,
     AgentInfo,
     AgentConnectionStatus,
 } from 'shared/types';
+import { getDefaultShell } from '../utils';
 
 // ACP-specific capability types (not exposed to shared)
 type AcpCapabilities = {
@@ -81,7 +83,7 @@ export class AcpClient extends EventEmitter {
         this.setStatus('connecting');
 
         try {
-            await this.spawnProcess(config);
+            this.spawnProcess(config);
             this.setStatus('initializing');
             await this.initialize();
             this.setStatus('ready');
@@ -119,60 +121,55 @@ export class AcpClient extends EventEmitter {
 
     // ── Private ──
 
-    private spawnProcess(config: AgentConfig): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const env: Record<string, string> = { ...process.env } as Record<string, string>;
-            if (config.env) {
-                for (const { name, value } of config.env) {
-                    env[name] = value;
-                }
+    private spawnProcess(config: AgentConfig): void {
+        const env: Record<string, string> = { ...process.env } as Record<string, string>;
+        if (config.env) {
+            for (const { name, value } of config.env) {
+                env[name] = value;
             }
+        }
 
-            this.process = spawn(config.command, config.args, {
-                stdio: ['pipe', 'pipe', 'pipe'],
-                env,
-                shell: true,
-            });
+        const shell = getDefaultShell();
+        const cmdLine = [config.command, ...config.args].join(' ');
+        const shellArgs = platform() === 'win32'
+            ? ['-Command', cmdLine]
+            : ['-l', '-c', cmdLine];
 
-            const onError = (err: Error) => {
-                reject(new Error(`Failed to spawn agent: ${err.message}`));
-            };
-            this.process.once('error', onError);
+        this.process = spawn(shell, shellArgs, {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env,
+        });
 
-            this.process.on('exit', (code, signal) => {
-                if (this._status !== 'disconnected') {
-                    this.setStatus('error', `Agent exited unexpectedly (code=${code}, signal=${signal})`);
-                }
-                this.destroy();
-                this.emit('exit');
-            });
+        this.process.once('error', (err: Error) => {
+            this.setStatus('error', `Failed to spawn agent: ${err.message}`);
+            this.destroy();
+            this.emit('exit');
+        });
 
-            if (!this.process.stdout || !this.process.stdin) {
-                reject(new Error('Failed to get agent stdio streams'));
-                return;
+        this.process.on('exit', (code, signal) => {
+            if (this._status !== 'disconnected') {
+                this.setStatus('error', `Agent exited unexpectedly (code=${code}, signal=${signal})`);
             }
+            this.destroy();
+            this.emit('exit');
+        });
 
-            this.process.stdout.on('data', (chunk: Buffer) => {
-                this.lineBuffer += chunk.toString('utf8');
-                const lines = this.lineBuffer.split('\n');
-                this.lineBuffer = lines.pop() ?? '';
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed) this.handleMessage(trimmed);
-                }
-            });
+        if (!this.process.stdout || !this.process.stdin) {
+            throw new Error('Failed to get agent stdio streams');
+        }
 
-            this.process.stderr?.on('data', (chunk: Buffer) => {
-                console.error(`[ACP Agent stderr] ${chunk.toString('utf8').trim()}`);
-            });
+        this.process.stdout.on('data', (chunk: Buffer) => {
+            this.lineBuffer += chunk.toString('utf8');
+            const lines = this.lineBuffer.split('\n');
+            this.lineBuffer = lines.pop() ?? '';
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed) this.handleMessage(trimmed);
+            }
+        });
 
-            // Give process a moment to verify it started
-            setTimeout(() => {
-                if (this.process && !this.process.killed) {
-                    this.process.removeListener('error', onError);
-                    resolve();
-                }
-            }, 100);
+        this.process.stderr?.on('data', (chunk: Buffer) => {
+            console.error(`[ACP Agent stderr] ${chunk.toString('utf8').trim()}`);
         });
     }
 
