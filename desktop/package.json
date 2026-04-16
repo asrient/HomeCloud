@@ -1,7 +1,7 @@
 {
   "name": "homecloud",
   "productName": "HomeCloud",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "Companion app to access and control your devices and files.",
   "main": "dist/index.js",
   "scripts": {
