@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    View, StyleSheet, FlatList,
-    ActivityIndicator, Linking,
+    View, StyleSheet, FlatList, Platform,
+    ActivityIndicator, Linking, LayoutChangeEvent,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -17,7 +17,7 @@ import { UIContextMenu } from '@/components/ui/UIContextMenu';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useChat } from '@/hooks/useAgent';
 import { AgentMessage, AgentContentBlock, ChatStatus, AgentPermissionRequest } from 'shared/types';
-import { isGlassEnabled } from '@/lib/utils';
+import { isGlassEnabled, isIos } from '@/lib/utils';
 import * as Clipboard from 'expo-clipboard';
 import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -71,7 +71,7 @@ function TextSelectionModal({ text, visible, onClose }: { text: string; visible:
 
 // ── Message bubble ──
 
-function MessageBubble({ message, onSelectText }: { message: AgentMessage; onSelectText: (text: string) => void }) {
+const MessageBubble = memo(function MessageBubble({ message, onSelectText }: { message: AgentMessage; onSelectText: (text: string) => void }) {
     const isUser = message.role === 'user';
     const userBubbleColor = useThemeColor({}, 'highlight');
     const textColor = useThemeColor({}, 'text');
@@ -111,8 +111,8 @@ function MessageBubble({ message, onSelectText }: { message: AgentMessage; onSel
             ]}>
                 {message.toolCalls && message.toolCalls.length > 0 && (
                     <View style={styles.toolCallsContainer}>
-                        {message.toolCalls.map(tc => (
-                            <View key={tc.toolCallId} style={styles.toolCallRow}>
+                        {message.toolCalls.map((tc, i) => (
+                            <View key={`${tc.toolCallId}-${i}`} style={styles.toolCallRow}>
                                 <UIIcon
                                     name={tc.status === 'completed' ? 'checkmark.circle' : tc.status === 'failed' ? 'xmark.circle' : tc.status === 'in_progress' ? 'circle.dashed' : 'circle'}
                                     size={12}
@@ -148,9 +148,7 @@ function MessageBubble({ message, onSelectText }: { message: AgentMessage; onSel
             </View>
         </View>
     );
-}
-
-// ── Permission prompt ──
+});
 
 function PermissionPrompt({ permission, onRespond }: {
     permission: AgentPermissionRequest;
@@ -200,6 +198,7 @@ function ChatStatusBar({ status }: { status: ChatStatus }) {
 export default function AgentChatScreen() {
     const { fingerprint, chatId } = useLocalSearchParams<{ fingerprint: string; chatId: string }>();
     const deviceFingerprint = fingerprint === 'local' ? null : (fingerprint ?? null);
+    const listRef = useRef<FlatList<AgentMessage>>(null);
     const headerHeight = useHeaderHeight();
     const insets = useSafeAreaInsets();
 
@@ -225,15 +224,53 @@ export default function AgentChatScreen() {
         }, []),
     );
 
-    // Inverted FlatList: newest message at index 0 → renders at visual bottom
+    // On iOS we use a non-inverted list with scroll-to-bottom to avoid the
+    // Liquid Glass backdrop being broken by the scaleY(-1) transform.
+    // On Android we keep the inverted list since there's no glass issue.
+    const useInverted = !isIos;
+
+    // Scroll-to-bottom tracking (used only for non-inverted / iOS path)
+    const contentHeightRef = useRef(0);
+    const layoutHeightRef = useRef(0);
+    const isNearBottomRef = useRef(true);
+
+    const scrollToEnd = useCallback((animated = false) => {
+        const offset = contentHeightRef.current - layoutHeightRef.current;
+        if (offset > 0) {
+            listRef.current?.scrollToOffset({ offset, animated });
+        }
+    }, []);
+
+    const handleContentSizeChange = useCallback((_w: number, h: number) => {
+        contentHeightRef.current = h;
+        if (isNearBottomRef.current) {
+            scrollToEnd();
+        }
+    }, [scrollToEnd]);
+
+    const handleLayout = useCallback((e: LayoutChangeEvent) => {
+        layoutHeightRef.current = e.nativeEvent.layout.height;
+    }, []);
+
+    const handleScroll = useCallback((e: any) => {
+        const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+        const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+        isNearBottomRef.current = distanceFromBottom < 100;
+    }, []);
+
+    // For inverted list, reverse the data
     const invertedMessages = useMemo(() => [...messages].reverse(), [messages]);
+    const listData = useInverted ? invertedMessages : messages;
 
     const handleSend = useCallback(() => {
         const text = input.trim();
         if (!text || status === 'working') return;
         setInput('');
         sendMessage(text);
-    }, [input, status, sendMessage]);
+        if (!useInverted) {
+            isNearBottomRef.current = true;
+        }
+    }, [input, status, sendMessage, useInverted]);
 
     const title = chatInfo?.title || 'Chat';
 
@@ -251,7 +288,7 @@ export default function AgentChatScreen() {
         <KeyboardAvoidingView
             style={styles.container}
             behavior="padding"
-            keyboardVerticalOffset={headerHeight}
+            keyboardVerticalOffset={isGlassEnabled ? 0 : headerHeight}
         >
             <Stack.Screen
                 options={{
@@ -275,11 +312,18 @@ export default function AgentChatScreen() {
 
             {/* Messages */}
             <FlatList
-                data={invertedMessages}
-                inverted
+                ref={listRef}
+                data={listData}
+                inverted={useInverted}
                 keyExtractor={(_, i) => String(i)}
                 renderItem={({ item }) => <MessageBubble message={item} onSelectText={setSelectText} />}
-                contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 14, paddingBottom: isGlassEnabled ? headerHeight : 8, paddingTop: 8 }}
+                contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 14, paddingTop: isGlassEnabled ? headerHeight : 8, paddingBottom: 8 }}
+                {...(!useInverted ? {
+                    onContentSizeChange: handleContentSizeChange,
+                    onLayout: handleLayout,
+                    onScroll: handleScroll,
+                    scrollEventThrottle: 64,
+                } : {})}
                 ListEmptyComponent={
                     isLoading ? (
                         <View style={styles.emptyContainer}><ActivityIndicator /></View>
