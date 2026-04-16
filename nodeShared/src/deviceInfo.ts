@@ -175,10 +175,24 @@ export function getSysDefaultDirectories(): DefaultDirectories {
     const videoCandidates = process.platform === 'darwin' ? ['Movies', 'Videos'] : ['Videos', 'Movies'];
     const movieCandidates = process.platform === 'darwin' ? ['Movies', 'Videos'] : ['Movies', 'Videos'];
 
+    // On Linux, standard user directories (e.g. ~/Downloads, ~/Pictures) may not
+    // exist on headless servers or fresh minimal installs. Create the ones we rely
+    // on so they can be pinned and used as download targets instead of falling
+    // back to $HOME (which would incorrectly pin the whole home directory).
+    if (process.platform === 'linux') {
+        for (const name of ['Downloads', 'Pictures']) {
+            try {
+                fs.mkdirSync(path.join(home, name), { recursive: true });
+            } catch {
+                // Ignore — resolveDefaultDirectory will simply return null below.
+            }
+        }
+    }
+
     return {
         Pictures: resolveDefaultDirectory(home, ['Pictures']),
         Documents: resolveDefaultDirectory(home, ['Documents']),
-        Downloads: resolveDefaultDirectory(home, ['Downloads'], home),
+        Downloads: resolveDefaultDirectory(home, ['Downloads']),
         Videos: resolveDefaultDirectory(home, videoCandidates),
         Movies: resolveDefaultDirectory(home, movieCandidates),
         Music: resolveDefaultDirectory(home, ['Music']),
