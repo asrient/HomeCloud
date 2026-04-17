@@ -1,11 +1,10 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import {
     View, StyleSheet, FlatList,
-    ActivityIndicator, Linking,
+    ActivityIndicator, Linking, Platform,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useHeaderHeight } from '@react-navigation/elements';
 import { UIText } from '@/components/ui/UIText';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UITextInput } from '@/components/ui/UITextInput';
@@ -21,7 +20,6 @@ import * as Clipboard from 'expo-clipboard';
 import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-    KeyboardAvoidingView,
     KeyboardController,
     AndroidSoftInputModes,
     useReanimatedKeyboardAnimation,
@@ -126,7 +124,7 @@ const MessageBubble = memo(function MessageBubble({ message, onSelectText }: { m
                 )}
                 {textContent ? (
                     isUser ? (
-                        <UIText color='highlightText' size='md' font='regular'>{textContent}</UIText>
+                        <UIText selectable color='highlightText' size='md' font='regular'>{textContent}</UIText>
                     ) : (
                         <Markdown
                             style={markdownStyles}
@@ -197,7 +195,6 @@ function ChatStatusBar({ status }: { status: ChatStatus }) {
 export default function AgentChatScreen() {
     const { fingerprint, chatId } = useLocalSearchParams<{ fingerprint: string; chatId: string }>();
     const deviceFingerprint = fingerprint === 'local' ? null : (fingerprint ?? null);
-    const headerHeight = useHeaderHeight();
     const insets = useSafeAreaInsets();
 
     const {
@@ -208,8 +205,16 @@ export default function AgentChatScreen() {
 
     const [input, setInput] = useState('');
     const [selectText, setSelectText] = useState<string | null>(null);
-    const { progress: kbProgress } = useReanimatedKeyboardAnimation();
+    const { progress: kbProgress, height: kbHeight } = useReanimatedKeyboardAnimation();
+    // kbHeight is 0 when closed and -keyboardHeight when open.
+    // On iOS we shrink the container ourselves so the FlatList resizes too.
+    // On Android we use SOFT_INPUT_ADJUST_RESIZE which already shrinks the
+    // window, so adding our own padding would double-shrink.
+    const containerAnimatedStyle = useAnimatedStyle(() => ({
+        paddingBottom: Platform.OS === 'ios' ? -kbHeight.value : 0,
+    }));
     const inputBarAnimatedStyle = useAnimatedStyle(() => ({
+        // Only apply the bottom safe-area inset when the keyboard is closed.
         paddingBottom: (1 - kbProgress.value) * insets.bottom + 6,
     }));
 
@@ -258,11 +263,7 @@ export default function AgentChatScreen() {
     }));
 
     return (
-        <KeyboardAvoidingView
-            style={styles.container}
-            behavior="padding"
-            keyboardVerticalOffset={headerHeight}
-        >
+        <Animated.View style={[styles.container, containerAnimatedStyle]}>
             <Stack.Screen
                 options={{
                     title,
@@ -345,7 +346,7 @@ export default function AgentChatScreen() {
                 </UIView>
             </Animated.View>
             <TextSelectionModal text={selectText ?? ''} visible={!!selectText} onClose={() => setSelectText(null)} />
-        </KeyboardAvoidingView>
+        </Animated.View>
     );
 }
 

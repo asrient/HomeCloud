@@ -139,6 +139,30 @@ export default class NodeAgentService extends AgentService {
         });
     }
 
+    /**
+     * Refresh cached metadata (title/updatedAt) for a single chat from the
+     * agent's session/list. ACP doesn't push title updates as notifications
+     * — agents set the title internally after the first turn — so we have to
+     * pull. Returns true if anything actually changed.
+     */
+    private async refreshChatMeta(chatId: string): Promise<boolean> {
+        if (!this.client?.capabilities?.sessionCapabilities?.list) return false;
+        try {
+            const result = await this.requireClient().request('session/list', {});
+            const s = (result.sessions ?? []).find((x: any) => x.sessionId === chatId);
+            if (!s) return false;
+            const prev = this.chatMeta.get(chatId);
+            const next: ChatMeta = { title: s.title ?? null, cwd: s.cwd, updatedAt: s.updatedAt ?? null };
+            this.chatMeta.set(chatId, next);
+            return !prev
+                || prev.title !== next.title
+                || prev.updatedAt !== next.updatedAt
+                || prev.cwd !== next.cwd;
+        } catch {
+            return false;
+        }
+    }
+
     protected override async _getChat(chatId: string): Promise<ChatInfo | null> {
         const chats = await this._listChats();
         return chats.find(c => c.chatId === chatId) ?? null;
@@ -206,6 +230,12 @@ export default class NodeAgentService extends AgentService {
             this.activeTurns.delete(chatId);
         }
         this.unreadChats.add(chatId);
+        // Pull updated title/updatedAt from agent — ACP doesn't push these.
+        // Only do it when we don't yet have a title (agents set it once after
+        // the first turn) to avoid hitting session/list on every turn.
+        if (!this.chatMeta.get(chatId)?.title) {
+            await this.refreshChatMeta(chatId);
+        }
         this.emitChatInfo(chatId, 'idle');
 
         return { stopReason: result.stopReason };
@@ -278,7 +308,11 @@ export default class NodeAgentService extends AgentService {
                 }
                 case 'tool_call_update': {
                     if (!msg.toolCalls) msg.toolCalls = [];
-                    const { sessionUpdate: _, ...tcUpdate } = update;
+                    const { sessionUpdate: _, ...tcUpdateRaw } = update;
+                    // Strip undefined so partial updates don't blank out fields
+                    // (notably `title`) captured from the initial `tool_call`.
+                    const tcUpdate: any = {};
+                    for (const [k, v] of Object.entries(tcUpdateRaw)) if (v !== undefined) tcUpdate[k] = v;
                     const idx = msg.toolCalls.findIndex((t: AgentToolCall) => t.toolCallId === tcUpdate.toolCallId);
                     if (idx >= 0) Object.assign(msg.toolCalls[idx], tcUpdate);
                     else msg.toolCalls.push(tcUpdate as AgentToolCall);
@@ -377,7 +411,9 @@ export default class NodeAgentService extends AgentService {
                 }
                 case 'tool_call_update': {
                     if (currentMsg?.role === 'assistant' && currentMsg.toolCalls) {
-                        const { sessionUpdate: _, ...tcUpdate } = update;
+                        const { sessionUpdate: _, ...tcUpdateRaw } = update;
+                        const tcUpdate: any = {};
+                        for (const [k, v] of Object.entries(tcUpdateRaw)) if (v !== undefined) tcUpdate[k] = v;
                         const idx = currentMsg.toolCalls.findIndex((t: AgentToolCall) => t.toolCallId === tcUpdate.toolCallId);
                         if (idx >= 0) Object.assign(currentMsg.toolCalls[idx], tcUpdate);
                         else currentMsg.toolCalls.push(tcUpdate as AgentToolCall);

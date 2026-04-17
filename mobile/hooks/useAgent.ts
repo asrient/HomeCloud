@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     AgentConfig, AgentStatus, ChatInfo, ChatStatus, AgentMessage,
     AgentChatUpdate, AgentPermissionRequest, ChatConfigOption, AgentContentBlock,
-    SignalEvent,
+    AgentToolCall, SignalEvent,
 } from 'shared/types';
 import ServiceController from 'shared/controller';
 import { SignalNodeRef } from 'shared/signals';
@@ -167,10 +167,16 @@ function applyStreamUpdate(msg: AgentMessage, update: AgentChatUpdate): AgentMes
         }
         case 'tool_call_update': {
             if (!next.toolCalls) next.toolCalls = [];
-            const { kind: _, ...tcUpdate } = update;
+            const { kind: _, ...tcUpdateRaw } = update;
+            // Updates may carry only changed fields. Strip undefined so a
+            // missing `title` (or other field) doesn't overwrite the value
+            // captured from the initial `tool_call` event.
+            const tcUpdate = Object.fromEntries(
+                Object.entries(tcUpdateRaw).filter(([, v]) => v !== undefined),
+            ) as typeof tcUpdateRaw;
             const idx = next.toolCalls.findIndex(t => t.toolCallId === tcUpdate.toolCallId);
             if (idx >= 0) next.toolCalls[idx] = { ...next.toolCalls[idx], ...tcUpdate };
-            else next.toolCalls.push(tcUpdate);
+            else next.toolCalls.push(tcUpdate as AgentToolCall);
             break;
         }
         case 'plan':
