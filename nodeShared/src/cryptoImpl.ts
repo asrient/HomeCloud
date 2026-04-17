@@ -86,8 +86,12 @@ export default class CryptoImpl extends CryptoModule {
         // Generate a random 16-byte IV (Initialization Vector)
         const iv = crypto.randomBytes(16);
 
+        // SECRET_KEY is a 64-char hex string (32 bytes); decode it to a Buffer
+        // so createCipheriv gets the correct 32-byte key for AES-256.
+        const key = Buffer.from(secretKey, 'hex');
+
         // Create the cipher object with the AES-256-CTR algorithm, secret key, and IV
-        const cipher = crypto.createCipheriv('aes-256-ctr', secretKey, iv);
+        const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
 
         // Encrypt the text
         const encryptedText = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
@@ -104,8 +108,11 @@ export default class CryptoImpl extends CryptoModule {
         // Convert the IV from hex back to a buffer
         const iv = Buffer.from(encrypted.iv, 'hex');
 
+        // Decode the hex-encoded secret key to a 32-byte Buffer.
+        const key = Buffer.from(secretKey, 'hex');
+
         // Create the decipher object using the same secret key and IV
-        const decipher = crypto.createDecipheriv('aes-256-ctr', secretKey, iv);
+        const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv);
 
         // Decrypt the ciphertext
         const decryptedText = Buffer.concat([decipher.update(Buffer.from(encrypted.payload, 'hex')), decipher.final()]);

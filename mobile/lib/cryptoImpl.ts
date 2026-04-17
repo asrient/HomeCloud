@@ -85,7 +85,9 @@ export default class CryptoImpl extends CryptoModule {
 
     encryptString(text: string, secretKey: string): EncryptedData {
         const iv = crypto.randomBytes(16);
-        const cipher = crypto.createCipheriv('aes-256-ctr', secretKey, iv);
+        // secretKey is a 64-char hex string (32 bytes); decode to Buffer for AES-256.
+        const key = Buffer.from(secretKey, 'hex');
+        const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
         const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
         return {
             iv: iv.toString('hex'),
@@ -95,7 +97,8 @@ export default class CryptoImpl extends CryptoModule {
 
     decryptString(encrypted: EncryptedData, secretKey: string): string {
         const iv = Buffer.from(encrypted.iv, 'hex');
-        const decipher = crypto.createDecipheriv('aes-256-ctr', secretKey, iv);
+        const key = Buffer.from(secretKey, 'hex');
+        const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv);
         const decrypted = Buffer.concat([decipher.update(Buffer.from(encrypted.payload, 'hex')), decipher.final()]);
         return decrypted.toString('utf8');
     }
