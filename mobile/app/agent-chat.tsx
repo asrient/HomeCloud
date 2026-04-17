@@ -208,6 +208,9 @@ export default function AgentChatScreen() {
 
     const [input, setInput] = useState('');
     const [selectText, setSelectText] = useState<string | null>(null);
+
+    // Animate the input bar's bottom safe-area padding away when the keyboard
+    // is up so it doesn't leave a home-indicator-sized gap above the keyboard.
     const { progress: kbProgress } = useReanimatedKeyboardAnimation();
     const inputBarAnimatedStyle = useAnimatedStyle(() => ({
         paddingBottom: (1 - kbProgress.value) * insets.bottom + 6,
@@ -260,7 +263,7 @@ export default function AgentChatScreen() {
     return (
         <KeyboardAvoidingView
             style={styles.container}
-            behavior="padding"
+            behavior="translate-with-padding"
             keyboardVerticalOffset={headerHeight}
         >
             <Stack.Screen
@@ -294,6 +297,7 @@ export default function AgentChatScreen() {
                 keyExtractor={(_, i) => String(i)}
                 renderItem={({ item }) => <MessageBubble message={item} onSelectText={setSelectText} />}
                 contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 14, paddingBottom: 8, paddingTop: 8 }}
+                keyboardDismissMode="interactive"
                 onEndReached={hasMore ? loadMore : undefined}
                 onEndReachedThreshold={0.5}
                 ListFooterComponent={hasMore ? () => <ActivityIndicator style={{ paddingVertical: 12 }} /> : undefined}
