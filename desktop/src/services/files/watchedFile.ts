@@ -40,10 +40,27 @@ export class WatchedFile {
         const id = WatchedFile.getId(targetFingerprint, targetFileId);
         const existing = WatchedFile.watchedFiles.find((f) => f.getId() === id);
         if (existing) {
-            console.debug('[WatchedFile] Already watched, renewing expiry.');
-            existing.renewExpiry();
-            existing.openFile();
-            return existing;
+            // Sanity check: ensure the tmp file still exists on disk. The watcher's
+            // unlink handler should normally clean up, but events can be missed
+            // (e.g. tmp dir wiped while app was sleeping). If stale, drop it and
+            // fall through to create a fresh watch.
+            let stillValid = false;
+            if (existing.tmpFile) {
+                try {
+                    await fs.promises.access(existing.tmpFile, fs.constants.F_OK);
+                    stillValid = true;
+                } catch {
+                    stillValid = false;
+                }
+            }
+            if (stillValid) {
+                console.debug('[WatchedFile] Already watched, renewing expiry.');
+                existing.renewExpiry();
+                existing.openFile();
+                return existing;
+            }
+            console.debug('[WatchedFile] Existing watch is stale (tmp file missing), recreating.');
+            await existing.remove();
         }
 
         if (WatchedFile.watchedFiles.length >= WatchedFile.WATCH_LIMIT) {
@@ -106,6 +123,16 @@ export class WatchedFile {
         this.lastModified = stats.mtime;
         this.renewExpiry();
         this.saveChanges();
+    }
+
+    private fileUnlinked() {
+        console.debug('[WatchedFile] Tmp file deleted externally, cleaning up:', this.tmpFile);
+        // File was deleted outside of our control; drop the watcher and pending
+        // save prompts. Don't attempt to remove the (already gone) tmp file.
+        this.tmpFile = '';
+        this.remove().catch((err) => {
+            console.error('[WatchedFile] Error during cleanup after unlink:', err);
+        });
     }
 
     private isSaving = false;
@@ -189,6 +216,7 @@ export class WatchedFile {
                 }
             });
             this.watcher.on('change', this.fileChanged.bind(this));
+            this.watcher.on('unlink', this.fileUnlinked.bind(this));
             this.openFile();
         } catch (e) {
             console.error(e);

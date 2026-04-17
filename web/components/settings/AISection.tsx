@@ -24,6 +24,7 @@ export default function AISettingsSection({ fingerprint }: AISettingsSectionProp
   const [agentPresets, setAgentPresets] = useState<AgentConfig[]>([]);
   const [agentModalOpen, setAgentModalOpen] = useState(false);
   const [agentForm, setAgentForm] = useState<{ name: string; command: string; args: string; addWorkflowMcp: boolean }>({ name: '', command: '', args: '', addWorkflowMcp: false });
+  const [agentSaving, setAgentSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -91,21 +92,32 @@ export default function AISettingsSection({ fingerprint }: AISettingsSectionProp
   }, [fingerprint]);
 
   const handleSaveAgent = useCallback(async () => {
-    if (!agentForm.name || !agentForm.command) return;
+    if (!agentForm.name || !agentForm.command || agentSaving) return;
     const config: AgentConfig = {
       name: agentForm.name,
       command: agentForm.command,
       args: agentForm.args.split(/\s+/).filter(Boolean),
       addWorkflowMcp: agentForm.addWorkflowMcp,
     };
-    await handleSetAgent(config);
-    setAgentModalOpen(false);
-  }, [agentForm, handleSetAgent]);
+    setAgentSaving(true);
+    try {
+      await handleSetAgent(config);
+      setAgentModalOpen(false);
+    } finally {
+      setAgentSaving(false);
+    }
+  }, [agentForm, agentSaving, handleSetAgent]);
 
   const handleRemoveAgentFromModal = useCallback(async () => {
-    await handleRemoveAgent();
-    setAgentModalOpen(false);
-  }, [handleRemoveAgent]);
+    if (agentSaving) return;
+    setAgentSaving(true);
+    try {
+      await handleRemoveAgent();
+      setAgentModalOpen(false);
+    } finally {
+      setAgentSaving(false);
+    }
+  }, [agentSaving, handleRemoveAgent]);
 
   const openAgentModal = useCallback(() => {
     if (agentConfig) {
@@ -193,17 +205,17 @@ export default function AISettingsSection({ fingerprint }: AISettingsSectionProp
           <div className="flex items-center justify-between pt-2">
             <div>
               {agentConfig && (
-                <Button variant="ghost" className="text-red-500" size="sm" onClick={handleRemoveAgentFromModal}>
+                <Button variant="ghost" className="text-red-500" size="sm" onClick={handleRemoveAgentFromModal} disabled={agentSaving}>
                   Delete
                 </Button>
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setAgentModalOpen(false)}>
+              <Button variant="secondary" size="sm" onClick={() => setAgentModalOpen(false)} disabled={agentSaving}>
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleSaveAgent} disabled={!agentForm.name || !agentForm.command}>
-                Save
+              <Button size="sm" onClick={handleSaveAgent} disabled={!agentForm.name || !agentForm.command || agentSaving}>
+                {agentSaving ? 'Saving…' : 'Save'}
               </Button>
             </div>
           </div>
