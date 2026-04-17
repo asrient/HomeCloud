@@ -4,8 +4,6 @@ import {
     ActivityIndicator, Linking,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import { useHeaderHeight } from '@react-navigation/elements';
 import { UIText } from '@/components/ui/UIText';
 import { UIHeaderButton } from '@/components/ui/UIHeaderButton';
 import { UITextInput } from '@/components/ui/UITextInput';
@@ -21,12 +19,8 @@ import * as Clipboard from 'expo-clipboard';
 import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-    KeyboardAvoidingView,
-    KeyboardController,
-    AndroidSoftInputModes,
-    useReanimatedKeyboardAnimation,
+    KeyboardStickyView,
 } from 'react-native-keyboard-controller';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { isGlassEnabled } from '@/lib/utils';
 
 // ── Action button (reusable for bubble actions) ──
@@ -197,7 +191,6 @@ function ChatStatusBar({ status }: { status: ChatStatus }) {
 export default function AgentChatScreen() {
     const { fingerprint, chatId } = useLocalSearchParams<{ fingerprint: string; chatId: string }>();
     const deviceFingerprint = fingerprint === 'local' ? null : (fingerprint ?? null);
-    const headerHeight = useHeaderHeight();
     const insets = useSafeAreaInsets();
 
     const {
@@ -208,19 +201,6 @@ export default function AgentChatScreen() {
 
     const [input, setInput] = useState('');
     const [selectText, setSelectText] = useState<string | null>(null);
-    const { progress: kbProgress } = useReanimatedKeyboardAnimation();
-    const inputBarAnimatedStyle = useAnimatedStyle(() => ({
-        paddingBottom: (1 - kbProgress.value) * insets.bottom + 6,
-    }));
-
-    // On Android, switch to adjustResize for this screen only so the keyboard
-    // resizes the view instead of panning (which hides the header).
-    useFocusEffect(
-        useCallback(() => {
-            KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_RESIZE);
-            return () => KeyboardController.setDefaultMode();
-        }, []),
-    );
 
     // Client-side pagination: start with the latest PAGE_SIZE messages,
     // load more when scrolling toward older messages.
@@ -258,11 +238,7 @@ export default function AgentChatScreen() {
     }));
 
     return (
-        <KeyboardAvoidingView
-            style={styles.container}
-            behavior="padding"
-            keyboardVerticalOffset={headerHeight}
-        >
+        <View style={styles.container}>
             <Stack.Screen
                 options={{
                     title,
@@ -294,6 +270,8 @@ export default function AgentChatScreen() {
                 keyExtractor={(_, i) => String(i)}
                 renderItem={({ item }) => <MessageBubble message={item} onSelectText={setSelectText} />}
                 contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 14, paddingBottom: 8, paddingTop: 8 }}
+                automaticallyAdjustKeyboardInsets
+                keyboardDismissMode="interactive"
                 onEndReached={hasMore ? loadMore : undefined}
                 onEndReachedThreshold={0.5}
                 ListFooterComponent={hasMore ? () => <ActivityIndicator style={{ paddingVertical: 12 }} /> : undefined}
@@ -308,44 +286,44 @@ export default function AgentChatScreen() {
                 }
             />
 
-            {/* Permission prompt */}
-            {pendingPermission && (
-                <View style={{ paddingHorizontal: 12, paddingBottom: 4 }}>
-                    <PermissionPrompt permission={pendingPermission} onRespond={respondToPermission} />
-                </View>
-            )}
+            {/* Footer — permission, status and input bar — sticks above the keyboard */}
+            <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
+                {pendingPermission && (
+                    <View style={{ paddingHorizontal: 12, paddingBottom: 4 }}>
+                        <PermissionPrompt permission={pendingPermission} onRespond={respondToPermission} />
+                    </View>
+                )}
 
-            {/* Status */}
-            <ChatStatusBar status={status} />
+                <ChatStatusBar status={status} />
 
-            {/* Input bar */}
-            <Animated.View style={[styles.inputBar, inputBarAnimatedStyle]}>
-                <UIView useGlass themeColor="backgroundTertiary" style={styles.inputWrapper}>
-                    <UITextInput
-                        variant="plain"
-                        style={styles.textInput}
-                        placeholder="Type a message..."
-                        value={input}
-                        onChangeText={setInput}
-                        multiline
-                        editable={status !== 'working' && status !== 'asking'}
-                        submitBehavior="newline"
-                    />
-                    {status === 'working' ? (
-                        <UIButton type="link" icon="stop.fill" onPress={cancelMessage} color="#ef4444" />
-                    ) : (
-                        <UIButton
-                            type="link"
-                            icon="arrow.up.circle.fill"
-                            onPress={handleSend}
-                            disabled={!input.trim() || status === 'asking'}
-                            themeColor={input.trim() ? 'highlight' : 'textSecondary'}
+                <View style={[styles.inputBar, { paddingBottom: insets.bottom + 6 }]}>
+                    <UIView useGlass themeColor="backgroundTertiary" style={styles.inputWrapper}>
+                        <UITextInput
+                            variant="plain"
+                            style={styles.textInput}
+                            placeholder="Type a message..."
+                            value={input}
+                            onChangeText={setInput}
+                            multiline
+                            editable={status !== 'working' && status !== 'asking'}
+                            submitBehavior="newline"
                         />
-                    )}
-                </UIView>
-            </Animated.View>
+                        {status === 'working' ? (
+                            <UIButton type="link" icon="stop.fill" onPress={cancelMessage} color="#ef4444" />
+                        ) : (
+                            <UIButton
+                                type="link"
+                                icon="arrow.up.circle.fill"
+                                onPress={handleSend}
+                                disabled={!input.trim() || status === 'asking'}
+                                themeColor={input.trim() ? 'highlight' : 'textSecondary'}
+                            />
+                        )}
+                    </UIView>
+                </View>
+            </KeyboardStickyView>
             <TextSelectionModal text={selectText ?? ''} visible={!!selectText} onClose={() => setSelectText(null)} />
-        </KeyboardAvoidingView>
+        </View>
     );
 }
 
