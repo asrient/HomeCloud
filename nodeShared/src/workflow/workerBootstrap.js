@@ -4,6 +4,8 @@
 const { workerData, parentPort } = require('worker_threads');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const { pathToFileURL } = require('url');
 const Comlink = require('comlink');
 const nodeEndpoint = require('comlink/dist/umd/node-adapter');
 
@@ -165,19 +167,40 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // Execute the script
+//
+// Dispatch by file extension:
+//   - .mjs  → ESM, loaded via dynamic import(); supports top-level await
+//             and `import` syntax. `require` is not available unless the
+//             script creates one via `createRequire(import.meta.url)`.
+//   - .js   → CommonJS, loaded via require(); preserves backward
+//             compatibility with existing workflow scripts that rely on
+//             `require`, `module.exports`, `__dirname`, etc.
+//
+// Inline scripts (scriptContent) default to .mjs so one-off / playground
+// snippets can use top-level await out of the box.
 let tmpFile = null;
-try {
-    let targetPath = scriptPath;
-    if (!targetPath && scriptContent) {
-        tmpFile = path.join(require('os').tmpdir(), `hc-script-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.js`);
-        fs.writeFileSync(tmpFile, scriptContent, 'utf-8');
-        targetPath = tmpFile;
-    }
-    if (targetPath) {
-        require(targetPath);
-    }
-} catch (err) {
-    if (!hasExited) {
+(async () => {
+    try {
+        let targetPath = scriptPath;
+        if (!targetPath && scriptContent) {
+            tmpFile = path.join(
+                os.tmpdir(),
+                `hc-script-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mjs`,
+            );
+            fs.writeFileSync(tmpFile, scriptContent, 'utf-8');
+            targetPath = tmpFile;
+        }
+        if (!targetPath) return;
+
+        const ext = path.extname(targetPath).toLowerCase();
+        if (ext === '.mjs') {
+            await import(pathToFileURL(targetPath).href);
+        } else {
+            // Default to CommonJS for .js and anything else (back-compat).
+            require(targetPath);
+        }
+    } catch (err) {
+        if (hasExited) return;
         hasExited = true;
         const result = { status: 'error', message: err.message || String(err) };
         writeLog('ERROR', ['Script error:', err.stack || err.message || String(err)]);
@@ -185,7 +208,7 @@ try {
         parentPort.postMessage({ type: 'result', result });
         process.exit(1);
     }
-}
+})();
 
 // Clean up temp file on exit
 process.on('exit', () => {

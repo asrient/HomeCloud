@@ -24,7 +24,7 @@ import { getMcpHeaderDocMd, getMcpServiceListDocMd, getFullDocMd, getServiceDocM
 
 const DEFAULT_MCP_PORT = 9637;
 
-const DEFAULT_SCRIPT_TEMPLATE = `// Workflow script
+const DEFAULT_SCRIPT_TEMPLATE = `// Workflow script (ESM)
 // Access workflow context via global.ctx
 // Call global.exit(success, message) to finish
 
@@ -32,7 +32,8 @@ const ctx = global.ctx;
 console.log('Workflow started:', ctx.config?.name ?? 'Playground');
 console.log('Inputs:', JSON.stringify(ctx.inputs));
 
-// Your code here...
+// Your code here... e.g.
+// import { readFile } from 'fs/promises';
 
 global.exit(true, 'Done');
 `;
@@ -87,7 +88,10 @@ export default class NodeWorkflowService extends WorkflowService {
 
     protected override async _createWorkflow(name: string, dir?: string): Promise<WorkflowConfig> {
         const baseDir = dir || path.join(os.homedir(), 'Workflows');
-        const scriptPath = path.join(baseDir, this.safeName(name), 'workflow.js');
+        // New workflows default to ESM (.mjs) so user scripts can use top-level
+        // await and `import` syntax. Existing .js workflows continue to work —
+        // the worker bootstrap chooses require() vs import() based on extension.
+        const scriptPath = path.join(baseDir, this.safeName(name), 'workflow.mjs');
         const colors = Object.values(WorkflowColor);
         const color = colors[Math.floor(Math.random() * colors.length)];
         const config = await this.repo.createWorkflow({ name, scriptPath, color });

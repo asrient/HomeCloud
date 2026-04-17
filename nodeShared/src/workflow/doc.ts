@@ -142,11 +142,11 @@ function getParsedServices(): ParsedServiceEntry[] {
 
 const HEADER_LINES = [
     'HomeCloud is a remote-control and automation platform for user devices.',
-    'Scripts have access to Node.js APIs (cjs) and a set of special APIs.',
+    'Scripts have access to Node.js APIs (ESM imports) and a set of special APIs.',
     '- exit(success: boolean, message?: string) - End the script with a result, always call this when done.',
     '',
     'The global `ctx` object contains execution context:',
-    ' - ctx.inputs: { [key: string]: string | number | boolean } - Input values passed when executing the workflow',
+    ' - ctx.inputs: { [key: string]: string | number | boolean } - Inputs passed when executing the workflow',
     ' - ctx.config?: WorkflowConfig - The workflow configuration (null for ad-hoc scripts)',
     ' - ctx.trigger?: WorkflowTrigger - The trigger that started this execution (if any)',
     ' - ctx.host: PeerInfo - Info about the device.',
