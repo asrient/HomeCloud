@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback, memo } from 'react';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/components/hooks/useAgent';
-import { AgentMessage, AgentContentBlock, ChatStatus, AgentPermissionRequest, ChatConfigOption } from 'shared/types';
+import { AgentMessage, AgentMessageEntry, AgentToolCall, ChatStatus, AgentPermissionRequest, ChatConfigOption } from 'shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -30,13 +30,30 @@ const markdownComponents = {
 
 // ── Message bubble ──
 
-const MessageBubble = memo(function MessageBubble({ message }: { message: AgentMessage }) {
-    const isUser = message.role === 'user';
+function ToolCallRow({ tc }: { tc: AgentToolCall }) {
+    return (
+        <div className="text-xs rounded px-2 py-1 text-foreground/60 font-normal flex items-center">
+            {tc.status && (
+                <span className='mr-1'>
+                    {tc.status === 'completed' ?
+                        <Check className="w-3 h-3" /> :
+                        tc.status === 'failed' ?
+                            <CircleX className="w-3 h-3 text-red-500/70" /> :
+                            tc.status === 'in_progress' ?
+                                <CircleDashed className="w-3 h-3 text-blue-500/70" /> :
+                                <Square className="w-3 h-3" />
+                    }
+                </span>
+            )}
+            <span>{tc.title}</span>
+        </div>
+    );
+}
 
-    const textContent = message.content
-        .filter((b): b is Extract<AgentContentBlock, { type: 'text' }> => b.type === 'text')
-        .map(b => b.text)
-        .join('').trim();
+const MessageBubble = memo(function MessageBubble({ message }: { message: AgentMessage }) {
+    const isUser = message?.role === 'user';
+    const segments: AgentMessageEntry[] = message?.entries ?? [];
+    const hasAnyContent = segments.length > 0;
 
     return (
         <div className={cn('flex select-text',
@@ -45,47 +62,32 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: AgentM
                 ' px-3 py-2.5 text-sm break-words max-w-[80%]',
                 isUser ? 'bg-secondary/50 text-secondary-foreground rounded-xl whitespace-pre-wrap' : 'prose prose-sm dark:prose-invert prose-p:my-1 prose-pre:my-2 prose-ul:my-1 prose-ol:my-1 prose-headings:my-2 prose-li:my-0 max-w-none'
             )}>
-
-                {/* Thoughts (collapsed) */}
-                {message.thoughts && message.thoughts.length > 0 && (
-                    <div className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">
-                        {message.thoughts
-                            .filter((b): b is Extract<AgentContentBlock, { type: 'text' }> => b.type === 'text')
-                            .map(b => b.text)
-                            .join('')}
-                    </div>
-                )}
-
-                {/* Tool calls */}
-                {message.toolCalls && message.toolCalls.length > 0 && (
-                    <div className="mt-2 space-y-0.5">
-                        {message.toolCalls.map(tc => (
-                            <div key={tc.toolCallId} className="text-xs rounded px-2 py-1 text-foreground/60 font-normal flex items-center">
-                                {tc.status && (
-                                    <span className='mr-1'>
-                                        {tc.status === 'completed' ?
-                                            <Check className="w-3 h-3" /> :
-                                            tc.status === 'failed' ?
-                                                <CircleX className="w-3 h-3 text-red-500/70" /> :
-                                                tc.status === 'in_progress' ?
-                                                    <CircleDashed className="w-3 h-3 text-blue-500/70" /> :
-                                                    <Square className="w-3 h-3" />
-                                        }
-                                    </span>
-                                )}
-                                <span>{tc.title}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {textContent ? (
-                    isUser ? textContent : <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{textContent}</ReactMarkdown>
-                ) : !message.toolCalls?.length && !message.thoughts?.length ? (
+                {!hasAnyContent ? (
                     <span className="text-muted-foreground italic">{'(non-text content)'}</span>
-                ) : null}
-
-
+                ) : segments.map((seg, i) => {
+                    if (seg.kind === 'tool_call') {
+                        if (!seg.toolCall.title) return null;
+                        return <ToolCallRow key={`tool-${seg.toolCall.toolCallId}-${i}`} tc={seg.toolCall} />;
+                    }
+                    if (seg.kind === 'thought') {
+                        if (seg.content.type !== 'text') return null;
+                        return (
+                            <div key={`thought-${i}`} className="my-1 text-xs text-muted-foreground whitespace-pre-wrap italic">
+                                {seg.content.text}
+                            </div>
+                        );
+                    }
+                    // content
+                    if (seg.content.type !== 'text') return null;
+                    if (isUser) {
+                        return <span key={`text-${i}`}>{seg.content.text}</span>;
+                    }
+                    return (
+                        <ReactMarkdown key={`text-${i}`} remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                            {seg.content.text}
+                        </ReactMarkdown>
+                    );
+                })}
             </div>
         </div>
     );

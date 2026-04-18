@@ -837,11 +837,17 @@ export type AgentPlanEntry = {
     status: 'pending' | 'in_progress' | 'completed';
 }
 
+/** A single ordered item in a message's timeline. Tool calls live
+ * inline alongside content/thought blocks at the position they were
+ * emitted by the agent, mirroring the Zed/ACP reference model. */
+export type AgentMessageEntry =
+    | { kind: 'content'; content: AgentContentBlock }
+    | { kind: 'thought'; content: AgentContentBlock }
+    | { kind: 'tool_call'; toolCall: AgentToolCall };
+
 export type AgentMessage = {
     role: 'user' | 'assistant';
-    content: AgentContentBlock[];
-    thoughts?: AgentContentBlock[];
-    toolCalls?: AgentToolCall[];
+    entries: AgentMessageEntry[];
     plan?: AgentPlanEntry[];
     stopReason?: AgentStopReason;
 }
@@ -849,8 +855,8 @@ export type AgentMessage = {
 export type AgentChatUpdate =
     | { kind: 'agent_message_chunk'; content: AgentContentBlock }
     | { kind: 'agent_thought_chunk'; content: AgentContentBlock }
-    | { kind: 'tool_call'; } & AgentToolCall
-    | { kind: 'tool_call_update'; } & AgentToolCall
+    | { kind: 'tool_call'; toolCall: AgentToolCall }
+    | { kind: 'tool_call_update'; toolCall: Partial<AgentToolCall> & { toolCallId: string } }
     | { kind: 'plan'; entries: AgentPlanEntry[] }
     | { kind: 'chat_info_update'; title?: string | null; updatedAt?: string | null };
 
@@ -945,11 +951,15 @@ export const AgentPlanEntrySchema: SimpleSchema = Sch.Typed('AgentPlanEntry', Sc
     status: Sch.Enum('pending', 'in_progress', 'completed'),
 }));
 
+export const AgentMessageEntrySchema: SimpleSchema = Sch.Typed('AgentMessageEntry', Sch.OneOf(
+    Sch.Object({ kind: Sch.Enum('content'), content: AgentContentBlockSchema }),
+    Sch.Object({ kind: Sch.Enum('thought'), content: AgentContentBlockSchema }),
+    Sch.Object({ kind: Sch.Enum('tool_call'), toolCall: AgentToolCallSchema }),
+));
+
 export const AgentMessageSchema: SimpleSchema = Sch.Typed('AgentMessage', Sch.Object({
     role: Sch.Enum('user', 'assistant'),
-    content: Sch.Array(AgentContentBlockSchema),
-    thoughts: Sch.Optional(Sch.Array(AgentContentBlockSchema)),
-    toolCalls: Sch.Optional(Sch.Array(AgentToolCallSchema)),
+    entries: Sch.Array(AgentMessageEntrySchema),
     plan: Sch.Optional(Sch.Array(AgentPlanEntrySchema)),
     stopReason: Sch.Optional(Sch.Enum('end_turn', 'max_tokens', 'max_turn_requests', 'refusal', 'cancelled')),
 }));

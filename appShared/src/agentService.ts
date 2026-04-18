@@ -3,7 +3,7 @@ import Signal from './signals';
 import ConfigStorage from './storage';
 import {
     Sch,
-    AgentConfig, AgentStatus, ChatInfo, ChatConfigOption, AgentMessage, AgentToolCall,
+    AgentConfig, AgentStatus, ChatInfo, ChatConfigOption, AgentMessage, AgentMessageEntry, AgentToolCall,
     AgentConfigSchema, ChatInfoSchema, AgentStatusSchema, ChatConfigOptionSchema, AgentContentBlockSchema, AgentMessageSchema,
     AgentChatUpdate,
     AgentContentBlock,
@@ -65,6 +65,92 @@ export class AgentService extends Service {
     public agentSignal = new Signal<[SignalEvent, { status: AgentStatus; config: AgentConfig | null }]>({ isExposed: true, isAllowAll: false });
     public chatInfoSignal = new Signal<[ChatInfo]>({ isExposed: true, isAllowAll: false });
     public messageStreamSignal = new Signal<[string, AgentChatUpdate]>({ isExposed: true, isAllowAll: false });
+
+    // ── Client-side helpers (not @exposed — invoke via `localSc.agent.*`) ──
+
+    /**
+     * Apply a streaming `AgentChatUpdate` to an `AgentMessage`, returning a
+     * new message with the entry timeline updated. Consecutive text/thought
+     * chunks of the same kind are concatenated so markdown stays whole. Tool
+     * calls are inserted at their position in the timeline; subsequent
+     * `tool_call_update` events mutate the existing entry in-place
+     * (preserving order). Updates that don't affect the message timeline
+     * (e.g. `chat_info_update`) return the original reference.
+     */
+    public appendChatUpdate(msg: AgentMessage, update: AgentChatUpdate): AgentMessage {
+        switch (update.kind) {
+            case 'agent_message_chunk':
+            case 'agent_thought_chunk': {
+                const slot: 'content' | 'thought' = update.kind === 'agent_message_chunk' ? 'content' : 'thought';
+                const entries = msg.entries.slice();
+                const last = entries[entries.length - 1];
+                if (last && last.kind === slot && update.content.type === 'text' && last.content.type === 'text') {
+                    entries[entries.length - 1] = {
+                        kind: slot,
+                        content: { type: 'text', text: last.content.text + update.content.text },
+                    };
+                } else {
+                    entries.push({ kind: slot, content: update.content } as AgentMessageEntry);
+                }
+                return { ...msg, entries };
+            }
+            case 'tool_call': {
+                // Upsert by id — some agents re-emit `tool_call` (instead of
+                // `tool_call_update`) for status changes. Don't duplicate.
+                const tc = update.toolCall;
+                const idx = msg.entries.findIndex(
+                    e => e.kind === 'tool_call' && e.toolCall.toolCallId === tc.toolCallId,
+                );
+                const entries = msg.entries.slice();
+                if (idx >= 0) {
+                    const existing = entries[idx] as Extract<AgentMessageEntry, { kind: 'tool_call' }>;
+                    // Strip undefined so a re-emit with fewer fields doesn't
+                    // blank an earlier `title`.
+                    const patch: Partial<AgentToolCall> = {};
+                    for (const [k, v] of Object.entries(tc)) {
+                        if (v !== undefined) (patch as any)[k] = v;
+                    }
+                    entries[idx] = { kind: 'tool_call', toolCall: { ...existing.toolCall, ...patch } };
+                } else {
+                    entries.push({ kind: 'tool_call', toolCall: tc });
+                }
+                return { ...msg, entries };
+            }
+            case 'tool_call_update': {
+                // Strip undefined so partial updates don't blank fields captured
+                // from the initial `tool_call`.
+                const patch: Partial<AgentToolCall> = {};
+                for (const [k, v] of Object.entries(update.toolCall)) {
+                    if (v !== undefined) (patch as any)[k] = v;
+                }
+                if (!patch.toolCallId) return msg;
+                const idx = msg.entries.findIndex(
+                    e => e.kind === 'tool_call' && e.toolCall.toolCallId === patch.toolCallId,
+                );
+                const entries = msg.entries.slice();
+                if (idx >= 0) {
+                    const existing = entries[idx] as Extract<AgentMessageEntry, { kind: 'tool_call' }>;
+                    entries[idx] = { kind: 'tool_call', toolCall: { ...existing.toolCall, ...patch } };
+                } else {
+                    entries.push({ kind: 'tool_call', toolCall: { title: '', ...patch } as AgentToolCall });
+                }
+                return { ...msg, entries };
+            }
+            case 'plan':
+                return { ...msg, plan: update.entries };
+            case 'chat_info_update':
+                return msg;
+        }
+        return msg;
+    }
+
+    /** Build a user `AgentMessage` from a list of content blocks. */
+    public userMessage(content: AgentContentBlock[]): AgentMessage {
+        return {
+            role: 'user',
+            entries: content.map(c => ({ kind: 'content', content: c })),
+        };
+    }
 
     protected dispatchAgentUpdate(event: SignalEvent, status: AgentStatus) {
         this.agentSignal.dispatch(event, { status, config: this.getAgentConfigSync() });

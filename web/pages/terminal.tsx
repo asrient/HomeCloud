@@ -69,6 +69,32 @@ const TerminalPage: NextPageWithConfig = () => {
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
+    // Enable copy/paste keyboard shortcuts (Cmd/Ctrl+C copies when selection exists,
+    // Cmd/Ctrl+V pastes). Returning false tells xterm not to forward the key to the pty.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true;
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return true;
+      const key = e.key.toLowerCase();
+      if (key === 'c' && term.hasSelection()) {
+        const sel = term.getSelection();
+        if (sel) {
+          navigator.clipboard.writeText(sel).catch(() => {});
+          return false;
+        }
+      }
+      if (key === 'v') {
+        navigator.clipboard.readText().then((text) => {
+          if (!text || !sessionIdRef.current) return;
+          getServiceController(fingerprintRef.current)
+            .then((sc) => sc.terminal.writeTerminal(sessionIdRef.current!, text))
+            .catch(() => {});
+        }).catch(() => {});
+        return false;
+      }
+      return true;
+    });
+
     let cancelled = false;
     let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
     let sessionId: string | null = null;

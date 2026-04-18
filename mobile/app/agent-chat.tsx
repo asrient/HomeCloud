@@ -15,7 +15,7 @@ import { UIPageSheet } from '@/components/ui/UIPageSheet';
 import { UIContextMenu } from '@/components/ui/UIContextMenu';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useChat } from '@/hooks/useAgent';
-import { AgentMessage, AgentContentBlock, ChatStatus, AgentPermissionRequest } from 'shared/types';
+import { AgentMessage, AgentToolCall, AgentMessageEntry, ChatStatus, AgentPermissionRequest } from 'shared/types';
 import * as Clipboard from 'expo-clipboard';
 import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -69,18 +69,38 @@ function TextSelectionModal({ text, visible, onClose }: { text: string; visible:
 
 // ── Message bubble ──
 
+function ToolCallRow({ tc }: { tc: AgentToolCall }) {
+    return (
+        <View style={styles.toolCallRow}>
+            <UIIcon
+                name={tc.status === 'completed' ? 'checkmark.circle' : tc.status === 'failed' ? 'xmark.circle' : tc.status === 'in_progress' ? 'circle.dashed' : 'circle'}
+                size={12}
+                themeColor={tc.status === 'failed' ? undefined : 'textSecondary'}
+                color={tc.status === 'failed' ? '#ef4444' : undefined}
+            />
+            <UIText size="xs" color="textSecondary" numberOfLines={1} style={{ flex: 1 }}>{tc.title}</UIText>
+        </View>
+    );
+}
+
 const MessageBubble = memo(function MessageBubble({ message, onSelectText }: { message: AgentMessage; onSelectText: (text: string) => void }) {
-    const isUser = message.role === 'user';
+    const isUser = message?.role === 'user';
     const userBubbleColor = useThemeColor({}, 'highlight');
     const textColor = useThemeColor({}, 'text');
     const codeBgColor = useThemeColor({}, 'backgroundSecondary');
     const linkColor = useThemeColor({}, 'highlight');
     const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
-    const textContent = message.content
-        ?.filter((b): b is Extract<AgentContentBlock, { type: 'text' }> => b.type === 'text')
-        .map(b => b.text)
-        .join('').trim() || '';
+    const segments = useMemo(() => message?.entries ?? [], [message?.entries]);
+    // Concatenated assistant text (used for the Copy/Select actions).
+    const fullText = useMemo(
+        () => segments
+            .filter((e): e is Extract<AgentMessageEntry, { kind: 'content' }> => e.kind === 'content' && e.content.type === 'text')
+            .map(e => (e.content as { type: 'text'; text: string }).text)
+            .join('\n\n').trim(),
+        [segments],
+    );
+    const hasAnyContent = segments.length > 0;
 
     const markdownStyles = {
         body: { color: textColor, fontSize: 16, lineHeight: 24 },
@@ -107,40 +127,50 @@ const MessageBubble = memo(function MessageBubble({ message, onSelectText }: { m
                 styles.bubble,
                 isUser ? [styles.bubbleUser, { backgroundColor: userBubbleColor }] : styles.bubbleAssistant,
             ]}>
-                {message.toolCalls && message.toolCalls.length > 0 && (
-                    <View style={styles.toolCallsContainer}>
-                        {message.toolCalls.map((tc, i) => (
-                            <View key={`${tc.toolCallId}-${i}`} style={styles.toolCallRow}>
-                                <UIIcon
-                                    name={tc.status === 'completed' ? 'checkmark.circle' : tc.status === 'failed' ? 'xmark.circle' : tc.status === 'in_progress' ? 'circle.dashed' : 'circle'}
-                                    size={12}
-                                    themeColor={tc.status === 'failed' ? undefined : 'textSecondary'}
-                                    color={tc.status === 'failed' ? '#ef4444' : undefined}
-                                />
-                                <UIText size="xs" color="textSecondary" numberOfLines={1} style={{ flex: 1 }}>{tc.title}</UIText>
-                            </View>
-                        ))}
-                    </View>
-                )}
-                {textContent ? (
-                    isUser ? (
-                        <UIText selectable color='highlightText' size='md' font='regular'>{textContent}</UIText>
-                    ) : (
+                {!hasAnyContent ? (
+                    <UIText size="sm" color="textSecondary" style={{ fontStyle: 'italic' }}>{'(non-text content)'}</UIText>
+                ) : segments.map((seg, i) => {
+                    if (seg.kind === 'tool_call') {
+                        if (!seg.toolCall.title) return null;
+                        return <ToolCallRow key={`tool-${seg.toolCall.toolCallId}-${i}`} tc={seg.toolCall} />;
+                    }
+                    if (seg.kind === 'thought') {
+                        if (seg.content.type !== 'text') return null;
+                        return (
+                            <UIText
+                                key={`thought-${i}`}
+                                size="xs"
+                                color="textSecondary"
+                                style={{ fontStyle: 'italic', marginVertical: 4 }}
+                            >
+                                {seg.content.text}
+                            </UIText>
+                        );
+                    }
+                    // content
+                    if (seg.content.type !== 'text') return null;
+                    if (isUser) {
+                        return (
+                            <UIText key={`text-${i}`} selectable color='highlightText' size='md' font='regular'>
+                                {seg.content.text}
+                            </UIText>
+                        );
+                    }
+                    return (
                         <Markdown
+                            key={`text-${i}`}
                             style={markdownStyles}
                             onLinkPress={(url) => { Linking.openURL(url); return false; }}
                         >
-                            {textContent}
+                            {seg.content.text}
                         </Markdown>
-                    )
-                ) : !message.toolCalls?.length && !message.thoughts?.length ? (
-                    <UIText size="sm" color="textSecondary" style={{ fontStyle: 'italic' }}>{'(non-text content)'}</UIText>
-                ) : null}
+                    );
+                })}
 
-                {!isUser && textContent ? (
+                {!isUser && fullText ? (
                     <View style={styles.bubbleActions}>
-                        <ActionButton icon="clipboard" label="Copy" onPress={() => Clipboard.setStringAsync(textContent)} />
-                        <ActionButton icon="selection.pin.in.out" label="Select" onPress={() => onSelectText(textContent)} />
+                        <ActionButton icon="clipboard" label="Copy" onPress={() => Clipboard.setStringAsync(fullText)} />
+                        <ActionButton icon="selection.pin.in.out" label="Select" onPress={() => onSelectText(fullText)} />
                     </View>
                 ) : null}
             </View>

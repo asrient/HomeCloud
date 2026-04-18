@@ -1,7 +1,5 @@
-node_modules
-dist
-src
-*.ts
-!dist/**
-tsconfig.json
-scripts
+# The Dockerfile installs the server from npm, so nothing from the
+# server/ directory is actually used at build time. Ignore everything
+# except the Dockerfile itself.
+*
+!Dockerfile
