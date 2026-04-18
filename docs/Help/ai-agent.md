@@ -21,7 +21,7 @@ HomeCloud includes presets for popular AI assistants including GitHub Copilot, C
 | Environment variables | Optional key-value pairs passed to the agent process |
 | Provide workflow tools | Give the agent access to HomeCloud via the [MCP server](mcp-server) |
 
-The agent must support the **ACP (Agent Communication Protocol)** - a JSON-RPC 2.0 protocol over stdio.
+The agent must support the **ACP (Agent Communication Protocol)** over stdio.
 
 ## Using the Agent
 

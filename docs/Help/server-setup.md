@@ -37,7 +37,7 @@ This will walk you through signing in and produce a `creds.json` file. Keep this
 
 ## Step 2: Run the Server
 
-### Using npx
+### Option 1: Running in terminal
 
 ```bash
 npx @asrient/homecloud-server -p your-passphrase -c ./creds.json
@@ -49,30 +49,27 @@ Or with environment variables:
 PASSPHRASE=your-passphrase CREDS_PATH=./creds.json npx @asrient/homecloud-server
 ```
 
-### Using Docker
+### Option 2: Run in the Background
 
-> **Use `--network host`** — HomeCloud uses UDP hole punching for peer-to-peer relay connections. Docker's default bridge networking adds a second NAT layer that breaks hole punching. Host networking lets the container share the host's network stack directly, so both TCP discovery (port 7736) and UDP relay work correctly.
-
-```bash
-docker run -d --network host \
-  -v /path/to/data:/data \
-  -v /path/to/creds.json:/creds.json \
-  -e PASSPHRASE=your-passphrase \
-  -e CREDS_PATH=/creds.json \
-  -e DEVICE_NAME="My Server" \
-  asrient/homecloud-server
-```
-
-If you prefer not to mount the credentials file, you can pass it as a base64-encoded string:
+To keep the server running after you close the terminal (or across reboots), use these commands:
 
 ```bash
-docker run -d --network host \
-  -v /path/to/data:/data \
-  -e PASSPHRASE=your-passphrase \
-  -e CREDS_BASE64=<base64-string> \
-  -e DEVICE_NAME="My Server" \
-  asrient/homecloud-server
+# Start detached
+npx @asrient/homecloud-server start -p your-passphrase -c ./creds.json
+
+# Tail logs
+npx @asrient/homecloud-server logs
+
+# Stop / restart / status
+npx @asrient/homecloud-server stop
+npx @asrient/homecloud-server restart
+npx @asrient/homecloud-server status
+
+# Remove from PM2
+npx @asrient/homecloud-server delete
 ```
+
+To restart automatically on system boot, follow the [PM2 startup guide](https://pm2.keymetrics.io/docs/usage/startup/) (`pm2 startup` + `pm2 save`).
 
 ## Configuration Options
 
@@ -100,14 +97,13 @@ Make sure this port is accessible if you want other devices on your local networ
 **Server not showing up on other devices?**
 - Ensure the server is running and signed into the same account.
 - Check that port 7736 is not blocked by a firewall.
-- If using Docker, make sure you're using `--network host`.
 
 **Can I run the server on a Raspberry Pi?**
 - Yes. As long as Node.js 20+ is available, the server runs on any platform including ARM devices like Raspberry Pi.
 
 **How do I update the server?**
 - If using npx, it pulls the latest version automatically. You can also run `npx @asrient/homecloud-server@latest` to be explicit.
-- If using Docker, pull the latest image: `docker pull asrient/homecloud-server` and recreate the container.
+- If running in the background via `start`, run `npx @asrient/homecloud-server@latest restart` after the new version is available.
 
 **Is the server always reachable remotely?**
 - Yes, as long as the server is online and signed into your account, your other devices can reach it over the internet using peer-to-peer connections even across different networks.

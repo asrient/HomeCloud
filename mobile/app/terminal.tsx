@@ -330,7 +330,9 @@ export default function TerminalScreen() {
 
     const copySelection = useCallback(async () => {
         if (selectionText) {
-            try { await Clipboard.setStringAsync(selectionText); } catch (_) {}
+            try { await Clipboard.setStringAsync(selectionText); } catch (err) {
+                console.error('Clipboard error in terminal:', err);
+            }
         }
         exitSelection();
     }, [selectionText, exitSelection]);
@@ -338,13 +340,17 @@ export default function TerminalScreen() {
     const reconnect = useCallback(() => {
         // Clean up previous session
         if (readerRef.current) {
-            readerRef.current.cancel().catch(() => { });
+            readerRef.current.cancel().catch((err) => {
+                console.error('Error cancelling reader:', err);
+            });
             readerRef.current = null;
         }
         if (sessionIdRef.current) {
             getServiceController(fingerprintRef.current)
                 .then(sc => sc.terminal.stopTerminalSession(sessionIdRef.current!))
-                .catch(() => { });
+                .catch((err) => {
+                    console.error('Error stopping terminal session:', err);
+                });
             sessionIdRef.current = null;
         }
         // Clear xterm and reconnect
@@ -386,12 +392,16 @@ export default function TerminalScreen() {
     useEffect(() => {
         return () => {
             if (readerRef.current) {
-                readerRef.current.cancel().catch(() => { });
+                readerRef.current.cancel().catch((err) => {
+                    console.error('Error cancelling reader:', err);
+                });
             }
             if (sessionIdRef.current) {
                 getServiceController(fingerprintRef.current)
                     .then(sc => sc.terminal.stopTerminalSession(sessionIdRef.current!))
-                    .catch(() => { });
+                    .catch((err) => {
+                        console.error('Error stopping terminal session:', err);
+                    });
             }
         };
     }, []);
