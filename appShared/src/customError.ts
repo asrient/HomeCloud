@@ -11,6 +11,7 @@ export enum ErrorCode {
   LIMIT_REACHED = "LIMIT_REACHED",
   AGENT_NETWORK = "AGENT_NETWORK",
   ACCOUNT_NOT_FOUND = "ACCOUNT_NOT_FOUND",
+  PEER_NOT_FOUND = "PEER_NOT_FOUND",
 }
 
 export type ErrorResponse = {
@@ -88,5 +89,10 @@ export default class CustomError extends Error {
     delete resp.message;
     delete resp.type;
     return new CustomError(errorResponse.type || ErrorType.Generic, errorResponse.message || 'Error', resp);
+  }
+
+  static checkErrorCode(error: any, code: ErrorCode): boolean {
+    const customError = CustomError.from(error);
+    return customError.type === ErrorType.Coded && customError.data?.code === code;
   }
 }

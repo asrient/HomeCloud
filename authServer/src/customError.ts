@@ -11,6 +11,7 @@ export enum ErrorCode {
   LIMIT_REACHED = "LIMIT_REACHED",
   AGENT_NETWORK = "AGENT_NETWORK",
   ACCOUNT_NOT_FOUND = "ACCOUNT_NOT_FOUND",
+  PEER_NOT_FOUND = "PEER_NOT_FOUND",
 }
 
 export type ErrorResponse = {

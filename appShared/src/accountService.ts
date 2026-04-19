@@ -340,7 +340,16 @@ export class AccountService extends Service {
 
     public async updatePeerInfo(peerInfo: PeerInfo): Promise<void> {
         const resp = await this.postWithAuth("/api/peer/update", peerInfo);
-        await this.assertSuccess(resp);
+        try {
+            await this.assertSuccess(resp);
+        } catch (err) {
+            // If this device's peer record no longer exists on the server, reset local account data
+            if (CustomError.checkErrorCode(err, ErrorCode.PEER_NOT_FOUND)) {
+                console.warn(`[AccountService] Server reports this device is no longer paired. Resetting account data.`);
+                await this.resetAccountData();
+            }
+            throw err;
+        }
     }
 
     public async removePeer(fingerprint: string | null): Promise<void> {
