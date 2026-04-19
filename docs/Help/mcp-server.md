@@ -4,7 +4,7 @@ HomeCloud includes a built-in [Model Context Protocol](https://modelcontextproto
 
 ## What is MCP?
 
-MCP is an open protocol that allows AI assistants (like GitHub Copilot, Claude, Gemini, etc.) to discover and use tools provided by external servers. When enabled, HomeCloud exposes a local MCP server that gives your AI assistant access to a powerful scripting tool - allowing it to read files, control devices, run automations, and more, all through your HomeCloud setup.
+MCP is an open protocol that allows AI assistants (like GitHub Copilot, Claude, Gemini, etc.) to discover and use tools provided by external servers. When enabled, HomeCloud exposes a local MCP server that gives your AI assistant access to a powerful scripting tool, allowing it to read files, control devices, run automations, and more, all through your HomeCloud setup.
 
 ## Enabling the MCP Server
 

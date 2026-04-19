@@ -25,16 +25,7 @@ export async function isPeerOnline(peerId: string): Promise<boolean> {
 export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
     let accountId: string;
     let peerId: string;
-    let fingerprint: string | null = null;
-
-    const getFingerprint = async () => {
-        if (fingerprint) {
-            return fingerprint;
-        }
-        // lazy load fingerprint
-        fingerprint = await mcdb.getPeerFingerprint(peerId);
-        return fingerprint;
-    };
+    let fingerprint: string;
 
     let token = req.headers['sec-websocket-protocol'] || '';
 
@@ -45,13 +36,27 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
         return;
     }
 
+    const closeWithCode = (code: 'peer_removed' | 'auth_failed') => {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.close(4001, code);
+        }
+    };
+
     try {
         const tokenData = await authenticate(token);
         accountId = tokenData.accountId;
         peerId = tokenData.peerId;
+        const fingerprint_ = await mcdb.getPeerFingerprint(peerId);
+        if (!fingerprint_) {
+            console.log(`Peer ${peerId} authenticated but fingerprint not found in db.`);
+            closeWithCode('peer_removed');
+            return;
+        } else {
+            fingerprint = fingerprint_;
+        }
     } catch (e) {
         console.log('Authentication failed for websocket connection. Closing connection.');
-        ws.close(4001, 'auth_failed');
+        closeWithCode('auth_failed');
         return;
     }
 
@@ -77,11 +82,10 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
             // case handle: self peer removal
             if (evName === 'peer_removed') {
                 const eventData = validation.data.data;
-                if (eventData.fingerprint !== await getFingerprint()) {
-                    return;
+                if (eventData.fingerprint === fingerprint) {
+                    console.log('Peer has been removed. Closing websocket connection.');
+                    ws.close(4001, 'peer_removed');
                 }
-                console.log('Peer has been removed. Closing websocket connection.');
-                ws.close(4001, 'peer_removed');
             }
         } catch (e) {
             console.error('Error parsing dispatched event data:', e);
@@ -124,10 +128,9 @@ export async function startPeerDispatch(ws: WebSocket, req: IncomingMessage) {
 
     // Mark peer as online and notify other peers in the account
     await setPeerOnline(peerId);
-    const fp = await getFingerprint();
-    if (fp) {
-        console.log(`Peer ${peerId} is online with fingerprint ${fp}. Notifying account peers.`);
-        notifyAccountPeers(accountId, 'peer_online', { fingerprint: fp });
+    if (fingerprint) {
+        console.log(`Peer ${peerId} is online with fingerprint ${fingerprint}. Notifying account peers.`);
+        notifyAccountPeers(accountId, 'peer_online', { fingerprint });
     } else {
         console.warn(`Peer ${peerId} is online but has no fingerprint.`);
     }

@@ -32,11 +32,17 @@ export default class NodeAgentService extends AgentService {
     private unreadChats = new Set<string>();
     private replayPromises = new Map<string, Promise<AgentMessage[]>>();
 
+    // Bumping CHAT_FILE_VERSION invalidates all existing chat files on disk —
+    // each file stores its version in the JSON; mismatches are deleted on read.
+    private static readonly CHAT_FILE_VERSION = 2;
+
     // ── Lifecycle ──
 
     protected override async _onStart(config: AgentConfig): Promise<void> {
         this.chatsDir = path.join(modules.config.DATA_DIR, 'AgentChats');
-        // Clear chat files on every launch (agent is source of truth)
+        // Clear chat files on every launch (agent is source of truth).
+        // The CHAT_FILE_VERSION check in readChatFile is a backstop in case
+        // the wipe ever stops happening or files survive a crash.
         await fsp.rm(this.chatsDir, { recursive: true, force: true });
         await fsp.mkdir(this.chatsDir, { recursive: true });
 
@@ -139,6 +145,30 @@ export default class NodeAgentService extends AgentService {
         });
     }
 
+    /**
+     * Refresh cached metadata (title/updatedAt) for a single chat from the
+     * agent's session/list. ACP doesn't push title updates as notifications
+     * — agents set the title internally after the first turn — so we have to
+     * pull. Returns true if anything actually changed.
+     */
+    private async refreshChatMeta(chatId: string): Promise<boolean> {
+        if (!this.client?.capabilities?.sessionCapabilities?.list) return false;
+        try {
+            const result = await this.requireClient().request('session/list', {});
+            const s = (result.sessions ?? []).find((x: any) => x.sessionId === chatId);
+            if (!s) return false;
+            const prev = this.chatMeta.get(chatId);
+            const next: ChatMeta = { title: s.title ?? null, cwd: s.cwd, updatedAt: s.updatedAt ?? null };
+            this.chatMeta.set(chatId, next);
+            return !prev
+                || prev.title !== next.title
+                || prev.updatedAt !== next.updatedAt
+                || prev.cwd !== next.cwd;
+        } catch {
+            return false;
+        }
+    }
+
     protected override async _getChat(chatId: string): Promise<ChatInfo | null> {
         const chats = await this._listChats();
         return chats.find(c => c.chatId === chatId) ?? null;
@@ -180,11 +210,11 @@ export default class NodeAgentService extends AgentService {
         await this._getChatMessages(chatId);
 
         // Record user message
-        const userMsg: AgentMessage = { role: 'user', content };
+        const userMsg = this.userMessage(content);
         await this.appendMessage(chatId, userMsg);
 
         // Start accumulating assistant message
-        const pendingMessage: AgentMessage = { role: 'assistant', content: [], toolCalls: [], thoughts: [] };
+        const pendingMessage: AgentMessage = { role: 'assistant', entries: [] };
         this.activeTurns.set(chatId, { pendingMessage });
         this.emitChatInfo(chatId, 'working');
 
@@ -198,14 +228,16 @@ export default class NodeAgentService extends AgentService {
         const turn = this.activeTurns.get(chatId);
         if (turn) {
             turn.pendingMessage.stopReason = result.stopReason;
-            // Clean up empty arrays
-            if (!turn.pendingMessage.toolCalls?.length) delete turn.pendingMessage.toolCalls;
-            if (!turn.pendingMessage.thoughts?.length) delete turn.pendingMessage.thoughts;
-            if (!turn.pendingMessage.plan?.length) delete turn.pendingMessage.plan;
             await this.appendMessage(chatId, turn.pendingMessage);
             this.activeTurns.delete(chatId);
         }
         this.unreadChats.add(chatId);
+        // Pull updated title/updatedAt from agent — ACP doesn't push these.
+        // Only do it when we don't yet have a title (agents set it once after
+        // the first turn) to avoid hitting session/list on every turn.
+        if (!this.chatMeta.get(chatId)?.title) {
+            await this.refreshChatMeta(chatId);
+        }
         this.emitChatInfo(chatId, 'idle');
 
         return { stopReason: result.stopReason };
@@ -230,7 +262,7 @@ export default class NodeAgentService extends AgentService {
     protected override async _getChatConfig(chatId: string): Promise<ChatConfigOption[]> {
         // Ensure session is loaded so sessionConfigs is populated
         if (!this.sessionConfigs.has(chatId)) {
-            await this.ensureSessionLoaded(chatId).catch(() => {});
+            await this.ensureSessionLoaded(chatId).catch(() => { });
         }
         const acpOpts = this.sessionConfigs.get(chatId);
         if (!acpOpts) return [];
@@ -258,36 +290,11 @@ export default class NodeAgentService extends AgentService {
     private handleSessionUpdate(sessionId: string, update: any): void {
         const chatId = sessionId;
         const turn = this.activeTurns.get(chatId);
+        const mapped = this.mapToStreamUpdate(update);
 
-        // Accumulate into pending assistant message
-        if (turn) {
-            const msg = turn.pendingMessage;
-            switch (update.sessionUpdate) {
-                case 'agent_message_chunk':
-                    msg.content.push(update.content);
-                    break;
-                case 'agent_thought_chunk':
-                    if (!msg.thoughts) msg.thoughts = [];
-                    msg.thoughts.push(update.content);
-                    break;
-                case 'tool_call': {
-                    if (!msg.toolCalls) msg.toolCalls = [];
-                    const { sessionUpdate: _, ...tc } = update;
-                    msg.toolCalls.push(tc as AgentToolCall);
-                    break;
-                }
-                case 'tool_call_update': {
-                    if (!msg.toolCalls) msg.toolCalls = [];
-                    const { sessionUpdate: _, ...tcUpdate } = update;
-                    const idx = msg.toolCalls.findIndex((t: AgentToolCall) => t.toolCallId === tcUpdate.toolCallId);
-                    if (idx >= 0) Object.assign(msg.toolCalls[idx], tcUpdate);
-                    else msg.toolCalls.push(tcUpdate as AgentToolCall);
-                    break;
-                }
-                case 'plan':
-                    msg.plan = update.entries;
-                    break;
-            }
+        // Accumulate into pending assistant message via shared helper
+        if (turn && mapped) {
+            turn.pendingMessage = this.appendChatUpdate(turn.pendingMessage, mapped);
         }
 
         // Update stored config if agent pushes config changes
@@ -306,21 +313,25 @@ export default class NodeAgentService extends AgentService {
         }
 
         // Dispatch live stream signal (skip user_message_chunk — only used during replay)
-        const mapped = this.mapToStreamUpdate(update);
         if (mapped) {
             this.messageStreamSignal.dispatch(chatId, mapped);
         }
     }
 
     private mapToStreamUpdate(update: any): AgentChatUpdate | null {
-        const { sessionUpdate, ...rest } = update;
-        switch (sessionUpdate) {
-            case 'agent_message_chunk': return { kind: 'agent_message_chunk', ...rest };
-            case 'agent_thought_chunk': return { kind: 'agent_thought_chunk', ...rest };
-            case 'tool_call': return { kind: 'tool_call', ...rest };
-            case 'tool_call_update': return { kind: 'tool_call_update', ...rest };
-            case 'plan': return { kind: 'plan', ...rest };
-            case 'session_info_update': return { kind: 'chat_info_update', ...rest };
+        switch (update.sessionUpdate) {
+            case 'agent_message_chunk': return { kind: 'agent_message_chunk', content: update.content };
+            case 'agent_thought_chunk': return { kind: 'agent_thought_chunk', content: update.content };
+            case 'tool_call': {
+                const { sessionUpdate: _, ...tc } = update;
+                return { kind: 'tool_call', toolCall: tc as AgentToolCall };
+            }
+            case 'tool_call_update': {
+                const { sessionUpdate: _, ...tc } = update;
+                return { kind: 'tool_call_update', toolCall: tc as Partial<AgentToolCall> & { toolCallId: string } };
+            }
+            case 'plan': return { kind: 'plan', entries: update.entries };
+            case 'session_info_update': return { kind: 'chat_info_update', title: update.title, updatedAt: update.updatedAt };
             default: return null;
         }
     }
@@ -333,9 +344,6 @@ export default class NodeAgentService extends AgentService {
 
         const finalizeCurrent = () => {
             if (currentMsg) {
-                if (!currentMsg.toolCalls?.length) delete currentMsg.toolCalls;
-                if (!currentMsg.thoughts?.length) delete currentMsg.thoughts;
-                if (!currentMsg.plan?.length) delete currentMsg.plan;
                 messages.push(currentMsg);
                 currentMsg = null;
             }
@@ -345,51 +353,23 @@ export default class NodeAgentService extends AgentService {
         const replayHandler = (method: string, params: any) => {
             if (method !== 'session/update' || params?.sessionId !== chatId) return;
             const update = params.update;
-            switch (update?.sessionUpdate) {
-                case 'user_message_chunk':
-                    finalizeCurrent();
-                    currentMsg = { role: 'user', content: [update.content] };
-                    break;
-                case 'agent_message_chunk':
-                    if (!currentMsg || currentMsg.role !== 'assistant') {
-                        finalizeCurrent();
-                        currentMsg = { role: 'assistant', content: [], toolCalls: [], thoughts: [] };
-                    }
-                    currentMsg.content.push(update.content);
-                    break;
-                case 'agent_thought_chunk':
-                    if (!currentMsg || currentMsg.role !== 'assistant') {
-                        finalizeCurrent();
-                        currentMsg = { role: 'assistant', content: [], toolCalls: [], thoughts: [] };
-                    }
-                    if (!currentMsg.thoughts) currentMsg.thoughts = [];
-                    currentMsg.thoughts.push(update.content);
-                    break;
-                case 'tool_call': {
-                    if (!currentMsg || currentMsg.role !== 'assistant') {
-                        finalizeCurrent();
-                        currentMsg = { role: 'assistant', content: [], toolCalls: [], thoughts: [] };
-                    }
-                    if (!currentMsg.toolCalls) currentMsg.toolCalls = [];
-                    const { sessionUpdate: _, ...tc } = update;
-                    currentMsg.toolCalls.push(tc as AgentToolCall);
-                    break;
-                }
-                case 'tool_call_update': {
-                    if (currentMsg?.role === 'assistant' && currentMsg.toolCalls) {
-                        const { sessionUpdate: _, ...tcUpdate } = update;
-                        const idx = currentMsg.toolCalls.findIndex((t: AgentToolCall) => t.toolCallId === tcUpdate.toolCallId);
-                        if (idx >= 0) Object.assign(currentMsg.toolCalls[idx], tcUpdate);
-                        else currentMsg.toolCalls.push(tcUpdate as AgentToolCall);
-                    }
-                    break;
-                }
-                case 'plan':
-                    if (currentMsg?.role === 'assistant') {
-                        currentMsg.plan = update.entries;
-                    }
-                    break;
+            // user_message_chunk starts a fresh user message; everything else
+            // accumulates into the current assistant message via the shared helper.
+            if (update?.sessionUpdate === 'user_message_chunk') {
+                finalizeCurrent();
+                currentMsg = {
+                    role: 'user',
+                    entries: [{ kind: 'content', content: update.content }],
+                };
+                return;
             }
+            const mapped = this.mapToStreamUpdate(update);
+            if (!mapped || mapped.kind === 'chat_info_update') return;
+            if (!currentMsg || currentMsg.role !== 'assistant') {
+                finalizeCurrent();
+                currentMsg = { role: 'assistant', entries: [] };
+            }
+            currentMsg = this.appendChatUpdate(currentMsg, mapped);
         };
 
         this.client!.on('notification', replayHandler);
@@ -419,16 +399,25 @@ export default class NodeAgentService extends AgentService {
     }
 
     private async readChatFile(chatId: string): Promise<AgentMessage[] | null> {
+        const filePath = this.chatFilePath(chatId);
         try {
-            const data = await fsp.readFile(this.chatFilePath(chatId), 'utf-8');
-            return JSON.parse(data);
+            const data = await fsp.readFile(filePath, 'utf-8');
+            const parsed = JSON.parse(data);
+            if (parsed?.version !== NodeAgentService.CHAT_FILE_VERSION || !Array.isArray(parsed.messages)) {
+                // Stale / unrecognized format — drop it.
+                console.warn(`Dropping invalid chat file for ${chatId}`);
+                await fsp.rm(filePath, { force: true });
+                return null;
+            }
+            return parsed.messages;
         } catch {
             return null;
         }
     }
 
     private async writeChatFile(chatId: string, messages: AgentMessage[]): Promise<void> {
-        await fsp.writeFile(this.chatFilePath(chatId), JSON.stringify(messages), 'utf-8');
+        const payload = { version: NodeAgentService.CHAT_FILE_VERSION, messages };
+        await fsp.writeFile(this.chatFilePath(chatId), JSON.stringify(payload), 'utf-8');
     }
 
     private async appendMessage(chatId: string, message: AgentMessage): Promise<void> {

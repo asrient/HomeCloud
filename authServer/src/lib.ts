@@ -285,7 +285,7 @@ export async function getPeersForAccount(accountId: string | ObjectId): Promise<
 export async function assertAccountPeer(accountId: string | ObjectId, fingerprint: string): Promise<Peer> {
     const peer = await mcdb.getPeerForAccount(accountId, fingerprint);
     if (!peer) {
-        throw CustomError.security('Peer not found for this account with the given fingerprint');
+        throw CustomError.code(ErrorCode.PEER_NOT_FOUND, 'Peer not linked to this account');
     }
     return peer;
 }

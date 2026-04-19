@@ -1,7 +1,0 @@
-node_modules
-dist
-src
-*.ts
-!dist/**
-tsconfig.json
-scripts

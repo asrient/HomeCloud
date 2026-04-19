@@ -16,9 +16,7 @@ sudo apt install -y build-essential python3 ffmpegthumbnailer imagemagick
 ```
 
 - `build-essential` and `python3` — required to compile the `node-pty` native addon (no prebuilt Linux binary is published).
-- `ffmpegthumbnailer` and/or `imagemagick` — used for generating file thumbnails. If neither is installed, the server still runs but thumbnails will be disabled (a warning is logged). Any one of `ffmpegthumbnailer`, `convert` (ImageMagick), or `gnome-thumbnail-factory` is sufficient.
-
-macOS and Windows users don't need this step — native modules ship with prebuilt binaries and the OS provides thumbnail generation.
+- `ffmpegthumbnailer` and/or `imagemagick` — used for generating file thumbnails. If neither is installed, the server still runs but thumbnails will be disabled. Any one of `ffmpegthumbnailer`, `convert` (ImageMagick), or `gnome-thumbnail-factory` is sufficient.
 
 ### 1. Generate credentials
 
@@ -40,30 +38,25 @@ Or with environment variables:
 PASSPHRASE=your-passphrase CREDS_PATH=./creds.json npx @asrient/homecloud-server
 ```
 
-## Docker
-
-> **Use `--network host`** — HomeCloud uses UDP hole punching for peer-to-peer relay connections. Docker's default bridge networking adds a second NAT layer that breaks hole punching. Host networking lets the container share the host's network stack directly, so both TCP discovery (port 7736) and UDP relay work correctly.
+### 3. Run in the background
 
 ```bash
-docker run -d --network host \
-  -v /path/to/data:/data \
-  -v /path/to/creds.json:/creds.json \
-  -e PASSPHRASE=your-passphrase \
-  -e CREDS_PATH=/creds.json \
-  -e DEVICE_NAME="My Server" \
-  asrient/homecloud-server
+# Start detached
+npx @asrient/homecloud-server start -p your-passphrase -c ./creds.json
+
+# Tail logs
+npx @asrient/homecloud-server logs
+
+# Stop / restart / status
+npx @asrient/homecloud-server stop
+npx @asrient/homecloud-server restart
+npx @asrient/homecloud-server status
+
+# Remove from PM2
+npx @asrient/homecloud-server delete
 ```
 
-Or with base64 credentials:
-
-```bash
-docker run -d --network host \
-  -v /path/to/data:/data \
-  -e PASSPHRASE=your-passphrase \
-  -e CREDS_BASE64=<base64-string> \
-  -e DEVICE_NAME="My Server" \
-  asrient/homecloud-server
-```
+To restart automatically on system boot, follow the [PM2 startup guide](https://pm2.keymetrics.io/docs/usage/startup/) (`pm2 startup` + `pm2 save`).
 
 ## Options
 

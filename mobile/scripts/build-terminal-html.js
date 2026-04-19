@@ -92,34 +92,109 @@ ${xtermCss}
   window.addEventListener('message', handleMsg);
   document.addEventListener('message', handleMsg);
 
-  // Touch-to-scroll: xterm uses wheel events, not touch, so we bridge them
-  var touchStartY = null;
-  var cellHeight = 0;
-  var accDelta = 0;
+  // Touch handling:
+  //   tap on terminal       → select word at touch point (or clear if active)
+  //   drag on terminal      → scroll (clears any active selection)
+  // RN bar provides Cancel / Copy.
+  var cellW = 0, cellH = 0;
   var scrollEl = document.getElementById('terminal');
+  var startX = null, startY = null, accDelta = 0, moved = false;
+
+  function refreshCell() {
+    var d = term._core._renderService.dimensions.css.cell;
+    cellW = d.width || 8; cellH = d.height || 16;
+  }
+
+  function pointToCell(clientX, clientY) {
+    var rect = term.element.getBoundingClientRect();
+    var col = Math.max(0, Math.min(term.cols - 1, Math.floor((clientX - rect.left) / cellW)));
+    var rowInView = Math.max(0, Math.min(term.rows - 1, Math.floor((clientY - rect.top) / cellH)));
+    return { col: col, row: term.buffer.active.viewportY + rowInView };
+  }
+
+  var WORD_RE = /[A-Za-z0-9_./~$@-]/;
+  function selectWordAt(col, row) {
+    var line = term.buffer.active.getLine(row);
+    if (!line) return false;
+    var text = line.translateToString(false);
+    if (col >= text.length || !WORD_RE.test(text[col])) return false;
+    var s = col, e = col;
+    while (s > 0 && WORD_RE.test(text[s - 1])) s--;
+    while (e < text.length - 1 && WORD_RE.test(text[e + 1])) e++;
+    term.select(s, row, e - s + 1);
+    return true;
+  }
+
+  function postSelection() {
+    var t = term.getSelection() || '';
+    if (t) sendToRN('selection', { text: t });
+    else sendToRN('selectionEnd', {});
+  }
+
+  function clearSel() {
+    term.clearSelection();
+    sendToRN('selectionEnd', {});
+  }
+
   scrollEl.addEventListener('touchstart', function(e) {
-    if (e.touches.length === 1) {
-      touchStartY = e.touches[0].clientY;
-      cellHeight = term._core._renderService.dimensions.css.cell.height || 16;
-      accDelta = 0;
+    if (e.touches.length !== 1) return;
+    var t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; accDelta = 0; moved = false;
+    refreshCell();
+  }, { passive: true });
+
+  scrollEl.addEventListener('touchmove', function(e) {
+    if (startY === null || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    if (!moved && (Math.abs(t.clientX - startX) > 8 || Math.abs(t.clientY - startY) > 8)) {
+      moved = true;
+      if (term.hasSelection()) clearSel();
+    }
+    var dy = startY - t.clientY;
+    startY = t.clientY;
+    accDelta += dy;
+    var lines = Math.trunc(accDelta / cellH);
+    if (lines !== 0) {
+      term.scrollLines(lines);
+      accDelta -= lines * cellH;
     }
   }, { passive: true });
-  scrollEl.addEventListener('touchmove', function(e) {
-    if (touchStartY !== null && e.touches.length === 1) {
-      var dy = touchStartY - e.touches[0].clientY;
-      touchStartY = e.touches[0].clientY;
-      accDelta += dy;
-      var lines = Math.trunc(accDelta / cellHeight);
-      if (lines !== 0) {
-        term.scrollLines(lines);
-        accDelta -= lines * cellHeight;
+
+  scrollEl.addEventListener('touchend', function(e) {
+    if (!moved && startX !== null) {
+      var t = e.changedTouches[0];
+      if (t) {
+        var c = pointToCell(t.clientX, t.clientY);
+        if (term.hasSelection()) {
+          clearSel();
+        } else {
+          // Defer past the synthetic mousedown/click that touchend triggers,
+          // which would otherwise clear our selection via xterm's SelectionService.
+          setTimeout(function() {
+            if (selectWordAt(c.col, c.row)) {
+              sendToRN('selectionStart', {});
+              postSelection();
+            }
+          }, 50);
+        }
       }
     }
+    startX = null; startY = null; accDelta = 0;
   }, { passive: true });
-  scrollEl.addEventListener('touchend', function() {
-    touchStartY = null;
-    accDelta = 0;
-  }, { passive: true });
+
+  // Allow RN to clear selection
+  var origHandleMsg = handleMsg;
+  function handleMsg2(event) {
+    try {
+      var msg = JSON.parse(event.data);
+      if (msg.type === 'exitSelection') { clearSel(); return; }
+    } catch (e) {}
+    origHandleMsg(event);
+  }
+  window.removeEventListener('message', handleMsg);
+  document.removeEventListener('message', handleMsg);
+  window.addEventListener('message', handleMsg2);
+  document.addEventListener('message', handleMsg2);
 })();
 </script>
 </body>

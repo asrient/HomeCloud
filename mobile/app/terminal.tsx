@@ -22,6 +22,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '@react-navigation/native';
 import { useNavigationTheme } from '@/hooks/useNavigationTheme';
 import { useAssets } from 'expo-asset';
+import * as Clipboard from 'expo-clipboard';
 
 const terminalHtmlModule = require('@/assets/terminal.html');
 
@@ -117,6 +118,8 @@ export default function TerminalScreen() {
     const [ctrlActive, setCtrlActive] = useState(false);
     const [altActive, setAltActive] = useState(false);
     const [shiftActive, setShiftActive] = useState(false);
+    const [selectionActive, setSelectionActive] = useState(false);
+    const [selectionText, setSelectionText] = useState('');
 
     const ctrlRef = useRef(false);
     const altRef = useRef(false);
@@ -275,6 +278,14 @@ export default function TerminalScreen() {
                     const sc = await getServiceController(fingerprintRef.current);
                     await sc.terminal.resizeTerminal(sessionIdRef.current, msg.cols, msg.rows);
                 }
+            } else if (msg.type === 'selectionStart') {
+                setSelectionActive(true);
+                setSelectionText('');
+            } else if (msg.type === 'selection') {
+                setSelectionText(typeof msg.text === 'string' ? msg.text : '');
+            } else if (msg.type === 'selectionEnd') {
+                setSelectionActive(false);
+                setSelectionText('');
             }
         } catch (e) {
             console.error('[Terminal] WebView message error:', e);
@@ -309,16 +320,37 @@ export default function TerminalScreen() {
         );
     }, [clearModifiers]);
 
+    const exitSelection = useCallback(() => {
+        webViewRef.current?.injectJavaScript(
+            `window.postMessage(JSON.stringify({type:'exitSelection'}), '*'); true;`
+        );
+        setSelectionActive(false);
+        setSelectionText('');
+    }, []);
+
+    const copySelection = useCallback(async () => {
+        if (selectionText) {
+            try { await Clipboard.setStringAsync(selectionText); } catch (err) {
+                console.error('Clipboard error in terminal:', err);
+            }
+        }
+        exitSelection();
+    }, [selectionText, exitSelection]);
+
     const reconnect = useCallback(() => {
         // Clean up previous session
         if (readerRef.current) {
-            readerRef.current.cancel().catch(() => { });
+            readerRef.current.cancel().catch((err) => {
+                console.error('Error cancelling reader:', err);
+            });
             readerRef.current = null;
         }
         if (sessionIdRef.current) {
             getServiceController(fingerprintRef.current)
                 .then(sc => sc.terminal.stopTerminalSession(sessionIdRef.current!))
-                .catch(() => { });
+                .catch((err) => {
+                    console.error('Error stopping terminal session:', err);
+                });
             sessionIdRef.current = null;
         }
         // Clear xterm and reconnect
@@ -360,12 +392,16 @@ export default function TerminalScreen() {
     useEffect(() => {
         return () => {
             if (readerRef.current) {
-                readerRef.current.cancel().catch(() => { });
+                readerRef.current.cancel().catch((err) => {
+                    console.error('Error cancelling reader:', err);
+                });
             }
             if (sessionIdRef.current) {
                 getServiceController(fingerprintRef.current)
                     .then(sc => sc.terminal.stopTerminalSession(sessionIdRef.current!))
-                    .catch(() => { });
+                    .catch((err) => {
+                        console.error('Error stopping terminal session:', err);
+                    });
             }
         };
     }, []);
@@ -423,6 +459,25 @@ export default function TerminalScreen() {
                     />}
                 </View>
                 <View style={[styles.keybarContainer, { bottom: keyboardHeight + (Platform.OS === 'android' ? insets.bottom : 0) }]}>
+                    {selectionActive && (
+                        <View style={styles.selectionBar}>
+                            <Text style={styles.selectionInfo} numberOfLines={1}>
+                                {selectionText ? `${selectionText.length} char${selectionText.length === 1 ? '' : 's'} selected` : 'Tap a word'}
+                            </Text>
+                            <View style={styles.selectionButtons}>
+                                <Pressable style={styles.selectionBtn} onPress={exitSelection}>
+                                    <Text style={styles.selectionBtnText}>Cancel</Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[styles.selectionBtn, styles.selectionBtnPrimary, !selectionText && styles.selectionBtnDisabled]}
+                                    onPress={copySelection}
+                                    disabled={!selectionText}
+                                >
+                                    <Text style={[styles.selectionBtnText, styles.selectionBtnTextPrimary]}>Copy</Text>
+                                </Pressable>
+                            </View>
+                        </View>
+                    )}
                     <TerminalKeybar
                         onKey={sendKey}
                         ctrlActive={ctrlActive}
@@ -511,6 +566,43 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     keyLabelActive: {
+        color: '#fff',
+    },
+    selectionBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        backgroundColor: 'transparent',
+    },
+    selectionInfo: {
+        color: '#aaa',
+        fontSize: 13,
+        flex: 1,
+    },
+    selectionButtons: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    selectionBtn: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 6,
+        backgroundColor: '#3a3a3a',
+    },
+    selectionBtnPrimary: {
+        backgroundColor: '#0a84ff',
+    },
+    selectionBtnDisabled: {
+        opacity: 0.4,
+    },
+    selectionBtnText: {
+        color: '#ddd',
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    selectionBtnTextPrimary: {
         color: '#fff',
     },
 });

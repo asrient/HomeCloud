@@ -9,9 +9,9 @@ Welcome to the HomeCloud docs, get help with setting up the app, troubleshooting
 
 ### Get the most out of HomeCloud
 
-- [Workflows](Help/features/workflows) - Automate tasks across your devices with scripts.
-- [AI Agent](Help/features/ai-agent) - Chat with an AI assistant that can control your devices.
-- [MCP Server](Help/features/mcp-server) - Let AI tools access HomeCloud via Model Context Protocol.
+- [Workflows](Help/workflows) - Automate tasks across your devices with scripts.
+- [AI Agent](Help/ai-agent) - Chat with an AI assistant that can control your devices.
+- [MCP Server](Help/mcp-server) - Let AI tools access HomeCloud via Model Context Protocol.
 
 ## For Developers
 

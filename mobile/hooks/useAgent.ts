@@ -149,35 +149,13 @@ export function useChatList(deviceFingerprint: string | null) {
 
 // ── useChat ─────────────────────────────────────────────────────────────────
 
-function applyStreamUpdate(msg: AgentMessage, update: AgentChatUpdate): AgentMessage {
-    const next = { ...msg, content: [...msg.content], thoughts: msg.thoughts ? [...msg.thoughts] : undefined, toolCalls: msg.toolCalls ? [...msg.toolCalls] : undefined };
-    switch (update.kind) {
-        case 'agent_message_chunk':
-            next.content.push(update.content);
-            break;
-        case 'agent_thought_chunk':
-            if (!next.thoughts) next.thoughts = [];
-            next.thoughts.push(update.content);
-            break;
-        case 'tool_call': {
-            if (!next.toolCalls) next.toolCalls = [];
-            const { kind: _, ...tc } = update;
-            next.toolCalls.push(tc);
-            break;
-        }
-        case 'tool_call_update': {
-            if (!next.toolCalls) next.toolCalls = [];
-            const { kind: _, ...tcUpdate } = update;
-            const idx = next.toolCalls.findIndex(t => t.toolCallId === tcUpdate.toolCallId);
-            if (idx >= 0) next.toolCalls[idx] = { ...next.toolCalls[idx], ...tcUpdate };
-            else next.toolCalls.push(tcUpdate);
-            break;
-        }
-        case 'plan':
-            next.plan = update.entries;
-            break;
-    }
-    return next;
+/**
+ * Filter out messages that don't have the expected v2 timeline shape.
+ * Protects against peers that might ship a stale/different schema.
+ */
+function sanitizeMessages(msgs: AgentMessage[] | null | undefined): AgentMessage[] {
+    if (!Array.isArray(msgs)) return [];
+    return msgs.filter(m => m && typeof m === 'object' && Array.isArray((m as AgentMessage).entries));
 }
 
 export function useChat(deviceFingerprint: string | null, chatId: string | null) {
@@ -219,7 +197,7 @@ export function useChat(deviceFingerprint: string | null, chatId: string | null)
         ]);
         if (shouldAbort()) return;
         setChatInfo(info);
-        setMessages(msgs);
+        setMessages(sanitizeMessages(msgs));
         setStatus(info?.status ?? 'idle');
         setPendingPermission(info?.pendingPermission ?? null);
         setConfigOptions(config);
@@ -238,7 +216,7 @@ export function useChat(deviceFingerprint: string | null, chatId: string | null)
             if (info.status === 'idle') {
                 streamingRef.current = null;
                 sc.agent.getChatMessages(info.chatId).then(msgs => {
-                    if (chatIdRef.current === info.chatId) setMessages(msgs);
+                    if (chatIdRef.current === info.chatId) setMessages(sanitizeMessages(msgs));
                 }).catch(() => { });
             }
         });
@@ -246,9 +224,10 @@ export function useChat(deviceFingerprint: string | null, chatId: string | null)
             if (id !== chatIdRef.current) return;
             if (update.kind === 'chat_info_update') return;
             if (!streamingRef.current) {
-                streamingRef.current = { role: 'assistant', content: [] };
+                streamingRef.current = { role: 'assistant', entries: [] };
             }
-            streamingRef.current = applyStreamUpdate(streamingRef.current, update);
+            const localSc = modules.getLocalServiceController();
+            streamingRef.current = localSc.agent.appendChatUpdate(streamingRef.current, update);
             const streaming = streamingRef.current;
             setMessages(prev => {
                 const last = prev[prev.length - 1];
@@ -279,12 +258,12 @@ export function useChat(deviceFingerprint: string | null, chatId: string | null)
         const id = chatIdRef.current;
         if (!sc || !id) return;
         streamingRef.current = null;
-        const userMsg: AgentMessage = { role: 'user', content: [{ type: 'text', text }] };
+        const userMsg: AgentMessage = modules.getLocalServiceController().agent.userMessage([{ type: 'text', text }]);
         setMessages(prev => [...prev, userMsg]);
         try {
             await sc.agent.sendMessage(id, text);
             const msgs = await sc.agent.getChatMessages(id);
-            if (chatIdRef.current === id) setMessages(msgs);
+            if (chatIdRef.current === id) setMessages(sanitizeMessages(msgs));
         } catch (err: any) {
             console.error('[useChat] sendMessage failed:', err);
         }
@@ -295,12 +274,12 @@ export function useChat(deviceFingerprint: string | null, chatId: string | null)
         const id = chatIdRef.current;
         if (!sc || !id) return;
         streamingRef.current = null;
-        const userMsg: AgentMessage = { role: 'user', content };
+        const userMsg: AgentMessage = modules.getLocalServiceController().agent.userMessage(content);
         setMessages(prev => [...prev, userMsg]);
         try {
             await sc.agent.sendMessageWithContent(id, content);
             const msgs = await sc.agent.getChatMessages(id);
-            if (chatIdRef.current === id) setMessages(msgs);
+            if (chatIdRef.current === id) setMessages(sanitizeMessages(msgs));
         } catch (err: any) {
             console.error('[useChat] sendMessageWithContent failed:', err);
         }

@@ -189,6 +189,19 @@ class ServerServiceController extends ServiceController {
     }
 }
 
+function getPackageVersion(): string {
+    try {
+        const pkgPath = path.join(__dirname, '..', 'package.json');
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+        if (pkg && typeof pkg.version === 'string' && pkg.version.length > 0) {
+            return pkg.version;
+        }
+    } catch (err) {
+        console.warn('[Server] Failed to read package.json version:', err);
+    }
+    return process.env.npm_package_version || '0.0.0';
+}
+
 async function getConfig(): Promise<ServerConfigType> {
     const dataDir = getDataDir();
     const cacheDir = getCacheDir();
@@ -214,7 +227,7 @@ async function getConfig(): Promise<ServerConfigType> {
         IS_DEV: process.env.NODE_ENV === 'development',
         IS_STORE_DISTRIBUTION: false,
         SECRET_KEY: secretKey,
-        VERSION: process.env.npm_package_version || '0.0.1',
+        VERSION: getPackageVersion(),
         DEVICE_NAME: option('name', 'DEVICE_NAME') || getDeviceName(),
         PUBLIC_KEY_PEM: publicKeyPem,
         PRIVATE_KEY_PEM: privateKeyPem,
