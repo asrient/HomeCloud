@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import {
     View, StyleSheet, FlatList,
-    ActivityIndicator, Linking, Platform,
+    ActivityIndicator, Linking,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -237,11 +237,12 @@ export default function AgentChatScreen() {
     const [selectText, setSelectText] = useState<string | null>(null);
     const { progress: kbProgress, height: kbHeight } = useReanimatedKeyboardAnimation();
     // kbHeight is 0 when closed and -keyboardHeight when open.
-    // On iOS we shrink the container ourselves so the FlatList resizes too.
-    // On Android we use SOFT_INPUT_ADJUST_RESIZE which already shrinks the
-    // window, so adding our own padding would double-shrink.
+    // We shrink the container ourselves so the FlatList resizes too. On Android with
+    // edge-to-edge enabled, SOFT_INPUT_ADJUST_RESIZE no longer resizes the window
+    // (the keyboard is reported as an inset), so we need to apply the padding on
+    // both platforms.
     const containerAnimatedStyle = useAnimatedStyle(() => ({
-        paddingBottom: Platform.OS === 'ios' ? -kbHeight.value : 0,
+        paddingBottom: -kbHeight.value,
     }));
     const inputBarAnimatedStyle = useAnimatedStyle(() => ({
         // Only apply the bottom safe-area inset when the keyboard is closed.
