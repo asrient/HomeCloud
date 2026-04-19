@@ -32,14 +32,17 @@ export default class NodeAgentService extends AgentService {
     private unreadChats = new Set<string>();
     private replayPromises = new Map<string, Promise<AgentMessage[]>>();
 
+    // Bumping CHAT_FILE_VERSION invalidates all existing chat files on disk —
+    // each file stores its version in the JSON; mismatches are deleted on read.
+    private static readonly CHAT_FILE_VERSION = 2;
+
     // ── Lifecycle ──
 
     protected override async _onStart(config: AgentConfig): Promise<void> {
-        // v2: timeline-entry message format. Bumping this subdir name means
-        // any stale v1 chat files (bucket-shaped) are ignored rather than
-        // accidentally deserialized with the new types.
-        this.chatsDir = path.join(modules.config.DATA_DIR, 'AgentChats_v2');
-        // Clear chat files on every launch (agent is source of truth)
+        this.chatsDir = path.join(modules.config.DATA_DIR, 'AgentChats');
+        // Clear chat files on every launch (agent is source of truth).
+        // The CHAT_FILE_VERSION check in readChatFile is a backstop in case
+        // the wipe ever stops happening or files survive a crash.
         await fsp.rm(this.chatsDir, { recursive: true, force: true });
         await fsp.mkdir(this.chatsDir, { recursive: true });
 
@@ -259,7 +262,7 @@ export default class NodeAgentService extends AgentService {
     protected override async _getChatConfig(chatId: string): Promise<ChatConfigOption[]> {
         // Ensure session is loaded so sessionConfigs is populated
         if (!this.sessionConfigs.has(chatId)) {
-            await this.ensureSessionLoaded(chatId).catch(() => {});
+            await this.ensureSessionLoaded(chatId).catch(() => { });
         }
         const acpOpts = this.sessionConfigs.get(chatId);
         if (!acpOpts) return [];
@@ -396,16 +399,25 @@ export default class NodeAgentService extends AgentService {
     }
 
     private async readChatFile(chatId: string): Promise<AgentMessage[] | null> {
+        const filePath = this.chatFilePath(chatId);
         try {
-            const data = await fsp.readFile(this.chatFilePath(chatId), 'utf-8');
-            return JSON.parse(data);
+            const data = await fsp.readFile(filePath, 'utf-8');
+            const parsed = JSON.parse(data);
+            if (parsed?.version !== NodeAgentService.CHAT_FILE_VERSION || !Array.isArray(parsed.messages)) {
+                // Stale / unrecognized format — drop it.
+                console.warn(`Dropping invalid chat file for ${chatId}`);
+                await fsp.rm(filePath, { force: true });
+                return null;
+            }
+            return parsed.messages;
         } catch {
             return null;
         }
     }
 
     private async writeChatFile(chatId: string, messages: AgentMessage[]): Promise<void> {
-        await fsp.writeFile(this.chatFilePath(chatId), JSON.stringify(messages), 'utf-8');
+        const payload = { version: NodeAgentService.CHAT_FILE_VERSION, messages };
+        await fsp.writeFile(this.chatFilePath(chatId), JSON.stringify(payload), 'utf-8');
     }
 
     private async appendMessage(chatId: string, message: AgentMessage): Promise<void> {
