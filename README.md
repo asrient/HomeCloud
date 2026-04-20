@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-    <strong>Access and control all your devices from anywhere.</strong><br>
+    <strong>Access and control your devices and agents from anywhere.</strong><br>
     Files, photos, clipboard, screen, terminal, over any network.
 </p>
 
@@ -17,14 +17,7 @@
 
 ---
 
-HomeCloud is a free, open-source device bridge that connects your phones and computers across any network. Unlike tools that only work on the same WiFi (KDE Connect, LocalSend), HomeCloud connects your devices over the internet too, while staying fully peer-to-peer, no VPN setups needed.
-
-**What HomeCloud means for you:**
-
-- 🔁 AirDrop that works with any platform including Windows, Android, macOS, iOS.
-- 🐧 KDE Connect that actually connects, not just on same WiFi. With or without internet.
-- 🛠️ Give AI agents access to your devices via MCP: files, screen, terminal, photos.
-- 🤖 Automations and workflows for power users.
+HomeCloud is a free, open-source device hub that connects your devices and AI agents across any network. Unlike tools that only work on the same WiFi or requires complex VPN setups, HomeCloud connects your devices seamlessly anywhere you are, while staying fully peer-to-peer.
 
 ![Screenshot](img/s2.png)
 
@@ -42,32 +35,32 @@ HomeCloud is a free, open-source device bridge that connects your phones and com
 | 🤖 **AI Agents** | Run AI agent like Claude Code in the background and chat from any device. |
 | ⚡ **Workflows** | Create and run automated tasks across your devices |
 
-### What makes HomeCloud different
+### HomeCloud vs other device companions
 
 | | HomeCloud | KDE Connect | LocalSend |
 |---|---|---|---|
 | **Works over internet (P2P)** | ✅ | ❌ Same WiFi only | ❌ Same WiFi only |
-| **Truly cross-platform** | macOS, Windows, iOS, Android (Linux soon) | Weak on Mac/iOS | All, but file transfer only |
+| **Truly cross-platform** | macOS, Windows, iOS, Android (Linux soon) | All | All, but file transfer only |
 | **File transfer** | ✅ | ✅ | ✅ |
-| **Clipboard sync** | ✅ | ✅ | ✅ |
+| **Clipboard access** | ✅ | ✅ | ❌ |
 | **Remote screen** | ✅ | ❌ | ❌ |
 | **Remote terminal** | ✅ | ❌ | ❌ |
 | **Phone photos on desktop** | ✅ | ❌ | ❌ |
 | **Workflows / automation** | ✅ | ❌ | ❌ |
 | **No VPN or port forwarding** | ✅ | Needs VPN for remote | Needs VPN for remote |
 
-## AI Agents
+### How it works
+
+- **Peer-to-peer networking.** Local devices discover each other via mDNS. Remote devices connect directly over UDP.
+- **End-to-end encrypted.** Devices authenticate using on-device public key cryptography. Your data stays private and fully under your control.
+- **Lightweight broker.** HomeCloud uses an authentication and broker service only for device discovery and connection setup. Your actual data is always transferred peer-to-peer and never reaches our servers.
+
+## Give AI Agents access to your devices
 
 HomeCloud can also serve as the device layer for AI agents. Connect any AI agent or tool to your devices using industry-standard protocols:
 
 - **MCP (Model Context Protocol):** Any MCP-compatible AI agent can get access to your device's files, photos, system info, and more through HomeCloud. Works with Claude, Copilot, and other MCP-enabled tools.
 - **ACP (Agent Communication Protocol):** See and control AI agents running on any of your devices from anywhere - your phone, laptop, or tablet.
-
-## How it works
-
-- **Peer-to-peer networking.** Local devices discover each other via mDNS. Remote devices connect directly over UDP.
-- **End-to-end encrypted.** Devices authenticate using on-device public key cryptography. Your data stays private and fully under your control.
-- **Lightweight broker.** HomeCloud uses an authentication and broker service only for device discovery and connection setup. Your actual data is always transferred peer-to-peer and never reaches our servers.
 
 ## Get started
 
