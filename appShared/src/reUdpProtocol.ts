@@ -624,22 +624,22 @@ export class ReDatagram {
                 this.wakeWindowWaiters();
             }
             else if (type === FLAG_HELLO) {
-                console.debug("[ReUDP:${this.tag}] Received HELLO, sending HELLO_ACK");
+                console.debug(`[ReUDP:${this.tag}] Received HELLO, sending HELLO_ACK`);
                 this.lastPingReceived = Date.now();
                 const header = this.encodeHeader(FLAG_HELLO_ACK, 0);
                 this.socket.send(header, this.remote.port, this.remote.address).catch(() => { });
             }
             else if (type === FLAG_HELLO_ACK) {
-                console.debug("[ReUDP:${this.tag}] Received HELLO_ACK");
+                console.debug(`[ReUDP:${this.tag}] Received HELLO_ACK`);
                 this.lastPingReceived = Date.now();
                 // this.markReady();
             }
             else if (type === FLAG_PING) {
-                // console.log("[ReUDP:${this.tag}] Received PING, sending PING back");
+                // console.log(`[ReUDP:${this.tag}] Received PING, sending PING back`);
                 this.lastPingReceived = Date.now();
             }
             else if (type === FLAG_BYE) {
-                console.log("[ReUDP:${this.tag}] Received BYE from remote, closing connection.");
+                console.log(`[ReUDP:${this.tag}] Received BYE from remote, closing connection.`);
                 this.isRemoteClosed = true;
                 this.close();
             }
