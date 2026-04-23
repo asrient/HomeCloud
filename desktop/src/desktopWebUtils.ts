@@ -1,7 +1,7 @@
 import { BrowserWindow, Menu, MenuItem } from 'electron/main';
 import { hasFilePathsInClipboard } from './services/system/clipboard';
 import { checkForUpdates as _checkForUpdates, getUpdateStatus as _getUpdateStatus, triggerUpdateCheck as _triggerUpdateCheck, UpdateInfo, UpdateStatus } from './updateCheck';
-import { createScreenWindow, createTerminalWindow } from './remoteWindow';
+import { createScreenWindow, createTerminalWindow, markTerminalSessionEnded } from './remoteWindow';
 
 export type ContextMenuItem = {
     label?: string;
@@ -62,8 +62,12 @@ export function openScreenWindow(
     createScreenWindow(fingerprint, deviceName);
 }
 
-export function openTerminalWindow(fingerprint: string | null): void {
-    createTerminalWindow(fingerprint);
+export function openTerminalWindow(fingerprint: string | null, sessionId?: string): void {
+    createTerminalWindow(fingerprint, sessionId);
+}
+
+export function notifyTerminalSessionEnded(fingerprint: string | null, sessionId: string): void {
+    markTerminalSessionEnded(fingerprint, sessionId);
 }
 
 export function getWindowControls(win: BrowserWindow) {

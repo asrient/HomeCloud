@@ -131,6 +131,13 @@ export class FsDriver {
         catch { return this._mkDir(name, baseId); }
     }
 
+    @exposed
+    @wfApi
+    @info("Get a SHA-256 hash of a file's content")
+    @input(Sch.Name('path', Sch.String))
+    @output(Sch.String)
+    public async getFileHash(id: string): Promise<string> { return this._getFileHash(id); }
+
     // --- Protected methods (override these in subclasses) ---
 
     protected async _readDir(id: string): Promise<RemoteItem[]> { throw new Error("Not implemented"); }
@@ -143,6 +150,7 @@ export class FsDriver {
     protected async _moveFile(id: string, destParentId: string, newFileName: string, deleteSource: boolean): Promise<RemoteItem> { throw new Error("Not implemented"); }
     protected async _moveDir(id: string, destParentId: string, newDirName: string, deleteSource: boolean): Promise<RemoteItem> { throw new Error("Not implemented"); }
     protected async _getStat(id: string): Promise<RemoteItem> { throw new Error("Not implemented"); }
+    protected async _getFileHash(id: string): Promise<string> { throw new Error("Not implemented"); }
 
     public joinPaths(...paths: string[]): string {
         throw new Error("Not implemented");

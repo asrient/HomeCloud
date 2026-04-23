@@ -11,10 +11,10 @@ import { useAppDispatch, useAppState } from '@/components/hooks/useAppState';
 import { usePeer, usePeerConnectionState } from '@/components/hooks/usePeerState';
 import { cn, getServiceController, isMacosTheme, isWin11Theme } from '@/lib/utils';
 import { DeviceIcon } from '@/components/DeviceIcon';
-import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard, Lock, Terminal, Monitor, Settings, MoreHorizontal } from 'lucide-react';
+import { Volume2, FolderClosed, Battery, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Airplay, Keyboard, Clipboard, Lock, Monitor, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionIcon } from '@/components/deviceSwitcher';
-import { useBatteryInfo, useMediaPlayback, useScreenLock, useTerminalAvailable, useVolume } from '@/components/hooks/useSystemState';
+import { useBatteryInfo, useMediaPlayback, useScreenLock, useVolume } from '@/components/hooks/useSystemState';
 import { useAppsAvailable } from '@/components/hooks/useApps';
 import { PauseIcon, PlayIcon, ForwardIcon, BackwardIcon } from '@heroicons/react/24/solid';
 import TextModal from '@/components/textModal';
@@ -24,7 +24,6 @@ import LoadingIcon from '@/components/ui/loadingIcon';
 import { Slider } from "@/components/ui/slider"
 import { DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { DisksGrid } from '@/components/DisksGrid';
 import { getAppName } from '@/lib/utils';
 import { settingsUrl } from '@/lib/urls';
@@ -342,7 +341,6 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
   }, [deviceFingerprint, peers]);
 
   const { lockStatus, lockScreen } = useScreenLock(deviceFingerprint);
-  const { available: terminalAvailable } = useTerminalAvailable(deviceFingerprint);
   const { available: appsAvailable } = useAppsAvailable(deviceFingerprint);
 
   const openScreen = useCallback(() => {
@@ -350,12 +348,6 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
       window.utils.openScreenWindow(deviceFingerprint, peerInfo?.deviceName);
     }
   }, [deviceFingerprint, peerInfo]);
-
-  const openTerminal = useCallback(() => {
-    if (window.utils?.openTerminalWindow) {
-      window.utils.openTerminalWindow(deviceFingerprint);
-    }
-  }, [deviceFingerprint]);
 
   const onTextSend = useCallback(async (text: string) => {
     const sc = await getServiceController(deviceFingerprint);
@@ -368,10 +360,8 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
 
   const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
 
-  const hasOverflowItems = terminalAvailable || lockStatus !== 'not-supported';
-
   return (
-    <div className='p-1 mx-2 flex flex-row items-center justify-start gap-2'>
+    <div className='p-1 mx-2 flex flex-row flex-wrap items-center justify-start gap-2'>
       <FilesSendAction deviceFingerprint={deviceFingerprint} />
       <TextModal onDone={onTextSend}
         title='Send Text'
@@ -394,12 +384,6 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
           <Monitor className='mr-2' size={16} />Screen
         </Button>
       )}
-      {/* Show Terminal & Lock inline on wide screens */}
-      {terminalAvailable && (
-        <Button variant='secondary' size='sm' onClick={openTerminal} className='hidden lg:inline-flex'>
-          <Terminal className='mr-2' size={16} />Terminal
-        </Button>
-      )}
       {lockStatus !== 'not-supported' && (
         <ConfirmModal
           title='Lock Device'
@@ -410,38 +394,11 @@ function QuickActionsBar({ deviceFingerprint }: { deviceFingerprint: string | nu
           isOpen={lockConfirmOpen}
           onOpenChange={setLockConfirmOpen}
         >
-          <Button variant='secondary' size='sm' disabled={lockStatus !== 'unlocked'} className='hidden lg:inline-flex'>
+          <Button variant='secondary' size='sm' disabled={lockStatus !== 'unlocked'}>
             <Lock className='mr-2' size={16} />
             Lock
           </Button>
         </ConfirmModal>
-      )}
-      {/* More dropdown on small screens for Terminal & Lock */}
-      {hasOverflowItems && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant='secondary' size='sm' className='lg:hidden shrink-0'>
-              <MoreHorizontal size={16} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            {terminalAvailable && (
-              <DropdownMenuItem onClick={openTerminal}>
-                <Terminal className='w-4 h-4 mr-2' />
-                Terminal
-              </DropdownMenuItem>
-            )}
-            {lockStatus !== 'not-supported' && (
-              <DropdownMenuItem
-                disabled={lockStatus !== 'unlocked'}
-                onClick={() => setLockConfirmOpen(true)}
-              >
-                <Lock className='w-4 h-4 mr-2' />
-                Lock
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
       )}
     </div>
   )

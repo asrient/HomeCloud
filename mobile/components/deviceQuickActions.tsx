@@ -21,6 +21,7 @@ import { useSendAssets } from "@/hooks/useSendAssets";
 import { useManagedLoading } from "@/hooks/useManagedLoading";
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import { Href } from 'expo-router';
 
 
 function NowPlayingBox({ fingerprint }: { fingerprint: string | null }) {
@@ -48,12 +49,12 @@ function NowPlayingBox({ fingerprint }: { fingerprint: string | null }) {
     </View>;
 }
 
-function DisksBox({ fingerprint }: { fingerprint: string | null }) {
+function DisksBox({ fingerprint, onNavigate }: { fingerprint: string | null, onNavigate: (path: Href) => void }) {
     return <View style={{ flex: 1, width: '100%', height: '100%' }}>
         <UIText style={{ paddingTop: 12, paddingLeft: 30 }} numberOfLines={1} size='md'>
             Storage
         </UIText>
-        <DisksGrid deviceFingerprint={fingerprint} />
+        <DisksGrid deviceFingerprint={fingerprint} onNavigate={onNavigate} />
     </View>;
 }
 
@@ -186,7 +187,7 @@ function SendTextCard({ deviceFingerprint, dismiss }: { deviceFingerprint: strin
 export type DeviceQuickActionsProps = {
     peerInfo: PeerInfo | null;
     fingerprint: string | null;
-    onNavigate: (path: string) => void;
+    onNavigate: (path: Href) => void;
 };
 
 export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: DeviceQuickActionsProps) {
@@ -403,7 +404,7 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                         icon: 'terminal.fill',
                         isCircular: true,
                         disabled: !terminalAvailable,
-                        onPress: () => onNavigate(`/terminal?fingerprint=${routeFingerprint}`),
+                        onPress: () => onNavigate(`/device/${routeFingerprint}/terminals`),
                     },
                     {
                         type: 'small',
@@ -426,7 +427,7 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                 boxes: [
                     {
                         type: 'full',
-                        content: <DisksBox fingerprint={deviceFingerprint} />,
+                        content: <DisksBox fingerprint={deviceFingerprint} onNavigate={onNavigate} />,
                         contentHeight: 140,
                     },
                 ]

@@ -19,6 +19,15 @@ import { AcpClient } from './acpClient';
 
 type ActiveTurn = {
     pendingMessage: AgentMessage;
+    turnId: number;
+    /** Reject the session/prompt promise to unblock _sendMessage. */
+    abort: () => void;
+    /** When true, the next abort/error is swallowed and treated as stopReason:'cancelled'.
+     *  Mirrors Zed's `suppress_abort_err` pattern for agents that throw on cancel. */
+    suppressAbortError: boolean;
+    /** Timestamp of the last session/update received for this turn.
+     *  Used by the inactivity watchdog to detect stuck agents. */
+    lastActivity: number;
 };
 
 type ChatMeta = { title?: string | null; cwd: string; updatedAt?: string | null };
@@ -26,15 +35,22 @@ type ChatMeta = { title?: string | null; cwd: string; updatedAt?: string | null 
 export default class NodeAgentService extends AgentService {
     private client: AcpClient | null = null;
     private activeTurns = new Map<string, ActiveTurn>();
+    private nextTurnId = 1;
     private chatsDir: string = '';
     private sessionConfigs = new Map<string, any[]>();
     private chatMeta = new Map<string, ChatMeta>();
     private unreadChats = new Set<string>();
     private replayPromises = new Map<string, Promise<AgentMessage[]>>();
+    private inactivityTimer: ReturnType<typeof setInterval> | null = null;
 
     // Bumping CHAT_FILE_VERSION invalidates all existing chat files on disk —
     // each file stores its version in the JSON; mismatches are deleted on read.
     private static readonly CHAT_FILE_VERSION = 2;
+
+    // If no session/update arrives for this long, the turn is considered stuck
+    // and is force-cancelled. Resets on every incoming update.
+    private static readonly INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
+    private static readonly INACTIVITY_CHECK_INTERVAL_MS = 30 * 1000;
 
     // ── Lifecycle ──
 
@@ -61,11 +77,15 @@ export default class NodeAgentService extends AgentService {
         });
 
         client.on('exit', async () => {
-            for (const chatId of this.activeTurns.keys()) {
+            // Abort all in-flight turns — _sendMessage catch blocks will
+            // see the turn already removed and propagate the error.
+            for (const [chatId, turn] of this.activeTurns) {
+                turn.abort();
                 this.emitChatInfo(chatId, 'error');
             }
-            this.rejectAllPermissions();
             this.activeTurns.clear();
+            this.rejectAllPermissions();
+            this.stopInactivityWatchdog();
             this.dispatchAgentUpdate(SignalEvent.ERROR, await this._getStatus());
         });
 
@@ -89,11 +109,13 @@ export default class NodeAgentService extends AgentService {
 
         this.client = client;
         await client.connect(config);
+        this.startInactivityWatchdog();
     }
 
     protected override _onStop(): void {
-        for (const chatId of this.activeTurns.keys()) {
-            this.emitChatInfo(chatId, 'idle');
+        this.stopInactivityWatchdog();
+        for (const [, turn] of this.activeTurns) {
+            turn.abort();
         }
         this.destroyClient();
         this.activeTurns.clear();
@@ -213,42 +235,99 @@ export default class NodeAgentService extends AgentService {
         const userMsg = this.userMessage(content);
         await this.appendMessage(chatId, userMsg);
 
-        // Start accumulating assistant message
+        // Start accumulating assistant message (mirrors Zed's RunningTurn)
         const pendingMessage: AgentMessage = { role: 'assistant', entries: [] };
-        this.activeTurns.set(chatId, { pendingMessage });
+        const turnId = this.nextTurnId++;
+
+        let abortTurn!: () => void;
+        const abortPromise = new Promise<never>((_, reject) => {
+            abortTurn = () => reject(new Error('Turn cancelled'));
+        });
+
+        this.activeTurns.set(chatId, {
+            pendingMessage,
+            turnId,
+            abort: abortTurn,
+            suppressAbortError: false,
+            lastActivity: Date.now(),
+        });
         this.emitChatInfo(chatId, 'working');
 
-        // Send prompt
-        const result = await this.requireClient().request('session/prompt', {
-            sessionId: chatId,
-            prompt: content,
-        }, null);
+        // Prevent unhandled rejection if abort fires after race settles
+        abortPromise.catch(() => {});
 
-        // Finalize assistant message
-        const turn = this.activeTurns.get(chatId);
-        if (turn) {
-            turn.pendingMessage.stopReason = result.stopReason;
-            await this.appendMessage(chatId, turn.pendingMessage);
-            this.activeTurns.delete(chatId);
-        }
-        this.unreadChats.add(chatId);
-        // Pull updated title/updatedAt from agent — ACP doesn't push these.
-        // Only do it when we don't yet have a title (agents set it once after
-        // the first turn) to avoid hitting session/list on every turn.
-        if (!this.chatMeta.get(chatId)?.title) {
-            await this.refreshChatMeta(chatId);
-        }
-        this.emitChatInfo(chatId, 'idle');
+        try {
+            // Race prompt against abort — cancel or watchdog can unblock us
+            const promptPromise = this.requireClient().request('session/prompt', {
+                sessionId: chatId,
+                prompt: content,
+            }, null);
+            // Prevent unhandled rejection if abort wins the race
+            promptPromise.catch(() => {});
 
-        return { stopReason: result.stopReason };
+            const result = await Promise.race([promptPromise, abortPromise]);
+
+            // Finalize assistant message (check turnId to skip stale turns)
+            const turn = this.activeTurns.get(chatId);
+            if (turn?.turnId === turnId) {
+                turn.pendingMessage.stopReason = result.stopReason;
+                await this.appendMessage(chatId, turn.pendingMessage);
+                this.activeTurns.delete(chatId);
+            }
+            this.unreadChats.add(chatId);
+            // Pull updated title/updatedAt from agent — ACP doesn't push these.
+            // Only do it when we don't yet have a title (agents set it once after
+            // the first turn) to avoid hitting session/list on every turn.
+            if (!this.chatMeta.get(chatId)?.title) {
+                await this.refreshChatMeta(chatId);
+            }
+            this.emitChatInfo(chatId, 'idle');
+
+            return { stopReason: result.stopReason };
+        } catch (err: any) {
+            const turn = this.activeTurns.get(chatId);
+
+            // Zed's suppress_abort_err: cancel/watchdog set this flag before
+            // aborting so we treat the error as a graceful cancellation.
+            if (turn?.turnId === turnId && turn.suppressAbortError) {
+                turn.pendingMessage.stopReason = 'cancelled';
+                await this.appendMessage(chatId, turn.pendingMessage);
+                this.activeTurns.delete(chatId);
+                this.unreadChats.add(chatId);
+                this.emitChatInfo(chatId, 'idle');
+                return { stopReason: 'cancelled' };
+            }
+
+            // Unexpected error — clean up and propagate
+            if (turn?.turnId === turnId) {
+                this.activeTurns.delete(chatId);
+            }
+            this.emitChatInfo(chatId, 'error');
+            throw err;
+        }
     }
 
     protected override async _cancelMessage(chatId: string): Promise<void> {
-        if (!this.client?.isReady) return;
         // Per ACP spec: client MUST respond to pending permission requests with cancelled
         this.cancelPendingPermission(chatId);
-        this.client.notify('session/cancel', { sessionId: chatId });
-        this.emitChatInfo(chatId, 'idle');
+
+        if (this.client?.isReady) {
+            this.client.notify('session/cancel', { sessionId: chatId });
+        }
+
+        const turn = this.activeTurns.get(chatId);
+        if (turn) {
+            // Mark non-finished tool calls as failed (mirrors Zed's Canceled status)
+            for (const entry of turn.pendingMessage.entries) {
+                if (entry.kind === 'tool_call' &&
+                    entry.toolCall.status !== 'completed' && entry.toolCall.status !== 'failed') {
+                    entry.toolCall.status = 'failed';
+                }
+            }
+            // Set flag BEFORE abort so _sendMessage's catch treats it as cancellation
+            turn.suppressAbortError = true;
+            turn.abort();
+        }
     }
 
     protected override async _markRead(chatId: string): Promise<void> {
@@ -290,6 +369,12 @@ export default class NodeAgentService extends AgentService {
     private handleSessionUpdate(sessionId: string, update: any): void {
         const chatId = sessionId;
         const turn = this.activeTurns.get(chatId);
+
+        // Reset inactivity watchdog — agent is still alive
+        if (turn) {
+            turn.lastActivity = Date.now();
+        }
+
         const mapped = this.mapToStreamUpdate(update);
 
         // Accumulate into pending assistant message via shared helper
@@ -478,6 +563,35 @@ export default class NodeAgentService extends AgentService {
             }
         } catch { }
         return [];
+    }
+
+    // ── Inactivity watchdog ──
+
+    private startInactivityWatchdog(): void {
+        this.stopInactivityWatchdog();
+        this.inactivityTimer = setInterval(() => {
+            const now = Date.now();
+            for (const [chatId, turn] of this.activeTurns) {
+                if (now - turn.lastActivity > NodeAgentService.INACTIVITY_TIMEOUT_MS) {
+                    // Don't kill turns waiting on user permission input
+                    if (this.hasPendingPermission(chatId)) continue;
+                    console.warn(`[AgentService] Turn ${turn.turnId} for chat ${chatId} timed out after ${Math.round((now - turn.lastActivity) / 1000)}s of inactivity`);
+                    // Tell the agent to stop before we abort our side
+                    if (this.client?.isReady) {
+                        this.client.notify('session/cancel', { sessionId: chatId });
+                    }
+                    turn.suppressAbortError = true;
+                    turn.abort();
+                }
+            }
+        }, NodeAgentService.INACTIVITY_CHECK_INTERVAL_MS);
+    }
+
+    private stopInactivityWatchdog(): void {
+        if (this.inactivityTimer) {
+            clearInterval(this.inactivityTimer);
+            this.inactivityTimer = null;
+        }
     }
 
     private destroyClient(): void {

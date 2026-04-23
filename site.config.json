@@ -13,7 +13,7 @@
         "appStore": "https://testflight.apple.com/join/aF6w8Y8J",
         "msStore": "https://apps.microsoft.com/detail/9PKD1Q6RZ4JC",
         "downloadNotes": {
-          "macos": "Note: macOS may say the app is damaged. Run this in Terminal to fix: xattr -dr com.apple.quarantine ~/Downloads/HomeCloud.app",
+          "macos": "Use the Apple Silicon version if you have an M-series Mac.",
           "windows": "Using the Microsoft store option is recommended.",
           "mobile": "iOS and Android apps are currently in beta testing with limited availability."
       }

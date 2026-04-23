@@ -6,6 +6,7 @@ import { useRouter } from "next/router";
 import { useAppState } from "../hooks/useAppState";
 import { useAgentConfig } from "../hooks/useAgent";
 import { useWorkflowsAvailable } from "../hooks/useWorkflows";
+import { useTerminalAvailable } from "../hooks/useSystemState";
 import { useFolder, usePinnedFolders } from "../hooks/useFolders";
 import { getDefaultIcon, pinnedFolderToRemoteItem } from "@/lib/fileUtils";
 import { buildNextUrl, folderViewUrl } from '@/lib/urls';
@@ -207,6 +208,7 @@ export function DevSection() {
 function TopSection({ fingerprint }: { fingerprint: string | null }) {
     const { config: agentConfig } = useAgentConfig(fingerprint);
     const { available: workflowsAvailable } = useWorkflowsAvailable(fingerprint);
+    const { available: terminalAvailable } = useTerminalAvailable(fingerprint);
 
     const section: SidebarSection = {
         items: [{
@@ -231,6 +233,14 @@ function TopSection({ fingerprint }: { fingerprint: string | null }) {
             href: buildNextUrl('/workflows'),
             icon: ThemedIconName.Workflows,
             key: 'workflows',
+        });
+    }
+    if (terminalAvailable) {
+        section.items.push({
+            title: 'Terminal',
+            href: buildNextUrl('/terminals'),
+            icon: ThemedIconName.Terminal,
+            key: 'terminals',
         });
     }
     return <SidebarSectionView section={section} />;

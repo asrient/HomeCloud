@@ -43,6 +43,7 @@ export enum ThemedIconName {
     Apps = 'Apps',
     AI = 'AI',
     Workflows = 'Workflows',
+    Terminal = 'Terminal',
 }
 
 export enum ConnectionType {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { getServiceController, buildPageConfig, getLocalServiceController } from '@/lib/utils';
@@ -10,8 +10,9 @@ import LoadingIcon from '@/components/ui/loadingIcon';
 
 const TerminalPage: NextPageWithConfig = () => {
   const router = useRouter();
-  const { fingerprint: fingerprintStr } = router.query as { fingerprint?: string };
+  const { fingerprint: fingerprintStr, sessionId: sessionIdParam } = router.query as { fingerprint?: string; sessionId?: string };
   const fingerprint = useMemo(() => fingerprintStr || null, [fingerprintStr]);
+  const paramSessionId = useMemo(() => sessionIdParam || null, [sessionIdParam]);
 
   const termContainerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -46,8 +47,7 @@ const TerminalPage: NextPageWithConfig = () => {
     if (!termContainerRef.current) return;
     setIsConnecting(true);
     setError(null);
-    const currentFingerprint = fingerprint;
-    fingerprintRef.current = currentFingerprint;
+    fingerprintRef.current = fingerprint;
 
     // Create xterm instance
     const term = new Terminal({
@@ -66,6 +66,7 @@ const TerminalPage: NextPageWithConfig = () => {
     term.loadAddon(fitAddon);
     term.open(termContainerRef.current);
     fitAddon.fit();
+    term.focus();
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
@@ -104,7 +105,14 @@ const TerminalPage: NextPageWithConfig = () => {
         const sc = await getServiceController(fingerprintRef.current);
         if (cancelled) return;
 
-        const session = await sc.terminal.startTerminalSession();
+        let session;
+        if (paramSessionId) {
+          // Attach to existing persistent session
+          session = await sc.terminal.attachTerminalSession(paramSessionId);
+        } else {
+          // Legacy: create new non-persistent session
+          session = await sc.terminal.startTerminalSession();
+        }
         if (cancelled) return;
 
         sessionId = session.sessionId;
@@ -153,6 +161,7 @@ const TerminalPage: NextPageWithConfig = () => {
         }
 
         if (!cancelled && isMountedRef.current) {
+          if (sessionId) window.utils?.notifyTerminalSessionEnded?.(fingerprintRef.current, sessionId);
           setError('Terminal session ended.');
         }
 
@@ -172,17 +181,12 @@ const TerminalPage: NextPageWithConfig = () => {
       cancelled = true;
       if (reader) reader.cancel().catch(() => {});
       readerRef.current = null;
-      if (sessionId) {
-        getServiceController(currentFingerprint)
-          .then(sc => sc.terminal.stopTerminalSession(sessionId!))
-          .catch(() => {});
-      }
       sessionIdRef.current = null;
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [fingerprint]);
+  }, [fingerprint, paramSessionId]);
 
   return (
     <>

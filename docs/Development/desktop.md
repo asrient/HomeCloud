@@ -17,6 +17,15 @@ npm run make       # creates platform installer
 npm run publish    # publishes to GitHub Releases (draft)
 ```
 
+> **Note:** Native modules in the sibling `nodeShared/` package (e.g., `node-pty`) are not rebuilt automatically by electron-forge. If you hit errors like `posix_spawnp failed.` or `NODE_MODULE_VERSION` mismatch when starting the app in dev, rebuild them against Electron's ABI:
+>
+> ```bash
+> cd desktop
+> ./node_modules/.bin/electron-rebuild -m ../nodeShared -o node-pty -f
+> ```
+>
+> Drop `-o node-pty` to rebuild every native module under `nodeShared/`.
+
 **Native addons** (in `addons/`, built via `binding.gyp`):
 - `ThumbnailMac.mm` — macOS thumbnail generation (only built on macOS)
 - `ThumbnailWin.cpp` — Windows thumbnail generation (only built on Windows)

@@ -2,12 +2,12 @@ import { useDisks } from "@/hooks/useSystemState";
 import { formatFileSize } from "@/lib/utils";
 import { View, ActivityIndicator, FlatList, Pressable } from "react-native";
 import { UIText } from "./ui/UIText";
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
 import { getFolderAppRoute } from "@/lib/fileUtils";
 import { UIIcon } from "./ui/UIIcon";
 import { useThemeColor } from "@/hooks/useThemeColor";
 
-export function DisksGrid({ deviceFingerprint }: { deviceFingerprint: string | null }) {
+export function DisksGrid({ deviceFingerprint, onNavigate }: { deviceFingerprint: string | null, onNavigate?: (path: Href) => void }) {
     const { disks, isLoading, error } = useDisks(deviceFingerprint);
     const router = useRouter();
     const textColor = useThemeColor({}, 'text');
@@ -36,7 +36,12 @@ export function DisksGrid({ deviceFingerprint }: { deviceFingerprint: string | n
                 renderItem={({ item }) => (
                     <Pressable
                         onPress={() => {
-                            router.navigate(getFolderAppRoute(item.path, deviceFingerprint));
+                            const path = getFolderAppRoute(item.path, deviceFingerprint);
+                            if (onNavigate) {
+                                onNavigate(path);
+                            } else {
+                                router.navigate(path);
+                            }
                         }}
                         style={{
                             padding: 10,
