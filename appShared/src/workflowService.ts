@@ -43,7 +43,7 @@ export class WorkflowService extends Service {
     public async start() {
         try {
             const localSc = modules.getLocalServiceController();
-            const autoStart = localSc.app.getUserPreference(MCP_AUTO_START_PREF_KEY);
+            const autoStart = localSc.app.getUserPreferenceSync(MCP_AUTO_START_PREF_KEY);
             if (autoStart) {
                 await this._startMcpServer();
             }

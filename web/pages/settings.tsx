@@ -35,10 +35,10 @@ function Page() {
 
   useEffect(() => {
     const localSc = window.modules.getLocalServiceController();
-    setUseWinrtDgram(localSc.app.getUserPreference(UserPreferences.USE_WINRT_DGRAM));
-    const autoConnectMobilePref = localSc.app.getUserPreference(UserPreferences.AUTO_CONNECT_MOBILE);
+    setUseWinrtDgram(localSc.app.getUserPreferenceSync(UserPreferences.USE_WINRT_DGRAM));
+    const autoConnectMobilePref = localSc.app.getUserPreferenceSync(UserPreferences.AUTO_CONNECT_MOBILE);
     setAutoConnectMobile(autoConnectMobilePref !== false);
-    const updatesPref = localSc.app.getUserPreference(UserPreferences.CHECK_FOR_UPDATES);
+    const updatesPref = localSc.app.getUserPreferenceSync(UserPreferences.CHECK_FOR_UPDATES);
     setCheckForUpdates(updatesPref !== false);
     setIfaceStatuses(localSc.net.getConnectionInterfaceStatuses());
   }, []);
@@ -71,7 +71,7 @@ function Page() {
   const updateWinrtDgram = useCallback(async (val: boolean) => {
     const localSc = window.modules.getLocalServiceController();
     await localSc.app.setUserPreference(UserPreferences.USE_WINRT_DGRAM, val);
-    setUseWinrtDgram(localSc.app.getUserPreference(UserPreferences.USE_WINRT_DGRAM));
+    setUseWinrtDgram(localSc.app.getUserPreferenceSync(UserPreferences.USE_WINRT_DGRAM));
   }, []);
 
   const updateAutoConnectMobile = useCallback(async (val: boolean) => {

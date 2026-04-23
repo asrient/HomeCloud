@@ -220,6 +220,7 @@ export class AccountService extends Service {
         });
         await this.assertSuccess(resp, 'json');
         const respData = await resp.json();
+        const wasLinked = this.isLinked();
         this.store.setItem("accountId", respData.accountId);
         this.store.setItem("email", respData.email || null);
         this.store.setItem("authToken", respData.authToken);
@@ -229,7 +230,11 @@ export class AccountService extends Service {
         if (!this.webSocket.isConnected()) {
             this.connectWebSocket();
         }
-        this.accountLinkSignal.dispatch(true);
+        // Only fire the link signal on an actual link transition, not on token renewals
+        // for an already-linked account (which also go through this code path).
+        if (!wasLinked) {
+            this.accountLinkSignal.dispatch(true);
+        }
         return {
             accountId: respData.accountId,
             authToken: respData.authToken,

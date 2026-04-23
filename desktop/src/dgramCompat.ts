@@ -109,7 +109,7 @@ export function createBestDatagram(): DatagramCompat {
     if (platform() === 'win32') {
         try {
             const localSc = modules.getLocalServiceController();
-            const useWinRT = localSc.app.getUserPreference(UserPreferences.USE_WINRT_DGRAM);
+            const useWinRT = localSc.app.getUserPreferenceSync(UserPreferences.USE_WINRT_DGRAM);
             if (useWinRT) {
                 console.log('[Datagram] Using WinRT DatagramSocket.');
                 return new WinRTDatagram();

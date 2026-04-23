@@ -28,7 +28,8 @@ export default class DesktopAppService extends AppService {
      */
 
     protected override shouldAutoConnectPeer(peer: PeerInfo): boolean {
-        const prefersAutoConnectMobile = this.store.getItem<boolean>(UserPreferences.AUTO_CONNECT_MOBILE);
+        const localSc = modules.getLocalServiceController();
+        const prefersAutoConnectMobile = localSc.app.getUserPreferenceSync(UserPreferences.AUTO_CONNECT_MOBILE);
         const formFactor = peer?.deviceInfo?.formFactor;
         // autoconnect to mobile peers
         // By default, prefersAutoConnectMobile is considered true.

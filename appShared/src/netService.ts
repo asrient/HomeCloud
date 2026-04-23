@@ -293,7 +293,7 @@ export class NetService extends Service {
      */
     public isConnectionInterfaceEnabled(type: ConnectionType): boolean {
         const localSc = modules.getLocalServiceController();
-        const value = localSc.app.getUserPreference(CON_IFACE_PREF_KEY + type);
+        const value = localSc.app.getUserPreferenceSync(CON_IFACE_PREF_KEY + type);
         return value !== false; // default true
     }
 

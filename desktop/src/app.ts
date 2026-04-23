@@ -180,7 +180,7 @@ const startApp = async () => {
   if (!modules.config.IS_STORE_DISTRIBUTION) {
     setTimeout(() => {
       const localSc = modules.getLocalServiceController();
-      const checkUpdates = localSc.app.getUserPreference(UserPreferences.CHECK_FOR_UPDATES);
+      const checkUpdates = localSc.app.getUserPreferenceSync(UserPreferences.CHECK_FOR_UPDATES);
       if (checkUpdates === false) {
         console.log('[App] Update check disabled by user preference.');
         return;

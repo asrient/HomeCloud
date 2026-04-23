@@ -77,7 +77,17 @@ export class AppService extends Service {
     @exposed @info("Get a user preference value")
     @input(Sch.Name('key', Sch.String))
     @output(Sch.Nullable(Sch.Any))
-    public getUserPreference(key: string): any | null {
+    public async getUserPreference(key: string): Promise<any | null> {
+        return this.getUserPreferenceSync(key);
+    }
+
+    /**
+     * Synchronous variant of getUserPreference. Safe to call only on the local
+     * service controller (the underlying store is in-memory). Use this when a
+     * sync API is required — e.g. inside hooks, predicates, or other sync paths
+     * where awaiting the RPC-decorated async variant is awkward.
+     */
+    public getUserPreferenceSync(key: string): any | null {
         return this.store.getItem(USER_PREF_PREFIX + key);
     }
 
