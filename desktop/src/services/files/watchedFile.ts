@@ -29,7 +29,7 @@ export class WatchedFile {
     mimeType: string | null = null;
     /** Remote file hash at last load/refresh — used to detect remote changes
      *  and to skip the "save back?" prompt when the local file matches remote. */
-    private remoteHash: string | null = null;
+    private currentHash: string | null = null;
     /** Whether the remote device supports getFileHash. Checked once per instance. */
     private hashAvailable: boolean | null = null;
 
@@ -148,10 +148,10 @@ export class WatchedFile {
         this.lastModified = mtime;
         // Compare local file hash against remote — if they match, this change
         // was from our own refreshContents/downloadToTmp write, not a user edit.
-        if (this.remoteHash) {
+        if (this.currentHash) {
             const localHash = await this.getLocalFileHash();
-            if (localHash && localHash === this.remoteHash) {
-                console.debug('[WatchedFile] Local matches remote, skipping save prompt.');
+            if (localHash && localHash === this.currentHash) {
+                console.debug('[WatchedFile] Local matches current hash, skipping save prompt.');
                 return;
             }
         }
@@ -206,7 +206,7 @@ export class WatchedFile {
             const stat = await this.targetServiceController.files.fs.writeFile(targetDir, fileContent);
             this.lastModified = stat.lastModified ? new Date(stat.lastModified) : new Date();
             // Hash the local file so the watcher knows local and remote are in sync.
-            this.remoteHash = await this.getLocalFileHash();
+            this.currentHash = await this.getLocalFileHash();
             console.log('[WatchedFile] Saved file to remote.');
         } catch (e) {
             console.error('[WatchedFile] Error saving file to remote:', e);
@@ -254,7 +254,7 @@ export class WatchedFile {
             await fs.promises.writeFile(this.tmpFile, fileContent.stream);
             this.lastModified = stat.lastModified ? new Date(stat.lastModified) : new Date();
             this.mimeType = stat.mimeType || this.mimeType;
-            this.remoteHash = await this.getLocalFileHash();
+            this.currentHash = await this.getLocalFileHash();
         } finally {
             this.isDownloading = false;
         }
@@ -270,8 +270,8 @@ export class WatchedFile {
         }
 
         if (await this.isHashAvailable()) {
-            const newRemoteHash = await this.targetServiceController.files.fs.getFileHash(this.targetFileId);
-            if (this.remoteHash && newRemoteHash === this.remoteHash) {
+            const newcurrentHash = await this.targetServiceController.files.fs.getFileHash(this.targetFileId);
+            if (this.currentHash && newcurrentHash === this.currentHash) {
                 return;
             }
         }

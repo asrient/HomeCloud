@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View, ScrollView, useWindowDimensions } from 'react-native';
 import DeviceIcon from '@/components/deviceIcon';
 import { useAppState } from '@/hooks/useAppState';
@@ -60,7 +60,7 @@ export default function DeviceSheetScreen() {
     return peers.find((p) => p.fingerprint === fingerprint) || null;
   }, [isLocal, fingerprint, peers]);
 
-  const handleNavigate = useCallback((path: string) => {
+  const handleNavigate = useCallback((path: Href) => {
     router.back();
     setTimeout(() => {
       router.push(path as any);

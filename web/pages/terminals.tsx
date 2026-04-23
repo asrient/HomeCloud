@@ -17,11 +17,17 @@ function Page() {
     const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
 
     const handleNew = useCallback(async () => {
-        if (isSessionsSupported) {
-            const entry = await createSession();
-            window.utils.openTerminalWindow!(selectedFingerprint, entry.sessionId);
-        } else {
-            window.utils.openTerminalWindow!(selectedFingerprint);
+        try {
+            if (isSessionsSupported) {
+                const entry = await createSession();
+                window.utils.openTerminalWindow!(selectedFingerprint, entry.sessionId);
+            } else {
+                window.utils.openTerminalWindow!(selectedFingerprint);
+            }
+        } catch (e: any) {
+            console.error(e);
+            const localSc = window.modules.getLocalServiceController();
+            localSc.system.alert('Failed to open terminal', e?.message ?? String(e));
         }
     }, [isSessionsSupported, createSession, selectedFingerprint]);
 

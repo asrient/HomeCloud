@@ -10,6 +10,7 @@ import { useTerminalSessions } from '@/hooks/useTerminalSessions';
 import { isGlassEnabled, getBottomPadding, getServiceController } from '@/lib/utils';
 import { useRefresh } from '@/hooks/useRefresh';
 import { UIButton } from '@/components/ui/UIButton';
+import { useAlert } from '@/hooks/useAlert';
 
 const GAP = 10;
 const PADDING = 12;
@@ -25,6 +26,7 @@ export default function TerminalsScreen() {
 
     const { sessions, isLoading, error, reload, killSession, isSessionsSupported } = useTerminalSessions(deviceFingerprint);
     const { refreshing, onRefresh } = useRefresh(reload, isLoading);
+    const { showAlert } = useAlert();
 
     const numColumns = screenWidth >= 768 ? 3 : screenWidth >= 480 ? 2 : 1;
     const cardWidth = useMemo(() => {
@@ -34,13 +36,18 @@ export default function TerminalsScreen() {
 
     const handleNew = useCallback(async () => {
         try {
-            const sc = await getServiceController(deviceFingerprint);
-            const entry = await sc.terminal.startTerminalSessionV2(undefined, true);
-            router.push({ pathname: '/terminal', params: { fingerprint, sessionId: entry.sessionId } } as any);
-        } catch {
-            router.push({ pathname: '/terminal', params: { fingerprint } } as any);
+            if (isSessionsSupported) {
+                const sc = await getServiceController(deviceFingerprint);
+                const entry = await sc.terminal.startTerminalSessionV2(undefined, true);
+                router.push({ pathname: '/terminal', params: { fingerprint, sessionId: entry.sessionId } } as any);
+            } else {
+                router.push({ pathname: '/terminal', params: { fingerprint } } as any);
+            }
+        } catch (e: any) {
+            console.error(e);
+            showAlert('Failed to open terminal', e?.message ?? String(e));
         }
-    }, [deviceFingerprint, fingerprint, router]);
+    }, [deviceFingerprint, fingerprint, router, isSessionsSupported, showAlert]);
 
     const handleOpen = useCallback((sessionId: string) => {
         router.push({ pathname: '/terminal', params: { fingerprint, sessionId } } as any);
