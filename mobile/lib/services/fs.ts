@@ -3,6 +3,7 @@ import { FileContent, RemoteItem } from "shared/types";
 
 import { File, Paths, Directory } from 'expo-file-system/next';
 import * as FileSystem from 'expo-file-system/legacy';
+import QuickCrypto from 'react-native-quick-crypto';
 import { getDrivesMapping, pathToUri, uriToPath, getMimeType, resolveFileUri } from "./fileUtils";
 import { MobilePlatform } from "../types";
 import { fetch } from "expo/fetch";
@@ -278,6 +279,21 @@ export default class MobileFsDriver extends FsDriver {
     }
     id = pathToUri(id);
     return this.toRemoteItem({ item: id, loadStat: true });
+  }
+
+  protected override async _getFileHash(id: string): Promise<string> {
+    id = pathToUri(id);
+    const file = new File(id);
+    if (!file.exists) throw new Error(`File not found: ${id}`);
+    const hash = QuickCrypto.createHash('sha256');
+    const stream = createFileReadStream(file);
+    const reader = stream.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      hash.update(value);
+    }
+    return hash.digest('hex').toString();
   }
 
   public override joinPaths(...paths: string[]): string {

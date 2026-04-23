@@ -20,5 +20,6 @@ window.utils = {
     triggerUpdateCheck: desktopWebUtils.triggerUpdateCheck,
     openScreenWindow: desktopWebUtils.openScreenWindow,
     openTerminalWindow: desktopWebUtils.openTerminalWindow,
+    notifyTerminalSessionEnded: desktopWebUtils.notifyTerminalSessionEnded,
     windowControls: desktopWebUtils.getWindowControls(remote.getCurrentWindow()),
 }

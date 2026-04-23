@@ -104,6 +104,7 @@ const MAPPING = {
   'sparkles.2': 'auto-awesome',
   'command': 'keyboard-command',
   'slider.horizontal.3': 'tune',
+  'plus': 'add',
 } as IconMapping;
 
 /**

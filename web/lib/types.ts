@@ -91,7 +91,8 @@ export type NativeUtils = {
     getUpdateStatus: () => UpdateStatus;
     triggerUpdateCheck: () => void;
     openScreenWindow?: (fingerprint: string | null, deviceName?: string) => void;
-    openTerminalWindow?: (fingerprint: string | null) => void;
+    openTerminalWindow?: (fingerprint: string | null, sessionId?: string) => void;
+    notifyTerminalSessionEnded?: (fingerprint: string | null, sessionId: string) => void;
     windowControls?: {
         close: () => void;
         minimize: () => void;

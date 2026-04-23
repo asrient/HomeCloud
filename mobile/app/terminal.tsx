@@ -7,6 +7,7 @@ import {
     Text,
     Platform,
     Keyboard,
+    Alert,
     Appearance,
     ScrollView,
 } from 'react-native';
@@ -92,8 +93,9 @@ function TerminalKeybar({ onKey, ctrlActive, altActive, shiftActive, onToggleCtr
 }
 
 export default function TerminalScreen() {
-    const { fingerprint } = useLocalSearchParams<{ fingerprint: string }>();
+    const { fingerprint, sessionId: sessionIdParam } = useLocalSearchParams<{ fingerprint: string; sessionId?: string }>();
     const deviceFingerprint = fingerprint === 'local' || !fingerprint ? null : fingerprint;
+    const paramSessionId = sessionIdParam || null;
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { peers } = useAppState();
@@ -102,10 +104,31 @@ export default function TerminalScreen() {
 
     useAutoConnect(deviceFingerprint, 'terminal');
 
-    const handleClose = useCallback(() => {
+    const dismissKeyboard = useCallback(() => {
+        webViewRef.current?.injectJavaScript(`document.activeElement?.blur(); true;`);
         Keyboard.dismiss();
-        router.back();
-    }, [router]);
+    }, []);
+
+    const handleClose = useCallback(() => {
+        dismissKeyboard();
+        if (paramSessionId && sessionIdRef.current) {
+            const sid = sessionIdRef.current;
+            Alert.alert('Close Terminal', 'This session is still running. What would you like to do?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Detach', onPress: () => router.back() },
+                {
+                    text: 'Kill', style: 'destructive', onPress: () => {
+                        getServiceController(fingerprintRef.current)
+                            .then(sc => sc.terminal.stopTerminalSession(sid))
+                            .catch(() => {});
+                        router.back();
+                    }
+                },
+            ]);
+        } else {
+            router.back();
+        }
+    }, [router, paramSessionId, dismissKeyboard]);
 
     const deviceName = useMemo(() => {
         if (!deviceFingerprint) return 'Local Terminal';
@@ -198,7 +221,12 @@ export default function TerminalScreen() {
             const sc = await getServiceController(deviceFingerprint);
             if (!isMountedRef.current) return;
 
-            const session = await sc.terminal.startTerminalSession();
+            let session;
+            if (paramSessionId) {
+                session = await sc.terminal.attachTerminalSession(paramSessionId);
+            } else {
+                session = await sc.terminal.startTerminalSession();
+            }
             if (!isMountedRef.current) return;
 
             sessionIdRef.current = session.sessionId;
@@ -248,7 +276,7 @@ export default function TerminalScreen() {
             console.error('[Terminal] Error:', e);
             setError(e?.message || 'Failed to connect.');
         }
-    }, [deviceFingerprint]);
+    }, [deviceFingerprint, paramSessionId]);
 
     const onWebViewMessage = useCallback(async (event: WebViewMessageEvent) => {
         try {
@@ -345,13 +373,15 @@ export default function TerminalScreen() {
             });
             readerRef.current = null;
         }
-        if (sessionIdRef.current) {
+        // Only kill non-persistent sessions
+        if (sessionIdRef.current && !paramSessionId) {
+            const sid = sessionIdRef.current;
+            sessionIdRef.current = null;
             getServiceController(fingerprintRef.current)
-                .then(sc => sc.terminal.stopTerminalSession(sessionIdRef.current!))
+                .then(sc => sc.terminal.stopTerminalSession(sid))
                 .catch((err) => {
                     console.error('Error stopping terminal session:', err);
                 });
-            sessionIdRef.current = null;
         }
         // Clear xterm and reconnect
         webViewRef.current?.injectJavaScript(
@@ -359,7 +389,7 @@ export default function TerminalScreen() {
         );
         setError(null);
         connectTerminal(lastDimsRef.current.cols, lastDimsRef.current.rows);
-    }, [connectTerminal]);
+    }, [connectTerminal, paramSessionId]);
 
     const [keyboardHeight, setKeyboardHeight] = useState(0);
     const KEYBAR_HEIGHT = 40;
@@ -396,15 +426,17 @@ export default function TerminalScreen() {
                     console.error('Error cancelling reader:', err);
                 });
             }
-            if (sessionIdRef.current) {
+            // Only kill non-persistent (legacy) sessions on unmount
+            if (sessionIdRef.current && !paramSessionId) {
+                const sid = sessionIdRef.current;
                 getServiceController(fingerprintRef.current)
-                    .then(sc => sc.terminal.stopTerminalSession(sessionIdRef.current!))
+                    .then(sc => sc.terminal.stopTerminalSession(sid))
                     .catch((err) => {
                         console.error('Error stopping terminal session:', err);
                     });
             }
         };
-    }, []);
+    }, [paramSessionId]);
 
     return (
         <ThemeProvider value={darkTheme}>
@@ -435,7 +467,7 @@ export default function TerminalScreen() {
                             <UIText color="textSecondary" size="sm">{error}</UIText>
                             <UIButton
                                 type="secondary"
-                                title={sessionIdRef.current ? 'New Session' : 'Reconnect'}
+                                title={paramSessionId ? 'Reconnect' : 'New Session'}
                                 size="sm"
                                 onPress={reconnect}
                                 style={{ marginTop: 16 }}

@@ -12,7 +12,6 @@ import { NewWorkflowDialog } from "@/components/workflows/NewWorkflowDialog";
 import { RunWorkflowDialog } from "@/components/workflows/RunWorkflowDialog";
 import ConfirmModal from "@/components/confirmModal";
 import { WorkflowConfig } from "shared/types";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, BookOpen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -101,8 +100,7 @@ function Page() {
                 ) : workflows.length === 0 && !isLoading ? (
                     <PagePlaceholder title="No workflows yet" detail="Create a workflow to automate tasks on this device." />
                 ) : (
-                <ScrollArea className="h-full">
-                        <div className="p-4 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                    <div className="p-4 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                             {workflows.map(wf => (
                                 <WorkflowCard
                                     key={wf.id}
@@ -116,7 +114,6 @@ function Page() {
                                 />
                             ))}
                         </div>
-                </ScrollArea>
                 )}
 
                 <WorkflowDetailsDialog

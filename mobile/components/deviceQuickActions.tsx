@@ -403,7 +403,7 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                         icon: 'terminal.fill',
                         isCircular: true,
                         disabled: !terminalAvailable,
-                        onPress: () => onNavigate(`/terminal?fingerprint=${routeFingerprint}`),
+                        onPress: () => onNavigate(`/device/${routeFingerprint}/terminals`),
                     },
                     {
                         type: 'small',

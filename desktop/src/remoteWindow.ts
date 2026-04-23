@@ -1,6 +1,7 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, dialog } from 'electron';
 import path from 'node:path';
 import { buildUrl } from './window';
+import { getServiceController } from 'shared/utils';
 
 // ── State ──
 
@@ -76,16 +77,48 @@ export function createScreenWindow(
 
 // ── Terminal Window ──
 
-const terminalWindows = new Set<BrowserWindow>();
+interface TerminalWindowInfo {
+    fingerprint: string | null;
+    sessionId: string | null;
+    sessionEnded: boolean;
+}
 
-export function createTerminalWindow(fingerprint: string | null): BrowserWindow {
-    // Bring all existing terminal windows for this fingerprint to front
-    for (const win of terminalWindows) {
-        if (!win.isDestroyed()) win.show();
+const terminalWindows = new Map<BrowserWindow, TerminalWindowInfo>();
+
+function getTerminalWindow(fingerprint: string | null, sessionId: string): { win: BrowserWindow; info: TerminalWindowInfo } | null {
+    for (const [win, info] of terminalWindows) {
+        if (info.fingerprint === fingerprint && info.sessionId === sessionId) {
+            return { win, info };
+        }
+    }
+    return null;
+}
+
+export function markTerminalSessionEnded(fingerprint: string | null, sessionId: string): void {
+    const result = getTerminalWindow(fingerprint, sessionId);
+    if (result) {
+        result.info.sessionEnded = true;
+    } else {
+        console.warn(`[markTerminalSessionEnded] No terminal window found for sessionId ${sessionId}`);
+    }
+}
+
+export function createTerminalWindow(
+    fingerprint: string | null,
+    sessionId?: string,
+): BrowserWindow {
+    // Dedup: if a window for this session already exists, focus it
+    if (sessionId) {
+        const existing = getTerminalWindow(fingerprint, sessionId);
+        if (existing && !existing.win.isDestroyed()) {
+            existing.win.focus();
+            return existing.win;
+        }
     }
 
     const params: Record<string, string> = {};
     if (fingerprint) params.fingerprint = fingerprint;
+    if (sessionId) params.sessionId = sessionId;
     const url = buildUrl('/terminal', params, false);
 
     const win = new BrowserWindow({
@@ -106,7 +139,44 @@ export function createTerminalWindow(fingerprint: string | null): BrowserWindow 
     require('@electron/remote/main').enable(win.webContents);
     win.loadURL(url);
 
-    terminalWindows.add(win);
+    const info: TerminalWindowInfo = {
+        fingerprint,
+        sessionId: sessionId ?? null,
+        sessionEnded: false,
+    };
+    terminalWindows.set(win, info);
+
+    // For persistent sessions, intercept close and ask kill/detach
+    win.on('close', (e) => {
+        const winInfo = terminalWindows.get(win);
+        if (!winInfo || !winInfo.sessionId || winInfo.sessionEnded) return;
+
+        e.preventDefault();
+
+        (async () => {
+            const { response } = await dialog.showMessageBox(win, {
+                type: 'question',
+                title: 'Close Terminal',
+                message: 'This session is still running. What would you like to do?',
+                buttons: ['Detach', 'Kill', 'Cancel'],
+                defaultId: 0,
+                cancelId: 2,
+            });
+
+            if (response === 2) return; // Cancel
+
+            // Close window immediately — don't wait for server
+            terminalWindows.delete(win);
+            win.destroy();
+
+            if (response === 1) {
+                // Kill the session in background
+                getServiceController(winInfo.fingerprint)
+                    .then(sc => sc.terminal.stopTerminalSession(winInfo.sessionId!))
+                    .catch(() => {});
+            }
+        })();
+    });
 
     win.on('closed', () => {
         terminalWindows.delete(win);

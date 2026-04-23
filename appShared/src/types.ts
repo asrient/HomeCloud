@@ -525,6 +525,22 @@ export const TerminalSessionInfoSchema = Sch.Object({
     rows: Sch.Integer,
 }, ['stream', 'sessionId', 'cols', 'rows']);
 
+export type TerminalSessionEntry = {
+    sessionId: string;
+    shell: string;
+    pid: number;
+    startedAt: number;
+    processName: string;
+}
+
+export const TerminalSessionEntrySchema = Sch.Object({
+    sessionId: Sch.String,
+    shell: Sch.String,
+    pid: Sch.Integer,
+    startedAt: Sch.Number,
+    processName: Sch.String,
+}, ['sessionId', 'shell', 'pid', 'startedAt', 'processName']);
+
 export enum RemoteAppWindowAction {
     Focus = "focus",
     Minimize = "minimize",
