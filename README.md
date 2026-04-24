@@ -7,8 +7,8 @@
 </p>
 
 <p align="center">
-    <strong>Access and control your devices and agents from anywhere.</strong><br>
-    Files, photos, clipboard, screen, terminal, over any network.
+    <strong>The open source connectivity platform for your devices.</strong><br>
+    Files, photos, clipboard, screen, terminal, agents, over any network.
 </p>
 
 <p align="center">
@@ -19,7 +19,15 @@
 
 HomeCloud is a free, open-source device hub that connects your devices and AI agents across any network. Unlike tools that only work on the same WiFi or requires complex VPN setups, HomeCloud connects your devices seamlessly anywhere you are, while staying fully peer-to-peer.
 
-![Screenshot](img/s2.png)
+<p align="center">
+    <img src="img/s1.png" alt="Screenshot 1" width="45%">
+    <img src="img/s4.png" alt="Screenshot 2" width="50%">
+</p>
+<p align="center">
+    <img src="img/s2.png" alt="Screenshot 4" width="24%">
+    <img src="img/s3.png" alt="Screenshot 3" width="24%">
+    <img src="img/s5.png" alt="Screenshot 5" width="40%">
+</p>
 
 ## Features
 
@@ -35,27 +43,22 @@ HomeCloud is a free, open-source device hub that connects your devices and AI ag
 | 🤖 **AI Agents** | Run AI agent like Claude Code in the background and chat from any device. |
 | ⚡ **Workflows** | Create and run automated tasks across your devices |
 
-### HomeCloud vs other device companions
+## What makes HomeCloud unique
 
-| | HomeCloud | KDE Connect | LocalSend |
-|---|---|---|---|
-| **Works over internet (P2P)** | ✅ | ❌ Same WiFi only | ❌ Same WiFi only |
-| **Truly cross-platform** | macOS, Windows, iOS, Android (Linux soon) | All | All, but file transfer only |
-| **File transfer** | ✅ | ✅ | ✅ |
-| **Clipboard access** | ✅ | ✅ | ❌ |
-| **Remote screen** | ✅ | ❌ | ❌ |
-| **Remote terminal** | ✅ | ❌ | ❌ |
-| **Phone photos on desktop** | ✅ | ❌ | ❌ |
-| **Workflows / automation** | ✅ | ❌ | ❌ |
-| **No VPN or port forwarding** | ✅ | Needs VPN for remote | Needs VPN for remote |
+### Peer-to-peer networking 
 
-### How it works
+All your devices connect to each other directly without routing any personal data to our servers.
 
-- **Peer-to-peer networking.** Local devices discover each other via mDNS. Remote devices connect directly over UDP.
-- **End-to-end encrypted.** Devices authenticate using on-device public key cryptography. Your data stays private and fully under your control.
-- **Lightweight broker.** HomeCloud uses an authentication and broker service only for device discovery and connection setup. Your actual data is always transferred peer-to-peer and never reaches our servers.
+### End-to-end encrypted
 
-## Give AI Agents access to your devices
+Devices authenticate using on-device public key cryptography. Your data stays private and fully under your control.
+
+### Easy and quick setup
+
+HomeCloud does not require complex setups for connectivity or pairing. Just login with your same email on every device.
+
+
+### Give AI Agents access to your devices
 
 HomeCloud can also serve as the device layer for AI agents. Connect any AI agent or tool to your devices using industry-standard protocols:
 
@@ -68,11 +71,23 @@ Download and install HomeCloud on your phones, laptops, and iPads.
 
 - **Desktop**: [Download](https://asrient.com/homecloud/download) for macOS, Windows. Linux coming soon.
 - **Mobile**: Currently in early testing - [Download](https://asrient.com/homecloud/download).
-- **Server**: you can also run HomeCloud on your home server without a GUI - [learn more](https://asrient.com/homecloud/docs/help/server-setup).
+- **Server**: Run HomeCloud on your servers - [learn more](https://asrient.com/homecloud/docs/help/server-setup).
 
 See the [Get Started](https://asrient.com/homecloud/docs/help/get-started) for setup instructions.
 
-## Why HomeCloud?
+## HomeCloud vs other device companions
+
+| | HomeCloud | KDE Connect | LocalSend |
+|---|---|---|---|
+| **Works over internet (P2P)** | ✅ | ❌ Same WiFi only | ❌ Same WiFi only |
+| **Truly cross-platform** | macOS, Windows, iOS, Android (Linux soon) | All | All, but file transfer only |
+| **File transfer** | ✅ | ✅ | ✅ |
+| **Clipboard access** | ✅ | ✅ | ❌ |
+| **Remote screen** | ✅ | ❌ | ❌ |
+| **Remote terminal** | ✅ | ❌ | ❌ |
+| **Phone photos on desktop** | ✅ | ❌ | ❌ |
+| **Workflows / automation** | ✅ | ❌ | ❌ |
+| **No VPN or port forwarding** | ✅ | Needs VPN for remote | Needs VPN for remote |
 
 Most device bridge tool like KDE Connect, LocalSend, Sefirah breaks the moment you leave your home WiFi. People set up entire VPN infrastructure just to get clipboard sync working at the office or a coffee shop.
 

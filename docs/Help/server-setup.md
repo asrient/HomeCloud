@@ -1,19 +1,14 @@
 # Server Setup
 
-Run HomeCloud as a headless server.
+Run HomeCloud as a headless server. 
 
-## What is HomeCloud Server?
-
-HomeCloud Server runs as a headless peer on your network. Once linked to your account, your other HomeCloud devices (desktop app, mobile app) can:
-
-- Browse and store files.
-- Backup your photos to the server.
-- Use the terminal remotely.
-- Run automations and AI agents in background.
+- Store and backup files and photos. 
+- Run AI agents and automations in the background.
+- Access from anywhere using HomeCloud apps on your phone and desktop.
 
 ## Prerequisites
 
-Currently we only support Linux, we do not currently test or officially support other platforms.
+OS Requirement: Currently we only support Linux, we do not test or officially support other platforms.
 
 The server needs a few system packages. On Debian/Ubuntu:
 
