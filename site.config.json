@@ -9,7 +9,7 @@
         "macosArm64": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud-macos-arm64.zip",
         "macosX64": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud-macos-x64.zip",
         "windowsExe": "https://github.com/asrient/HomeCloud/releases/download/desktop-latest/HomeCloud.Setup.exe",
-        "playStore": "https://play.google.com/store/apps/details?id=com.asrient.homecloud",
+        "playStore": "https://play.google.com/apps/testing/com.asrient.homecloud",
         "appStore": "https://testflight.apple.com/join/aF6w8Y8J",
         "msStore": "https://apps.microsoft.com/detail/9PKD1Q6RZ4JC",
         "downloadNotes": {
