@@ -15,7 +15,7 @@
         "downloadNotes": {
           "macos": "Use the Apple Silicon version if you have an M-series Mac.",
           "windows": "Using the Microsoft store option is recommended.",
-          "mobile": "iOS and Android apps are currently in beta testing with limited availability."
+          "mobile": "iOS and Android apps are currently in beta testing with limited availability. Android users, please join this Google group first to gain access: https://groups.google.com/g/homecloud-beta"
       }
     }
 }
