@@ -43,7 +43,8 @@ export class MCDB {
     private async initializeIndexes(): Promise<void> {
         const db = this.getDb();
 
-        // Ensure unique index on Account collection (email as _id already ensures uniqueness)
+        // Ensure unique index on Account collection. Emails are always normalized
+        // to lowercase before insert/lookup, so a plain unique index is sufficient.
         await db.collection(Collections.Account).createIndex({ email: 1 }, { unique: true });
 
         // Ensure unique index on Peer collection (fingerprint as _id already ensures uniqueness)
@@ -60,14 +61,17 @@ export class MCDB {
     public async getOrCreateAccount(email: string): Promise<Account> {
         const db = this.getDb();
 
-        // Try to find existing account
-        let account = await db.collection<Account>(Collections.Account).findOne({ email });
+        // Normalize email to be case-insensitive
+        const normalizedEmail = email.trim().toLowerCase();
+
+        // All stored emails are lowercased (see initializeIndexes migration), so a plain lookup is sufficient.
+        let account = await db.collection<Account>(Collections.Account).findOne({ email: normalizedEmail });
 
         if (!account) {
             // Create new account if not found
             const now = Date.now();
             const newAccount: AccountCreate = {
-                email,
+                email: normalizedEmail,
                 createdAt: now,
                 updatedAt: now
             };
