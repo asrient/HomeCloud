@@ -2,7 +2,6 @@ import path from "path";
 import fs from "fs";
 import { getPartionedTmpDir } from "nodeShared/utils";
 import { watch, FSWatcher } from 'chokidar';
-import ServiceController from "shared/controller";
 import { getServiceController } from "shared/utils";
 import { getFileContent } from "nodeShared/files/fileUtils";
 
@@ -19,7 +18,6 @@ export class WatchedFile {
     static EXPIRY = 1000 * 60 * 60 * 1;
 
     targetFileId: string;
-    targetServiceController: ServiceController;
     targetFingerprint: string | null;
     dir: string | null = null;
     tmpFile: string | null = null;
@@ -33,11 +31,16 @@ export class WatchedFile {
     /** Whether the remote device supports getFileHash. Checked once per instance. */
     private hashAvailable: boolean | null = null;
 
-    private constructor(targetFileId: string, serviceController: ServiceController, targetFingerprint: string | null) {
+    private constructor(targetFileId: string, targetFingerprint: string | null) {
         this.targetFileId = targetFileId;
-        this.targetServiceController = serviceController;
         this.targetFingerprint = targetFingerprint;
         WatchedFile.watchedFiles.push(this);
+    }
+
+    /** Always re-resolve the remote controller so we pick up reconnected
+     *  connections after a transport drop instead of holding a stale proxy. */
+    private getRemote() {
+        return getServiceController(this.targetFingerprint);
     }
 
     static async start(targetFingerprint: string | null, targetFileId: string) {
@@ -82,8 +85,7 @@ export class WatchedFile {
         if (WatchedFile.watchedFiles.length >= WatchedFile.WATCH_LIMIT) {
             WatchedFile.watchedFiles[0].remove();
         }
-        const serviceController = await getServiceController(targetFingerprint);
-        const wf = new WatchedFile(targetFileId, serviceController, targetFingerprint);
+        const wf = new WatchedFile(targetFileId, targetFingerprint);
         await wf.loadFile();
         return wf;
     }
@@ -203,7 +205,8 @@ export class WatchedFile {
         try {
             const fileContent = getFileContent(this.tmpFile);
             const targetDir = path.dirname(this.targetFileId);
-            const stat = await this.targetServiceController.files.fs.writeFile(targetDir, fileContent);
+            const sc = await this.getRemote();
+            const stat = await sc.files.fs.writeFile(targetDir, fileContent);
             this.lastModified = stat.lastModified ? new Date(stat.lastModified) : new Date();
             // Hash the local file so the watcher knows local and remote are in sync.
             this.currentHash = await this.getLocalFileHash();
@@ -245,9 +248,10 @@ export class WatchedFile {
         this.isDownloading = true;
         try {
             if (!this.tmpFile) throw new Error('No tmp file path set');
+            const sc = await this.getRemote();
             const fetches: [Promise<any>, Promise<any> | null] = [
-                this.targetServiceController.files.fs.readFile(this.targetFileId),
-                existingStat ? null : this.targetServiceController.files.fs.getStat(this.targetFileId),
+                sc.files.fs.readFile(this.targetFileId),
+                existingStat ? null : sc.files.fs.getStat(this.targetFileId),
             ];
             const [fileContent, fetchedStat] = await Promise.all(fetches);
             const stat = existingStat ?? fetchedStat;
@@ -270,7 +274,8 @@ export class WatchedFile {
         }
 
         if (await this.isHashAvailable()) {
-            const newcurrentHash = await this.targetServiceController.files.fs.getFileHash(this.targetFileId);
+            const sc = await this.getRemote();
+            const newcurrentHash = await sc.files.fs.getFileHash(this.targetFileId);
             if (this.currentHash && newcurrentHash === this.currentHash) {
                 return;
             }
@@ -280,7 +285,8 @@ export class WatchedFile {
     }
 
     async loadFile() {
-        const stat = await this.targetServiceController.files.fs.getStat(this.targetFileId);
+        const sc = await this.getRemote();
+        const stat = await sc.files.fs.getStat(this.targetFileId);
         this.dir = await prepareTmpDir();
         this.tmpFile = path.join(this.dir, stat.name);
         try {
@@ -319,7 +325,8 @@ export class WatchedFile {
     private async isHashAvailable(): Promise<boolean> {
         if (this.hashAvailable !== null) return this.hashAvailable;
         try {
-            this.hashAvailable = await this.targetServiceController.app.isMethodAvailable('files.fs.getFileHash');
+            const sc = await this.getRemote();
+            this.hashAvailable = await sc.app.isMethodAvailable('files.fs.getFileHash');
         } catch {
             this.hashAvailable = false;
         }
