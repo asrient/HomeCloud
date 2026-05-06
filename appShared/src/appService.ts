@@ -199,7 +199,9 @@ export class AppService extends Service {
         const peers = this.getPeers();
         const ind = peers.findIndex((peer) => peer.fingerprint === fingerprint);
         if (ind == -1) {
-            throw new Error(`Peer ${fingerprint} not found.`);
+            // Already removed (e.g., via resync racing with peer_removed event). No-op.
+            console.debug(`[AppService] removePeerFromStore: peer ${fingerprint} not in store, skipping.`);
+            return null;
         }
         const peer = peers.splice(ind, 1)[0];
         this.store.setItem('peers', peers);
