@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-    <strong>The open source connectivity platform for your devices.</strong><br>
+    <strong>The open source control panel for your devices.</strong><br>
     Files, photos, clipboard, screen, terminal, agents, over any network.
 </p>
 
@@ -17,7 +17,7 @@
 
 ---
 
-HomeCloud is a free, open-source device hub that connects your devices and AI agents across any network. Unlike tools that only work on the same WiFi or requires complex VPN setups, HomeCloud connects your devices seamlessly anywhere you are, while staying fully peer-to-peer.
+HomeCloud is a free, open-source device hub to access and control your devices across any network. Unlike tools that only work on the same WiFi or requires complex VPN setups, HomeCloud connects your devices seamlessly anywhere you are, while staying fully peer-to-peer.
 
 <p align="center">
     <img src="img/s1.png" alt="Screenshot 1" width="45%">
