@@ -19,7 +19,7 @@ import { DeviceIcon } from '@/components/DeviceIcon';
 import { UserPreferences } from "@/lib/types";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useNavigation } from '@/components/hooks/useNavigation';
-import AISettingsSection from '@/components/settings/AISection';
+import MCPSettingsSection from '@/components/settings/MCPSection';
 import PhotoLibrariesSection from '@/components/settings/PhotoLibrariesSection';
 import DeviceSettingsDialog from '@/components/settings/DeviceSettingsDialog';
 
@@ -187,7 +187,7 @@ function Page() {
               ))}
             </Section>
           )}
-          <AISettingsSection fingerprint={null} />
+          <MCPSettingsSection fingerprint={null} />
           <PhotoLibrariesSection fingerprint={null} />
           {isLinked && peers.length > 0 && (
             <Section title="Linked Devices">

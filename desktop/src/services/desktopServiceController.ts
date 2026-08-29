@@ -13,7 +13,6 @@ import DesktopAppService from "./appService";
 import DesktopScreenService from "./screen/screenService";
 import NodeTerminalService from "nodeShared/terminal/terminalService";
 import NodeWorkflowService from "nodeShared/workflow/workflowService";
-import NodeAgentService from "nodeShared/agent/agentService";
 import DesktopDiscovery from "./discovery";
 
 const TCP_PORT = 7736;
@@ -30,7 +29,6 @@ export default class DesktopServiceController extends ServiceController {
     public override screen = DesktopScreenService.getInstance<DesktopScreenService>();
     public override terminal = NodeTerminalService.getInstance<NodeTerminalService>();
     public override workflow = NodeWorkflowService.getInstance<NodeWorkflowService>();
-    public override agent = NodeAgentService.getInstance<NodeAgentService>();
 
     async setup() {
         console.log("[ServiceController] Setting up services...");
@@ -46,7 +44,6 @@ export default class DesktopServiceController extends ServiceController {
         await this.screen.init();
         await this.terminal.init();
         await this.workflow.init();
-        await this.agent.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(
             [
                 [ConnectionType.LOCAL, new TCPInterface(TCP_PORT, new DesktopDiscovery(TCP_PORT))],
@@ -72,7 +69,6 @@ export default class DesktopServiceController extends ServiceController {
         await this.photos.start();
         await this.screen.start();
         await this.workflow.start();
-        await this.agent.start();
         console.log("[ServiceController] All services started.");
     }
 }

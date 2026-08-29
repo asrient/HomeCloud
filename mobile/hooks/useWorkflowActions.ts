@@ -12,7 +12,7 @@ export function useWorkflowActions(deviceFingerprint: string | null) {
             const sc = await getServiceController(deviceFingerprint);
             await sc.workflow.executeWorkflow(wf.id, inputs);
         } catch (err: any) {
-            console.error('Failed to run workflow:', err);
+            console.error('Failed to run automation:', err);
         }
     }, [deviceFingerprint]);
 
@@ -35,7 +35,7 @@ export function useWorkflowActions(deviceFingerprint: string | null) {
 
     const onRunModalSubmit = useCallback((inputs: WorkflowInputs) => {
         if (runWorkflow) executeWithInputs(runWorkflow, inputs).catch(err => {
-            console.error('Failed to run workflow with inputs:', err);
+            console.error('Failed to run automation with inputs:', err);
         });
         setRunWorkflow(null);
     }, [runWorkflow, executeWithInputs]);

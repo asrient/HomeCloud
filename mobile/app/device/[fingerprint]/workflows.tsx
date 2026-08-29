@@ -52,7 +52,7 @@ export default function WorkflowsScreen() {
         <View style={{ flex: 1 }}>
             <Stack.Screen
                 options={{
-                    title: 'Workflows',
+                    title: 'Automation',
                     headerBackButtonDisplayMode: 'minimal',
                     headerTransparent: isGlassEnabled,
                 }}
@@ -68,9 +68,9 @@ export default function WorkflowsScreen() {
                 }
             >
                 {!availLoading && !workflowsAvailable ? (
-                    <UIPagePlaceholder title="Workflows not available" detail="This device does not support workflows." />
+                    <UIPagePlaceholder title="Automation not available" detail="This device does not support automation." />
                 ) : workflows.length === 0 && !isLoading ? (
-                    <UIPagePlaceholder title="No workflows yet" detail="Create a workflow to automate tasks on this device." />
+                    <UIPagePlaceholder title="No automations yet" detail="Create an automation to run tasks on this device." />
                 ) : (
                     <View style={styles.grid}>
                         {workflows.map(wf => (

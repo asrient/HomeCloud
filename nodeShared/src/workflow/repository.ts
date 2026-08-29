@@ -225,7 +225,7 @@ export class WorkflowRepository {
         const row = await this.db.get<ConfigRow>(
             'SELECT * FROM workflow_configs WHERE id = ?', [id]
         );
-        if (!row) throw new Error(`Workflow not found: ${id}`);
+        if (!row) throw new Error(`Automation not found: ${id}`);
         return rowToWorkflowConfig(row);
     }
 

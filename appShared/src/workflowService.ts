@@ -30,7 +30,7 @@ import {
 } from './types';
 
 export class WorkflowService extends Service {
-    static serviceDescription = 'Automations — create, run, schedule, and manage scripts.';
+    static serviceDescription = 'Automation — create, run, schedule, and manage scripts.';
 
     public executionStartSignal = new Signal<[WorkflowExecution]>({ isExposed: true, isAllowAll: false });
     public executionEndSignal = new Signal<[WorkflowExecution]>({ isExposed: true, isAllowAll: false });
@@ -58,21 +58,21 @@ export class WorkflowService extends Service {
 
     // --- Exposed methods (final — do not override) ---
 
-    @exposed 
-    @info("Check if workflow engine is available") 
+    @exposed
+    @info("Check if automation is available")
     @wfApi
     @output(Sch.Boolean)
     public async isAvailable(): Promise<boolean> { return this._isAvailable(); }
 
-    @exposed @info("List all workflow configurations") @input(Sch.Name('params', Sch.Optional(ListWorkflowsParamsSchema))) @output(Sch.Array(WorkflowConfigSchema))
+    @exposed @info("List all automation configurations") @input(Sch.Name('params', Sch.Optional(ListWorkflowsParamsSchema))) @output(Sch.Array(WorkflowConfigSchema))
     @wfApi
     public async listWorkflows(params?: ListWorkflowsParams): Promise<WorkflowConfig[]> { return this._listWorkflows(params); }
 
-    @exposed @info("Get a workflow configuration by ID") @input(Sch.Name('workflowId', Sch.String)) @output(WorkflowConfigSchema)
+    @exposed @info("Get an automation configuration by ID") @input(Sch.Name('workflowId', Sch.String)) @output(WorkflowConfigSchema)
     @wfApi
     public async getWorkflowConfig(workflowId: string): Promise<WorkflowConfig> { return this._getWorkflowConfig(workflowId); }
 
-    @exposed @info("Create a new workflow") @input(Sch.Name('name', Sch.String), Sch.Name('dir', Sch.Optional(Sch.String))) @output(WorkflowConfigSchema)
+    @exposed @info("Create a new automation") @input(Sch.Name('name', Sch.String), Sch.Name('dir', Sch.Optional(Sch.String))) @output(WorkflowConfigSchema)
     @wfApi
     public async createWorkflow(name: string, dir?: string): Promise<WorkflowConfig> {
         const config = await this._createWorkflow(name, dir);
@@ -80,7 +80,7 @@ export class WorkflowService extends Service {
         return config;
     }
 
-    @exposed @info("Update a workflow's configuration") @input(Sch.Name('id', Sch.String), Sch.Name('data', WorkflowSavePayloadSchema)) @output(WorkflowConfigSchema)
+    @exposed @info("Update an automation's configuration") @input(Sch.Name('id', Sch.String), Sch.Name('data', WorkflowSavePayloadSchema)) @output(WorkflowConfigSchema)
     @wfApi
     public async updateWorkflow(id: string, data: WorkflowSavePayload): Promise<WorkflowConfig> {
         if (data.inputFields) {
@@ -91,7 +91,7 @@ export class WorkflowService extends Service {
         return config;
     }
 
-    @exposed @info("Delete a workflow and its script and logs") @input(Sch.Name('workflowId', Sch.String))
+    @exposed @info("Delete an automation and its script and logs") @input(Sch.Name('workflowId', Sch.String))
     @wfApi
     public async deleteWorkflow(workflowId: string): Promise<void> {
         const config = await this._getWorkflowConfig(workflowId);
@@ -99,7 +99,7 @@ export class WorkflowService extends Service {
         this.workflowSignal.dispatch(SignalEvent.REMOVE, config);
     }
 
-    @exposed @info("Execute a workflow by ID with given inputs") @input(Sch.Name('workflowId', Sch.String), Sch.Name('inputs', WorkflowInputsSchema), Sch.Name('maxWaitSec', Sch.Optional(Sch.Number))) @output(WorkflowExecutionSchema)
+    @exposed @info("Execute an automation by ID with given inputs") @input(Sch.Name('workflowId', Sch.String), Sch.Name('inputs', WorkflowInputsSchema), Sch.Name('maxWaitSec', Sch.Optional(Sch.Number))) @output(WorkflowExecutionSchema)
     @wfApi
     public async executeWorkflow(workflowId: string, inputs: WorkflowInputs, maxWaitSec?: number): Promise<WorkflowExecution> {
         const config = await this._getWorkflowConfig(workflowId);
@@ -115,7 +115,7 @@ export class WorkflowService extends Service {
     @wfApi
     public async getWorkflowExecution(executionId: string): Promise<WorkflowExecution> { return this._getWorkflowExecution(executionId); }
 
-    @exposed @info("Cancel a running workflow execution") @input(Sch.Name('executionId', Sch.String))
+    @exposed @info("Cancel a running automation execution") @input(Sch.Name('executionId', Sch.String))
     @wfApi
     public async cancelWorkflowExecution(executionId: string): Promise<void> { return this._cancelWorkflowExecution(executionId); }
 
@@ -135,15 +135,15 @@ export class WorkflowService extends Service {
     @wfApi
     public async listTriggers(params?: ListTriggersParams): Promise<WorkflowTrigger[]> { return this._listTriggers(params); }
 
-    @exposed @info("Link a trigger to a workflow") @input(Sch.Name('workflowId', Sch.String), Sch.Name('triggerId', Sch.String))
+    @exposed @info("Link a trigger to an automation") @input(Sch.Name('workflowId', Sch.String), Sch.Name('triggerId', Sch.String))
     @wfApi
     public async linkTrigger(workflowId: string, triggerId: string): Promise<void> { return this._linkTrigger(workflowId, triggerId); }
 
-    @exposed @info("Unlink a trigger from a workflow") @input(Sch.Name('workflowId', Sch.String), Sch.Name('triggerId', Sch.String))
+    @exposed @info("Unlink a trigger from an automation") @input(Sch.Name('workflowId', Sch.String), Sch.Name('triggerId', Sch.String))
     @wfApi
     public async unlinkTrigger(workflowId: string, triggerId: string): Promise<void> { return this._unlinkTrigger(workflowId, triggerId); }
 
-    @exposed @info("List workflow execution history") @input(Sch.Name('params', Sch.Optional(ListWorkflowExecutionsParamsSchema))) @output(Sch.Array(WorkflowExecutionSchema))
+    @exposed @info("List automation execution history") @input(Sch.Name('params', Sch.Optional(ListWorkflowExecutionsParamsSchema))) @output(Sch.Array(WorkflowExecutionSchema))
     @wfApi
     public async listWorkflowExecutions(params?: ListWorkflowExecutionsParams): Promise<WorkflowExecution[]> { return this._listWorkflowExecutions(params); }
 
@@ -176,7 +176,7 @@ export class WorkflowService extends Service {
     @output(McpServerInfoSchema)
     public async getMcpServerInfo(): Promise<McpServerInfo> { return this._getMcpServerInfo(); }
 
-    @exposed @info("Get workflow scripting guide as markdown")
+    @exposed @info("Get automation scripting guide as markdown")
     @output(Sch.String)
     public async getScriptingGuide(): Promise<string> { return this._getScriptingGuide(); }
 

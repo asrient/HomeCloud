@@ -1,10 +1,10 @@
 # MCP Server
 
-HomeCloud includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that lets AI assistants interact with your devices through HomeCloud's scripting environment.
+HomeCloud includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that lets external MCP clients interact with your devices through HomeCloud's automation environment.
 
 ## What is MCP?
 
-MCP is an open protocol that allows AI assistants (like GitHub Copilot, Claude, Gemini, etc.) to discover and use tools provided by external servers. When enabled, HomeCloud exposes a local MCP server that gives your AI assistant access to a powerful scripting tool, allowing it to read files, control devices, run automations, and more, all through your HomeCloud setup.
+MCP is an open protocol that allows compatible clients to discover and use tools provided by external servers. When enabled, HomeCloud exposes a local MCP server with a scripting tool that can read files, control devices, run automations, and more through your HomeCloud setup.
 
 ## Enabling the MCP Server
 
@@ -16,20 +16,11 @@ The MCP server runs on localhost only and is not accessible from the network.
 
 ### Auto-Start
 
-Once enabled, the MCP server can be set to start automatically when HomeCloud launches, so your AI assistant always has access.
+Once enabled, the MCP server can start automatically when HomeCloud launches so configured clients can connect whenever HomeCloud is running.
 
-## Connecting an AI Agent
+## Connecting an MCP Client
 
-To let your configured AI agent use the MCP server:
-
-1. Open **Settings → Artificial Intelligence → AI Agent**.
-2. Enable **"Provide workflow tools"** in the agent configuration.
-
-When this is on, HomeCloud passes the MCP server URL to the agent when creating new chat sessions. The agent can then discover and call the available tools.
-
-### Using with External AI Tools
-
-You can also point any MCP-compatible AI tool at the server URL directly.
+Configure any MCP-compatible client to use the URL shown in **Settings → Automation**. The client can then discover and call HomeCloud's automation tools.
 
 ## Technical Details
 

@@ -146,7 +146,7 @@ export class WorkerInterface {
         const { obj, funcName } = controller.getCallable('services.' + fqn);
         const methodInfo = getMethodInfo(obj[funcName]);
         if (!methodInfo.isWfApi) {
-            throw new Error(`Method not available to workflows: ${fqn}`);
+            throw new Error(`Method not available to automations: ${fqn}`);
         }
         // Resolve file paths to ReadableStreams where schema expects stream type
         const inputSchemas = methodInfo.inputSchema ?? [];

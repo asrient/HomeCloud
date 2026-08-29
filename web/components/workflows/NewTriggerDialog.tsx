@@ -59,7 +59,7 @@ export function NewTriggerDialog({ open, onClose, onCreate }: {
                 <DialogHeader>
                     <DialogTitle>New Schedule Trigger</DialogTitle>
                     <DialogDescription>
-                        Set a schedule to run this workflow automatically.
+                        Set a schedule to run this automation automatically.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-3 py-2">

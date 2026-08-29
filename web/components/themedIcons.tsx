@@ -2,11 +2,6 @@ import { isMacosTheme } from "@/lib/utils";
 import { Flower, Folder, Settings, HardDrive, Hammer, House, AppWindow, Command, Terminal } from "lucide-react";
 import Image from "next/image";
 import { ThemedIconName } from "@/lib/enums";
-import { SparklesIcon } from "@heroicons/react/24/outline";
-
-const AIIcon = ({ className, size }: { className?: string, size?: number }) => {
-    return <SparklesIcon className={className} width={size} height={size} />
-}
 
 const ThemedIcons: Record<ThemedIconName, [string, React.ElementType]> = {
     Folder: ['/icons/folder.png', Folder],
@@ -16,7 +11,6 @@ const ThemedIcons: Record<ThemedIconName, [string, React.ElementType]> = {
     Tool: ['/icons/tool.png', Hammer],
     Home: ['/icons/home.png', House],
     Apps: ['/icons/program.png', AppWindow],
-    AI: ['/icons/AI.png', AIIcon],
     Workflows: ['/icons/cmd2.png', Command],
     Terminal: ['/icons/terminal.png', Terminal],
 }

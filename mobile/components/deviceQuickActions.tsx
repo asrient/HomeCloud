@@ -13,7 +13,6 @@ import Slider from '@react-native-community/slider';
 import { DisksGrid } from "./disksGrid";
 import { useAppsAvailable, useTerminalAvailable } from "@/hooks/useApps";
 import { useWorkflowsAvailable } from "@/hooks/useWorkflows";
-import { useAgentConfig } from "@/hooks/useAgent";
 import { getLocalServiceController, getServiceController, isIos } from "@/lib/utils";
 
 import { UIIcon } from "./ui/UIIcon";
@@ -208,7 +207,6 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
     const { available: appsAvailable } = useAppsAvailable(deviceFingerprint);
     const { available: terminalAvailable } = useTerminalAvailable(deviceFingerprint);
     const { available: workflowsAvailable } = useWorkflowsAvailable(deviceFingerprint);
-    const { config: agentConfig } = useAgentConfig(deviceFingerprint);
     const { lockStatus, lockScreen } = useScreenLock(deviceFingerprint);
 
     const batteryIcon = useMemo(() => {
@@ -415,10 +413,10 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                     },
                     {
                         type: 'small',
-                        icon: 'sparkles.2',
-                        isCircular: true,
-                        disabled: !agentConfig,
-                        onPress: () => onNavigate(`/agent?fingerprint=${routeFingerprint}`),
+                        icon: 'lock.fill',
+                        title: 'Lock Screen',
+                        disabled: lockStatus !== 'unlocked',
+                        onPress: handleLockScreen,
                     },
                 ]
             },
@@ -432,18 +430,6 @@ export function DeviceQuickActions({ peerInfo, fingerprint, onNavigate }: Device
                     },
                 ]
             },
-            {
-                flow: 'row',
-                boxes: [
-                    {
-                        type: 'half',
-                        icon: 'lock.fill',
-                        title: 'Lock Screen',
-                        disabled: lockStatus !== 'unlocked',
-                        onPress: handleLockScreen,
-                    },
-                ]
-            }
         ]} />
     </>
 }

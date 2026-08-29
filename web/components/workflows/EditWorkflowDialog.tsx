@@ -185,7 +185,7 @@ export function EditWorkflowDialog({
             });
             onClose();
         } catch (err: any) {
-            setSaveError(err.message || 'Failed to save workflow');
+            setSaveError(err.message || 'Failed to save automation');
         }
     }, [name, description, color, isEnabled, scriptPath, inputFields, maxExecTimeSecs, workflow, fingerprint, onClose]);
 
@@ -196,7 +196,7 @@ export function EditWorkflowDialog({
             await sc.workflow.deleteWorkflow(workflow.id);
             onClose();
         } catch (err: any) {
-            console.error('Failed to delete workflow:', err);
+            console.error('Failed to delete automation:', err);
         }
     }, [workflow, fingerprint, onClose]);
 
@@ -205,7 +205,7 @@ export function EditWorkflowDialog({
             <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
                 <DialogContent className="w-[28rem] max-h-[75vh] flex flex-col">
                     <DialogHeader>
-                        <DialogTitle>Edit Workflow</DialogTitle>
+                        <DialogTitle>Edit Automation</DialogTitle>
                     </DialogHeader>
                     <div className="flex flex-col gap-4 py-2 px-3 overflow-y-auto flex-1">
                         <div className="flex flex-col gap-1.5">

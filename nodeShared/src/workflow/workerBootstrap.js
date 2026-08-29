@@ -137,7 +137,7 @@ global.exit = (success, message) => {
     const status = success === false ? 'error' : 'ok';
     const result = { status, message };
     if (logStream) {
-        writeLog('LOG', [`Workflow exited: ${status}${message ? ' - ' + message : ''}`]);
+        writeLog('LOG', [`Automation exited: ${status}${message ? ' - ' + message : ''}`]);
         logStream.end();
     }
     parentPort.postMessage({ type: 'result', result });

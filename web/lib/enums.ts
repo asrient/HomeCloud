@@ -41,7 +41,6 @@ export enum ThemedIconName {
     Tool = 'Tool',
     Home = 'Home',
     Apps = 'Apps',
-    AI = 'AI',
     Workflows = 'Workflows',
     Terminal = 'Terminal',
 }

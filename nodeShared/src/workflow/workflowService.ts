@@ -24,12 +24,12 @@ import { getMcpHeaderDocMd, getMcpServiceListDocMd, getFullDocMd, getServiceDocM
 
 const DEFAULT_MCP_PORT = 9637;
 
-const DEFAULT_SCRIPT_TEMPLATE = `// Workflow script (ESM)
-// Access workflow context via global.ctx
+const DEFAULT_SCRIPT_TEMPLATE = `// Automation script (ESM)
+// Access automation context via global.ctx
 // Call global.exit(success, message) to finish
 
 const ctx = global.ctx;
-console.log('Workflow started:', ctx.config?.name ?? 'Playground');
+console.log('Automation started:', ctx.config?.name ?? 'Playground');
 console.log('Inputs:', JSON.stringify(ctx.inputs));
 
 // Your code here... e.g.
@@ -117,7 +117,7 @@ export default class NodeWorkflowService extends WorkflowService {
     protected override async _executeWorkflow(workflowId: string, inputs: WorkflowInputs, maxWaitSec?: number): Promise<WorkflowExecution> {
         const config = await this.repo.getWorkflow(workflowId);
         if (!config.isEnabled) {
-            throw new Error(`Workflow '${config.name}' is disabled`);
+            throw new Error(`Automation '${config.name}' is disabled`);
         }
         // Verify script file exists before execution
         try {
@@ -251,7 +251,7 @@ export default class NodeWorkflowService extends WorkflowService {
         const workflows = await this.repo.getWorkflowsForTrigger(trigger.id);
         for (const config of workflows) {
             this.executor.executeWorkflow(config, {}, undefined, trigger.id).catch(err => {
-                console.error(`[WorkflowService] Triggered execution failed for workflow ${config.id}:`, err);
+                console.error(`[WorkflowService] Triggered execution failed for automation ${config.id}:`, err);
             });
         }
     }

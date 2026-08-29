@@ -1,28 +1,28 @@
-# Workflows
+# Automation
 
-Workflows let you automate tasks on your HomeCloud devices using JavaScript. Create scripts that read files, control devices, and run on a schedule or anytime manually.
+Automation lets you run tasks on your HomeCloud devices using JavaScript. Create scripts that read files, control devices, and run on a schedule or anytime manually.
 
-## Creating a Workflow
+## Creating an Automation
 
-1. Go to the **Workflows** page.
-2. Click **New Workflow** button.
+1. Go to the **Automation** page.
+2. Click **New Automation**.
 3. Enter a name and choose where to save the script.
 4. HomeCloud creates a starter script you can edit right away.
 
-Each workflow is a JavaScript file that runs in an isolated environment with access to all HomeCloud's device APIs.
+Each automation is a JavaScript file that runs in an isolated environment with access to all HomeCloud's device APIs.
 
-## Editing a Workflow
+## Editing an Automation
 
 You can configure:
 
-- **Enabled/disabled** — Disable a workflow without deleting it, any trigger for the workflow will be paused.
+- **Enabled/disabled** — Disable an automation without deleting it; its triggers will be paused.
 - **Max execution time** — After this the script run will be stopped and status will be set as timeout.
-- **Input fields** — Define parameters that are prompted when running the workflow, provided values can be accessed in the script.
+- **Input fields** — Define parameters that are prompted when running the automation; provided values can be accessed in the script.
 - **Triggers** — Set up automatic schedules to run the script.
 
 ## Input Fields
 
-Workflows can define input fields so you (or an AI agent) can pass values at run time. Each field has:
+Automations can define input fields so you or an external MCP client can pass values at run time. Each field has:
 
 | Property | Description |
 |----------|-------------|
@@ -32,17 +32,17 @@ Workflows can define input fields so you (or an AI agent) can pass values at run
 | Required | Whether the field must be filled |
 | Options | Comma-separated choices (for `select` type) |
 
-When you run a workflow that has inputs, a form appears to collect the values.
+When you run an automation that has inputs, a form appears to collect the values.
 
-## Running a Workflow
+## Running an Automation
 
 ### Manually
 
-Click **Run** on a workflow card. If the workflow has input fields, you'll be prompted to fill them in first.
+Click **Run** on an automation card. If the automation has input fields, you'll be prompted to fill them in first.
 
 ### On a Schedule
 
-Add a trigger to run a workflow automatically. HomeCloud supports cron-based schedules with common presets:
+Add a trigger to run an automation automatically. HomeCloud supports cron-based schedules with common presets:
 
 - Every minute / 5 minutes / 15 minutes
 - Every hour
@@ -51,15 +51,15 @@ Add a trigger to run a workflow automatically. HomeCloud supports cron-based sch
 - First of every month
 - Custom cron expression
 
-A workflow can have multiple triggers, and the same trigger can be shared across workflows.
+An automation can have multiple triggers, and the same trigger can be shared across automations.
 
-### Via AI Agent
+### Via MCP
 
-If you have the [MCP server](mcp-server) enabled and an AI agent configured, the agent can create and execute workflow scripts on your behalf.
+If you have the [MCP server](mcp-server) enabled, a compatible external client can create and execute automation scripts through the tools HomeCloud exposes.
 
 ## Writing Scripts
 
-Workflow scripts are plain JavaScript running in a Node.js worker thread. The following globals are available:
+Automation scripts are plain JavaScript running in a Node.js worker thread. The following globals are available:
 
 ### Context
 
@@ -67,9 +67,9 @@ Workflow scripts are plain JavaScript running in a Node.js worker thread. The fo
 const ctx = global.ctx;
 
 ctx.inputs   // Input values passed to this run
-ctx.config   // Workflow configuration (name, id, etc.)
+ctx.config   // Automation configuration (name, id, etc.)
 ctx.trigger  // Trigger info (if run by a schedule)
-ctx.host     // Info about the device running the workflow
+ctx.host     // Info about the device running the automation
 ```
 
 ### Finishing
@@ -79,7 +79,7 @@ global.exit(true, 'All done');       // Success
 global.exit(false, 'Something failed'); // Error
 ```
 
-Always call `exit()` to complete the workflow. If omitted, the script will run until its timeout.
+Always call `exit()` to complete the automation. If omitted, the script will run until its timeout.
 
 ### Device APIs
 
@@ -108,15 +108,15 @@ Use `console.log`, `console.warn`, `console.error`, etc. Output is saved to a lo
 
 ## Execution History
 
-Each workflow keeps a history of its recent runs (up to 20). For each execution you can see:
+Each automation keeps a history of its recent runs (up to 20). For each execution you can see:
 
 - **Status** — `ok`, `error`, `timeout`, or `cancelled`
 - **Result message**
 - **Start and end time**
 - **Logs** — Full console output
 
-View execution history by clicking on a workflow card and opening its details.
+View execution history by clicking on an automation card and opening its details.
 
 ## Scripts
 
-**Scripts** are saved as regular js files where you choose (typically `~/Workflows/[name]/workflow.js`).
+**Scripts** are saved as regular JavaScript files wherever you choose. Existing default paths and filenames remain `~/Workflows/[name]/workflow.js`.

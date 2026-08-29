@@ -40,7 +40,7 @@ export function NewWorkflowDialog({ open, onClose, onCreate, fingerprint }: {
     const handleBrowse = useCallback(async () => {
         try {
             const localSc = window.modules.getLocalServiceController();
-            const result = await localSc.files.openFilePicker(false, true, undefined, 'Select Workflows Directory', 'Select');
+            const result = await localSc.files.openFilePicker(false, true, undefined, 'Select Automation Directory', 'Select');
             if (result && result.length > 0) {
                 setDir(result[0].path);
                 setShowDirField(true);
@@ -54,9 +54,9 @@ export function NewWorkflowDialog({ open, onClose, onCreate, fingerprint }: {
         <Dialog open={open} onOpenChange={(o) => { if (!o) { onClose(); reset(); } }}>
             <DialogContent className="sm:max-w-[24rem]">
                 <DialogHeader>
-                    <DialogTitle>New Workflow</DialogTitle>
+                    <DialogTitle>New Automation</DialogTitle>
                     <DialogDescription>
-                        Give your workflow a name to get started.
+                        Give your automation a name to get started.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-3 py-2">
@@ -66,7 +66,7 @@ export function NewWorkflowDialog({ open, onClose, onCreate, fingerprint }: {
                             id="wf-name"
                             value={name}
                             onChange={e => setName(e.target.value)}
-                            placeholder="My Awesome Workflow"
+                            placeholder="My Awesome Automation"
                             autoFocus
                             onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
                         />

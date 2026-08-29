@@ -64,7 +64,7 @@ export function RunWorkflowDialog({
             await sc.workflow.executeWorkflow(workflow.id, inputs);
             onClose();
         } catch (err: any) {
-            console.error('Failed to execute workflow:', err);
+            console.error('Failed to execute automation:', err);
         } finally {
             setRunning(false);
         }

@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PeerInfo } from "shared/types";
-import AISettingsSection from './AISection';
+import MCPSettingsSection from './MCPSection';
 import PhotoLibrariesSection from './PhotoLibrariesSection';
 
 interface DeviceSettingsDialogProps {
@@ -31,7 +31,7 @@ export default function DeviceSettingsDialog({ fingerprint, peer, open, onOpenCh
         </DialogHeader>
         <div className="pb-6">
           <PhotoLibrariesSection fingerprint={fingerprint} isRemote />
-          <AISettingsSection fingerprint={fingerprint} />
+          <MCPSettingsSection fingerprint={fingerprint} />
         </div>
       </DialogContent>
     </Dialog>

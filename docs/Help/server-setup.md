@@ -3,7 +3,7 @@
 Run HomeCloud as a headless server. 
 
 - Store and backup files and photos. 
-- Run AI agents and automations in the background.
+- Run automations in the background.
 - Access from anywhere using HomeCloud apps on your phone and desktop.
 
 ## Prerequisites

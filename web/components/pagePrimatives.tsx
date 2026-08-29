@@ -46,6 +46,7 @@ export function PageBar({ children, title, icon }: {
                     </MenuGroup>
                 }
                 {icon && <ThemedIcon name={icon}
+                    alt={title}
                     size={isMacosTheme() ? 20 : 30}
                 />}
                 <div className={cn(

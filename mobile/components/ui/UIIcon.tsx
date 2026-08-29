@@ -101,7 +101,6 @@ const MAPPING = {
   'nosign': 'block',
   'doc.text': 'description',
   'bolt.fill': 'bolt',
-  'sparkles.2': 'auto-awesome',
   'command': 'keyboard-command',
   'slider.horizontal.3': 'tune',
   'plus': 'add',

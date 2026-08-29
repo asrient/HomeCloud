@@ -52,7 +52,7 @@ export function WorkflowCard({
 
     const menuItems = useCallback((): ContextMenuItem[] => [
         ...(!workflow.isEnabled ? [] : [{ id: 'run', label: 'Run now' }]),
-        { id: 'edit', label: 'Edit workflow' },
+        { id: 'edit', label: 'Edit automation' },
         { id: 'script', label: 'View script' },
         { id: 'sep', type: 'separator' },
         { id: 'delete', label: 'Delete' },
@@ -101,7 +101,7 @@ export function WorkflowCard({
                                 'hover:bg-white/30 active:bg-white/40',
                             )}
                             onClick={handlePlay}
-                            title="Run workflow"
+                            title="Run automation"
                         >
                             <Play size={14} fill="currentColor" />
                         </button>

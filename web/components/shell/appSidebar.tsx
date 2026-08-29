@@ -4,7 +4,6 @@ import { ContextMenuItem, SidebarItem, SidebarSection } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useAppState } from "../hooks/useAppState";
-import { useAgentConfig } from "../hooks/useAgent";
 import { useWorkflowsAvailable } from "../hooks/useWorkflows";
 import { useTerminalAvailable } from "../hooks/useSystemState";
 import { useFolder, usePinnedFolders } from "../hooks/useFolders";
@@ -206,7 +205,6 @@ export function DevSection() {
 }
 
 function TopSection({ fingerprint }: { fingerprint: string | null }) {
-    const { config: agentConfig } = useAgentConfig(fingerprint);
     const { available: workflowsAvailable } = useWorkflowsAvailable(fingerprint);
     const { available: terminalAvailable } = useTerminalAvailable(fingerprint);
 
@@ -219,17 +217,9 @@ function TopSection({ fingerprint }: { fingerprint: string | null }) {
         }]
     };
 
-    if (agentConfig) {
-        section.items.push({
-            title: agentConfig.name,
-            href: buildNextUrl('/agent'),
-            icon: ThemedIconName.AI,
-            key: 'agent',
-        });
-    }
     if (workflowsAvailable) {
         section.items.push({
-            title: 'Workflows',
+            title: 'Automation',
             href: buildNextUrl('/workflows'),
             icon: ThemedIconName.Workflows,
             key: 'workflows',

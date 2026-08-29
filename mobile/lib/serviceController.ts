@@ -12,7 +12,6 @@ import { HttpClient_, WebSocket_ } from "./mobileCompat";
 import MobileWebcInterface from "./services/webcInterface";
 import { TerminalService } from "shared/terminalService";
 import MobileAppService from "./services/appService";
-import { AgentService } from "shared/agentService";
 import { WorkflowService } from "shared/workflowService";
 
 const TCP_PORT = 7736;
@@ -27,7 +26,6 @@ export default class MobileServiceController extends ServiceController {
     public override account = MobileAccountService.getInstance<MobileAccountService>();
     public override screen = ScreenService.getInstance<ScreenService>();
     public override terminal = TerminalService.getInstance<TerminalService>();
-    public override agent = AgentService.getInstance<AgentService>();
     public override workflow = WorkflowService.getInstance<WorkflowService>();
 
     async setup() {
@@ -42,7 +40,6 @@ export default class MobileServiceController extends ServiceController {
         await this.thumbnail.init();
         await this.photos.init();
         await this.terminal.init();
-        await this.agent.init();
         await this.workflow.init();
         this.screen.init();
         this.net.init(new Map<ConnectionType, ConnectionInterface>(

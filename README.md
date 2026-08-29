@@ -8,7 +8,7 @@
 
 <p align="center">
     <strong>The open source connectivity platform for your devices.</strong><br>
-    Files, photos, clipboard, screen, terminal, agents, over any network.
+    Files, photos, clipboard, screen, terminal, and automation over any network.
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
 
 ---
 
-HomeCloud is a free, open-source device hub that connects your devices and AI agents across any network. Unlike tools that only work on the same WiFi or requires complex VPN setups, HomeCloud connects your devices seamlessly anywhere you are, while staying fully peer-to-peer.
+HomeCloud is a free, open-source device hub that connects your devices across any network. Unlike tools that only work on the same WiFi or require complex VPN setups, HomeCloud connects your devices seamlessly anywhere you are, while staying fully peer-to-peer.
 
 <p align="center">
     <img src="img/s1.png" alt="Screenshot 1" width="45%">
@@ -40,8 +40,7 @@ HomeCloud is a free, open-source device hub that connects your devices and AI ag
 | 🖥️ **Remote Screen** | View and control your devices remotely |
 | 💻 **Terminal** | Open a terminal session to any connected device |
 | 🎵 **Media Control** | Control desktop media playback and volume from your phone |
-| 🤖 **AI Agents** | Run AI agent like Claude Code in the background and chat from any device. |
-| ⚡ **Workflows** | Create and run automated tasks across your devices |
+| ⚡ **Automation** | Create and run automated tasks across your devices |
 
 ## What makes HomeCloud unique
 
@@ -58,12 +57,9 @@ Devices authenticate using on-device public key cryptography. Your data stays pr
 HomeCloud does not require complex setups for connectivity or pairing. Just login with your same email on every device.
 
 
-### Give AI Agents access to your devices
+### Connect external tools with MCP
 
-HomeCloud can also serve as the device layer for AI agents. Connect any AI agent or tool to your devices using industry-standard protocols:
-
-- **MCP (Model Context Protocol):** Any MCP-compatible AI agent can get access to your device's files, photos, system info, and more through HomeCloud. Works with Claude, Copilot, and other MCP-enabled tools.
-- **ACP (Agent Communication Protocol):** See and control AI agents running on any of your devices from anywhere - your phone, laptop, or tablet.
+HomeCloud includes a local **MCP (Model Context Protocol)** server. Any MCP-compatible client can use the HomeCloud automation service to access your devices' files, photos, system information, and other exposed services.
 
 ## Get started
 
@@ -86,14 +82,14 @@ See the [Get Started](https://asrient.com/homecloud/docs/help/get-started) for s
 | **Remote screen** | ✅ | ❌ | ❌ |
 | **Remote terminal** | ✅ | ❌ | ❌ |
 | **Phone photos on desktop** | ✅ | ❌ | ❌ |
-| **Workflows / automation** | ✅ | ❌ | ❌ |
+| **Automation** | ✅ | ❌ | ❌ |
 | **No VPN or port forwarding** | ✅ | Needs VPN for remote | Needs VPN for remote |
 
 Most device bridge tool like KDE Connect, LocalSend, Sefirah breaks the moment you leave your home WiFi. People set up entire VPN infrastructure just to get clipboard sync working at the office or a coffee shop.
 
 HomeCloud was built to work on **any network**, local or internet, while staying peer-to-peer. No VPN, no port forwarding, no firewall configs. It just connects.
 
-But connectivity is just the foundation. HomeCloud also gives you things no other device bridge does: browse your phone's photo library from your computer, open remote terminal sessions, run automated workflows, and connect AI agents to your devices, all from anywhere, on any OS.
+But connectivity is just the foundation. HomeCloud also gives you things no other device bridge does: browse your phone's photo library from your computer, open remote terminal sessions, run automations, and connect external tools through MCP, all from anywhere, on any OS.
 
 ## Contributing
 

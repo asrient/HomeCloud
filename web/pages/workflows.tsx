@@ -49,7 +49,7 @@ function Page() {
                 const sc = await getServiceController(selectedFingerprint);
                 await sc.workflow.executeWorkflow(wf.id, {});
             } catch (err: any) {
-                console.error('Failed to execute workflow:', err);
+                console.error('Failed to execute automation:', err);
             }
         }
     }, [selectedFingerprint]);
@@ -74,31 +74,31 @@ function Page() {
             await sc.workflow.createWorkflow(name, dir);
             setShowNewDialog(false);
         } catch (err: any) {
-            console.error('Failed to create workflow:', err);
+            console.error('Failed to create automation:', err);
         }
     }, [selectedFingerprint]);
 
     return (
         <>
             <Head>
-                <title>Workflows</title>
+                <title>Automation</title>
             </Head>
 
-            <PageBar icon={ThemedIconName.Workflows} title="Workflows">
+            <PageBar icon={ThemedIconName.Workflows} title="Automation">
                 <MenuGroup>
                     <MenuButton title="Scripting Guide" onClick={handleOpenGuide}>
                         <BookOpen size={16} />
                     </MenuButton>
-                    <MenuButton title="New Workflow" onClick={() => setShowNewDialog(true)}>
+                    <MenuButton title="New Automation" onClick={() => setShowNewDialog(true)}>
                         <Plus size={16} />
                     </MenuButton>
                 </MenuGroup>
             </PageBar>
             <PageContent>
                 {!availLoading && !workflowsAvailable ? (
-                    <PagePlaceholder title="Workflows not available" detail="This device does not support workflows." />
+                    <PagePlaceholder title="Automation not available" detail="This device does not support automation." />
                 ) : workflows.length === 0 && !isLoading ? (
-                    <PagePlaceholder title="No workflows yet" detail="Create a workflow to automate tasks on this device." />
+                    <PagePlaceholder title="No automations yet" detail="Create an automation to run tasks on this device." />
                 ) : (
                     <div className="p-4 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                             {workflows.map(wf => (
@@ -167,7 +167,7 @@ function Page() {
                 </Dialog>
                 <ConfirmModal
                     title={`Delete "${deleteWorkflow?.name}"?`}
-                    description="The script file will not be deleted."
+                    description="The automation's script file will not be deleted."
                     buttonText="Delete"
                     buttonVariant="destructive"
                     isOpen={deleteWorkflow !== null}

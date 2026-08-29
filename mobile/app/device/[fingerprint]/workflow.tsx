@@ -195,7 +195,7 @@ export default function WorkflowDetailScreen() {
         <View style={{ flex: 1 }}>
             <Stack.Screen
                 options={{
-                    title: scrolledPastHeader ? (config?.name || 'Workflow') : '',
+                    title: scrolledPastHeader ? (config?.name || 'Automation') : '',
                     headerBackButtonDisplayMode: 'minimal',
                     headerTransparent: true,
                     headerTintColor: scrolledPastHeader ? undefined : '#ffffff',
@@ -223,7 +223,7 @@ export default function WorkflowDetailScreen() {
                         </UIText>
                     )}
                     <UIText style={styles.headerName} font="bold" size="xl" numberOfLines={2}>
-                        {config?.name || 'Workflow'}
+                        {config?.name || 'Automation'}
                     </UIText>
                     {config?.description ? (
                         <UIText style={styles.headerDesc} size="sm" numberOfLines={3}>
